@@ -8,6 +8,5 @@ allow_revert_type = false
 body_line_max_length = 80
 body_min_length = 1
 required_trailers = ["Signed-off-by"]
-require_scope = false
+require_scope = true
 subject_max_length = 80
-history_baseline = "ddbf037fbfa3300ed8af46943402588e547439cc"
