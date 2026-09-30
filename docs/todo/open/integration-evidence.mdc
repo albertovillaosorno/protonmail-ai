@@ -3,7 +3,7 @@ id: integration-evidence
 priority: P2
 status: open
 dependencies:
-  - bridge-adapter
+  - direct-session-adapter
   - mcp-transport
 ---
 

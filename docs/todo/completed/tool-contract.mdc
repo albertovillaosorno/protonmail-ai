@@ -29,7 +29,8 @@ couple behavior to one implementation.
 - Defined a stable structured error vocabulary with retry classes.
 - Froze all four MCP annotation hints while keeping server authorization
   independent from those hints.
-- Documented Gmail-like compatibility and explicit Bridge deferrals.
+- Documented Gmail-like compatibility with direct-protocol evidence required
+  before capability advertisement.
 - Added a machine-readable golden JSON fixture and serialization round-trip
   test.
 

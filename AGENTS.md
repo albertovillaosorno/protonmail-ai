@@ -23,14 +23,15 @@ invent another person's sign-off.
 
 ## Non-negotiable boundaries
 
-- Never commit account credentials, Bridge credentials, cookies, access or
+- Never commit account credentials, fork handoff secrets, cookies, access or
   refresh tokens, session blobs, private keys, real messages, or attachments.
 - Never log message bodies or secret-bearing protocol payloads.
 - Keep read, draft, send, and destructive capabilities separate.
 - Default to local stdio transport and loopback-only test infrastructure.
-- Treat Proton Mail Bridge as the supported version-one authentication boundary.
-- Prefer a Proton-approved external browser/code handoff for future direct
-  login; never ship browser automation or impersonate a Proton-owned client ID.
+- Treat Proton Mail session-fork QR/manual-code login as the supported
+  version-one authentication boundary.
+- Use only the third-party `Other` child identity; never impersonate a
+  Proton-owned Mail client ID.
 - Treat environment-supplied credentials as an explicit, less-recommended
   deployment fallback; never accept them through MCP tool arguments.
 - Do not copy from `reference/` without recording the exact source, revision,

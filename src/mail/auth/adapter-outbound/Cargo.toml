@@ -1,0 +1,27 @@
+[package]
+name = "mail_auth_fork_adapter"
+description = "Proton Mail QR session-fork handoff framing"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories = ["email", "authentication"]
+
+[dependencies]
+base64 = { workspace = true }
+getrandom = { workspace = true }
+zeroize = { workspace = true }
+
+[lib]
+path = "lib.rs"
+
+[[test]]
+name = "mail-auth-fork-handoff"
+path = "../../../../tests/mail/auth/adapter-outbound/handoff.rs"
+
+[lints]
+workspace = true

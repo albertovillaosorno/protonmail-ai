@@ -22,16 +22,16 @@ user to install, configure, upgrade, and remove the server safely.
 - Define supported operating systems and architectures from evidence.
 - Build reproducible release artifacts and checksums.
 - Include license, third-party notices, and provenance manifests.
-- Document Bridge setup, secret storage, Codex configuration, and removal.
+- Document QR login, secret storage, Codex configuration, and removal.
 - Define compatibility and migration policy.
 - Gate release creation on every advertised tool succeeding through the
-  installed binary and a real MCP client on the primary visible-login path.
+  installed binary and a real MCP client on the direct session-fork path.
 
 ## Acceptance criteria
 
 - Fresh-machine installation is exercised on every claimed platform.
 - Fresh-machine evidence starts without a Rust/Node toolchain or browser
-  automation runtime. Bridge prerequisites are detected and documented
+  automation runtime or Mail Bridge. Direct-login prerequisites are exercised
   explicitly rather than hidden behind a fallback.
 - Release archives contain no credentials or local reference corpus.
 - Checksums and exact source revision are published.

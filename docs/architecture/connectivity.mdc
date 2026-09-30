@@ -2,212 +2,184 @@
 
 ## Status
 
-Revised on 2026-09-29 after reviewing Proton's current QR sign-in flow and the
-official WebClients implementation.
+Revised on 2026-09-30 after reviewing Proton's current Mail session SDK,
+WebClients desktop-fork implementation, and the official Drive SDK third-party
+login flow.
 
 ## Decision
 
-The supported version-one provider path is Proton Mail Bridge. Bridge owns
-Proton account authentication in its own official UI and exposes local
-IMAP/SMTP credentials to explicitly configured local clients.
+Version one uses Proton's direct session-fork protocol for authentication and
+Proton Mail's authenticated protocol boundary for mailbox access. Proton Mail
+Bridge is not a product dependency or fallback.
 
-`protonmail-ai` does not bundle Playwright, Chromium, or another automated
-browser runtime for account login. It does not scrape an existing browser
-profile, copy browser cookies, or impersonate a Proton web client.
+`protonmail-ai auth login` starts a target-side fork with
+`GET /auth/v4/sessions/forks`, creates a fresh 32-byte encryption key, and
+presents the Proton QR/manual-code payload to the user. An already authenticated
+Proton device approves the target session. The CLI polls the returned selector
+until Proton returns the forked session, then decrypts the fork payload locally
+and stores only the resulting revocable authority in the operating-system
+credential store.
 
-A future direct-session adapter may use an external browser, QR/manual-code
-handoff, or OAuth-style redirect only after Proton provides or approves a
-project-specific client or partner identity that can receive a session. The
-project must never reuse `web-mail`, `web-account`, or another Proton-owned
-client identifier to make an unsupported third-party flow appear official.
+The third-party child client identity is `Other`. This is intentionally not an
+official Mail client ID such as `ios-mail`, `android-mail`, or `web-mail`.
 
-## Why the decision changed
+## Why this path is accepted
 
-The earlier design used a visible Playwright-controlled browser so the user
-could complete normal Proton challenges. That kept passwords away from MCP, but
-it still made browser automation and a bundled browser runtime part of the
-security boundary.
+This is not a reverse-engineered login shortcut. Proton's current Mail Rust SDK
+contains the complete target and host QR-login state machine:
 
-Current Proton documentation describes QR/manual-code sign-in between Proton
-apps and devices. Proton's WebClients source shows the corresponding session
-fork protocol: a destination creates a short-lived fork and code, another
-already authenticated Proton client approves it, and the destination polls for
-the resulting session.
+- the target calls `auth().from_fork().with_code()`;
+- the target generates a 32-byte random encryption key;
+- the QR payload is `0:user_code:base64_key:client_id`;
+- the host encrypts the session key password for the target and pushes an
+  independent fork;
+- the target polls the fork, decrypts the payload, verifies that the user keys
+  unlock, and completes the authenticated session.
 
-That is a better interaction model than credential replay or browser
-instrumentation. However, the protocol carries a child client identifier, and
-Proton's user guidance tells users to trust QR sign-in only when it originates
-from Proton or an official Proton app. This project therefore treats the flow as
-protocol evidence, not as authorization to mint Proton-branded QR codes.
+The Mail SDK's session config derives the child client ID from its app version
+and defaults to `Other`. That default is the basis for the third-party target
+identity used here.
 
-Primary sources and pinned evidence:
+Proton's official Drive CLI independently demonstrates the same target-side
+session-fork UX for third-party software: start a fork, present a Proton Account
+handoff, poll for completion, store UID/access/refresh tokens and the encrypted
+key password, and refresh the session without replaying account credentials.
 
+Primary evidence:
+
+- `ProtonMail/clients@2ecb794dbc221384dc6d88840965ac144db301ad`,
+  `project/mail/rust/account/account-api/src/login/`
+- `ProtonMail/clients@2ecb794dbc221384dc6d88840965ac144db301ad`,
+  `project/mail/rust/api/mail-api-session/`
+- `ProtonMail/clients@2ecb794dbc221384dc6d88840965ac144db301ad`,
+  `project/mail/rust/mail/mail-common/examples/demo/cli/user/qr_login.rs`
+- `ProtonDriveApps/sdk@f28a93ceaeb787283fe287e8c18b11e4cc7aad3a`,
+  `incubating/account/js/src/auth.ts`
+- `ProtonDriveApps/sdk@f28a93ceaeb787283fe287e8c18b11e4cc7aad3a`,
+  `incubating/account/js/src/authWeb.ts`
 - `proton.me/support/qr-code-sign-in`
-- `proton.me/support/why-you-need-bridge`
-- `proton.me/support/bridge-linux-login-error`
-- `ProtonMail/proton-bridge`
-- the pinned Proton WebClients files under
-  `packages/account/signInWithAnotherDevice/`
 
-## Supported authentication path
+## User experience
 
-### Proton Mail Bridge
+The initial supported UX is QR/manual-code approval rather than password entry:
 
-For version one, Bridge is the supported way to obtain mailbox access.
+1. The CLI starts the short-lived target fork.
+2. It renders a QR code and can print the same handoff payload for deliberate
+   copy to another device.
+3. As a convenience, the CLI may open the user's normal browser to Proton
+   Account. The browser is only an origin/approval surface: the user signs in
+   there normally and uses Proton's **Sign in on another device → Enter code
+   manually** UI to submit the target payload.
+4. The user approves the login from that or any other already authenticated
+   Proton session.
+5. The CLI polls until the fork is ready or the bounded login window expires.
+6. On success, the handoff payload disappears from normal output and only the
+   account-scoped session authority remains in protected storage.
 
-- The user installs the official Bridge application.
-- The user signs in through Bridge's own UI.
-- Proton credentials and second factors never enter `protonmail-ai`.
-- `protonmail-ai` receives only Bridge-local connection credentials through an
-  approved local secret source.
-- Those Bridge credentials never cross MCP, logs, command arguments, or project
-  configuration files.
-- Bridge remains a paid-plan requirement because that is Proton's current
-  product policy.
+The handoff payload is authorization material. It is never logged, emitted over
+MCP, placed in shell arguments, written to repository files, or included in
+crash reports.
 
-The project must state this paid-plan requirement plainly in installation and
-compatibility documentation. It is no longer an implicit fallback.
+## Browser handoff
 
-## Preferred future direct handoff
+The browser can be used safely as the authenticated **origin** of the fork.
+Proton WebClients' signed-in account UI accepts the complete target QR payload
+through its **Sign in on another device → Enter code manually** form and pushes
+the independent child fork. `protonmail-ai` never reads that browser session.
 
-The preferred direct-login UX is an external handoff owned by Proton:
+A browser redirect in which the CLI itself is the **target** is a separate
+mechanism and is not faked. Proton WebClients supports `/desktop/login` for
+first-party product clients. For
+Mail, that route verifies that the child client ID matches the requested
+product.
+The third-party identity `Other` therefore cannot honestly be passed as
+`app=mail`; using `ios-mail` or another Proton-owned ID would be impersonation.
 
-1. `protonmail-ai auth login` requests an approved short-lived authorization
-   transaction using a project-specific client or partner identity.
-2. The command opens the user's default browser to a Proton-owned URL or prints
-   a Proton-approved manual code.
-3. The user authenticates or approves the new session entirely on Proton-owned
-   surfaces or an already authenticated official Proton app.
-4. Proton redirects or transfers only the revocable session material intended
-   for this project.
-5. The project stores that authority in the operating-system credential store.
+If Proton exposes a third-party Mail desktop identity such as an `external-mail`
+equivalent, the CLI may add a browser wrapper around the same session-fork
+protocol. Until then QR/manual-code approval is the direct supported handoff.
 
-The observed QR/fork protocol is a candidate mechanism only if Proton allows a
-third-party client identity for this project. Until then, this path is blocked.
+## OAuth status
 
-## Explicitly rejected authentication shortcuts
+Proton WebClients contains OAuth client and partner authorization flows, but the
+current implementation is not a general public OAuth grant for third-party Mail
+clients. OAuth sessions are product-restricted and partner flows require a
+registered partner/client context.
 
-The following are not accepted version-one solutions:
+The project therefore does not invent an OAuth client registration, embed a
+secret, or claim that generic Mail OAuth exists. If Proton publishes a public
+Mail OAuth/OIDC flow later, it can replace the presentation layer while keeping
+the same provider-neutral session and capability boundaries.
 
-- bundled Playwright, Chromium, Selenium, or equivalent login automation;
-- attaching to the user's browser debugging port;
-- copying cookies or web storage from the user's normal browser profile;
-- injecting passwords, 2FA values, CAPTCHA answers, recovery answers, or
-  security-key responses through MCP or process arguments;
-- using a Proton-owned client identifier to masquerade as an official app;
-- presenting an unofficial QR code as if Proton generated or endorsed it;
-- writing browser session state to plaintext files as a compatibility fallback.
+## Explicitly rejected paths
+
+The following are outside the supported architecture:
+
+- Proton Mail Bridge as a required runtime dependency or fallback;
+- Playwright, Chromium, Selenium, or browser-debugging login automation;
+- copying cookies or web storage from the user's browser profile;
+- collecting Proton passwords, 2FA codes, CAPTCHA answers, or recovery answers;
+- identifying as `ios-mail`, `android-mail`, `web-mail`, or another first-party
+  client merely to bypass server checks;
+- silently falling back to credential login if a fork is unavailable;
+- writing access tokens, refresh tokens, key passwords, or handoff secrets to
+  plaintext configuration files.
 
 ## Session custody
 
-The MCP boundary has no login method that accepts a password, challenge answer,
-cookie, access token, refresh token, Bridge password, or serialized browser
-state.
+The MCP boundary accepts no Proton authentication material. Login is a separate
+human CLI lifecycle.
 
-For Bridge, durable Proton session custody belongs to Bridge. This project
-stores only the minimum Bridge-local connection authority it needs, using an
-account-scoped operating-system credential store or another explicitly approved
-runtime secret source.
+Before approval, the target owns only a short-lived selector/user code and a
+fresh local 32-byte handoff key. After approval, the adapter receives the forked
+UID, access token, refresh token when provided, and encrypted fork payload. The
+payload is decrypted locally to recover the key password needed to unlock the
+user's keys.
 
-For a future approved direct handoff, only the minimum revocable session
-material returned for this project may be stored. Credential-store failure is
-fail-closed; there is no plaintext fallback.
+Durable session authority is account-scoped and stored through the approved
+operating-system credential store. Credential-store failure is fail-closed with
+no plaintext fallback. Logout removes project-owned local authority and requests
+provider-side session revocation when supported.
 
-`auth status` may expose account identity, adapter identity, and the states
-absent, valid, expired, revoked, or unavailable without exposing secret
-material. `auth logout` removes project-owned local authority and requests
-provider-side revocation when the selected adapter exposes a supported revoke
-operation.
+## Provider protocol boundary
 
-## Adapter comparison
+After authentication, Mail operations use a direct Proton adapter behind the
+provider-neutral `MailProviderPort`. The pinned Proton Mail Rust SDK, Proton
+WebClients, and protocol fixtures are implementation evidence, not a claim that
+Proton promises a stable public Mail REST API.
 
-### Proton Mail Bridge adapter
+The adapter must preserve client-side cryptographic behavior and fail closed on
+incompatible provider responses. Provider-specific request types, URLs, tokens,
+key material, and encrypted payloads never cross into MCP tool schemas.
 
-- Account requirement: a paid Proton plan according to Proton documentation.
-- Platform requirement: a supported Bridge installation and local secret store.
-- Authentication: official Bridge UI owns Proton login and challenges.
-- Mail coverage: standards-based retrieval and send are available through local
-  IMAP/SMTP; Proton-specific semantics still require contract evidence.
-- Main risk: IMAP/SMTP cannot represent every Proton concept exactly.
-- Failure: unsupported capabilities are omitted instead of approximated or
-  silently routed through another adapter.
+## Adapter selection
 
-### Approved direct-session adapter
+There is one supported Mail provider path in version one: direct Proton session
+access established by session fork.
 
-- Account requirement: a Proton account plus a Proton-approved third-party
-  client or partner identity for this project.
-- Authentication: external browser, redirect, or code handoff owned by Proton;
-  no automated browser control.
-- Mail coverage: potentially broader than Bridge if the approved session can use
-  the observed Proton protocol while preserving client-side cryptography.
-- Main risk: the provider protocol is not a public stable Mail API.
-- Failure: unavailable until the registration and handoff are explicitly
-  verified; incompatible responses fail closed.
+No request silently crosses to another transport. If direct authentication or a
+required capability is unavailable, the server returns a typed unavailable or
+compatibility error and performs no partial side effect.
 
-### Raw credential/direct API adapter
+## Capability evidence
 
-A client that performs Proton password login, SRP, 2FA, CAPTCHA, or recovery
-challenges itself remains rejected for normal use. Research implementations may
-inform protocol understanding, but they do not justify making this project a
-credential collector.
+Every advertised capability must have direct protocol fixtures and opt-in live
+evidence before MCP exposes it. The capability contract remains provider-neutral
+for search, fetch, threads, labels, drafts, send/reply/forward, reversible
+mailbox actions, attachments, and resumable mailbox changes.
 
-## Provider-neutral port and selection
+Permanent deletion remains disabled by default regardless of protocol support.
 
-The capability domain exposes `MailProviderPort` and `select_adapter`. The port
-reports an opaque adapter identifier and whether one adapter supports a public
-capability. Runtime composition supplies candidates in policy order.
+## Failure rules
 
-Selection succeeds only when one candidate can satisfy the complete required
-capability set. Two partial adapters are never merged. A request remains pinned
-to the selected adapter for its lifetime.
-
-Current local policy is:
-
-1. Use Bridge when it is explicitly configured and can satisfy the complete
-   required capability set.
-2. Use an approved direct-session adapter only after its authentication
-   prerequisite has been satisfied and the user explicitly selects it.
-3. Never use a raw credential-login adapter.
-4. If no single adapter qualifies, return a typed unavailable-capability error
-   with no partial result and no side effect.
-
-Synthetic domain tests prove that two partial adapters are not combined and
-that ordered selection requires one complete adapter.
-
-## Capability evidence map
-
-Bridge is the release path, but every advertised capability still has to pass
-the same provider-neutral contract fixtures.
-
-- Message search, fetch, attachments, mailboxes, read state, and basic movement
-  are Bridge candidates through IMAP.
-- Draft and send are Bridge candidates only where IMAP/SMTP behavior preserves
-  the frozen draft, sender-identity, threading, and idempotency contracts.
-- Conversation threading, Proton labels, sender identities, and resumable event
-  cursors are omitted unless Bridge fixtures prove equivalent semantics.
-- `delete_messages` remains disabled for every adapter.
-
-The pinned Proton WebClients and other research snapshots remain admissible
-protocol evidence. They do not turn an observed private protocol into a public
-third-party API or grant a Proton client identity.
-
-## Failure and compatibility rules
-
-- Authentication failure never triggers automated account-password replay.
-- Missing Bridge or an unsupported plan yields an explicit unavailable-adapter
-  result with setup guidance.
-- A changed provider response yields a typed compatibility error; missing fields
-  are not silently treated as empty mailbox state.
-- Rate limits, timeouts, and transient disconnects are retryable only where the
-  operation's idempotency rules allow it.
-- Ambiguous send outcomes are never retried as a fresh send without the send
-  workflow's idempotency protection.
-- Capability sets are negotiated before tool exposure.
-- Diagnostics may name an adapter, endpoint class, status category, timing, and
-  opaque identifiers, but never authentication material or decrypted content.
-
-## External deployment credentials
-
-Environment-supplied adapter secrets are never auto-discovered. A deployment
-that uses them must opt into a named credential source. Proton account passwords
-remain prohibited even in environment configuration.
+- Pending fork status is retryable only within the bounded login window.
+- Expired, rejected, malformed, or undecryptable forks fail closed.
+- Authentication failure never triggers password replay.
+- A changed Mail response yields a typed compatibility error, not empty data.
+- Rate limits and transient disconnects are retried only where operation
+  idempotency permits it.
+- Ambiguous send outcomes remain ambiguous and are never retried as a new send
+  without the send workflow's idempotency protection.
+- Diagnostics may contain endpoint class, timing, status category, and opaque
+  identifiers, but never handoff payloads, tokens, key passwords, or decrypted
+  mail content.

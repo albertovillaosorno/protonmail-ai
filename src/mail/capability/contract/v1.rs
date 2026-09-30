@@ -11,7 +11,8 @@
 // - Owns:
 //   - Versioned provider-neutral mail tool contract metadata.
 // - Must-Not:
-//   - Depend on transports, Proton, Bridge, credentials, or deployment details.
+//   - Depend on transports, Proton, authentication material, or deployment
+//     details.
 // - Allows:
 //   - Serialize stable identifiers, limits, errors, schemas, and tool hints.
 // - Split-When:

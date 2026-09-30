@@ -169,7 +169,7 @@ destination_license=GPL-3.0-only
 modifications=original-project-code
 
 [file]
-path=src/mail/bridge/bridge.jig
+path=src/mail/auth/adapter-outbound/Cargo.toml
 origin=original
 source_id=project
 source_path=-
@@ -179,7 +179,7 @@ destination_license=GPL-3.0-only
 modifications=original-project-code
 
 [file]
-path=src/mail/bridge/adapter-outbound/Cargo.toml
+path=src/mail/auth/adapter-outbound/lib.rs
 origin=original
 source_id=project
 source_path=-
@@ -189,27 +189,7 @@ destination_license=GPL-3.0-only
 modifications=original-project-code
 
 [file]
-path=src/mail/bridge/adapter-outbound/lib.rs
-origin=original
-source_id=project
-source_path=-
-source_revision=-
-source_license=-
-destination_license=GPL-3.0-only
-modifications=original-project-code
-
-[file]
-path=src/mail/bridge/function.yml
-origin=original
-source_id=project
-source_path=-
-source_revision=-
-source_license=-
-destination_license=GPL-3.0-only
-modifications=original-project-code
-
-[file]
-path=tests/mail/bridge/adapter-outbound/policy.rs
+path=tests/mail/auth/adapter-outbound/handoff.rs
 origin=original
 source_id=project
 source_path=-

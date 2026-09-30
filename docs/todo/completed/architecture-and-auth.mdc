@@ -14,35 +14,30 @@ without turning browser automation into part of the product security boundary.
 
 ## Completed work
 
-- Select official Proton Mail Bridge as the supported version-one provider path.
-- Reject bundled Playwright, Chromium, browser-profile scraping, and reuse of
-  Proton-owned client identifiers.
-- Record Proton's QR/manual-code session-fork flow as evidence for a preferred
-  future external handoff using a project-specific approved client identity.
-- Specify revocable session storage for any future direct handoff.
-- Compare Bridge, an approved direct-session adapter, and raw credential login.
-- Record account-plan requirements, platform limits, protocol coverage, and
-  failure behavior.
-- Keep environment-supplied credentials explicit and less recommended.
-- Keep direct API work behind a separate experimental boundary.
+- Select Proton Mail's direct QR/manual-code session-fork flow as the supported
+  version-one authentication path.
+- Use the third-party `Other` child identity rather than a Proton-owned Mail ID.
+- Reject Bridge, bundled Playwright/Chromium, browser-profile scraping, and raw
+  account-credential login as supported fallbacks.
+- Record the current Mail Rust SDK and Drive CLI implementations as evidence for
+  target-side fork initiation, payload framing, polling, key transfer, refresh,
+  and revocation behavior.
+- Specify account-scoped custody for revocable direct-session authority.
 - Define the provider-neutral port consumed by runtime composition.
 - Define adapter selection, capability negotiation, and failover rules without
   ever combining partial results from different adapters silently.
 
 ## Acceptance evidence
 
-- `docs/architecture/connectivity.mdc` accepts Bridge as the supported release
-  path and blocks direct-session access on approved third-party registration.
-- Authentication remains separate from MCP; raw browser state, account
-  passwords, Bridge passwords, and session blobs never cross MCP traffic.
-- The decision maps planned capabilities to Bridge evidence or explicit
-  capability omission until equivalent semantics are proven.
-- Proton's current documentation is recorded for Bridge paid-plan requirements,
-  local IMAP/SMTP behavior, generated Bridge credentials, and session
-  revocation.
-- Proton QR sign-in documentation and pinned WebClients session-fork code are
-  recorded as evidence for code-based handoff without credential replay.
-- The decision explicitly forbids impersonating Proton's official client IDs.
+- `docs/architecture/connectivity.mdc` accepts direct session-fork authority as
+  the only version-one Mail provider path.
+- Authentication remains separate from MCP; account passwords, handoff secrets,
+  access/refresh tokens, key passwords, and session blobs never cross MCP.
+- Current Proton Mail SDK source proves target and host QR-login state machines,
+  while the Drive CLI proves the same fork family is usable by third-party
+  software without password replay.
+- The decision explicitly forbids impersonating Proton's official Mail IDs and
+  documents why the current desktop browser route cannot honestly use `Other`.
 - `MailProviderPort` and `select_adapter` define the provider-neutral selection
   boundary without dynamic dispatch in the domain.
 - Synthetic tests prove that partial adapters are never silently combined and

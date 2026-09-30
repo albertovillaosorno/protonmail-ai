@@ -14,8 +14,8 @@ private messages, or attachments in the initial report.
 ## Credential rules
 
 - Proton account passwords are never accepted by the MCP process.
-- Bridge credentials must remain local and be loaded from an approved secret
-  source at runtime.
+- Session-fork handoff keys, access/refresh tokens, and key passwords must
+  remain local and use approved secret storage.
 - Secret values must be redacted structurally before diagnostics are emitted.
 - Tests use synthetic accounts and messages only.
 - Live integration tests are opt-in, isolated, and excluded from default test

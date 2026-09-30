@@ -7,56 +7,57 @@ dependencies:
   - security-model
 ---
 
-# Implement approved external authentication and session custody
+# Implement QR/manual-code session-fork authentication
 
 ## Goal
 
-Provide a passwordless handoff in which Proton-owned surfaces authenticate or
-approve the account while `protonmail-ai` receives only project-scoped revocable
-session authority.
+Make `protonmail-ai auth login` establish a direct Proton session without
+collecting account credentials or controlling a browser.
 
-## External blocker
+## Required work
 
-The observed Proton QR/session-fork protocol requires a child client identity,
-and the OAuth partner path requires a partner identity. No public registration
-path for a third-party Proton Mail client was found in current Proton
-documentation.
-
-Do not unblock this task by reusing a Proton-owned client ID, generating a QR
-that pretends to be official, scraping the user's browser, or bundling
-Playwright. Continue independent Bridge work while this prerequisite remains
-unavailable.
-
-## Required work once the prerequisite exists
-
-- Use a Proton-approved project-specific client or partner identity.
-- Prefer the user's default browser, an official Proton approval page, or an
-  approved manual-code/QR handoff.
-- Let Proton or an already authenticated official Proton app own passwords,
-  second factors, CAPTCHA, security-key prompts, and recovery challenges.
-- Store only the minimum revocable project session material in the
-  operating-system credential store under an account-scoped identity.
-- Implement `login`, `status`, `logout`, expiry detection, refresh, and account
+- Initiate `GET /auth/v4/sessions/forks` with the third-party app identity.
+- Generate a fresh 32-byte target encryption key and frame the Proton version-0
+  QR payload with child client ID `Other`.
+- Render a terminal QR and provide an explicit manual-copy form without logging
+  either representation.
+- Offer an optional system-browser helper that opens Proton Account as the
+  origin/approval surface; never inspect or automate that browser session.
+- Document Proton's signed-in **Sign in on another device → Enter code
+  manually** path for browser-based approval of the target payload.
+- Poll the fork selector with bounded delay, cancellation, and total timeout.
+- Treat the provider's pending response as pending, not as an authentication
+  failure.
+- Decrypt the returned fork payload locally and verify the recovered key
+  password
+  can unlock the fetched user keys before installing authority.
+- Store UID, access/refresh authority, and required key material only through
+  the
+  approved account-scoped credential store.
+- Implement refresh, status, logout/revocation, expiry, cancellation, and
+  account
   switching with deterministic state transitions.
-- Recover cleanly from cancellation, expiry, revocation, handoff timeout, and
-  partial credential-store writes.
 
 ## Acceptance criteria
 
-- No password, challenge value, cookie, or session blob appears in CLI output,
-  MCP frames, logs, crash reports, repository files, or process arguments.
-- Login uses an approved external Proton handoff; no automated browser runtime
-  is installed or controlled by this project.
-- The project never identifies itself using a Proton-owned official client ID.
+- No Proton password, second factor, CAPTCHA answer, cookie, token, key
+  password,
+  or handoff secret appears in MCP frames, logs, crash reports, repository
+  files,
+  or process arguments.
+- The child client identity remains third-party and never claims an official
+  Proton Mail platform identity.
+- A synthetic host fixture can approve a target fork and complete login.
+- Pending, timeout, rejection, malformed payload, bad authentication tag, key
+  unlock failure, and credential-store failure all fail closed.
 - `status` distinguishes absent, valid, expired, revoked, and unavailable
   sessions without exposing secret material.
-- `logout` removes all project-owned local authority and is safe to repeat.
-- Credential-store failure leaves no plaintext fallback file.
+- `logout` removes project-owned authority and is safe to repeat.
 
 ## Evidence
 
+- Target handoff framing and redaction tests
+- Synthetic fork API/poll/decryption tests
 - Authentication state-machine tests
-- Approved client/partner registration evidence
-- Synthetic handoff and credential-store integration tests
-- Redacted external-handoff transcript
-- Expiry, cancellation, timeout, and revocation regression tests
+- Credential-store integration tests
+- Redacted opt-in live QR-login transcript

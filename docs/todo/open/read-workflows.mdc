@@ -3,7 +3,7 @@ id: read-workflows
 priority: P1
 status: open
 dependencies:
-  - bridge-adapter
+  - direct-session-adapter
   - tool-contract
 ---
 
@@ -29,8 +29,8 @@ Ship useful read access before any mailbox mutation is enabled.
 - Search, pagination, Unicode, MIME, and malformed-message cases are tested.
 - Attachment traversal and oversized outputs fail safely.
 - Logs contain identifiers and timing only, never content.
-- The primary visible-login path passes every read workflow; Bridge is not an
-  unstated prerequisite.
+- The direct session-fork path passes every read workflow; no alternate
+  transport is an unstated prerequisite.
 
 ## Evidence
 

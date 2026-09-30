@@ -19,7 +19,8 @@ The implementation must preserve these invariants:
 
 - Proton account passwords never enter MCP requests, configuration files, logs,
   fixtures, or command output.
-- Browser session material and Bridge credentials never cross the MCP protocol.
+- Fork handoff material and direct-session authority never cross the MCP
+  protocol.
 - One authenticated account maps to one isolated local credential namespace.
 - Read authority cannot authorize mutation, sending, or deletion.
 - Reversible mutation authority cannot authorize sending or permanent deletion.
@@ -61,20 +62,23 @@ redaction, attachment bounds, and adapter capability negotiation. Compromise of
 this process can expose whatever decrypted mail and session authority is active,
 so it must keep secret lifetime and diagnostic surface small.
 
-### External Proton handoff boundary
+### Proton session-fork handoff boundary
 
-For the supported version-one path, Proton Mail Bridge owns Proton account
-login. This project does not observe the user's password, second factor,
-security-key response, CAPTCHA, or recovery answer.
+The supported version-one login is a direct target-side Proton session fork.
+The project requests a short-lived fork code, generates a local 32-byte handoff
+key, and presents the resulting QR/manual-code payload to the human user.
 
-A future direct session may be accepted only through a Proton-approved external
-handoff tied to a project-specific client or partner identity. The preferred UX
-opens a Proton-owned URL in the user's normal browser or uses an approved
-manual-code/QR transfer from an already authenticated official Proton app.
+Approval occurs in an already authenticated Proton session. Account passwords,
+second factors, CAPTCHA answers, security-key responses, and recovery answers
+therefore remain on Proton-controlled surfaces and never enter the CLI or MCP.
 
-The project never controls the browser, reads its profile, copies its cookies,
-or attaches through a debugging interface. It also never reuses a Proton-owned
-client identifier to make an unsupported flow look official.
+The child client identity is the third-party `Other` identity. The project never
+uses a Proton-owned Mail identity merely to make a browser or provider check
+succeed.
+
+The QR/manual-code value contains authorization material. It is exposed only at
+the deliberate user-facing login boundary and is structurally redacted from
+diagnostics.
 
 ### Operating-system credential store
 
@@ -82,20 +86,6 @@ The operating-system credential store is the required durable secret boundary
 for interactive local sessions. On platforms where a suitable protected store
 is unavailable or locked, authentication fails closed. There is no plaintext
 file fallback.
-
-Proton Bridge itself also depends on an operating-system keychain or compatible
-secret service to protect local state. That reinforces the same fail-closed
-policy for this project.
-
-### Proton Mail Bridge
-
-Bridge is a separately trusted local process. It receives the user's Proton
-login directly through its own UI and exposes local IMAP/SMTP credentials.
-Those generated Bridge credentials are secrets distinct from the Proton account
-password and remain outside MCP traffic.
-
-Bridge local mail data can include decrypted content. The project treats its
-IMAP/SMTP streams as sensitive plaintext even when the local transport uses TLS.
 
 ### Proton
 
@@ -118,8 +108,8 @@ must not expose remote mode.
 ### Remote MCP client
 
 A remote client receives only the service authorization needed for its tenant
-and allowed capability scopes. It receives no direct-session state, Bridge
-password, account password, private key, or refresh token.
+and allowed capability scopes. It receives no Proton session, handoff payload,
+account password, private key, access token, or refresh token.
 
 ## Credential classes and custody
 
@@ -127,28 +117,28 @@ password, account password, private key, or refresh token.
 
 These exist only between the human and Proton-owned authentication surfaces.
 The product does not persist them, replay them, log them, expose them as
-environment
-configuration, or accept them as tool arguments.
+environment configuration, or accept them as tool arguments.
 
 A security-key touch, recovery challenge, CAPTCHA, or time-based one-time code
 is an interactive action. The product must never cache a challenge answer for a
 future login attempt.
 
-### Approved direct-session authority
+### Session-fork and direct-session authority
 
-No direct-session authority is accepted until Proton provides or approves a
-project-specific external handoff. Once that prerequisite exists, only the
-minimum revocable authority returned for this project may be persisted.
+Before approval, the target owns a short-lived selector/user code and a fresh
+32-byte handoff key. The selector and handoff payload are not durable account
+credentials, but are treated as sensitive authorization material while live.
 
-Durable direct-session material is account-scoped in the operating-system
-credential store. It is never written to the repository, a project log, shell
-history, stdout, MCP response, crash report, or plaintext setup file.
+After approval, Proton returns the forked session authority and an encrypted
+payload containing the key password needed to unlock the user's keys. The
+payload is decrypted locally. The session is installed only after provider
+identity and key-unlock checks succeed.
 
-### Bridge credentials
-
-Bridge-generated IMAP/SMTP username and password pairs are adapter-local
-secrets. They may be loaded from the operating-system credential store or an
-explicitly approved runtime secret source. They never appear in tool schemas.
+Durable UID/access/refresh authority and required key material are
+account-scoped
+in the operating-system credential store. They are never written to the
+repository, project logs, shell history, MCP responses, crash reports, or
+plaintext setup files.
 
 ### Remote-service authorization tokens
 
@@ -157,7 +147,7 @@ not Proton credentials. The HTTP boundary validates issuer, intended resource,
 expiry, and required scope before a protected request reaches tool execution.
 
 Token passthrough is forbidden: a token presented to the MCP service is not
-forwarded to Proton, Bridge, another MCP server, or an unrelated resource.
+forwarded to Proton, another MCP server, or an unrelated resource.
 
 ### Private keys and decrypted mailbox content
 
@@ -229,10 +219,10 @@ operation runs.
 
 ### Login or handoff success
 
-For Bridge, success means the official Bridge installation has an authenticated
-account and this project has atomically installed only its Bridge-local
-connection authority. For a future approved direct handoff, provider identity
-is resolved before the returned project session is stored.
+A fork is accepted only after the returned payload decrypts successfully, the
+provider identity is resolved, and the recovered key password unlocks the user
+keys. The resulting session authority is then written atomically to the
+account-scoped credential store.
 
 If the durable write fails, login is not considered installed and any
 project-owned partial record is removed.
@@ -240,15 +230,14 @@ project-owned partial record is removed.
 ### Handoff cancellation or timeout
 
 No durable direct session is installed unless the external handoff and
-credential-store commit both complete. Cancellation, expiry of a short-lived
-code, browser closure, or provider timeout leaves no project session behind.
+credential-store commit both complete. Cancellation, expiry of the short-lived
+code, rejection, or provider timeout leaves no project session behind.
 
 ### Expiry
 
-A supported refresh path may replace stored direct authority only when the
-provider can prove continuity of the same account. Otherwise state becomes
-`Expired` and requires a new approved handoff. Bridge expiry remains owned by
-Bridge and is surfaced as an adapter authentication failure.
+A supported refresh path may replace stored authority only when the provider
+can prove continuity of the same account. Otherwise state becomes `Expired` and
+requires a new session-fork handoff.
 
 ### Logout
 
@@ -260,8 +249,8 @@ not as a reason to restore the local secret.
 ### Account switching
 
 Switching accounts creates or selects a different account-scoped identity. It
-never overwrites one account's session, event cursor, mailbox cache, or Bridge
-credential with another account's data.
+never overwrites one account's session, event cursor, mailbox cache, or key
+material with another account's data.
 
 A request already bound to account A cannot continue on account B if a switch
 occurs concurrently. It must fail or finish entirely under the original bound
@@ -413,7 +402,6 @@ Diagnostics do not contain:
 
 - passwords, cookies, access or refresh tokens, direct-session state, or
   private keys;
-- Bridge-generated passwords;
 - message bodies, attachment bytes, draft bodies, or decrypted protocol
   payloads;
 - recipient lists, sender addresses, subjects, or filenames unless a future
@@ -544,7 +532,7 @@ request.
 ## Security-test rules
 
 Default security tests use only synthetic identifiers and values. They require
-no network, Proton account, Bridge instance, external handoff, or credentials.
+no network, Proton account, live session fork, or credentials.
 
 The current domain tests prove:
 
@@ -562,16 +550,15 @@ protocol-error coverage before live-account testing is eligible.
 
 Primary documentation consulted for this decision:
 
-- Proton explains that Bridge needs a supported operating-system keychain and
-  cannot persist account state when one is unavailable:
-  `proton.me/support/bridge-cannot-access-keychain`.
-- Proton explains that Bridge email clients use a Bridge-generated password,
-  not the Proton account password:
-  `proton.me/support/invalid-password-error-setting-email-client`.
 - Proton documents QR/manual-code sign-in between Proton apps and devices:
   `proton.me/support/qr-code-sign-in`.
-- The pinned WebClients source documents the session-fork protocol used by that
-  sign-in flow, including a destination client identity and short-lived code.
+- Proton's current Mail Rust SDK implements target and host session-fork login,
+  including target entropy, payload decryption, user-key unlock validation, and
+  child client identity derivation.
+- Proton's official Drive CLI implements third-party browser/session-fork login
+  and protected local session persistence without password entry in the CLI.
+- The pinned WebClients source documents desktop-fork validation and shows why
+  a third-party `Other` identity must not impersonate a first-party Mail client.
 - MCP revision `2026-07-28` hardens authorization around resource and issuer
   binding. Current MCP SDK documentation also states that HTTP authorization
   does not protect `stdio`, whose trust boundary is the launching process.

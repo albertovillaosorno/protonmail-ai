@@ -28,8 +28,8 @@ binary with a narrow, inspectable authority model:
   passwords, 2FA, CAPTCHA, security-key, and recovery challenges;
 - **least privilege by construction** — read, reversible mutation, send, and
   destructive authority stay separate;
-- **provider-neutral behavior** — Bridge and any future approved direct adapter
-  must prove the same public contract instead of leaking provider quirks;
+- **provider-neutral behavior** — the direct Proton adapter must prove the same
+  public contract instead of leaking provider quirks;
 - **auditable failure modes** — opaque IDs, bounded retries, redacted secrets,
   deterministic fixtures, and explicit ambiguous outcomes.
 
@@ -38,9 +38,9 @@ binary with a narrow, inspectable authority model:
 The codebase is still pre-provider, but the dangerous decisions are not being
 left for the end:
 
-- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects official
-  Proton Mail Bridge as the supported version-one route, rejects bundled browser
-  automation, and reserves direct login for an approved external handoff;
+- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects Proton's
+  direct session-fork login with the third-party `Other` identity and rejects
+  credential replay, Bridge, and browser automation;
 - [`threat-model.mdc`](docs/security/threat-model.mdc) separates observation,
   reversible mutation, external side effects, and disabled destructive access;
 - [`tool-contract-v1.mdc`](docs/contract/tool-contract-v1.mdc) freezes a
@@ -63,27 +63,29 @@ The finished project should offer a Gmail-like tool surface for Proton Mail:
 - archive, move, label, mark, trash, and restore messages;
 - wait for mailbox changes without polling aggressively.
 
-The supported version-one provider route is Proton Mail Bridge. The official
-Bridge application owns Proton login, local decryption, and its account session;
-`protonmail-ai` receives only Bridge-local connection authority from an approved
-secret source. Bridge currently requires a paid Proton plan, and the project
-states that requirement explicitly rather than hiding it behind fallback logic.
+The supported version-one provider route is direct Proton session access.
+`protonmail-ai auth login` starts Proton's session-fork flow, generates a fresh
+short-lived QR/manual-code handoff, and waits for approval from an already
+authenticated Proton session.
 
-For a future direct adapter, the preferred UX is the one you would expect from a
-modern native app: `protonmail-ai auth login` opens a Proton-owned URL in the
-user's normal browser or prints an approved short code. Proton returns only a
-project-scoped revocable session. Proton's QR/session-fork implementation shows
-that this interaction model exists internally, but this project will not reuse
-an official Proton client ID or mint an unofficial Proton QR code. Until a
-project-specific client or partner identity is approved, direct login remains
-blocked instead of falling back to Playwright.
+As a convenience, it may open the normal Proton Account site so the browser can
+act as the origin: the user signs in there and enters the target code through
+Proton's own **Sign in on another device** UI. The CLI never reads browser state
+or receives the account password or second factor. After approval, it stores
+only the resulting revocable session and key authority required to unlock the
+mailbox locally.
+
+The child client identity is the third-party `Other` identity used by Proton's
+Mail session SDK, not a borrowed `ios-mail`, `android-mail`, or `web-mail` ID.
+A browser wrapper can be added if Proton publishes a third-party Mail desktop
+identity; until then the QR/manual-code flow is the honest direct handoff.
 
 ## Intended command surface
 
 The completed binary has one installation and several explicit modes:
 
 ```text
-protonmail-ai auth login       Approved external handoff when available
+protonmail-ai auth login       Direct QR/manual-code session fork
 protonmail-ai mail ...         Human-facing CLI operations
 protonmail-ai mcp --stdio      Local MCP server
 protonmail-ai serve ...        Explicit remote/cloud service
@@ -102,7 +104,7 @@ transport security, tenancy, secret storage, and network binding.
   annotations.
 - No Playwright, bundled Chromium, browser-profile scraping, or official-client
   impersonation is accepted as a login mechanism.
-- Account passwords, Bridge passwords, session material, message bodies, and
+- Account passwords, handoff secrets, session material, message bodies, and
   attachments must never appear in logs or repository fixtures.
 - Secrets belong in an operating-system credential store or an explicitly
   approved runtime secret source, never in repository configuration.
@@ -111,8 +113,8 @@ transport security, tenancy, secret storage, and network binding.
 
 ```text
 src/
-  mail/auth/domain/          Secret-free authentication session state rules.
-  mail/bridge/adapter-outbound/  Loopback and secure Bridge boundary.
+  mail/auth/adapter-outbound/  Proton session-fork handoff boundary.
+  mail/auth/domain/            Secret-free authentication session state rules.
   mail/capability/contract/  Serialized, versioned public tool contract.
   mail/capability/domain/    Provider-neutral capability and safety rules.
   mail/runtime/composition/  One binary for CLI, MCP, auth, and server modes.

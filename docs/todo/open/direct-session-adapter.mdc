@@ -10,39 +10,42 @@ dependencies:
   - tool-contract
 ---
 
-# Implement the approved direct-session Proton adapter
+# Implement the direct Proton Mail adapter
 
 ## Goal
 
-Provide an optional direct Proton adapter only after the project has an approved
-external session handoff and project-specific client identity.
+Provide the version-one Mail provider path using authority established by the
+session-fork login flow.
 
 ## Required work
 
-- Consume only session authority produced by the accepted external handoff.
-- Never automate a browser, scrape a user profile, or collect Proton passwords.
-- Detect account and server capabilities instead of assuming a plan or rollout.
-- Implement bounded timeouts, cancellation, retry policy, backoff, concurrency,
-  session refresh, and structured provider error conversion.
-- Convert messages, conversations, labels, drafts, events, and attachments into
-  provider-neutral domain types.
-- Preserve required client-side cryptography without logging decrypted content
-  or key material.
-- Fail closed when the observed protocol changes.
+- Use only session authority produced by the accepted fork lifecycle.
+- Send the third-party app-version identity expected by Proton without claiming
+  a first-party Mail client.
+- Implement bounded timeouts, cancellation, retry/backoff, refresh, pagination,
+  concurrency control, and structured provider error conversion.
+- Convert Proton messages, conversations, labels, drafts, events, and
+  attachments into provider-neutral domain types.
+- Preserve Proton's client-side cryptographic behavior needed to read and send
+  mail while minimizing plaintext/key lifetime.
+- Detect protocol incompatibility and fail closed instead of returning partial
+  or mis-threaded data.
 
 ## Acceptance criteria
 
-- A project-specific Proton client/partner identity is documented and approved.
-- Every advertised capability has a tested implementation or is omitted.
-- Provider-specific types, URLs, session tokens, and cryptographic material do
-  not cross into the capability domain or public tool schemas.
-- No browser automation runtime is part of install, login, or mail transport.
-- A gated live account can perform every capability advertised by this adapter.
+- No Bridge, automated browser, or account-password fallback exists in the
+  supported path.
+- Every advertised capability has direct protocol fixture evidence or is omitted
+  during negotiation.
+- Provider-specific URLs, tokens, encrypted payloads, and key material do not
+  cross into capability-domain or MCP schemas.
+- Refresh and remote revocation behave deterministically.
+- A gated live account can execute every capability advertised by this adapter.
 
 ## Evidence
 
-- Provider registration and handoff evidence
-- Adapter contract and protocol-fixture tests
+- Direct adapter contract and protocol-fixture tests
 - Capability-negotiation matrix
-- Session-refresh and provider-change regression tests
-- Redacted live-account adapter transcript
+- Session refresh/revocation regression tests
+- Provider-change fail-closed fixture
+- Redacted opt-in live-account transcript

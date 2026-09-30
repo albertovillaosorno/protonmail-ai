@@ -206,36 +206,29 @@ exact action grant.
 ## Compatibility with Gmail-like mail tooling
 
 Version one intentionally follows the useful cross-provider surface rather than
-Gmail-specific resource shapes.
+Gmail-specific resource shapes. Every operation is required to pass direct
+Proton protocol fixtures before it is advertised:
 
-- Search/list messages: equivalent intent; browser required; Bridge candidate
-  via IMAP.
-- Get message/attachment: equivalent intent; browser required; Bridge candidate
-  via IMAP.
-- Search/list/get threads: equivalent intent; browser required; Bridge deferred
-  until exact threading semantics are proven.
-- Mailboxes: provider-neutral folders; browser required; Bridge candidate.
-- Labels: provider-neutral label IDs; browser required; Bridge deferred unless
-  semantics match.
-- Sender identities: explicit verified IDs; browser required; Bridge deferred
-  until identity behavior is proven.
-- Draft CRUD: separate from send; browser required; Bridge deferred until draft
-  semantics prove parity.
-- Send/reply/reply-all/forward: explicit side effects; browser required; Bridge
-  candidate via SMTP plus identity/threading proof.
-- Read/unread: separate reversible tools; browser required; Bridge candidate via
-  IMAP flags.
-- Label changes: explicit add/remove; browser required; Bridge deferred unless
-  semantics match.
-- Archive/move/trash/restore: separate reversible tools; browser required;
-  Bridge candidate only with exact mailbox semantics.
-- Wait for changes: bounded resumable cursor; browser required; Bridge deferred
-  pending gap/resume proof.
-- Permanent delete: disabled for both adapters.
+- Search/list/get messages and attachments preserve provider-neutral IDs,
+  pagination, headers, and bounded payload rules.
+- Search/list/get threads require exact Proton conversation semantics rather
+  than
+  reconstructing threads heuristically.
+- Mailboxes and labels map only where Proton semantics can be represented
+  without
+  losing identity or recovery behavior.
+- Sender identities remain explicit verified IDs rather than free-form From
+  values.
+- Draft CRUD remains separate from send, reply, reply-all, and forward.
+- Read state, labels, archive, move, trash, and restore remain separate
+  reversible
+  mutations.
+- Wait-for-changes requires a bounded resumable cursor with gap detection.
+- Permanent delete remains disabled even if the provider protocol supports it.
 
-"Required" means the release adapter must prove this behavior
-before the tool is advertised. "Candidate" is not support: the Bridge adapter
-task must pass the same provider-neutral fixtures before advertising it.
+"Required" means the direct release adapter must prove the behavior before MCP
+advertises the corresponding tool. Unsupported semantics are omitted rather than
+approximated through a second transport.
 
 ## Versioning
 

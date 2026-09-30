@@ -6,6 +6,7 @@ identity:
 architecture:
   route: src/<domain>/<function>/<kind>/<part>
   kinds:
+    - adapter-outbound
     - domain
 capabilities:
   - rust

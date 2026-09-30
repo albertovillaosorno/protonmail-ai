@@ -15,26 +15,19 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P1 — Working local mail path
 
-### TODO - Implement approved external authentication and session custody
+### TODO - Implement QR/manual-code session-fork authentication
 
-Use a Proton-approved browser/code handoff with a project-specific client
-identity; never automate login or collect account credentials.
+Use Proton's direct session-fork flow with the third-party `Other` identity;
+never automate login or collect account credentials.
 
 [interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
 
-### TODO - Implement the approved direct-session Proton adapter
+### TODO - Implement the direct-session Proton adapter
 
-Add direct protocol access only after Proton provides or approves a
-project-specific external session handoff.
+Use the fork-established Proton session for direct Mail protocol access with
+provider-neutral capability and cryptographic boundaries.
 
 [direct-session-adapter](docs/todo/open/direct-session-adapter.mdc)
-
-### TODO - Implement the Proton Mail Bridge adapter
-
-Build the local IMAP/SMTP adapter with TLS policy, credential isolation,
-timeouts, bounded concurrency, and provider-neutral conversion.
-
-[bridge-adapter](docs/todo/open/bridge-adapter.mdc)
 
 ### TODO - Implement read-only mailbox workflows
 
