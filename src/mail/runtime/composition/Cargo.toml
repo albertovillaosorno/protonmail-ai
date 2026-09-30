@@ -15,6 +15,10 @@ categories = ["command-line-utilities", "email"]
 name = "protonmail-ai"
 path = "main.rs"
 
+[[test]]
+name = "repository-provenance"
+path = "../../../../tests/mail/runtime/composition/provenance.rs"
+
 [dependencies]
 mail_capability_domain = { path = "../../capability/domain" }
 

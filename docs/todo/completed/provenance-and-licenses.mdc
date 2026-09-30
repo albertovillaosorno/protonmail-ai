@@ -1,0 +1,36 @@
+---
+id: provenance-and-licenses
+priority: P0
+status: completed
+dependencies: []
+---
+
+# Pin provenance and license evidence
+
+## Goal
+
+Make every external influence auditable before adapting implementation code.
+
+## Completed work
+
+- Pinned every accepted research source to a full immutable Git commit.
+- Compared every retained upstream file with its pinned GitHub tree using Git
+  blob identifiers without creating another checkout or archive.
+- Added machine-readable source and governed-file provenance manifests.
+- Classified protocol facts separately from copied or modified expression.
+- Defined the license and attribution evidence required before adapted code can
+  enter the distributed product.
+- Added a repository test that rejects missing, duplicate, or incomplete
+  provenance records and unlicensed adapted sources.
+
+## Acceptance evidence
+
+- All 19,658 retained upstream files matched their pinned Git blob identifiers.
+- The local-only `robotben` MIT license receipt is explicitly excluded from the
+  upstream match and documented in `THIRD_PARTY_NOTICES.md`.
+- `docs/provenance/sources.txt` records immutable revisions and verification
+  metadata for all nine accepted references.
+- `docs/provenance/files.txt` classifies every governed file in `src/` and
+  `tests/` exactly once.
+- `cargo test -p mail_runtime --test repository-provenance` completed cleanly.
+- Targeted Clippy and `jig check --root .` completed cleanly.

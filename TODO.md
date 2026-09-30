@@ -20,13 +20,6 @@ direct API boundary behind one provider-neutral mail contract.
 
 [architecture-and-auth](docs/todo/open/architecture-and-auth.mdc)
 
-### TODO - Pin provenance and license evidence
-
-Capture immutable revisions and file-level origin rules for every admissible
-reference before external code is adapted.
-
-[provenance-and-licenses](docs/todo/open/provenance-and-licenses.mdc)
-
 ### TODO - Complete the credential and side-effect threat model
 
 Define secret storage, redaction, trust boundaries, failure modes, confirmation
