@@ -101,8 +101,7 @@ Managed automation uses `.automation-lease` in the project data directory,
 mode `0600`, with only PID/start-time metadata. Active owners are rejected;
 dead owners are reclaimed only if the lease's inode/device still match the
 inspected stale file. Replaced, malformed, symlinked, or non-regular lease paths
-are not
-silently removed.
+are not silently removed.
 
 Authenticated Mail state is bound to HTTPS `mail.proton.me`, not just visual
 shape. `account.proton.me` is accepted only as human-owned login/challenge
@@ -116,8 +115,20 @@ I/O timeouts/event count, and parsed as untrusted JSON.
 
 Origin revalidation evaluates only browser `location.protocol`, `hostname`, and
 `port` inside the selected target. The adapter does not use that mechanism to
-read DOM content, cookies, web storage, messages, or authentication fields.
-Metadata/context disagreement is a typed fail-closed origin-drift state.
+read cookies, web storage, messages, or authentication fields. Metadata/context
+disagreement is a typed fail-closed origin-drift state.
+
+Shell readiness then reads only the DOM root identity and queries Chromium AX by
+four structural roles. The adapter never asks for the full accessibility tree
+and discards accessible names/values. Missing navigation/search, ignored role
+matches, malformed AX output, or any visible `dialog`/`alertdialog` prevents the
+mailbox precondition from succeeding. This deliberately treats even a benign
+open dialog as a blocker rather than interacting through an ambiguous overlay.
+
+Readiness evidence is a point-in-time observation, never a durable grant. Future
+mailbox workflows must revalidate origin and required page state after attaching
+the target used for that operation; they cannot rely on an earlier shell check
+after navigation or detach/reattach.
 
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,

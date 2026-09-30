@@ -88,6 +88,30 @@ web application without requiring Bridge or a third-party direct API identity.
 - An opt-in smoke with installed Chrome uses only a synthetic profile and proves
   the real FD3/FD4 handshake, target discovery, bounded origin probe, and clean
   `Browser.close` lifecycle without account data.
-- Still required: semantic Mail-shell extraction, all mailbox workflows,
-  selector-drift fixtures tied to those semantics, and the separately opted-in
+- `MailShellEvidence` now implements the first semantic page-state extraction.
+  After origin revalidation, the driver queries only AX roles `navigation`,
+  `search`, `dialog`, and `alertdialog`; it never fetches the full AX tree or
+  retains accessible names. `require_mail_shell` fails closed unless navigation
+  and search are unignored and no dialog role is visible; it is a snapshot, not
+  an action grant, so workflows must revalidate in their own target session.
+- Chromium marks its Accessibility CDP domain experimental. `queryAXTree`
+  failure is therefore a typed compatibility failure, never a silent selector
+  fallback; installed-Chrome/live acceptance must exercise this boundary.
+- Eight synthetic shell tests cover ready state, ignored landmarks, dialog and
+  alert-dialog blockers, malformed AX output, Account rejection, origin drift
+  before and after AX queries,
+  and the typed `MailShellNotReady` workflow precondition.
+- The pinned WebClients Lumo `open_folder`/`search` handlers are useful semantic
+  evidence but are internal: `LumoMailProvider` assembles them from React hooks,
+  Redux/store state, router history, and `MailToolDeps`. The web adapter will
+  not inject against those private internals; read workflows must use an
+  externally
+  observable browser boundary and preserve the same settle/coverage semantics.
+- The rendered list alone is not sufficient emptiness evidence: WebClients uses
+  loading rows in the same list layout, while its internal navigation reads wait
+  on loading/context-total state and Encrypted Search completion. External reads
+  therefore must prove an observable settle/coverage signal; zero visible rows
+  may never be reported as an empty mailbox by itself.
+- Still required: composer semantic extraction, mailbox read/mutation workflows,
+  control-level selector/page-shape drift fixtures, and the separately opted-in
   Free-account acceptance transcript.

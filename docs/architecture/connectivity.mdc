@@ -53,11 +53,49 @@ unsolicited events while waiting for a response.
 Signed-in readiness is origin-bound. Discovery accepts exactly one Proton
 Mail/Account page and then re-checks its execution context using only
 `location.protocol`, `location.hostname`, and `location.port`. Target metadata
-and live context must agree. HTTPS `mail.proton.me` may proceed toward Mail
-shell
-verification; `account.proton.me` remains human-owned login/challenge state.
+and live context must agree. `account.proton.me` remains human-owned
+login/challenge state.
 
-Foreign/spoofed hosts, non-default ports, and origin drift fail closed.
+For HTTPS `mail.proton.me`, shell inspection obtains only the DOM root identity
+and issues role-filtered accessibility queries for `navigation`, `search`,
+`dialog`, and `alertdialog`. It does not request the full accessibility tree or
+retain accessible names. Navigation and search must both have an unignored AX
+node, while either dialog role blocks readiness. `require_mail_shell` turns
+missing or blocked shell evidence into a typed fail-closed snapshot.
+
+That snapshot is not an action grant. A mailbox workflow must attach and repeat
+its origin/page-state validation in the execution path that reads content or
+creates a side effect, so navigation after inspection cannot authorize stale
+state.
+
+The pinned WebClients source supports those structural facts: Mail renders its
+sidebar with `SidebarNav`, whose shared component is a `nav` landmark, and its
+search wrapper declares `role="search"`. No localized label is part of the
+adapter contract. Foreign/spoofed hosts, non-default ports, malformed AX
+responses, and origin drift fail closed.
+
+Chromium currently marks the Accessibility CDP domain as experimental, so
+`queryAXTree` is a compatibility boundary rather than a permanent API promise.
+A missing or changed command must surface as protocol incompatibility and
+disable
+Mail readiness; the adapter never falls back silently to CSS selectors or a
+full-tree scrape. Installed-Chrome smoke and live acceptance therefore cover
+this
+boundary for supported releases.
+
+The pinned WebClients tree also contains internal Lumo Mail read handlers such
+as `open_folder` and `search`. Those handlers are built inside
+`LumoMailProvider` from React hooks, Redux/store access, router history, and
+other `MailToolDeps`; the snapshot does not declare them as a supported
+browser-global integration surface. protonmail-ai therefore treats them as a
+semantic research oracle only and does not reach into private React/Redux state
+through CDP.
+
+That oracle also shows why visible row count is insufficient as completion
+evidence: its navigation reads wait for loading state, a context total, and
+Encrypted Search completion before projecting rows. The external adapter must
+find an observable equivalent before implementing mailbox reads; an empty
+rendered list alone never proves the mailbox/view is empty.
 
 Pinned WebClients evidence also provides a lower-risk compose handoff before the
 full web adapter exists. Mail registers a `mailto:` protocol handler using the

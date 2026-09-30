@@ -38,6 +38,7 @@ mod driver;
 mod lease;
 mod policy;
 mod profile;
+mod shell;
 
 pub use driver::ProviderPage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
@@ -46,3 +47,4 @@ pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};
 pub use policy::{UiEvidence, UiGateError, UiTarget, WebSurface};
 pub use profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
+pub use shell::MailShellEvidence;

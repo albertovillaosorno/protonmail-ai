@@ -99,8 +99,7 @@ This command currently launches the safe login surface only. Managed automation
 uses a separate exclusive lease and refuses to start while Chromium's
 `SingletonLock` identifies a live local Chrome-family process or foreign host.
 The project never deletes Chromium's singleton lock. Its own lease contains only
-a
-PID and Linux process start-time tick value, so it carries no account/session
+a PID and Linux process start-time tick value, so it carries no account/session
 material and can safely recover a dead owner.
 
 Managed automation now launches the same dedicated profile with Chromium's
@@ -110,10 +109,18 @@ timed out, and provider discovery accepts exactly one Proton Mail/Account page.
 
 The driver re-checks that page from its execution context by evaluating only
 `location.protocol`, `location.hostname`, and `location.port`; it never requests
-DOM, storage, cookie, message, or authentication values for this check. A
+storage, cookies, message data, or authentication values for this check. A
 redirect between discovery and verification becomes typed origin drift and
-fails closed. Mail-shell semantic extraction and real mailbox workflows remain
-unfinished in `web-ui-adapter`.
+fails closed.
+
+Mail-shell readiness is now translation independent. After the origin check,
+the driver reads the DOM root identity and asks Chromium accessibility for only
+four roles: `navigation`, `search`, `dialog`, and `alertdialog`. It does not
+request the full accessibility tree or use accessible names. Navigation and
+search must both be visible, while either dialog role blocks readiness.
+
+Composer detection and real mailbox workflows remain unfinished in
+`web-ui-adapter`.
 
 ## Available now: prefilled web composer
 

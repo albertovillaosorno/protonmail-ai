@@ -45,6 +45,7 @@ use serde_json::{Value, json};
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
+use crate::shell::MailShellEvidence;
 
 const MAIL_URL: &str = "https://mail.proton.me/";
 const LOCATION_EXPRESSION: &str = concat!(
@@ -258,8 +259,109 @@ impl ManagedBrowser {
         Ok(location_origin(protocol, hostname, port))
     }
 
+    fn query_ax_role(
+        &mut self,
+        session: &str,
+        node_id: u64,
+        role: &str,
+    ) -> Result<Value, BrowserDriverError> {
+        self.call_in_session(
+            session,
+            "Accessibility.queryAXTree",
+            &json!({"nodeId": node_id, "role": role}),
+        )
+    }
+
     fn detach(&mut self, session: &str) -> Result<(), BrowserDriverError> {
         self.call("Target.detachFromTarget", &json!({"sessionId": session}))?;
+        Ok(())
+    }
+
+    /// Reads translation-free structural evidence from the Proton Mail AX tree.
+    ///
+    /// Accessible names and values are intentionally discarded. The result
+    /// contains only navigation/search presence and dialog-blocker state.
+    ///
+    /// # Errors
+    ///
+    /// Fails before AX inspection for non-Mail origins, origin drift, malformed
+    /// protocol output, or a failed target detach.
+    pub fn inspect_mail_shell(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailShellEvidence, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let inspected = self.inspect_mail_shell_in_session(page, &session);
+        let detached = self.detach(&session);
+        let evidence = inspected?;
+        detached?;
+        Ok(evidence)
+    }
+
+    /// Requires a ready Mail-shell snapshot at the time of inspection.
+    ///
+    /// This is not a durable action grant. A later mailbox workflow must
+    /// re-attach and revalidate origin and required page state in its own
+    /// execution path before reading content or creating a side effect.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying inspection error or `MailShellNotReady` when
+    /// required structural landmarks are absent or a dialog blocker is visible.
+    pub fn require_mail_shell(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailShellEvidence, BrowserDriverError> {
+        let evidence = self.inspect_mail_shell(page)?;
+        if !evidence.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        Ok(evidence)
+    }
+
+    fn inspect_mail_shell_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<MailShellEvidence, BrowserDriverError> {
+        self.ensure_page_origin(page, session)?;
+        let root = self.call_in_session(
+            session,
+            "DOM.getDocument",
+            &json!({"depth": 0i32, "pierce": false}),
+        )?;
+        let node_id = root
+            .get("root")
+            .and_then(|node| node.get("nodeId"))
+            .and_then(Value::as_u64)
+            .ok_or(BrowserDriverError::Protocol)?;
+        let navigation = self.query_ax_role(session, node_id, "navigation")?;
+        let search = self.query_ax_role(session, node_id, "search")?;
+        let dialog = self.query_ax_role(session, node_id, "dialog")?;
+        let alertdialog = self.query_ax_role(session, node_id, "alertdialog")?;
+        let evidence =
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailShellEvidence::from_role_queries(&navigation, &search, &dialog, &alertdialog)
+                .map_err(|_error| BrowserDriverError::Protocol)?;
+        self.ensure_page_origin(page, session)?;
+        Ok(evidence)
+    }
+
+    fn ensure_page_origin(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<(), BrowserDriverError> {
+        let observed = self.runtime_origin(session)?;
+        if observed != page.origin {
+            return Err(BrowserDriverError::OriginDrift {
+                expected: page.origin,
+                observed,
+            });
+        }
         Ok(())
     }
 
@@ -395,6 +497,10 @@ pub enum BrowserDriverError {
     BrowserLaunch,
     /// No Proton Account/Mail page is visible.
     MissingProviderPage,
+    /// Mail-shell inspection was requested for a non-Mail provider page.
+    MailOriginRequired,
+    /// Required Mail-shell landmarks are missing or blocked by a dialog.
+    MailShellNotReady,
     /// Target metadata and live execution-context origin disagree.
     OriginDrift {
         /// Origin reported by browser target metadata.
@@ -422,6 +528,10 @@ impl fmt::Display for BrowserDriverError {
             Self::BrowserLaunch => f.write_str("cannot launch managed browser"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MissingProviderPage => f.write_str("provider page is missing"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailOriginRequired => f.write_str("Proton Mail origin is required"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailShellNotReady => f.write_str("Proton Mail shell is not ready"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::OriginDrift { .. } => f.write_str("provider page origin changed"),
             Self::PipeIo => f.write_str("`DevTools` pipe I/O failed"),
