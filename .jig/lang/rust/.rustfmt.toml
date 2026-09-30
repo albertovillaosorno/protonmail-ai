@@ -1,6 +1,6 @@
-# Exact rustfmt contract for this repository's pinned nightly toolchain.
+# Exact rustfmt contract for Jig's pinned nightly construction toolchain.
 # The stable Rust compatibility gate is separate from this formatting gate.
-required_version = "1.10.0"
+required_version = "1.9.0"
 unstable_features = true
 edition = "2024"
 style_edition = "2024"
