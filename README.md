@@ -91,10 +91,16 @@ respective owners.
 
 ## License
 
-Due to mandatory licensing constraints imposed by incorporating code from
-Proton's `WebClients` repository, `protonmail-ai` is forced to be licensed
-under GPL-3.0-only.
+`protonmail-ai` is currently licensed under GPL-3.0-only out of legal necessity
+due to incorporating material from Proton's `WebClients` repository.
 
-This GPL adoption is purely a legal requirement rather than an architectural
-preference. Third-party material retains its original license and
-attribution.
+This choice is purely regulatory, not ideological. Like Linux, this project is
+built to be executed and used: for end users, the license changes nothing and
+usage remains entirely free. Code reuse is restricted under GPL terms, but
+the source code itself is secondary to the functional tool.
+
+Rather than pretending to perform a clean-room implementation, `WebClients` code
+was retained for now. If future development proves that dependency completely
+unnecessary, the project will be re-licensed under MIT.
+
+Third-party material retains its original license and attribution.
