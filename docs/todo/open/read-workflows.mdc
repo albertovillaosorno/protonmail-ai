@@ -3,7 +3,7 @@ id: read-workflows
 priority: P1
 status: open
 dependencies:
-  - browser-session-adapter
+  - bridge-adapter
   - tool-contract
 ---
 

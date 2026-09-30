@@ -233,7 +233,7 @@ Gmail-specific resource shapes.
   pending gap/resume proof.
 - Permanent delete: disabled for both adapters.
 
-"Required" means the primary browser-session adapter must prove this behavior
+"Required" means the release adapter must prove this behavior
 before the tool is advertised. "Candidate" is not support: the Bridge adapter
 task must pass the same provider-neutral fixtures before advertising it.
 

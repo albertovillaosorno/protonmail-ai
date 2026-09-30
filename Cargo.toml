@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/mail/auth/domain",
+    "src/mail/bridge/adapter-outbound",
     "src/mail/capability/domain",
     "src/mail/runtime/composition",
 ]
@@ -20,6 +21,7 @@ keywords = ["ai-agents", "email", "local-first", "mcp", "proton-mail"]
 # Member crates inherit every dependency from this table. External versions live
 # only here and track the newest stable release supported by the workspace.
 mail_auth_domain = { path = "src/mail/auth/domain" }
+mail_bridge_adapter = { path = "src/mail/bridge/adapter-outbound" }
 mail_capability_domain = { path = "src/mail/capability/domain" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"

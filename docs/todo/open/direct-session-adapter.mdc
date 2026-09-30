@@ -1,0 +1,48 @@
+---
+id: direct-session-adapter
+priority: P1
+status: open
+dependencies:
+  - architecture-and-auth
+  - interactive-auth-and-session
+  - provenance-and-licenses
+  - security-model
+  - tool-contract
+---
+
+# Implement the approved direct-session Proton adapter
+
+## Goal
+
+Provide an optional direct Proton adapter only after the project has an approved
+external session handoff and project-specific client identity.
+
+## Required work
+
+- Consume only session authority produced by the accepted external handoff.
+- Never automate a browser, scrape a user profile, or collect Proton passwords.
+- Detect account and server capabilities instead of assuming a plan or rollout.
+- Implement bounded timeouts, cancellation, retry policy, backoff, concurrency,
+  session refresh, and structured provider error conversion.
+- Convert messages, conversations, labels, drafts, events, and attachments into
+  provider-neutral domain types.
+- Preserve required client-side cryptography without logging decrypted content
+  or key material.
+- Fail closed when the observed protocol changes.
+
+## Acceptance criteria
+
+- A project-specific Proton client/partner identity is documented and approved.
+- Every advertised capability has a tested implementation or is omitted.
+- Provider-specific types, URLs, session tokens, and cryptographic material do
+  not cross into the capability domain or public tool schemas.
+- No browser automation runtime is part of install, login, or mail transport.
+- A gated live account can perform every capability advertised by this adapter.
+
+## Evidence
+
+- Provider registration and handoff evidence
+- Adapter contract and protocol-fixture tests
+- Capability-negotiation matrix
+- Session-refresh and provider-change regression tests
+- Redacted live-account adapter transcript

@@ -3,7 +3,7 @@ id: mailbox-events
 priority: P1
 status: open
 dependencies:
-  - browser-session-adapter
+  - bridge-adapter
   - read-workflows
   - security-model
 ---

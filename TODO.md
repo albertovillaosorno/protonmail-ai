@@ -7,7 +7,7 @@ record at a time; a compiling placeholder is not completion.
 ## Completion invariant
 
 An empty TODO means the released binary has been installed from scratch,
-authenticated through Proton's visible login flow, configured in a real MCP
+authenticated through a supported provider handoff, configured in a real MCP
 client, and used against an opt-in live account for every advertised capability.
 Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
@@ -15,20 +15,19 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P1 — Working local mail path
 
-### TODO - Implement interactive authentication and session custody
+### TODO - Implement approved external authentication and session custody
 
-Open Proton's normal login flow, let the user complete all challenges, keep the
-result out of MCP traffic, and support status, expiry, refresh, and revocation.
+Use a Proton-approved browser/code handoff with a project-specific client
+identity; never automate login or collect account credentials.
 
 [interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
 
-### TODO - Implement the browser-session Proton adapter
+### TODO - Implement the approved direct-session Proton adapter
 
-Use the accepted authenticated browser boundary as the primary provider path,
-with bounded requests, typed failures, capability detection, and no DOM scraping
-where a stable authenticated protocol boundary is available.
+Add direct protocol access only after Proton provides or approves a
+project-specific external session handoff.
 
-[browser-session-adapter](docs/todo/open/browser-session-adapter.mdc)
+[direct-session-adapter](docs/todo/open/direct-session-adapter.mdc)
 
 ### TODO - Implement the Proton Mail Bridge adapter
 

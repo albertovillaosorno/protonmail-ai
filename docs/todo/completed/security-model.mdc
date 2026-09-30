@@ -38,7 +38,7 @@ revoked before real credentials are accepted.
 - `SafetyClass::authorizes` requires an exact grant for every enabled class.
 - `SecretRef` redacts both `Display` and `Debug` formatting by construction.
 - Synthetic tests prove grant separation and redaction without real account
-  data, network access, Bridge, or browser login.
+  data, network access, Bridge, or an external login handoff.
 - The model gives safe states for expiry, logout, account switching, remote
   revocation, and credential-store failure.
 - Targeted domain tests, Clippy, and Jig complete cleanly.

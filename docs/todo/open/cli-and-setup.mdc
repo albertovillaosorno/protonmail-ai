@@ -4,7 +4,6 @@ priority: P2
 status: open
 dependencies:
   - draft-and-send
-  - interactive-auth-and-session
   - mailbox-actions
   - mailbox-events
   - mcp-transport

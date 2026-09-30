@@ -3,9 +3,7 @@ id: integration-evidence
 priority: P2
 status: open
 dependencies:
-  - browser-session-adapter
   - bridge-adapter
-  - interactive-auth-and-session
   - mcp-transport
 ---
 

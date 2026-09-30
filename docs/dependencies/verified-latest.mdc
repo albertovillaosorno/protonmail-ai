@@ -1,0 +1,41 @@
+# Workspace dependency verification
+
+## Policy
+
+Every reusable Cargo dependency is declared once in root
+`[workspace.dependencies]`. Member crates inherit dependencies with
+`workspace = true`; member-local versions, Git sources, and path declarations
+are rejected by the repository provenance gate.
+
+External versions are exact stable releases. When a dependency is added or
+changed, its version must be checked against the registry and against the pinned
+Rust toolchain before commit. The deterministic test suite verifies structure
+and exact version syntax; this record carries the dated online freshness check.
+
+Internal workspace crates use root path declarations and therefore have no
+registry version to refresh.
+
+## Verified on 2026-09-29
+
+The pinned workspace toolchain is Rust 1.98.1.
+
+- `serde = =1.0.229`: `cargo search serde --limit 1` reported 1.0.229 as the
+  latest stable release. `cargo info serde@1.0.229` reports Rust 1.56 minimum.
+- `serde_json = =1.0.151`: `cargo search serde_json --limit 1` reported 1.0.151
+  as the latest stable release. `cargo info serde_json@1.0.151` reports Rust
+  1.71 minimum.
+
+Both direct external dependencies are therefore current and compatible with the
+workspace toolchain at the verification date.
+
+## Review command
+
+For each external entry, run both commands before changing the root manifest:
+
+```sh
+cargo search <crate> --limit 1
+cargo info <crate>@<exact-version>
+```
+
+Then run the full workspace tests so the offline policy gate confirms that no
+member crate bypassed the root declaration.

@@ -13,6 +13,10 @@ name = "mail_auth_domain"
 version = "0.0.0"
 
 [[package]]
+name = "mail_bridge_adapter"
+version = "0.0.0"
+
+[[package]]
 name = "mail_capability_domain"
 version = "0.0.0"
 dependencies = [

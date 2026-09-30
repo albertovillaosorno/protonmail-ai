@@ -7,49 +7,56 @@ dependencies:
   - security-model
 ---
 
-# Implement interactive authentication and session custody
+# Implement approved external authentication and session custody
 
 ## Goal
 
-Make `protonmail-ai auth login` use Proton's ordinary visible login flow while
-the user retains control of passwords, 2FA, CAPTCHA, security-key prompts, and
-session revocation.
+Provide a passwordless handoff in which Proton-owned surfaces authenticate or
+approve the account while `protonmail-ai` receives only project-scoped revocable
+session authority.
 
-## Required work
+## External blocker
 
-- Launch and supervise the accepted maintained Playwright boundary without
-  replaying credentials or injecting them from MCP arguments.
-- Pin and provision any required browser driver/runtime through the product
-  installer with integrity and license checks; do not assume Node, Playwright,
-  or a compatible browser is already installed.
-- Let the user complete login challenges in the visible browser.
-- Store only the minimum revocable session material in the operating-system
-  credential store under an account-scoped identity.
+The observed Proton QR/session-fork protocol requires a child client identity,
+and the OAuth partner path requires a partner identity. No public registration
+path for a third-party Proton Mail client was found in current Proton
+documentation.
+
+Do not unblock this task by reusing a Proton-owned client ID, generating a QR
+that pretends to be official, scraping the user's browser, or bundling
+Playwright. Continue independent Bridge work while this prerequisite remains
+unavailable.
+
+## Required work once the prerequisite exists
+
+- Use a Proton-approved project-specific client or partner identity.
+- Prefer the user's default browser, an official Proton approval page, or an
+  approved manual-code/QR handoff.
+- Let Proton or an already authenticated official Proton app own passwords,
+  second factors, CAPTCHA, security-key prompts, and recovery challenges.
+- Store only the minimum revocable project session material in the
+  operating-system credential store under an account-scoped identity.
 - Implement `login`, `status`, `logout`, expiry detection, refresh, and account
   switching with deterministic state transitions.
-- Define an explicit, less-recommended non-interactive secret source for remote
-  deployments without accepting raw account credentials through MCP.
-- Recover cleanly from cancelled login, expired sessions, revoked sessions,
-  browser crashes, and partial credential-store writes.
+- Recover cleanly from cancellation, expiry, revocation, handoff timeout, and
+  partial credential-store writes.
 
 ## Acceptance criteria
 
-- A password, 2FA value, CAPTCHA answer, cookie, or session blob never appears
-  in CLI output, MCP frames, logs, crash reports, repository files, or process
-  arguments.
-- Login works with the normal visible Proton flow and waits for the user instead
-  of bypassing or automating challenges.
-- `status` distinguishes absent, valid, expired, and revoked sessions without
-  exposing secret material.
-- `logout` revokes or removes all project-owned local authority and is safe to
-  repeat.
-- Credential-store and browser failure paths leave no plaintext fallback file.
-- A fresh supported machine can complete login without separately installing a
-  development toolchain or manually locating a browser driver.
+- No password, challenge value, cookie, or session blob appears in CLI output,
+  MCP frames, logs, crash reports, repository files, or process arguments.
+- Login uses an approved external Proton handoff; no automated browser runtime
+  is installed or controlled by this project.
+- The project never identifies itself using a Proton-owned official client ID.
+- `status` distinguishes absent, valid, expired, revoked, and unavailable
+  sessions without exposing secret material.
+- `logout` removes all project-owned local authority and is safe to repeat.
+- Credential-store failure leaves no plaintext fallback file.
 
 ## Evidence
 
 - Authentication state-machine tests
-- Operating-system credential-store integration tests
-- Visible-login transcript with all secret values redacted
-- Expiry, cancellation, crash, and revocation regression tests
+- Approved client/partner registration evidence
+- Synthetic handoff and credential-store integration tests
+- Redacted external-handoff transcript
+- Expiry, cancellation, timeout, and revocation regression tests

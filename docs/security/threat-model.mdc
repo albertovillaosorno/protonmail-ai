@@ -61,15 +61,20 @@ redaction, attachment bounds, and adapter capability negotiation. Compromise of
 this process can expose whatever decrypted mail and session authority is active,
 so it must keep secret lifetime and diagnostic surface small.
 
-### Visible browser and Playwright boundary
+### External Proton handoff boundary
 
-The browser is trusted only to run the ordinary Proton login flow and maintain
-the authenticated session boundary accepted in the connectivity decision.
+For the supported version-one path, Proton Mail Bridge owns Proton account
+login. This project does not observe the user's password, second factor,
+security-key response, CAPTCHA, or recovery answer.
 
-Playwright-authenticated browser state can impersonate the signed-in account and
-is therefore secret. Durable plaintext `storageState` files are prohibited.
-Browser automation may observe login completion and transfer only the minimum
-accepted session authority to the approved credential store.
+A future direct session may be accepted only through a Proton-approved external
+handoff tied to a project-specific client or partner identity. The preferred UX
+opens a Proton-owned URL in the user's normal browser or uses an approved
+manual-code/QR transfer from an already authenticated official Proton app.
+
+The project never controls the browser, reads its profile, copies its cookies,
+or attaches through a debugging interface. It also never reuses a Proton-owned
+client identifier to make an unsupported flow look official.
 
 ### Operating-system credential store
 
@@ -113,32 +118,31 @@ must not expose remote mode.
 ### Remote MCP client
 
 A remote client receives only the service authorization needed for its tenant
-and allowed capability scopes. It receives no Proton browser state, Bridge
+and allowed capability scopes. It receives no direct-session state, Bridge
 password, account password, private key, or refresh token.
 
 ## Credential classes and custody
 
 ### Proton account password and second factors
 
-These exist only between the human and Proton's visible login surface. The
-product does not persist them, replay them, log them, expose them as environment
+These exist only between the human and Proton-owned authentication surfaces.
+The product does not persist them, replay them, log them, expose them as
+environment
 configuration, or accept them as tool arguments.
 
 A security-key touch, recovery challenge, CAPTCHA, or time-based one-time code
-is
-an interactive action. The product must never cache a challenge answer for a
+is an interactive action. The product must never cache a challenge answer for a
 future login attempt.
 
-### Browser session authority
+### Approved direct-session authority
 
-The accepted browser adapter may persist only the minimum revocable authority
-required to re-establish the authenticated session. The exact fields remain an
-implementation detail of the authentication task and must be reviewed before
-storage.
+No direct-session authority is accepted until Proton provides or approves a
+project-specific external handoff. Once that prerequisite exists, only the
+minimum revocable authority returned for this project may be persisted.
 
-Durable session material is account-scoped in the operating-system credential
-store. It is never written to the repository, a project log, shell history,
-stdout, MCP response, crash report, or plaintext setup file.
+Durable direct-session material is account-scoped in the operating-system
+credential store. It is never written to the repository, a project log, shell
+history, stdout, MCP response, crash report, or plaintext setup file.
 
 ### Bridge credentials
 
@@ -223,24 +227,28 @@ operation runs.
 
 ## Session transitions and recovery
 
-### Login success
+### Login or handoff success
 
-Visible login completes, provider identity is resolved, and the accepted
-session material is written atomically to the account-scoped credential store.
-If the durable write fails, the login is not considered installed and any
+For Bridge, success means the official Bridge installation has an authenticated
+account and this project has atomically installed only its Bridge-local
+connection authority. For a future approved direct handoff, provider identity
+is resolved before the returned project session is stored.
+
+If the durable write fails, login is not considered installed and any
 project-owned partial record is removed.
 
-### Login browser crash or cancellation
+### Handoff cancellation or timeout
 
-No durable session is installed unless the full login and credential-store
-commit completed. A partially authenticated browser is closed and its temporary
-state is discarded.
+No durable direct session is installed unless the external handoff and
+credential-store commit both complete. Cancellation, expiry of a short-lived
+code, browser closure, or provider timeout leaves no project session behind.
 
 ### Expiry
 
-A supported refresh path may replace the stored authority only when the provider
-can prove continuity of the same account. Otherwise state becomes `Expired` and
-requires visible login.
+A supported refresh path may replace stored direct authority only when the
+provider can prove continuity of the same account. Otherwise state becomes
+`Expired` and requires a new approved handoff. Bridge expiry remains owned by
+Bridge and is surfaced as an adapter authentication failure.
 
 ### Logout
 
@@ -403,13 +411,14 @@ Permitted fields are limited to values such as:
 
 Diagnostics do not contain:
 
-- passwords, cookies, access or refresh tokens, browser state, or private keys;
+- passwords, cookies, access or refresh tokens, direct-session state, or
+  private keys;
 - Bridge-generated passwords;
 - message bodies, attachment bytes, draft bodies, or decrypted protocol
   payloads;
 - recipient lists, sender addresses, subjects, or filenames unless a future
   reviewed diagnostic contract proves a safe need;
-- raw HTTP, IMAP, SMTP, or browser payload dumps.
+- raw HTTP, IMAP, SMTP, or external-handoff payload dumps.
 
 Values explicitly typed as secrets use the structural redaction wrapper before
 they can be formatted. Free-form provider error text is not automatically safe
@@ -535,7 +544,7 @@ request.
 ## Security-test rules
 
 Default security tests use only synthetic identifiers and values. They require
-no network, Proton account, Bridge instance, browser login, or credentials.
+no network, Proton account, Bridge instance, external handoff, or credentials.
 
 The current domain tests prove:
 
@@ -559,8 +568,10 @@ Primary documentation consulted for this decision:
 - Proton explains that Bridge email clients use a Bridge-generated password,
   not the Proton account password:
   `proton.me/support/invalid-password-error-setting-email-client`.
-- Playwright warns that stored browser authentication state can impersonate the
-  signed-in account: `playwright.dev/docs/auth`.
+- Proton documents QR/manual-code sign-in between Proton apps and devices:
+  `proton.me/support/qr-code-sign-in`.
+- The pinned WebClients source documents the session-fork protocol used by that
+  sign-in flow, including a destination client identity and short-lived code.
 - MCP revision `2026-07-28` hardens authorization around resource and issuer
   binding. Current MCP SDK documentation also states that HTTP authorization
   does not protect `stdio`, whose trust boundary is the launching process.

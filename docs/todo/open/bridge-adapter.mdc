@@ -13,13 +13,14 @@ dependencies:
 
 ## Goal
 
-Provide an optional local adapter for users who explicitly select Proton Mail
-Bridge, without leaking Bridge credentials or provider details into the core
-contract.
+Provide the supported version-one local adapter through Proton Mail Bridge
+without leaking Bridge credentials or provider details into the core contract.
 
 ## Required work
 
-- Load credentials from an approved runtime secret source.
+- Detect and connect to an explicitly configured official Bridge installation.
+- Let Bridge own Proton account login; never request the Proton password.
+- Load Bridge-local credentials from an approved runtime secret source.
 - Validate loopback endpoints and TLS expectations explicitly.
 - Implement bounded connection pools, timeouts, cancellation, and reconnects.
 - Convert provider messages and mailboxes into core domain types.

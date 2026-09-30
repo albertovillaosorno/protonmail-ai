@@ -28,18 +28,21 @@ invent another person's sign-off.
 - Never log message bodies or secret-bearing protocol payloads.
 - Keep read, draft, send, and destructive capabilities separate.
 - Default to local stdio transport and loopback-only test infrastructure.
-- Treat interactive visible-browser login as the primary authentication UX.
+- Treat Proton Mail Bridge as the supported version-one authentication boundary.
+- Prefer a Proton-approved external browser/code handoff for future direct
+  login; never ship browser automation or impersonate a Proton-owned client ID.
 - Treat environment-supplied credentials as an explicit, less-recommended
   deployment fallback; never accept them through MCP tool arguments.
 - Do not copy from `reference/` without recording the exact source, revision,
   file-level origin, license, and modifications in `THIRD_PARTY_NOTICES.md`.
 - GPL WebClients-derived code must retain compatible licensing and attribution.
 - Test fixtures must be synthetic.
-- Avoid unaudited browser automation as an authentication shortcut.
+- Do not use Playwright, Chromium, Selenium, browser-profile scraping, or remote
+  debugging as an authentication shortcut.
 - Keep one installable `protonmail-ai` binary with explicit `auth`, `mail`,
   `mcp`, and `serve` modes; do not create separately installed products.
-- Keep browser authentication, provider access, application workflows, and
-  transports as distinct boundaries even though they ship in one binary.
+- Keep external authentication handoff, provider access, application workflows,
+  and transports as distinct boundaries even though they ship in one binary.
 - Declare every reusable Cargo dependency in root `[workspace.dependencies]`;
   member crates must inherit it with `workspace = true`.
 - When a workspace dependency needs a version, pin the newest stable release
