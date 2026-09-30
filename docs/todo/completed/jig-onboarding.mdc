@@ -20,6 +20,7 @@ removing Chassis-specific product claims.
 - Declared canonical capability and runtime functions.
 - Routed Cargo output to `.cache/cargo-target`.
 - Installed the Jig-owned commit-message integration.
+- Required Conventional Commit messages with exact DCO sign-off trailers.
 - Isolated the ignored local reference corpus from product-language evidence.
 
 ## Acceptance evidence

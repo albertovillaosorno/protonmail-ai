@@ -14,6 +14,10 @@ editing. This repository begins as a scaffold, not as a working mail client.
    remove it from `TODO.md` only when every criterion is satisfied.
 5. Do not mark a task complete because a placeholder compiles.
 
+All commits must use the configured Conventional Commit grammar and include an
+exact DCO `Signed-off-by: Name <email>` trailer. Use `git commit -s`; never
+invent another person's sign-off.
+
 ## Non-negotiable boundaries
 
 - Never commit account credentials, Bridge credentials, cookies, access or
