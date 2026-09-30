@@ -1,0 +1,47 @@
+---
+id: architecture-and-auth
+priority: P0
+status: completed
+dependencies: []
+---
+
+# Select the supported connectivity architecture
+
+## Goal
+
+Choose the adapter strategy and document why interactive browser login is safe,
+supportable, and compatible with local and remote operation.
+
+## Completed work
+
+- Specify `protonmail-ai auth login` through a visible, normal Proton browser
+  flow managed through a maintained Playwright boundary.
+- Specify revocable session storage in the operating-system credential store.
+- Compare browser-session access, Proton Mail Bridge IMAP/SMTP, and a direct
+  Proton API adapter.
+- Record account-plan requirements, platform limits, protocol coverage, and
+  failure behavior.
+- Keep environment-supplied credentials explicit and less recommended.
+- Keep direct API work behind a separate experimental boundary.
+- Define the provider-neutral port consumed by runtime composition.
+- Define adapter selection, capability negotiation, and failover rules without
+  ever combining partial results from different adapters silently.
+
+## Acceptance evidence
+
+- `docs/architecture/connectivity.mdc` accepts the browser-session adapter as
+  primary, Bridge as explicit secondary, and direct API work as experimental.
+- Authentication is a separate visible CLI lifecycle; the decision forbids raw
+  browser state, account passwords, and session blobs from MCP traffic.
+- The decision maps every planned capability to primary protocol evidence,
+  Bridge candidates, or explicit Bridge deferral.
+- Proton's current documentation is recorded for Bridge paid-plan requirements,
+  local IMAP/SMTP behavior, generated Bridge credentials, and session
+  revocation.
+- Playwright's authentication guidance is recorded as evidence that browser
+  state must be treated as impersonation-capable sensitive material.
+- `MailProviderPort` and `select_adapter` define the provider-neutral selection
+  boundary without dynamic dispatch in the domain.
+- Synthetic tests prove that partial adapters are never silently combined and
+  that ordered selection requires one complete adapter.
+- Targeted domain tests, Clippy, and Jig complete cleanly.

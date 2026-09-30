@@ -13,13 +13,6 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P0 — Authority, architecture, and safety
 
-### TODO - Select the supported connectivity architecture
-
-Decide and prove the interactive browser-login route, Bridge compatibility, and
-direct API boundary behind one provider-neutral mail contract.
-
-[architecture-and-auth](docs/todo/open/architecture-and-auth.mdc)
-
 ### TODO - Complete the credential and side-effect threat model
 
 Define secret storage, redaction, trust boundaries, failure modes, confirmation

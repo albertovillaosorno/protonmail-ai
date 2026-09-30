@@ -1,0 +1,195 @@
+# Connectivity and authentication decision
+
+## Status
+
+Accepted for the first supported implementation on 2026-09-29.
+
+## Decision
+
+The primary adapter is an authenticated browser-session adapter. Authentication
+starts with `protonmail-ai auth login`, which opens Proton's ordinary visible
+login UI through a maintained Playwright boundary. The user completes passwords,
+second factors, security keys, CAPTCHA, recovery prompts, and future interactive
+challenges.
+
+After login, mail operations use the authenticated protocol boundary available
+to that browser session. They do not click or scrape mailbox DOM when a stable
+request boundary is available. This is a compatibility layer over Proton's web
+application behavior, not a claim that Proton exposes a public third-party Mail
+API.
+
+Proton Mail Bridge is a secondary adapter when the user explicitly chooses it
+and has a compatible paid plan. A direct client that performs Proton login and
+token exchange itself is experimental and is never an automatic fallback.
+
+## Evidence for the choice
+
+The visible-login route preserves Proton's own challenge flow instead of
+reimplementing or replaying account credentials. It also avoids making Bridge
+installation and a paid plan an unstated product requirement.
+
+Current Proton documentation says Bridge is available only on paid plans and
+exposes local IMAP and SMTP servers. It also says clients use a Bridge-generated
+password rather than the Proton account password. Primary sources are:
+
+- `proton.me/support/imap-smtp-and-pop3-setup`
+- `proton.me/support/invalid-password-error-setting-email-client`
+- `proton.me/support/why-you-need-bridge`
+- `proton.me/support/bridge-linux-login-error`
+
+Playwright documents authenticated storage as sensitive material capable of
+impersonating the signed-in account. `playwright.dev/docs/auth` therefore
+supports the rule that browser state is never an MCP argument, stdout payload,
+log field, repository file, or unencrypted fallback file.
+
+Proton documents user-visible session revocation and expiry at
+`proton.me/support/log-out-all-other-sessions`. Local logout removes
+project-owned authority and treats server-side revocation as loss of authority,
+never as a reason to replay account credentials.
+
+## Authentication and custody
+
+The MCP boundary has no login method that accepts a password, challenge answer,
+cookie, access token, refresh token, or serialized browser state. Authentication
+is a separate human CLI lifecycle.
+
+A successful login may transfer only the minimum revocable session material
+needed by the selected adapter into an account-scoped operating-system
+credential store. The implementation must not use Playwright's normal plaintext
+`storageState` file as durable product storage. If a platform cannot persist the
+required authority safely, login fails closed instead of creating a plaintext
+fallback.
+
+`auth status` may expose account identity, adapter identity, and the states
+absent, valid, expired, or revoked. `auth logout` removes project-owned local
+authority and requests server-side revocation when the accepted protocol
+supports it. Repeated logout is safe.
+
+Remote deployments keep the same custody rule: the service host owns its
+session, while remote MCP clients receive no Proton authentication material.
+The remote-service task owns secure bootstrap; copying plaintext browser state
+from a local client is not an accepted bootstrap mechanism.
+
+## Adapter comparison
+
+### Browser-session adapter
+
+- Account requirement: an account that can use the normal Proton Mail web app.
+- Platform requirement: a provisioned browser runtime and operating-system
+  credential store.
+- Authentication: ordinary visible Proton login with user-completed challenges.
+- Mail coverage: intended primary path for the complete advertised contract.
+- Main risk: the observed web protocol can change without third-party stability
+  guarantees.
+- Failure: incompatible responses fail closed and remove affected capabilities
+  until the contract is understood and tested again.
+
+### Proton Mail Bridge adapter
+
+- Account requirement: a paid Proton plan according to Proton documentation.
+- Platform requirement: supported desktop Bridge plus local secret storage.
+- Authentication: Bridge owns Proton login; this project receives only local
+  Bridge IMAP and SMTP credentials when explicitly configured.
+- Mail coverage: standards-based retrieval and send candidate, while
+  Proton-specific conversation, label, sender, and event semantics need fixture
+  proof before they can be advertised.
+- Failure: omit capabilities that cannot be represented faithfully. Never
+  simulate them by silently switching adapters.
+
+### Direct API adapter
+
+- Account requirement: depends on an observed private protocol.
+- Authentication: would independently own session establishment rather than use
+  the user's ordinary visible web login.
+- Mail coverage: research implementations show broad coverage, but there is no
+  public Proton stability contract for this third-party route.
+- Main risk: duplicated login, second-factor, token, cryptographic, and protocol
+  behavior expands both security and compatibility risk.
+- Failure: experimental only and never selected automatically in version 1.
+
+## Provider-neutral port and selection
+
+The capability domain exposes `MailProviderPort` and `select_adapter`. The port
+reports an opaque adapter identifier and whether one adapter supports a public
+capability. Runtime composition supplies candidates in policy order.
+
+Selection succeeds only when one candidate can satisfy the complete required
+capability set. Two partial adapters are never merged. After selection, a
+request remains pinned to that adapter; a retry may reconnect the same adapter
+but may not silently cross adapters. A later user action may explicitly select
+a different adapter and begin a new request.
+
+Default local policy is:
+
+1. Use the browser-session adapter when its session is valid and it advertises
+   the complete required capability set.
+2. Use Bridge only when explicitly configured or selected and it can satisfy
+   the complete required set.
+3. Never choose the direct API adapter unless an experimental option explicitly
+   enables it.
+4. If no single adapter qualifies, return a typed unavailable-capability error
+   with no partial result and no side effect.
+
+Synthetic domain tests prove that two partial adapters are not combined and
+that policy ordering selects a later candidate only when it alone satisfies the
+whole required set.
+
+## Capability evidence map
+
+This inventory covers the current domain operations and the operations already
+required by the open tool-contract record. "Primary" means the browser-session
+adapter must prove the behavior with protocol fixtures and opt-in live evidence
+before MCP advertises it.
+
+- `search_messages`, `get_message`, `get_attachment`, and `list_mailboxes`:
+  Primary. Bridge has IMAP candidates for search, fetch, MIME parts, and mailbox
+  listing, but must pass contract fixtures before advertising parity.
+- `get_thread`: Primary. The observed Proton protocol has explicit conversation
+  behavior. Bridge must not substitute MIME threading unless contract evidence
+  proves equivalent semantics.
+- `list_labels` and `list_senders`: Primary. Bridge mapping is deferred unless
+  Proton-specific label and sender semantics can be represented faithfully.
+- `create_draft`, `read_draft`, `update_draft`, and `discard_draft`: Primary.
+  Bridge draft-folder behavior is a candidate only after fixture proof.
+- `send_draft`, `reply`, `reply_all`, and `forward`: Primary. Bridge SMTP can
+  carry outgoing mail, but thread identity and sender selection need proof.
+- `mark_read`, `mark_unread`, `apply_labels`, and `remove_labels`: Primary.
+  Bridge IMAP flags or folders are candidates only where semantics match.
+- `archive`, `unarchive`, `move_messages`, `trash_messages`, and
+  `restore_messages`: Primary. Bridge operations remain conditional on exact
+  recovery and mailbox semantics.
+- `wait_for_changes`: Primary. The observed protocol has mailbox event behavior.
+  Bridge waiting is deferred until ordering, resume, and gap handling can be
+  proven under the same contract.
+- `delete_messages`: disabled destructive capability. No adapter advertises it
+  by default even when the underlying protocol can permanently delete mail.
+
+The pinned `roman-proton-cli` research snapshot documents authenticated mail
+requests, message and conversation operations, drafts, attachment handling,
+mutations, and change watching. The pinned Proton WebClients snapshot is also
+admissible protocol and behavior evidence. Both revisions are fixed in
+`docs/provenance/sources.txt`; this does not make the direct adapter accepted.
+
+## Failure and compatibility rules
+
+- Expired or revoked browser authority yields an authentication error and never
+  triggers automated password login.
+- A changed provider response yields a typed compatibility error; missing fields
+  are not silently interpreted as empty mailbox state.
+- Rate limits, timeouts, and transient disconnects are retryable only where the
+  operation's idempotency rules allow it.
+- Ambiguous send outcomes remain ambiguous and are never retried as a new send
+  without the send workflow's idempotency protection.
+- Capability sets are negotiated before tool exposure. Unsupported tools are
+  absent instead of failing after an MCP client has selected them.
+- Diagnostics may name an adapter, endpoint class, status category, timing, and
+  opaque identifiers, but never session data or decrypted content.
+
+## Explicit environment configuration
+
+Environment-supplied adapter credentials are never auto-discovered. An adapter
+that supports them must require an explicit credential-source setting and must
+prefer the operating-system credential store for normal interactive use. The
+browser-session adapter does not accept an account password from the environment
+as a substitute for visible login. Direct-API environment credentials remain
+inside the experimental boundary.

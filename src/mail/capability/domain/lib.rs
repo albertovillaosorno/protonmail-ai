@@ -75,6 +75,32 @@ impl Capability {
     }
 }
 
+/// A provider-neutral boundary implemented by exactly one mail adapter.
+pub trait MailProviderPort {
+    /// Returns a stable, diagnostic-only adapter identifier.
+    fn adapter_id(&self) -> &str;
+
+    /// Reports whether this adapter can implement one public capability.
+    fn supports(&self, capability: Capability) -> bool;
+}
+
+/// Selects the first adapter that can satisfy the complete capability set.
+///
+/// Selection never combines partial capability coverage from multiple adapters.
+/// Callers may order candidates by policy, but once selected, one adapter owns
+/// the complete requested operation set.
+#[must_use]
+pub fn select_adapter<'a, T: MailProviderPort>(
+    required: &[Capability],
+    candidates: &'a [T],
+) -> Option<&'a T> {
+    candidates.iter().find(|adapter| {
+        required
+            .iter()
+            .all(|capability| adapter.supports(*capability))
+    })
+}
+
 const PLANNED_CAPABILITIES: [Capability; 16] = [
     Capability::new("search_messages", SafetyClass::ReadOnly),
     Capability::new("get_message", SafetyClass::ReadOnly),
