@@ -1,0 +1,8 @@
+domain = "architecture"
+schema_version = 1
+
+[component.mail_capability_domain]
+depends_on = []
+
+[component.mail_runtime]
+depends_on = ["mail_capability_domain"]

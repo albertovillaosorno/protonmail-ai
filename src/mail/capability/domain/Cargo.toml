@@ -1,0 +1,22 @@
+[package]
+name = "mail_capability_domain"
+description = "Provider-neutral mail capability and safety contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "../../../../README.md"
+keywords = ["email", "mcp", "proton-mail"]
+categories = ["email"]
+
+[lib]
+path = "lib.rs"
+
+[[test]]
+name = "mail-capability-domain-safety"
+path = "../../../../tests/mail/capability/domain/safety.rs"
+
+[lints]
+workspace = true

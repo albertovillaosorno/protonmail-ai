@@ -1,0 +1,28 @@
+domain = "taxonomy"
+schema_version = 1
+required = true
+one_role_per_path = true
+overlapping_roles = "deny"
+spaces_in_paths = "deny"
+unknown_paths = "deny"
+
+[role.documentation]
+paths = ["docs/"]
+
+[role.dependencies]
+paths = [".dependencies/"]
+
+[role.jig_configuration]
+paths = [".jig/"]
+
+[role.product_source]
+paths = ["src/"]
+
+[role.product_tests]
+paths = ["tests/"]
+
+[role.repository_governance]
+paths = [".env.example", ".gitattributes", ".gitignore", "AGENTS.md", "CONTRIBUTING.md", "LICENSE", "README.md", "SECURITY.md", "THIRD_PARTY_NOTICES.md", "TODO.md", "rust-toolchain.toml"]
+
+[role.workspace_manifest]
+paths = ["Cargo.lock", "Cargo.toml"]

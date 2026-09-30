@@ -8,8 +8,8 @@ record at a time; a compiling placeholder is not completion.
 
 ### TODO - Select the supported connectivity architecture
 
-Decide and prove the initial Proton Mail Bridge route, explicitly separating it
-from any future direct Proton API adapter.
+Decide and prove the interactive browser-login route, Bridge compatibility, and
+direct API boundary behind one provider-neutral mail contract.
 
 [architecture-and-auth](docs/todo/open/architecture-and-auth.mdc)
 
@@ -33,13 +33,6 @@ Specify tool schemas, pagination, stable identifiers, annotations, error
 semantics, and capability boundaries independently of the provider adapter.
 
 [tool-contract](docs/todo/open/tool-contract.mdc)
-
-### TODO - Complete Jig repository onboarding
-
-Promote a reviewed repository-specific Jig policy after the Rust scaffold and
-documentation surfaces are stable.
-
-[jig-onboarding](docs/todo/open/jig-onboarding.mdc)
 
 ## P1 — Working local mail path
 
@@ -79,6 +72,13 @@ Expose the accepted contract over stdio by default, with no implicit public
 listener and with capability-aware tool annotations.
 
 [mcp-transport](docs/todo/open/mcp-transport.mdc)
+
+### TODO - Implement one-command CLI and remote modes
+
+Complete the human CLI and explicit remote-server modes in the same installable
+binary, with secure defaults and cloud deployment guidance.
+
+[cli-and-remote](docs/todo/open/cli-and-remote.mdc)
 
 ### TODO - Build synthetic and opt-in integration evidence
 

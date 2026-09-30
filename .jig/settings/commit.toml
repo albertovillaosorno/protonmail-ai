@@ -1,0 +1,13 @@
+domain = "commit"
+schema_version = 1
+allowed_scopes = ["architecture", "auth", "cli", "documentation", "legal", "mail", "mcp", "repo", "security"]
+allowed_trailers = ["BREAKING CHANGE", "Co-authored-by", "Signed-off-by"]
+allowed_types = ["build", "chore", "docs", "feat", "fix", "refactor", "test"]
+allow_merge_commits = false
+allow_revert_type = false
+body_line_max_length = 80
+body_min_length = 1
+required_trailers = []
+require_scope = false
+subject_max_length = 80
+history_baseline = "1a0862c207271be277fb1704db584ad76b70068b"

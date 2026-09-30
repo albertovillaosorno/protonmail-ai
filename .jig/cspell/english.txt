@@ -1,0 +1,4 @@
+# Reviewed English words absent from the standard dictionaries.
+
+local-first
+provider-neutral

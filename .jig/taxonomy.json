@@ -1,0 +1,53 @@
+{
+  "$schema": "proton-mail-agent-taxonomy/v1",
+  "version": 1,
+  "architecture": {
+    "kinds": {
+      "adapter-inbound": "external-callers-to-inbound-ports",
+      "adapter-outbound": "outbound-ports-to-external-systems",
+      "application": "use-case-and-domain-coordination",
+      "composition": "runtime-wiring-and-policy",
+      "contract": "serialized-boundary-representations",
+      "domain": "provider-neutral-business-rules",
+      "port-inbound": "typed-entry-contracts",
+      "port-outbound": "core-required-dependency-contracts"
+    }
+  },
+  "function_capabilities": {
+    "manifest": "<function>.jig",
+    "order": ["rust"],
+    "required": [],
+    "surface_sidecars": "optional",
+    "surfaces": {"rust": []},
+    "kind_surfaces": {"rust": []}
+  },
+  "function_projects": {
+    "rust": ["Cargo.toml", "lib.rs", "main.rs"]
+  },
+  "graph": {
+    "edge_lifecycle": [],
+    "edge_types": {
+      "depends-on": "required-by",
+      "required-by": "depends-on"
+    },
+    "field_order": ["schema", "identity", "lifecycle", "graph"],
+    "hub_kinds": [],
+    "node_kinds": ["artifact"],
+    "required_groups": [],
+    "required_hubs": [],
+    "role_groups": []
+  },
+  "lifecycle": {
+    "mandatory_causal_route": ["implementation"]
+  },
+  "source": {
+    "route": "src/<domain>/<function>/<kind>/<part>",
+    "manifest": "function.yml",
+    "parts_at_function_root": "forbidden",
+    "boundary_documents": [],
+    "boundary_sidecars": "optional"
+  },
+  "tools": {
+    "route": "tools/<function>/<kind>/<part>"
+  }
+}

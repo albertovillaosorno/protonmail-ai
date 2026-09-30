@@ -1,0 +1,18 @@
+schema: chassis-function/v1
+identity:
+  id: capability
+  path: src/mail/capability
+  domain: mail
+architecture:
+  route: src/<domain>/<function>/<kind>/<part>
+  kinds:
+    - domain
+capabilities:
+  - rust
+projects:
+tests:
+  root: tests/mail/capability
+ownership:
+  accountable: Alberto Villa Osorno
+validation:
+  mode: active

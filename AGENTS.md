@@ -21,22 +21,25 @@ editing. This repository begins as a scaffold, not as a working mail client.
 - Never log message bodies or secret-bearing protocol payloads.
 - Keep read, draft, send, and destructive capabilities separate.
 - Default to local stdio transport and loopback-only test infrastructure.
+- Treat interactive visible-browser login as the primary authentication UX.
+- Treat environment-supplied credentials as an explicit, less-recommended
+  deployment fallback; never accept them through MCP tool arguments.
 - Do not copy from `reference/` without recording the exact source, revision,
   file-level origin, license, and modifications in `THIRD_PARTY_NOTICES.md`.
 - GPL WebClients-derived code must retain compatible licensing and attribution.
 - Test fixtures must be synthetic.
 - Avoid unaudited browser automation as an authentication shortcut.
+- Keep one installable `protonmail-ai` binary with explicit `auth`, `mail`,
+  `mcp`, and `serve` modes; do not create separately installed products.
 
 ## Validation
 
 Run the narrowest relevant checks while iterating, then before handoff run:
 
 ```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features
-cargo test --workspace
+CARGO_TARGET_DIR=.cache/cargo-target cargo fmt --all --check
+CARGO_TARGET_DIR=.cache/cargo-target cargo clippy --workspace \
+  --all-targets --all-features
+CARGO_TARGET_DIR=.cache/cargo-target cargo test --workspace
 jig check --root .
 ```
-
-If Jig onboarding is still open, use its advisory mode and report that fact;
-do not fabricate repository policy merely to make validation green.

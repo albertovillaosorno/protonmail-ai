@@ -1,0 +1,30 @@
+---
+id: jig-onboarding
+priority: P0
+status: completed
+dependencies: []
+---
+
+# Accept the Jig repository policy
+
+## Goal
+
+Accept a modular Jig policy derived from reusable Chassis configuration while
+removing Chassis-specific product claims.
+
+## Completed work
+
+- Declared only Rust source and Markdown/MDC documentation.
+- Declared GPL-3.0-only licensing and repository-specific version authority.
+- Required all governed product source to live under `src/`.
+- Declared canonical capability and runtime functions.
+- Routed Cargo output to `.cache/cargo-target`.
+- Installed the Jig-owned commit-message integration.
+- Isolated the ignored local reference corpus from product-language evidence.
+
+## Acceptance evidence
+
+- `jig check --root .` completed cleanly.
+- A controlled `crates/forbidden.rs` probe failed with `JIG-TAX-001` and was
+  removed immediately after the negative test.
+- Native formatting, tests, and Clippy completed cleanly.

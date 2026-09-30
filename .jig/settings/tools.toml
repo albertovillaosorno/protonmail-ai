@@ -1,0 +1,17 @@
+domain = "tools"
+schema_version = 1
+
+[entry.jig]
+path = ".dependencies/bin/jig"
+
+[entry.git]
+path = ".dependencies/bin/git"
+
+[entry.rust_stable_cargo]
+path = ".dependencies/bin/rust-stable-cargo"
+
+[entry.rust_nightly_cargo_clippy]
+path = ".dependencies/bin/rust-nightly-cargo-clippy"
+
+[entry.rust_nightly_cargo_fmt]
+path = ".dependencies/bin/rust-nightly-cargo-fmt"

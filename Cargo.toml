@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "crates/protonmail-ai-core",
-    "crates/protonmail-ai-mcp",
+    "src/mail/capability/domain",
+    "src/mail/runtime/composition",
 ]
 resolver = "3"
 
@@ -10,12 +10,25 @@ version = "0.0.0"
 edition = "2024"
 license = "GPL-3.0-only"
 repository = "https://github.com/albertovillaosorno/protonmail-ai"
-rust-version = "1.85"
+rust-version = "1.98.1"
+publish = false
 
 [workspace.lints.rust]
+warnings = "deny"
 unsafe_code = "forbid"
-missing_docs = "warn"
+elided_lifetimes_in_paths = "deny"
+missing_docs = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+rust_2024_compatibility = { level = "deny", priority = -1 }
+unused_lifetimes = "deny"
+unused_must_use = "deny"
 
 [workspace.lints.clippy]
-all = "warn"
-pedantic = "warn"
+all = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }

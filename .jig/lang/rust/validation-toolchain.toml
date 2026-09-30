@@ -1,0 +1,4 @@
+channel = "nightly-2026-09-03"
+rustc = "1.100.0-nightly"
+rustfmt = "1.10.0-nightly"
+clippy = "0.1.100"

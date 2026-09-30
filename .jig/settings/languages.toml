@@ -1,0 +1,6 @@
+domain = "languages"
+schema_version = 1
+# Native Cargo validation owns Rust until Jig supports the pinned 1.98.1 and
+# nightly validation toolchains. The repository itself contains only Rust.
+analyzed = []
+present = ["rust"]

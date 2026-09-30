@@ -1,5 +1,5 @@
-# Rust
-/target/
+# Rust backup files. A root `target/` is intentionally not ignored: Jig rejects
+# it because Cargo output belongs under `.cache/cargo-target`.
 **/*.rs.bk
 
 # Local reference corpus: useful for research, never published wholesale.
@@ -20,6 +20,8 @@
 /.cache/
 /.dependencies/
 /.temp/
+/.jig/graph/jig.db
+/.jig/graph/jig.db-*
 
 # Editors and operating systems
 .DS_Store

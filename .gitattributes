@@ -1,9 +1,10 @@
 # Core normalization policies
 * text=auto eol=lf
 
-# Product source
+# Product source and externally rooted tests
 *.rs              text eol=lf linguist-detectable
-crates/**/*        linguist-documentation=false linguist-detectable
+src/**/*           linguist-documentation=false linguist-detectable
+tests/**/*         linguist-documentation=false linguist-detectable
 
 # Documentation is intentionally visible in GitHub language statistics.
 *.md              text eol=lf linguist-detectable
@@ -22,12 +23,20 @@ docs/**/*          linguist-documentation=false linguist-detectable
 reference/**/*    linguist-vendored
 
 # Binary artifacts
+*.7z              binary
+*.a               binary
+*.dll             binary
+*.dylib           binary
+*.exe             binary
 *.gif             binary
+*.gz              binary
 *.ico             binary
 *.jpeg            binary
 *.jpg             binary
+*.lib             binary
 *.pdf             binary
 *.png             binary
+*.so              binary
 *.webp            binary
 *.wasm            binary
 *.zip             binary

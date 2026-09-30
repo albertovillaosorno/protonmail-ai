@@ -1,0 +1,4 @@
+domain = "duplication"
+schema_version = 1
+default = "authored-production"
+exact_languages = []

@@ -1,0 +1,18 @@
+schema: chassis-function/v1
+identity:
+  id: runtime
+  path: src/mail/runtime
+  domain: mail
+architecture:
+  route: src/<domain>/<function>/<kind>/<part>
+  kinds:
+    - composition
+capabilities:
+  - rust
+projects:
+tests:
+  root: tests/mail/runtime
+ownership:
+  accountable: Alberto Villa Osorno
+validation:
+  mode: active

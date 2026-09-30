@@ -1,0 +1,28 @@
+domain = "cspell"
+schema_version = 1
+config_path = ".jig/cspell/cspell.json"
+dictionary_root = ".jig/cspell"
+files = ["**/*.{md,mdc,rs,toml,json,jsonc}", ".gitattributes", ".gitignore"]
+ignore_paths = [".cache/**", ".dependencies/**", ".git/**", ".temp/**", "Cargo.lock", "reference/**", "target/**"]
+language = "en-US"
+min_word_length = 3
+# CSpell 10.3.3 package gitHead; immutable schema authority.
+# jig-ignore-next-line: immutable schema URL is indivisible
+schema = "https://raw.githubusercontent.com/streetsidesoftware/cspell/e6e01b7294cca7174344b33639c05030100d1f4c/cspell.schema.json"
+version = "0.2"
+
+[dictionary.english]
+name = "proton-mail-agent-english"
+path = ".jig/cspell/english.txt"
+
+[dictionary.named-entities]
+name = "proton-mail-agent-named-entities"
+path = ".jig/cspell/named-entities.txt"
+
+[dictionary.source-identities]
+name = "proton-mail-agent-source-identities"
+path = ".jig/cspell/source-identities.txt"
+
+[dictionary.technical]
+name = "proton-mail-agent-technical"
+path = ".jig/cspell/technical.txt"

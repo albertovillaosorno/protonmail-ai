@@ -1,0 +1,22 @@
+[package]
+name = "mail_runtime"
+description = "CLI, MCP, and server composition for Proton Mail automation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+readme = "../../../../README.md"
+keywords = ["email", "mcp", "proton-mail"]
+categories = ["command-line-utilities", "email"]
+
+[[bin]]
+name = "protonmail-ai"
+path = "main.rs"
+
+[dependencies]
+mail_capability_domain = { path = "../../capability/domain" }
+
+[lints]
+workspace = true

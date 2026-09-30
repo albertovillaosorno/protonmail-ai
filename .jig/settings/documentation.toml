@@ -1,0 +1,6 @@
+domain = "documentation"
+schema_version = 1
+paragraph_sentence_limit = 4
+path_style = "lower-kebab"
+required_paths = []
+roots = ["docs/"]

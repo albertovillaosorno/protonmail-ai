@@ -1,0 +1,5 @@
+# Verified external project and repository identities.
+
+ProtonMail
+emersion
+lgug2z

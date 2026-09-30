@@ -1,0 +1,5 @@
+[jig]
+schema_version = 21
+settings_manifest = ["architecture.toml", "change.toml", "commit.toml", "coverage.toml", "cspell.toml", "diagnostics.toml", "documentation.toml", "duplication.toml", "git.toml", "headers.toml", "integrations.toml", "languages.toml", "licenses.toml", "linters.toml", "packages.toml", "portability.toml", "provenance.toml", "repository.toml", "rules.toml", "taxonomy.toml", "todo.toml", "tools.toml", "validation.toml", "versions.toml"]
+settings_root = "settings"
+settings_schema_version = 1

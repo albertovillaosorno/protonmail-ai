@@ -1,0 +1,74 @@
+domain = "linters"
+schema_version = 1
+
+[applicability.clang-format]
+enabled = false
+reason = "The repository has no governed C, C++, or CUDA source."
+
+[applicability.clang-tidy]
+enabled = false
+reason = "The repository has no governed C, C++, or CUDA source."
+
+[applicability.clippy-config]
+enabled = false
+reason = "Native Cargo validation owns pinned Rust 1.98.1/nightly validation until Jig supports those tool versions."
+
+[applicability.clippy-lints]
+enabled = false
+reason = "Native Cargo validation owns pinned Rust 1.98.1/nightly validation until Jig supports those tool versions."
+
+[applicability.coverage-py]
+enabled = false
+reason = "The repository has no executable Python source."
+
+[applicability.csharp-global]
+enabled = false
+reason = "The repository has no governed C# source."
+
+[applicability.csharp-visualstudio]
+enabled = false
+reason = "The repository has no governed C# source."
+
+[applicability.directory-build]
+enabled = false
+reason = "The repository has no MSBuild projects."
+
+[applicability.editorconfig]
+enabled = false
+reason = "Jig and language-native tools own repository formatting."
+
+[applicability.msvc-cpp]
+enabled = false
+reason = "The repository has no governed C++ source."
+
+[applicability.pyright]
+enabled = false
+reason = "The repository has no governed Python source."
+
+[applicability.pytest]
+enabled = false
+reason = "The repository has no executable Python tests."
+
+[applicability.ruff]
+enabled = false
+reason = "The repository has no governed Python source."
+
+[applicability.rust-toolchain]
+enabled = true
+reason = "The Rust implementation phase is active."
+
+[applicability.rustc-lints]
+enabled = false
+reason = "Native Cargo validation owns pinned Rust 1.98.1/nightly validation until Jig supports those tool versions."
+
+[applicability.rustfmt]
+enabled = false
+reason = "Native Cargo validation owns pinned Rust 1.98.1/nightly validation until Jig supports those tool versions."
+
+[applicability.typescript]
+enabled = false
+reason = "The repository has no governed TypeScript source."
+
+[applicability.unreal]
+enabled = false
+reason = "This is not an Unreal Engine repository."

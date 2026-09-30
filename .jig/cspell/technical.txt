@@ -1,0 +1,17 @@
+# Reviewed technical terms used by the repository.
+
+API
+APIs
+CLI
+IMAP
+MCP
+MSRV
+SMTP
+TLS
+config
+env
+local-only
+runtime
+stdio
+toolchain
+toolchains

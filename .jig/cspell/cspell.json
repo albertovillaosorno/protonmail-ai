@@ -1,0 +1,61 @@
+{
+  // Jig accepts this indivisible immutable schema authority.
+  // jig-ignore-next-line: immutable schema URL is indivisible
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/e6e01b7294cca7174344b33639c05030100d1f4c/cspell.schema.json",
+  "version": "0.2",
+  "language": "en-US",
+  "readonly": true,
+  "useGitignore": true,
+  "enableGlobDot": true,
+  "validateDirectives": true,
+  "caseSensitive": true,
+  "allowCompoundWords": false,
+  "minWordLength": 3,
+  "usePnP": false,
+  "files": [
+    "../../**/*.{md,mdc,rs,toml,json,jsonc}",
+    "../../.gitattributes",
+    "../../.gitignore"
+  ],
+  "ignoreRegExpList": [
+    "/\\b[0-9a-f]{7,64}\\b/g"
+  ],
+  "ignoreWords": [],
+  "dictionaryDefinitions": [
+    {
+      "name": "proton-mail-agent-english",
+      "path": "./english.txt",
+      "addWords": true
+    },
+    {
+      "name": "proton-mail-agent-named-entities",
+      "path": "./named-entities.txt",
+      "addWords": true
+    },
+    {
+      "name": "proton-mail-agent-source-identities",
+      "path": "./source-identities.txt",
+      "addWords": true
+    },
+    {
+      "name": "proton-mail-agent-technical",
+      "path": "./technical.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": [
+    "proton-mail-agent-english",
+    "proton-mail-agent-named-entities",
+    "proton-mail-agent-source-identities",
+    "proton-mail-agent-technical"
+  ],
+  "ignorePaths": [
+    "../../.cache/**",
+    "../../.dependencies/**",
+    "../../.git/**",
+    "../../.temp/**",
+    "../../Cargo.lock",
+    "../../reference/**",
+    "../../target/**"
+  ]
+}

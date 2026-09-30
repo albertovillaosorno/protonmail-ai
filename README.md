@@ -1,7 +1,7 @@
 # protonmail-ai
 
-Local-first Rust infrastructure for giving AI clients auditable, least-privilege
-access to Proton Mail through the Model Context Protocol (MCP).
+Local-first Rust infrastructure for using Proton Mail through a CLI, the Model
+Context Protocol (MCP), or an explicitly configured remote service.
 
 > [!IMPORTANT]
 > This repository is an early scaffold. It does not authenticate to Proton,
@@ -19,10 +19,29 @@ The finished project should offer a Gmail-like tool surface for Proton Mail:
 - archive, move, label, mark, trash, and restore messages;
 - wait for mailbox changes without polling aggressively.
 
-The first supported route is expected to be a local Proton Mail Bridge adapter
-using IMAP and SMTP. Direct Proton API support is a separate experimental track
-that must not ship until its authentication, compatibility, provenance, and
-maintenance boundaries are documented.
+The intended primary login route is an interactive, visible browser session:
+`protonmail-ai auth login` opens Proton's normal login flow and stores the
+resulting revocable local session through an approved operating-system secret
+store. Supplying credentials through environment variables is a secondary,
+less-recommended deployment route and must require explicit configuration.
+
+The implementation may also use Proton Mail Bridge where it provides a more
+stable capability. Browser, Bridge, and any direct Proton API integration remain
+outbound adapters behind the same provider-neutral mail contract.
+
+## Intended command surface
+
+The completed binary has one installation and several explicit modes:
+
+```text
+protonmail-ai auth login       Interactive browser authentication
+protonmail-ai mail ...         Human-facing CLI operations
+protonmail-ai mcp --stdio      Local MCP server
+protonmail-ai serve ...        Explicit remote/cloud service
+```
+
+The remote mode is never enabled implicitly and must define authentication,
+transport security, tenancy, secret storage, and network binding.
 
 ## Safety model
 
@@ -40,10 +59,11 @@ maintenance boundaries are documented.
 ## Workspace
 
 ```text
-crates/
-  protonmail-ai-core/  Provider-neutral capability and safety contracts.
-  protonmail-ai-mcp/   Future MCP process; currently a non-operational stub.
+src/
+  mail/capability/domain/  Provider-neutral capability and safety contracts.
+  mail/runtime/composition/  One binary for CLI, MCP, auth, and server modes.
 docs/todo/open/        Typed work records for delegated implementation.
+tests/                 Product tests outside implementation directories.
 ```
 
 The large `reference/` corpus is deliberately local-only and ignored by Git.
@@ -53,9 +73,10 @@ It is research material, not vendored product source. See
 ## Development
 
 ```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features
-cargo test --workspace
+CARGO_TARGET_DIR=.cache/cargo-target cargo fmt --all --check
+CARGO_TARGET_DIR=.cache/cargo-target cargo clippy --workspace \
+  --all-targets --all-features
+CARGO_TARGET_DIR=.cache/cargo-target cargo test --workspace
 jig check --root .
 ```
 
@@ -70,5 +91,10 @@ respective owners.
 
 ## License
 
-`protonmail-ai` is licensed under GPL-3.0-only. Third-party material retains its
-original license and attribution.
+Due to mandatory licensing constraints imposed by incorporating code from
+Proton's `WebClients` repository, `protonmail-ai` is forced to be licensed
+under GPL-3.0-only.
+
+This GPL adoption is purely a legal requirement rather than an architectural
+preference. Third-party material retains its original license and
+attribution.

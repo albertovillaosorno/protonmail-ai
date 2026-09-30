@@ -1,0 +1,5 @@
+domain = "git"
+schema_version = 1
+required_hooks = ["commit-msg"]
+required_ignored_paths = [".cache", ".dependencies", ".jig/graph/jig.db", ".jig/graph/jig.db-*", ".temp", "reference"]
+binary_extensions = ["7z", "a", "dll", "dylib", "exe", "gif", "gz", "ico", "jpeg", "jpg", "lib", "pdf", "png", "so", "webp", "zip"]

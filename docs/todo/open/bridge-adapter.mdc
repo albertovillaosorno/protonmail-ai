@@ -29,7 +29,7 @@ credentials or provider details into the core contract.
 - No credential is accepted in MCP arguments or printed in diagnostics.
 - Connection loss yields typed retryable errors.
 - Adapter tests run against synthetic IMAP/SMTP fixtures.
-- The core crate does not depend on Bridge-specific types.
+- The capability domain does not depend on Bridge-specific types.
 
 ## Evidence
 

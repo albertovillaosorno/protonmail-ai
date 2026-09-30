@@ -1,0 +1,15 @@
+# Verified proper names used by the repository.
+
+Alberto
+Cargo
+Clippy
+Codex
+Git
+GitHub
+Jig
+Osorno
+Playwright
+Proton
+Rust
+Rustfmt
+Villa
