@@ -4,6 +4,7 @@ priority: P1
 status: open
 dependencies:
   - architecture-and-auth
+  - provider-client-identity
   - security-model
 ---
 
@@ -16,7 +17,12 @@ collecting account credentials or controlling a browser.
 
 ## Required work
 
-- Initiate `GET /auth/v4/sessions/forks` with the third-party app identity.
+- Bootstrap `POST /auth/v4/sessions` only after the authorized third-party
+  Mail app-version/client identity is established.
+- Require the bootstrap authority to have no bound `UserID`; retain its UID and
+  tokens only as sensitive transport authority.
+- Initiate `GET /auth/v4/sessions/forks` with `x-pm-uid` and Bearer authority
+  from that anonymous transport session.
 - Generate a fresh 32-byte target encryption key and frame the Proton version-0
   QR payload with child client ID `Other`.
 - Render a terminal QR and provide an explicit manual-copy form without logging
@@ -47,6 +53,8 @@ collecting account credentials or controlling a browser.
   or process arguments.
 - The child client identity remains third-party and never claims an official
   Proton Mail platform identity.
+- Anonymous bootstrap parsing rejects an unexpected bound user and structurally
+  redacts transport tokens.
 - A synthetic host fixture can approve a target fork and complete login.
 - Pending, timeout, rejection, malformed payload, bad authentication tag, key
   unlock failure, and credential-store failure all fail closed.
@@ -56,6 +64,7 @@ collecting account credentials or controlling a browser.
 
 ## Evidence
 
+- Anonymous transport bootstrap/profile tests
 - Target handoff framing and redaction tests
 - Synthetic fork API/poll/decryption tests
 - Authentication state-machine tests

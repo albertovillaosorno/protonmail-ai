@@ -15,10 +15,17 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P1 — Working local mail path
 
+### TODO - Establish an authorized third-party Proton Mail client identity
+
+Keep live direct authentication disabled until Proton documents or issues a
+third-party Mail identity.
+
+[provider-client-identity](docs/todo/open/provider-client-identity.mdc)
+
 ### TODO - Implement QR/manual-code session-fork authentication
 
-Use Proton's direct session-fork flow with the third-party `Other` identity;
-never automate login or collect account credentials.
+Implement the session-fork flow only after an authorized third-party Mail
+identity is established; never automate login or collect account credentials.
 
 [interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
 

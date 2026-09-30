@@ -19,6 +19,9 @@ registry version to refresh.
 
 The pinned workspace toolchain is Rust 1.98.1.
 
+- `aes-gcm = =0.11.1`: `cargo search aes-gcm --limit 1` reported 0.11.1 as
+  the latest stable release. `cargo info aes-gcm@0.11.1` reports Rust 1.85
+  minimum.
 - `base64 = =0.23.1`: `cargo search base64 --limit 1` reported 0.23.1 as the
   latest stable release. `cargo info base64@0.23.1` reports Rust 1.71 minimum.
 - `getrandom = =0.4.3`: `cargo search getrandom --limit 1` reported 0.4.3 as the
@@ -31,7 +34,7 @@ The pinned workspace toolchain is Rust 1.98.1.
 - `zeroize = =1.9.0`: `cargo search zeroize --limit 1` reported 1.9.0 as the
   latest stable release. `cargo info zeroize@1.9.0` reports Rust 1.85 minimum.
 
-All five direct external dependencies are current and compatible with the
+All six direct external dependencies are current and compatible with the
 workspace toolchain at the verification date.
 
 ## Review command

@@ -27,12 +27,18 @@
 // - Usage:
 //   - Create after GET /auth/v4/sessions/forks returns a user code.
 // - Defaults:
-//   - Third-party child client identity is `Other`.
+//   - SDK default child client identity is `Other`; live use is disabled.
 //
 
 //! Proton Mail target-side QR session-fork handoff framing.
 
 #![forbid(unsafe_code)]
+
+mod protocol;
+
+pub use protocol::{AnonymousSession, ForkChallenge, ForkPayloadDecoder};
+pub use protocol::{ForkPoll, ForkSession, KeyPassword, ProtocolError};
+pub use protocol::{ProviderProfile, RequestMethod, RequestSpec};
 
 use std::fmt;
 
@@ -40,8 +46,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use zeroize::Zeroizing;
 
-/// Third-party child client identity used by Proton's Mail session SDK.
-pub const THIRD_PARTY_CLIENT_ID: &str = "Other";
+/// Unversioned child client default used by Proton's Mail session SDK.
+pub const SDK_DEFAULT_CLIENT_ID: &str = "Other";
 
 const QR_VERSION: u8 = 0;
 const SECRET_LEN: usize = 32;
@@ -111,9 +117,16 @@ impl TargetHandoff {
     pub fn payload(&self) -> HandoffPayload {
         let encoded_secret = STANDARD.encode(self.secret.as_ref());
         HandoffPayload(format!(
-            "{QR_VERSION}:{}:{encoded_secret}:{THIRD_PARTY_CLIENT_ID}",
+            "{QR_VERSION}:{}:{encoded_secret}:{SDK_DEFAULT_CLIENT_ID}",
             self.user_code
         ))
+    }
+
+    /// Consumes the handoff and transfers exclusive key ownership to the
+    /// authenticated fork-payload decoder.
+    #[must_use]
+    pub fn into_decoder(self) -> ForkPayloadDecoder {
+        ForkPayloadDecoder::new(self.secret)
     }
 }
 

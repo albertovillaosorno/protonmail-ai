@@ -16,7 +16,9 @@ without turning browser automation into part of the product security boundary.
 
 - Select Proton Mail's direct QR/manual-code session-fork flow as the supported
   version-one authentication path.
-- Use the third-party `Other` child identity rather than a Proton-owned Mail ID.
+- Record the SDK `Other` child identity without treating it as a production
+  authorization grant; a later live probe is tracked by
+  `provider-client-identity`.
 - Reject Bridge, bundled Playwright/Chromium, browser-profile scraping, and raw
   account-credential login as supported fallbacks.
 - Record the current Mail Rust SDK and Drive CLI implementations as evidence for

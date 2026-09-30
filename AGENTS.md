@@ -30,8 +30,8 @@ invent another person's sign-off.
 - Default to local stdio transport and loopback-only test infrastructure.
 - Treat Proton Mail session-fork QR/manual-code login as the supported
   version-one authentication boundary.
-- Use only the third-party `Other` child identity; never impersonate a
-  Proton-owned Mail client ID.
+- Keep live Mail auth disabled until Proton documents or issues a third-party
+  client identity; never reuse a Proton-owned Mail client ID.
 - Treat environment-supplied credentials as an explicit, less-recommended
   deployment fallback; never accept them through MCP tool arguments.
 - Do not copy from `reference/` without recording the exact source, revision,

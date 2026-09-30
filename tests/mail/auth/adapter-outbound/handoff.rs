@@ -32,7 +32,7 @@
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use mail_auth_fork_adapter::THIRD_PARTY_CLIENT_ID;
+use mail_auth_fork_adapter::SDK_DEFAULT_CLIENT_ID;
 use mail_auth_fork_adapter::{HandoffError, TargetHandoff};
 
 #[test]
@@ -44,18 +44,18 @@ fn target_payload_matches_proton_qr_shape() {
     assert_eq!(fields.len(), 4);
     assert_eq!(fields[0], "0");
     assert_eq!(fields[1], "ABCDEFGH");
-    assert_eq!(fields[3], THIRD_PARTY_CLIENT_ID);
+    assert_eq!(fields[3], SDK_DEFAULT_CLIENT_ID);
 
     let secret = STANDARD.decode(fields[2]).expect("secret must be base64");
     assert_eq!(secret.len(), 32);
 }
 
 #[test]
-fn third_party_identity_never_claims_a_proton_mail_client() {
-    assert_eq!(THIRD_PARTY_CLIENT_ID, "Other");
-    assert!(!THIRD_PARTY_CLIENT_ID.contains("mail"));
-    assert!(!THIRD_PARTY_CLIENT_ID.contains("ios"));
-    assert!(!THIRD_PARTY_CLIENT_ID.contains("android"));
+fn sdk_default_identity_never_claims_a_first_party_client() {
+    assert_eq!(SDK_DEFAULT_CLIENT_ID, "Other");
+    assert!(!SDK_DEFAULT_CLIENT_ID.contains("mail"));
+    assert!(!SDK_DEFAULT_CLIENT_ID.contains("ios"));
+    assert!(!SDK_DEFAULT_CLIENT_ID.contains("android"));
 }
 
 #[test]

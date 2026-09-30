@@ -12,8 +12,11 @@ keywords.workspace = true
 categories = ["email", "authentication"]
 
 [dependencies]
+aes-gcm = { workspace = true }
 base64 = { workspace = true }
 getrandom = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 zeroize = { workspace = true }
 
 [lib]
@@ -22,6 +25,10 @@ path = "lib.rs"
 [[test]]
 name = "mail-auth-fork-handoff"
 path = "../../../../tests/mail/auth/adapter-outbound/handoff.rs"
+
+[[test]]
+name = "mail-auth-fork-protocol"
+path = "../../../../tests/mail/auth/adapter-outbound/protocol.rs"
 
 [lints]
 workspace = true

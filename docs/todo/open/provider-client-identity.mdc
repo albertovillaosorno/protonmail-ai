@@ -1,0 +1,53 @@
+---
+id: provider-client-identity
+priority: P0
+status: open
+dependencies:
+  - architecture-and-auth
+  - provenance-and-licenses
+---
+
+# Establish an authorized third-party Proton Mail client identity
+
+## Goal
+
+Obtain or document a Proton-supported third-party Mail client identity before
+any live direct-session authentication is enabled.
+
+## Required work
+
+- Do not reuse Proton-owned first-party Mail identities.
+- Confirm a Proton-supported Mail equivalent of Drive's documented
+  `external-drive-{name}@{semver}` / `external-drive` convention, or obtain a
+  project-specific client registration from Proton.
+- Record app-version shape, child client ID, API host, fork permissions, rate
+  limits, and revocation expectations.
+- Re-run live anonymous-session and fork probes only after that identity is
+  documented or issued.
+- Treat public OAuth as unavailable for Mail unless Proton documents a Mail
+  client registration flow.
+
+## Current evidence
+
+- Proton Drive's public SDK documents `external-drive` for third-party forks.
+- No `external-mail` identity is present in Proton's public repositories as of
+  2026-09-30.
+- Proton Mail's Rust SDK accepts unversioned `Other` as an internal default, but
+  a production anonymous-session probe using `x-pm-appversion: Other` returned
+  HTTP 422, API code 8004, `Operation not allowed`.
+- The probe used no account, stored no token, printed no secret value, and
+  deleted its transient response immediately.
+
+## Acceptance criteria
+
+- Live direct auth remains disabled while this task is open.
+- The accepted identity is explicitly third-party.
+- A secret-free production probe can bootstrap anonymous transport authority.
+- Session-fork allocation accepts the same identity without fallback.
+
+## Evidence
+
+- Proton documentation or written registration evidence
+- Redacted production bootstrap transcript
+- Redacted fork-allocation transcript
+- Identity validation and fail-closed regression tests

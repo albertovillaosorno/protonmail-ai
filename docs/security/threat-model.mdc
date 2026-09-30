@@ -64,17 +64,25 @@ so it must keep secret lifetime and diagnostic surface small.
 
 ### Proton session-fork handoff boundary
 
-The supported version-one login is a direct target-side Proton session fork.
-The project requests a short-lived fork code, generates a local 32-byte handoff
-key, and presents the resulting QR/manual-code payload to the human user.
+Production session-fork authentication is disabled until Proton supplies or
+publishes an authorized third-party Mail client identity. The SDK default
+`Other` is not sufficient production authorization: a secret-free bootstrap
+probe returned HTTP 422 / API code 8004.
+
+The intended version-one login is a direct target-side Proton session fork,
+but live use is blocked until a third-party Mail identity is authorized.
+The project first creates Proton's anonymous transport session, then requests a
+short-lived fork code under that anonymous authority, generates a local 32-byte
+handoff key, and presents the resulting QR/manual-code payload to the human
+user.
 
 Approval occurs in an already authenticated Proton session. Account passwords,
 second factors, CAPTCHA answers, security-key responses, and recovery answers
 therefore remain on Proton-controlled surfaces and never enter the CLI or MCP.
 
-The child client identity is the third-party `Other` identity. The project never
-uses a Proton-owned Mail identity merely to make a browser or provider check
-succeed.
+The SDK's `Other` child identity is protocol evidence, not production
+authorization. The project never uses a Proton-owned Mail identity merely to
+make a provider check succeed.
 
 The QR/manual-code value contains authorization material. It is exposed only at
 the deliberate user-facing login boundary and is structurally redacted from
@@ -125,9 +133,14 @@ future login attempt.
 
 ### Session-fork and direct-session authority
 
-Before approval, the target owns a short-lived selector/user code and a fresh
-32-byte handoff key. The selector and handoff payload are not durable account
-credentials, but are treated as sensitive authorization material while live.
+Before approval, the target owns an anonymous provider UID/access/refresh
+session, a short-lived selector/user code, and a fresh 32-byte handoff key. The
+anonymous session is rejected if Proton unexpectedly binds a `UserID`; it is
+transport bootstrap authority, not mailbox authority.
+
+The selector and handoff payload are not durable account credentials, but they
+and the anonymous transport tokens are treated as sensitive authorization
+material while live. None are exposed through MCP or normal diagnostics.
 
 After approval, Proton returns the forked session authority and an encrypted
 payload containing the key password needed to unlock the user's keys. The
@@ -558,7 +571,8 @@ Primary documentation consulted for this decision:
 - Proton's official Drive CLI implements third-party browser/session-fork login
   and protected local session persistence without password entry in the CLI.
 - The pinned WebClients source documents desktop-fork validation and shows why
-  a third-party `Other` identity must not impersonate a first-party Mail client.
+  the SDK `Other` identity is not a substitute for an authorized third-party
+  Mail client identity.
 - MCP revision `2026-07-28` hardens authorization around resource and issuer
   binding. Current MCP SDK documentation also states that HTTP authorization
   does not protect `stdio`, whose trust boundary is the launching process.

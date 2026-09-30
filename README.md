@@ -38,9 +38,10 @@ binary with a narrow, inspectable authority model:
 The codebase is still pre-provider, but the dangerous decisions are not being
 left for the end:
 
-- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects Proton's
-  direct session-fork login with the third-party `Other` identity and rejects
-  credential replay, Bridge, and browser automation;
+- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects direct
+  session-fork as the preferred protocol, blocks live use until an authorized
+  third-party Mail identity exists, and rejects credential replay, Bridge, and
+  browser automation;
 - [`threat-model.mdc`](docs/security/threat-model.mdc) separates observation,
   reversible mutation, external side effects, and disabled destructive access;
 - [`tool-contract-v1.mdc`](docs/contract/tool-contract-v1.mdc) freezes a
@@ -63,10 +64,14 @@ The finished project should offer a Gmail-like tool surface for Proton Mail:
 - archive, move, label, mark, trash, and restore messages;
 - wait for mailbox changes without polling aggressively.
 
-The supported version-one provider route is direct Proton session access.
-`protonmail-ai auth login` starts Proton's session-fork flow, generates a fresh
-short-lived QR/manual-code handoff, and waits for approval from an already
-authenticated Proton session.
+The intended version-one provider route is direct Proton session access, but
+live authentication is currently disabled until Proton documents or issues a
+third-party Mail client identity. The protocol implementation can build and
+validate session-fork handoffs offline without claiming live authorization.
+
+Once that identity exists, `protonmail-ai auth login` can start Proton's
+session-fork flow, generate a fresh short-lived QR/manual-code handoff, and wait
+for approval from an already authenticated Proton session.
 
 As a convenience, it may open the normal Proton Account site so the browser can
 act as the origin: the user signs in there and enters the target code through
@@ -75,10 +80,11 @@ or receives the account password or second factor. After approval, it stores
 only the resulting revocable session and key authority required to unlock the
 mailbox locally.
 
-The child client identity is the third-party `Other` identity used by Proton's
-Mail session SDK, not a borrowed `ios-mail`, `android-mail`, or `web-mail` ID.
-A browser wrapper can be added if Proton publishes a third-party Mail desktop
-identity; until then the QR/manual-code flow is the honest direct handoff.
+The Mail SDK's `Other` client identity is retained only for protocol modeling:
+a production anonymous-session probe rejected it with API code 8004. The
+project will not substitute `ios-mail`, `android-mail`, `web-mail`, or any other
+Proton-owned ID. Live login remains fail-closed until a Mail identity intended
+for third-party software is available.
 
 ## Intended command surface
 

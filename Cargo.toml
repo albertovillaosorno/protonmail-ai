@@ -20,6 +20,7 @@ keywords = ["ai-agents", "email", "local-first", "mcp", "proton-mail"]
 [workspace.dependencies]
 # Member crates inherit every dependency from this table. External versions live
 # only here and track the newest stable release supported by the workspace.
+aes-gcm = { version = "=0.11.1", features = ["zeroize"] }
 base64 = "=0.23.1"
 getrandom = "=0.4.3"
 mail_auth_domain = { path = "src/mail/auth/domain" }

@@ -8,20 +8,32 @@ login flow.
 
 ## Decision
 
-Version one uses Proton's direct session-fork protocol for authentication and
-Proton Mail's authenticated protocol boundary for mailbox access. Proton Mail
-Bridge is not a product dependency or fallback.
+The preferred version-one path is Proton's direct session-fork protocol and
+Proton Mail's authenticated protocol boundary. Proton Mail Bridge is not a
+product dependency or fallback.
 
-`protonmail-ai auth login` starts a target-side fork with
-`GET /auth/v4/sessions/forks`, creates a fresh 32-byte encryption key, and
-presents the Proton QR/manual-code payload to the user. An already authenticated
-Proton device approves the target session. The CLI polls the returned selector
-until Proton returns the forked session, then decrypts the fork payload locally
-and stores only the resulting revocable authority in the operating-system
-credential store.
+Live direct authentication is currently blocked on an authorized third-party
+Mail client identity. The SDK's unversioned `Other` value is useful for protocol
+modeling but a production anonymous-session bootstrap rejects it. Live
+networking therefore remains disabled under `Other`.
 
-The third-party child client identity is `Other`. This is intentionally not an
-official Mail client ID such as `ios-mail`, `android-mail`, or `web-mail`.
+Once an authorized third-party Mail identity exists, `protonmail-ai auth
+login` will bootstrap Proton's anonymous transport session with
+`POST /auth/v4/sessions`, then use that anonymous UID/access authority for the
+subsequent `GET /auth/v4/sessions/forks` request. Muon's `Other` default
+resolves
+the Mail host for protocol modeling, not production authorization.
+
+The target then creates a fresh 32-byte encryption key and presents the Proton
+QR/manual-code payload to the user. An already authenticated Proton device
+approves the target session. The CLI polls the returned selector until Proton
+returns the forked user session, decrypts the fork payload locally, and stores
+only the resulting revocable authority in the operating-system credential
+store.
+
+The SDK default child client identity is `Other`. It is protocol evidence, not
+an authorized third-party Mail identity, and is intentionally distinct from
+first-party IDs such as `ios-mail`, `android-mail`, or `web-mail`.
 
 ## Why this path is accepted
 
@@ -37,8 +49,8 @@ contains the complete target and host QR-login state machine:
   unlock, and completes the authenticated session.
 
 The Mail SDK's session config derives the child client ID from its app version
-and defaults to `Other`. That default is the basis for the third-party target
-identity used here.
+and defaults to `Other`. That default documents the protocol shape, but the
+production probe below shows it is not sufficient live authorization.
 
 Proton's official Drive CLI independently demonstrates the same target-side
 session-fork UX for third-party software: start a fork, present a Proton Account
@@ -57,6 +69,8 @@ Primary evidence:
   `incubating/account/js/src/auth.ts`
 - `ProtonDriveApps/sdk@f28a93ceaeb787283fe287e8c18b11e4cc7aad3a`,
   `incubating/account/js/src/authWeb.ts`
+- `ProtonMail/proton-crypto-rs@d3984479ebd537c3a9f2cfb5958c3549ae30889c`,
+  `proton-crypto-subtle/src/aead.rs`
 - `proton.me/support/qr-code-sign-in`
 
 ## User experience
@@ -92,12 +106,28 @@ mechanism and is not faked. Proton WebClients supports `/desktop/login` for
 first-party product clients. For
 Mail, that route verifies that the child client ID matches the requested
 product.
-The third-party identity `Other` therefore cannot honestly be passed as
-`app=mail`; using `ios-mail` or another Proton-owned ID would be impersonation.
+The SDK default `Other` therefore cannot honestly be passed as `app=mail`,
+and a Proton-owned Mail ID is not an acceptable substitute.
 
 If Proton exposes a third-party Mail desktop identity such as an `external-mail`
 equivalent, the CLI may add a browser wrapper around the same session-fork
 protocol. Until then QR/manual-code approval is the direct supported handoff.
+
+## Production identity evidence
+
+A secret-free production probe on 2026-09-30 sent
+`POST https://mail.proton.me/api/auth/v4/sessions` with
+`x-pm-appversion: Other`. Proton returned HTTP 422, API code 8004,
+`Operation not allowed`. The probe used no account and retained no response.
+
+Proton Drive's public SDK provides the comparison: third-party Drive software
+uses `external-drive-{name}@{semver}-{channel}` and `external-drive` as its fork
+client ID. No public `external-mail` equivalent was found in Proton's public
+repositories on the same date.
+
+Therefore `Other` remains SDK/protocol evidence only. Live Mail login stays
+fail-closed until Proton documents or issues an authorized third-party Mail
+identity.
 
 ## OAuth status
 
@@ -130,11 +160,16 @@ The following are outside the supported architecture:
 The MCP boundary accepts no Proton authentication material. Login is a separate
 human CLI lifecycle.
 
-Before approval, the target owns only a short-lived selector/user code and a
-fresh local 32-byte handoff key. After approval, the adapter receives the forked
-UID, access token, refresh token when provided, and encrypted fork payload. The
-payload is decrypted locally to recover the key password needed to unlock the
-user's keys.
+Before approval, the target owns an anonymous provider UID/access/refresh
+session, a short-lived selector/user code, and a fresh local 32-byte handoff
+key. The anonymous bootstrap is transport authority only: it must have no
+`UserID`, cannot be treated as mailbox authority, and is kept out of MCP and
+normal diagnostics.
+
+After approval, the adapter receives the forked user UID, user ID, access token,
+refresh token, scopes, and encrypted fork payload. The payload is decrypted
+locally to recover the key password needed to unlock the user's keys. The user
+identity and key unlock must both succeed before durable authority is installed.
 
 Durable session authority is account-scoped and stored through the approved
 operating-system credential store. Credential-store failure is fail-closed with
