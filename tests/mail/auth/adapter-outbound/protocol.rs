@@ -31,11 +31,12 @@
 //! Offline Proton session-fork protocol regression tests.
 
 use aes_gcm::aead::consts::{U12, U16};
-use aes_gcm::aead::{Aead as _, KeyInit as _};
+use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::aes::Aes256;
 use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use mail_auth_fork_adapter::ForkPayloadVersion;
 use mail_auth_fork_adapter::TargetHandoff;
 use mail_auth_fork_adapter::{AnonymousSession, ForkChallenge, ForkPoll};
 use mail_auth_fork_adapter::{ProtocolError, ProviderProfile, RequestMethod};
@@ -64,7 +65,7 @@ fn provider_profile_records_sdk_default_mail_route() {
 
 #[test]
 fn bootstrap_request_has_no_provider_authority() {
-    let request = ProviderProfile::bootstrap_request();
+    let request = ProviderProfile::sdk_model_bootstrap_request();
 
     assert_eq!(request.method(), RequestMethod::Post);
     assert_eq!(request.path(), "/auth/v4/sessions");
@@ -218,16 +219,16 @@ fn refresh_and_logout_specs_keep_secret_material_redacted() {
 }
 
 #[test]
-fn current_aes_gcm_payload_round_trips_through_handoff_decoder() {
-    let handoff = TargetHandoff::new(USER_CODE).expect("entropy must exist");
+fn v3_payload_round_trips_with_fork_aad() {
+    let handoff = sdk_handoff();
     let key = handoff_key(&handoff);
-    let encrypted = encrypt_standard(&key, KEY_PASSWORD);
+    let encrypted = encrypt_v3(&key, KEY_PASSWORD);
     let encoded = STANDARD.encode(&encrypted);
     let response = complete_response(Some(&encoded));
     let session = completed_session(&response);
     let decoder = handoff.into_decoder();
     let password = decoder
-        .decode(session.encrypted_payload())
+        .decode(session.encrypted_payload(), ForkPayloadVersion::V3)
         .expect("authenticated current payload must decrypt");
 
     assert_eq!(password.expose(), KEY_PASSWORD);
@@ -235,39 +236,70 @@ fn current_aes_gcm_payload_round_trips_through_handoff_decoder() {
 }
 
 #[test]
-fn legacy_aes_gcm_payload_round_trips_through_handoff_decoder() {
-    let handoff = TargetHandoff::new(USER_CODE).expect("entropy must exist");
+fn v1_payload_round_trips_without_aad() {
+    let handoff = sdk_handoff();
     let key = handoff_key(&handoff);
-    let encrypted = encrypt_legacy(&key, KEY_PASSWORD);
+    let encrypted = encrypt_legacy(&key, KEY_PASSWORD, &[]);
     let encoded = STANDARD.encode(&encrypted);
     let response = complete_response(Some(&encoded));
     let session = completed_session(&response);
     let decoder = handoff.into_decoder();
     let password = decoder
-        .decode(session.encrypted_payload())
-        .expect("authenticated legacy payload must decrypt");
+        .decode(session.encrypted_payload(), ForkPayloadVersion::V1)
+        .expect("authenticated v1 payload must decrypt");
 
     assert_eq!(password.expose(), KEY_PASSWORD);
 }
 
 #[test]
+fn v2_payload_round_trips_with_fork_aad() {
+    let handoff = sdk_handoff();
+    let key = handoff_key(&handoff);
+    let encrypted = encrypt_legacy(&key, KEY_PASSWORD, b"fork");
+    let encoded = STANDARD.encode(&encrypted);
+    let response = complete_response(Some(&encoded));
+    let session = completed_session(&response);
+    let decoder = handoff.into_decoder();
+    let password = decoder
+        .decode(session.encrypted_payload(), ForkPayloadVersion::V2)
+        .expect("authenticated v2 payload must decrypt");
+
+    assert_eq!(password.expose(), KEY_PASSWORD);
+}
+
+#[test]
+fn version_mismatch_fails_authentication() {
+    let handoff = sdk_handoff();
+    let key = handoff_key(&handoff);
+    let encrypted = encrypt_v3(&key, KEY_PASSWORD);
+    let decoder = handoff.into_decoder();
+
+    assert_eq!(
+        decoder
+            .decode(Some(&encrypted), ForkPayloadVersion::V1)
+            .expect_err("payload version mismatch must fail"),
+        ProtocolError::PayloadAuthenticationFailed
+    );
+}
+
+#[test]
 fn wrong_handoff_key_and_malformed_payload_fail_closed() {
-    let source = TargetHandoff::new(USER_CODE).expect("entropy must exist");
+    let source = sdk_handoff();
     let source_key = handoff_key(&source);
-    let encrypted = encrypt_standard(&source_key, KEY_PASSWORD);
-    let other = TargetHandoff::new(USER_CODE).expect("entropy must exist");
+    let encrypted = encrypt_v3(&source_key, KEY_PASSWORD);
+    let other = sdk_handoff();
     let decoder = other.into_decoder();
 
     assert_eq!(
         decoder
-            .decode(Some(&encrypted))
+            .decode(Some(&encrypted), ForkPayloadVersion::V3)
             .expect_err("wrong key must fail authentication"),
         ProtocolError::PayloadAuthenticationFailed
     );
     assert_eq!(
         source
             .into_decoder()
-            .decode(Some(b"short"))
+            .decode(Some(b"short"), ForkPayloadVersion::V3)
             .expect_err("undersized payload must fail"),
         ProtocolError::InvalidEncryptedPayload
     );
@@ -275,13 +307,17 @@ fn wrong_handoff_key_and_malformed_payload_fail_closed() {
 
 #[test]
 fn absent_payload_decodes_to_empty_key_password() {
-    let handoff = TargetHandoff::new(USER_CODE).expect("entropy must exist");
+    let handoff = sdk_handoff();
     let password = handoff
         .into_decoder()
-        .decode(None)
+        .decode(None, ForkPayloadVersion::V3)
         .expect("missing payload represents empty key password");
 
     assert!(password.expose().is_empty());
+}
+
+fn sdk_handoff() -> TargetHandoff {
+    TargetHandoff::new_for_sdk_model(USER_CODE).expect("entropy must exist")
 }
 
 fn anonymous_session() -> AnonymousSession {
@@ -335,26 +371,34 @@ fn handoff_key(handoff: &TargetHandoff) -> [u8; 32] {
     bytes.try_into().expect("handoff key must be 32 bytes")
 }
 
-fn encrypt_standard(key: &[u8; 32], password: &str) -> Vec<u8> {
+fn encrypt_v3(key: &[u8; 32], password: &str) -> Vec<u8> {
     let initialized = Aes256Gcm::new_from_slice(key);
     let cipher = initialized.expect("fixture key must be valid");
     let nonce = Nonce::<U12>::try_from([0x11u8; 12].as_slice())
         .expect("fixture nonce must have valid length");
     let plaintext = json!({ "keyPassword": password }).to_string();
+    let input = Payload {
+        msg: plaintext.as_bytes(),
+        aad: b"fork",
+    };
     let ciphertext = cipher
-        .encrypt(&nonce, plaintext.as_bytes())
+        .encrypt(&nonce, input)
         .expect("fixture encryption must succeed");
     [nonce.as_slice(), ciphertext.as_slice()].concat()
 }
 
-fn encrypt_legacy(key: &[u8; 32], password: &str) -> Vec<u8> {
+fn encrypt_legacy(key: &[u8; 32], password: &str, aad: &[u8]) -> Vec<u8> {
     let initialized = LegacyAes256Gcm::new_from_slice(key);
     let cipher = initialized.expect("fixture key must be valid");
     let nonce = Nonce::<U16>::try_from([0x22u8; 16].as_slice())
         .expect("fixture nonce must have valid length");
     let plaintext = json!({ "keyPassword": password }).to_string();
+    let input = Payload {
+        msg: plaintext.as_bytes(),
+        aad,
+    };
     let ciphertext = cipher
-        .encrypt(&nonce, plaintext.as_bytes())
+        .encrypt(&nonce, input)
         .expect("fixture encryption must succeed");
     [nonce.as_slice(), ciphertext.as_slice()].concat()
 }

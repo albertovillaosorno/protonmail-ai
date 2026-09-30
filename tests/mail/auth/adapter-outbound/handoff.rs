@@ -37,7 +37,7 @@ use mail_auth_fork_adapter::{HandoffError, TargetHandoff};
 
 #[test]
 fn target_payload_matches_proton_qr_shape() {
-    let handoff = TargetHandoff::new("ABCDEFGH").expect("entropy must exist");
+    let handoff = sdk_handoff();
     let payload = handoff.payload();
     let fields: Vec<_> = payload.expose().split(':').collect();
 
@@ -61,22 +61,26 @@ fn sdk_default_identity_never_claims_a_first_party_client() {
 #[test]
 fn invalid_user_codes_fail_before_entropy_is_used() {
     assert!(matches!(
-        TargetHandoff::new(""),
+        TargetHandoff::new_for_sdk_model(""),
         Err(HandoffError::InvalidUserCode)
     ));
     assert!(matches!(
-        TargetHandoff::new("bad:code"),
+        TargetHandoff::new_for_sdk_model("bad:code"),
         Err(HandoffError::InvalidUserCode)
     ));
 }
 
 #[test]
 fn debug_output_redacts_handoff_secret() {
-    let handoff = TargetHandoff::new("ABCDEFGH").expect("entropy must exist");
+    let handoff = sdk_handoff();
     let payload = handoff.payload();
     let exposed = payload.expose().to_owned();
 
     assert_eq!(format!("{payload:?}"), "HandoffPayload([REDACTED])");
     assert!(!format!("{handoff:?}").contains(&exposed));
     assert!(format!("{handoff:?}").contains("[REDACTED]"));
+}
+
+fn sdk_handoff() -> TargetHandoff {
+    TargetHandoff::new_for_sdk_model("ABCDEFGH").expect("entropy must exist")
 }

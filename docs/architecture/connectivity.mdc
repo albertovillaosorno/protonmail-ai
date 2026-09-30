@@ -111,7 +111,8 @@ and a Proton-owned Mail ID is not an acceptable substitute.
 
 If Proton exposes a third-party Mail desktop identity such as an `external-mail`
 equivalent, the CLI may add a browser wrapper around the same session-fork
-protocol. Until then QR/manual-code approval is the direct supported handoff.
+protocol. Until then QR/manual-code approval remains the intended handoff,
+with live use disabled.
 
 ## Production identity evidence
 
@@ -128,6 +129,9 @@ repositories on the same date.
 Therefore `Other` remains SDK/protocol evidence only. Live Mail login stays
 fail-closed until Proton documents or issues an authorized third-party Mail
 identity.
+
+The current registration dossier and provider questions are maintained in
+[`provider-client-registration.mdc`](provider-client-registration.mdc).
 
 ## OAuth status
 

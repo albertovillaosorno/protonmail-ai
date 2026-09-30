@@ -20,9 +20,9 @@
 // - Merge-When:
 //   - One reviewed authentication adapter owns the complete session-fork flow.
 // - Summary:
-//   - Builds third-party Proton Mail session-fork handoff payloads.
+//   - Builds SDK-model Proton Mail session-fork handoff payloads.
 // - Description:
-//   - Uses the Mail SDK third-party client identity and Proton QR payload
+//   - Uses the Mail SDK fallback identity and Proton QR payload
 //     shape.
 // - Usage:
 //   - Create after GET /auth/v4/sessions/forks returns a user code.
@@ -34,8 +34,11 @@
 
 #![forbid(unsafe_code)]
 
+mod identity;
 mod protocol;
 
+pub use identity::{ClientIdentityError, ThirdPartyIdentityCandidate};
+pub use protocol::ForkPayloadVersion;
 pub use protocol::{AnonymousSession, ForkChallenge, ForkPayloadDecoder};
 pub use protocol::{ForkPoll, ForkSession, KeyPassword, ProtocolError};
 pub use protocol::{ProviderProfile, RequestMethod, RequestSpec};
@@ -51,6 +54,7 @@ pub const SDK_DEFAULT_CLIENT_ID: &str = "Other";
 
 const QR_VERSION: u8 = 0;
 const SECRET_LEN: usize = 32;
+type HandoffResult<T> = Result<T, HandoffError>;
 
 /// A displayable QR/manual-code handoff payload.
 ///
@@ -88,14 +92,18 @@ pub struct TargetHandoff {
 }
 
 impl TargetHandoff {
-    /// Creates a fresh third-party target handoff from Proton's user code.
+    /// Creates an SDK-default handoff for offline protocol modeling only.
+    ///
+    /// This constructor deliberately embeds `Other`. It must not be used for
+    /// live authentication because Proton has not authorized that identity for
+    /// this project.
     ///
     /// # Errors
     ///
     /// Returns [`HandoffError::InvalidUserCode`] when colon framing would be
     /// ambiguous, or [`HandoffError::EntropyUnavailable`] when secure random
     /// bytes cannot be obtained from the operating system.
-    pub fn new<T>(user_code: T) -> Result<Self, HandoffError>
+    pub fn new_for_sdk_model<T>(user_code: T) -> HandoffResult<Self>
     where
         T: Into<String>,
     {

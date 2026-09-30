@@ -42,6 +42,9 @@ left for the end:
   session-fork as the preferred protocol, blocks live use until an authorized
   third-party Mail identity exists, and rejects credential replay, Bridge, and
   browser automation;
+- [`provider-client-registration.mdc`][provider-registration]
+  records the current provider blocker, public contact paths, and exact
+  registration questions required before live Mail auth can be enabled;
 - [`threat-model.mdc`](docs/security/threat-model.mdc) separates observation,
   reversible mutation, external side effects, and disabled destructive access;
 - [`tool-contract-v1.mdc`](docs/contract/tool-contract-v1.mdc) freezes a
@@ -176,3 +179,5 @@ development proves that dependency completely unnecessary, the project may be
 re-licensed under MIT.
 
 Third-party material retains its original license and attribution.
+
+[provider-registration]: docs/architecture/provider-client-registration.mdc

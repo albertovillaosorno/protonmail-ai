@@ -1,0 +1,178 @@
+# Proton Mail third-party client registration dossier
+
+Status: blocked on provider authorization.
+
+Evidence reviewed: 2026-09-30.
+
+## Decision
+
+`protonmail-ai` will not enable direct live Mail authentication until Proton
+publishes or issues an identity explicitly intended for third-party Mail
+software. The SDK fallback `Other`, a guessed `external-mail` value, and any
+Proton-owned first-party client ID are not acceptable substitutes.
+
+This document is a registration dossier, not evidence of approval. Any identity
+named only as an example remains unusable for live authentication until Proton
+confirms it.
+
+## Public Proton position
+
+Proton's current Mail support documentation directs desktop third-party email
+clients to Proton Mail Bridge for receiving and managing mail. Proton's Android
+support page separately says Proton Mail does not integrate with third-party
+email clients on Android.
+
+SMTP Submission is a narrower exception. It lets supported paid/custom-domain
+setups send mail from business applications or devices, but Proton explicitly
+contrasts it with IMAP access and points receiving clients to Bridge.
+
+Relevant public pages:
+
+- `https://proton.me/support/clients-supported-bridge`
+- `https://proton.me/support/why-you-need-bridge`
+- `https://proton.me/support/mail-android`
+- `https://proton.me/support/smtp-submission`
+
+No public Mail developer portal, client-registration flow, Mail SDK integration
+policy, or `external-mail` client identity was found during the 2026-09-30
+review.
+
+## Production evidence
+
+A secret-free probe sent `POST /auth/v4/sessions` to the Mail production API
+with `x-pm-appversion: Other`. Proton returned HTTP 422, API code 8004,
+`Operation not allowed`.
+
+The probe used no account identity or credential. Its temporary response was
+inspected only for status/error metadata and immediately deleted.
+
+This result means the SDK's unversioned `Other` fallback is useful protocol
+evidence but does not establish production authorization for this project.
+
+## Drive precedent, not Mail permission
+
+Proton Drive's public SDK currently permits personal, non-commercial
+experimentation under explicit usage guidelines while stating that commercial
+or production third-party apps are not yet supported. Its README requires an
+honest `x-pm-appversion` such as
+`external-drive-{name}@{semver}-{channel}` and forbids masquerading as an
+official Proton client.
+
+The Drive README also states that non-compliant clients may be limited or
+blocked and points affected third-party developers to Proton support. It says
+commercial/production third-party apps are not yet supported and explicitly
+lists authentication/login flows and session management outside the SDK scope.
+This is a useful identity-policy precedent, not a Mail authentication recipe or
+a grant of Mail API access.
+
+Pinned Drive evidence:
+
+- repository: `https://github.com/ProtonDriveApps/sdk`
+- revision: `f28a93ceaeb787283fe287e8c18b11e4cc7aad3a`
+- file: `README.md`
+
+## Fork child-client validation evidence
+
+WebClients has two relevant validation paths. A caller-supplied `clientId` on
+the generic fork URL is limited to known platform prefixes such as `web`, `ios`,
+`android`, `linux`, `windows`, `macos`, and `browser`; the API then rejects IDs
+that do not exist.
+
+The desktop QR path is different. Proton Drive's SDK builds
+`/desktop/login?app=drive&pv=3#payload=...` with `external-drive` inside the QR
+payload. Payload version 3 uses a 12-byte AES-GCM IV and authenticated context
+`fork`; versions 1 and 2 use the legacy 16-byte IV, with `fork` AAD added in v2.
+
+The pinned WebClients desktop handler deserializes that payload and requires the
+child client ID to contain the selected product name. It then uses the
+sign-in-with-another-device push flow.
+
+Pinned evidence:
+
+- WebClients revision: `74773f0b10cc31d32e43e82c061da5d75fef96ce`
+- WebClients file:
+  `applications/account/src/app/content/fork/handleDesktopFork.ts`
+- WebClients file: `packages/shared/lib/authentication/fork/validation.ts`
+- Drive SDK revision: `f28a93ceaeb787283fe287e8c18b11e4cc7aad3a`
+- Drive SDK file: `incubating/account/js/src/authWeb.ts`
+
+This makes the desktop QR flow the strongest public precedent for the intended
+Mail handoff. It still does not prove that an `external-mail` backend identity
+exists. Provider approval must confirm whether third-party Mail should use
+`/desktop/login?app=mail&pv=3#payload=...`, the exact child client ID, and the
+backend permissions attached to that identity.
+
+## Public contact paths
+
+Proton's support form is at `https://proton.me/support/contact`, and Proton
+publishes `mail@support.proton.me` as an email alternative. The Proton Partners
+Program explicitly invites product partners exploring integrations and
+co-innovation and publishes `partners@proton.me`.
+
+The partners page is `https://proton.me/business/partners`. These are contact
+paths only; their existence is not evidence that a Mail API integration will be
+approved.
+
+## Registration request
+
+A request to Proton should identify the project as open-source third-party
+software and state the security boundaries before asking for access. It should
+include the production `Other` rejection so Proton can distinguish a client-ID
+policy issue from an account-login problem.
+
+The request should ask Proton to confirm all of the following:
+
+- whether third-party software may use Mail's direct authenticated protocol;
+- the exact allowed `x-pm-appversion` shape for this project;
+- the exact child client ID allowed in session-fork QR/manual-code framing;
+- whether `POST /auth/v4/sessions` and `GET /auth/v4/sessions/forks` are
+  permitted for that identity;
+- the production API origin and any required user-agent or anti-abuse metadata;
+- required retry, backoff, concurrency, event-sync, and rate-limit behavior;
+- supported account/plan types and whether personal projects are permitted;
+- token refresh, logout, remote revocation, and identity-rotation requirements;
+- whether the project may access message, conversation, label, draft, send,
+  attachment, and event endpoints through the resulting session;
+- whether Proton offers a supported SDK or compatibility contract for Mail;
+- the support/notification path for protocol or identity changes.
+
+## Request template
+
+Subject: Third-party Proton Mail client identity for session-fork integration
+
+`protonmail-ai` is an open-source third-party project exploring a local Mail
+integration. It does not collect Proton passwords or second factors, automate a
+browser, copy browser sessions, or identify as an official Proton client.
+
+We are evaluating Proton's session-fork flow so the user can approve access on a
+Proton-controlled authenticated surface. A secret-free production bootstrap
+using the Mail SDK fallback `x-pm-appversion: Other` returned HTTP 422 with
+API code 8004 (`Operation not allowed`), so we have kept live access disabled
+rather than
+substituting a first-party client ID.
+
+Does Proton offer an authorized third-party Mail app-version/client ID or a
+registration process for this use case? If so, please confirm the allowed
+`x-pm-appversion`, fork child client ID, API origin, permitted fork endpoints,
+rate-limit/retry requirements, supported Mail capabilities, plan restrictions,
+and token refresh/revocation requirements.
+
+If direct third-party Mail API access is not supported, confirmation of that is
+also useful so the project can keep the route disabled and document the
+supported alternative accurately.
+
+## Approval evidence required by this repository
+
+The P0 blocker may close only with provider evidence that identifies the allowed
+third-party identity and scope. A support or partner response that merely says
+"try Bridge" or "use SMTP" does not authorize direct Mail session access.
+
+Before live code is enabled, the accepted evidence must be recorded without
+private account data and must answer the app-version, child-client-ID, endpoint,
+rate-limit, capability, and revocation questions above. The resulting identity
+must pass the repository candidate validator and must not equal a known
+first-party Mail identity.
+
+A redacted anonymous-session bootstrap must then succeed under the approved
+identity. Session-fork allocation must succeed under the same identity before
+`LIVE_AUTH_SUPPORTED` can change from `false`.

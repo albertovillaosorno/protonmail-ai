@@ -84,6 +84,10 @@ The SDK's `Other` child identity is protocol evidence, not production
 authorization. The project never uses a Proton-owned Mail identity merely to
 make a provider check succeed.
 
+A syntactically valid `ThirdPartyIdentityCandidate` is also not authorization.
+It exists only to reject known unsafe proposals before provider evidence is
+reviewed. No candidate can currently construct a live handoff.
+
 The QR/manual-code value contains authorization material. It is exposed only at
 the deliberate user-facing login boundary and is structurally redacted from
 diagnostics.

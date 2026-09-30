@@ -37,7 +37,7 @@ use std::fmt;
 use std::borrow::Cow;
 
 use aes_gcm::aead::consts::{U12, U16};
-use aes_gcm::aead::{Aead as _, KeyInit as _};
+use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::aes::Aes256;
 use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
@@ -50,14 +50,17 @@ const HTTP_UNPROCESSABLE_ENTITY: u16 = 422;
 const STANDARD_NONCE_LEN: usize = 12;
 const LEGACY_NONCE_LEN: usize = 16;
 const GCM_TAG_LEN: usize = 16;
+const FORK_AAD: &[u8] = b"fork";
 const FORK_SELECTOR_LEN: usize = 20;
 const FORK_USER_CODE_LEN: usize = 8;
 
 type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 
-/// Immutable production request profile for the third-party Mail client.
+/// Immutable SDK-model profile for the Proton Mail fork protocol.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ProviderProfile;
+
+const _: () = assert!(!ProviderProfile::LIVE_AUTH_SUPPORTED);
 
 impl ProviderProfile {
     /// Production base selected by Muon for an unnamed `Other` Mail app.
@@ -83,9 +86,9 @@ impl ProviderProfile {
     /// Redirect URI expected by Proton's refresh flow.
     pub const REFRESH_REDIRECT_URI: &'static str = "https://protonmail.ch";
 
-    /// Returns the unauthenticated request that bootstraps transport authority.
+    /// Returns the SDK-model bootstrap request; not authorized for live use.
     #[must_use]
-    pub const fn bootstrap_request() -> RequestSpec<'static> {
+    pub const fn sdk_model_bootstrap_request() -> RequestSpec<'static> {
         RequestSpec {
             method: RequestMethod::Post,
             path: Cow::Borrowed(Self::SESSION_BOOTSTRAP_PATH),
@@ -512,6 +515,19 @@ impl fmt::Debug for KeyPassword {
     }
 }
 
+/// Encrypted fork-payload format negotiated on the approval URL.
+///
+/// Mirrors pinned WebClients fork payload versions 1 through 3.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ForkPayloadVersion {
+    /// Legacy 16-byte IV without additional authenticated data.
+    V1,
+    /// Legacy 16-byte IV authenticated with the `fork` context.
+    V2,
+    /// Standard 12-byte IV authenticated with the `fork` context.
+    V3,
+}
+
 /// Decoder that exclusively owns the target's short-lived handoff key.
 pub struct ForkPayloadDecoder {
     key: Zeroizing<[u8; 32]>,
@@ -537,11 +553,15 @@ impl ForkPayloadDecoder {
     ///
     /// Returns an error for undersized payloads, failed authentication, invalid
     /// UTF-8/JSON, or a missing `keyPassword` value.
-    pub fn decode(&self, payload: Option<&[u8]>) -> ForkResult<KeyPassword> {
+    pub fn decode(
+        &self,
+        payload: Option<&[u8]>,
+        version: ForkPayloadVersion,
+    ) -> ForkResult<KeyPassword> {
         let Some(payload) = payload else {
             return Ok(KeyPassword(Zeroizing::new(String::new())));
         };
-        let plaintext = decrypt_payload(&self.key, payload)?;
+        let plaintext = decrypt_payload(&self.key, payload, version)?;
         let bytes = plaintext.as_slice();
         let parsed = serde_json::from_slice::<RawForkPayload>(bytes);
         let decoded = parsed.map_err(|_json| ProtocolError::MalformedPayload)?;
@@ -578,6 +598,7 @@ pub enum ProtocolError {
 
 type ForkResult<T> = Result<T, ProtocolError>;
 type Plaintext = Zeroizing<Vec<u8>>;
+type PlainResult = ForkResult<Plaintext>;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -635,30 +656,54 @@ impl SecretText {
     }
 }
 
-fn decrypt_payload(key: &[u8; 32], payload: &[u8]) -> ForkResult<Plaintext> {
+fn decrypt_payload(
+    key: &[u8; 32],
+    payload: &[u8],
+    version: ForkPayloadVersion,
+) -> ForkResult<Plaintext> {
+    match version {
+        ForkPayloadVersion::V1 => decrypt_legacy(key, payload, &[]),
+        ForkPayloadVersion::V2 => decrypt_legacy(key, payload, FORK_AAD),
+        ForkPayloadVersion::V3 => decrypt_standard(key, payload, FORK_AAD),
+    }
+}
+
+fn decrypt_legacy(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
+    if payload.len() < LEGACY_NONCE_LEN + GCM_TAG_LEN {
+        return Err(ProtocolError::InvalidEncryptedPayload);
+    }
+    let cipher = LegacyAes256Gcm::new_from_slice(key)
+        .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)?;
+    let (nonce, ciphertext) = payload.split_at(LEGACY_NONCE_LEN);
+    let parsed_nonce = Nonce::<U16>::try_from(nonce);
+    let invalid = ProtocolError::InvalidEncryptedPayload;
+    let nonce = parsed_nonce.map_err(|_nonce| invalid)?;
+    let input = Payload {
+        msg: ciphertext,
+        aad,
+    };
+    cipher
+        .decrypt(&nonce, input)
+        .map(Zeroizing::new)
+        .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)
+}
+
+fn decrypt_standard(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
     if payload.len() < STANDARD_NONCE_LEN + GCM_TAG_LEN {
         return Err(ProtocolError::InvalidEncryptedPayload);
     }
-
-    if payload.len() >= LEGACY_NONCE_LEN + GCM_TAG_LEN {
-        let legacy = LegacyAes256Gcm::new_from_slice(key)
-            .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)?;
-        let (nonce, ciphertext) = payload.split_at(LEGACY_NONCE_LEN);
-        let nonce = Nonce::<U16>::try_from(nonce)
-            .map_err(|_error| ProtocolError::InvalidEncryptedPayload)?;
-        if let Ok(plaintext) = legacy.decrypt(&nonce, ciphertext) {
-            return Ok(Zeroizing::new(plaintext));
-        }
-    }
-
-    let standard = Aes256Gcm::new_from_slice(key)
+    let cipher = Aes256Gcm::new_from_slice(key)
         .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)?;
     let (nonce, ciphertext) = payload.split_at(STANDARD_NONCE_LEN);
     let parsed_nonce = Nonce::<U12>::try_from(nonce);
     let invalid = ProtocolError::InvalidEncryptedPayload;
     let nonce = parsed_nonce.map_err(|_nonce| invalid)?;
-    standard
-        .decrypt(&nonce, ciphertext)
+    let input = Payload {
+        msg: ciphertext,
+        aad,
+    };
+    cipher
+        .decrypt(&nonce, input)
         .map(Zeroizing::new)
         .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)
 }

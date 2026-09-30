@@ -16,12 +16,16 @@ any live direct-session authentication is enabled.
 
 ## Required work
 
+- Use `docs/architecture/provider-client-registration.mdc` as the registration
+  dossier and exact question set for Proton support or partner review.
 - Do not reuse Proton-owned first-party Mail identities.
 - Confirm a Proton-supported Mail equivalent of Drive's documented
   `external-drive-{name}@{semver}` / `external-drive` convention, or obtain a
   project-specific client registration from Proton.
 - Record app-version shape, child client ID, API host, fork permissions, rate
   limits, and revocation expectations.
+- Confirm whether the approved Mail identity uses Proton's desktop QR route
+  (`/desktop/login?app=mail&pv=3`) and which approval surface supports it.
 - Re-run live anonymous-session and fork probes only after that identity is
   documented or issued.
 - Treat public OAuth as unavailable for Mail unless Proton documents a Mail
@@ -29,9 +33,15 @@ any live direct-session authentication is enabled.
 
 ## Current evidence
 
-- Proton Drive's public SDK documents `external-drive` for third-party forks.
+- Proton Drive's public SDK documents an `external-drive` auth client ID for
+  third-party forks and an `external-drive-{name}@{semver}` app-version family.
 - No `external-mail` identity is present in Proton's public repositories as of
   2026-09-30.
+- Drive's third-party web-auth precedent uses the desktop QR path with
+  `external-drive`; WebClients validates product/child-ID agreement on that
+  route rather than the generic fork URL's platform-prefix rule.
+- Proton publishes support and product-partner contact paths, but neither page
+  documents direct third-party Mail API registration.
 - Proton Mail's Rust SDK accepts unversioned `Other` as an internal default, but
   a production anonymous-session probe using `x-pm-appversion: Other` returned
   HTTP 422, API code 8004, `Operation not allowed`.
@@ -41,12 +51,16 @@ any live direct-session authentication is enabled.
 ## Acceptance criteria
 
 - Live direct auth remains disabled while this task is open.
+- SDK-model constructors cannot be mistaken for live-auth constructors.
+- Candidate validation rejects `Other`, known first-party Mail IDs, malformed
+  framing values, and unversioned app identities.
 - The accepted identity is explicitly third-party.
 - A secret-free production probe can bootstrap anonymous transport authority.
 - Session-fork allocation accepts the same identity without fallback.
 
 ## Evidence
 
+- Registration dossier with public support/partner contact paths
 - Proton documentation or written registration evidence
 - Redacted production bootstrap transcript
 - Redacted fork-allocation transcript

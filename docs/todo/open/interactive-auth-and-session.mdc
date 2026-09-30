@@ -24,7 +24,9 @@ collecting account credentials or controlling a browser.
 - Initiate `GET /auth/v4/sessions/forks` with `x-pm-uid` and Bearer authority
   from that anonymous transport session.
 - Generate a fresh 32-byte target encryption key and frame the Proton version-0
-  QR payload with child client ID `Other`.
+  QR payload with the provider-approved third-party child client ID.
+- Use the provider-approved fork payload version; the current desktop precedent
+  is payload version 3 with AES-GCM AAD `fork`.
 - Render a terminal QR and provide an explicit manual-copy form without logging
   either representation.
 - Offer an optional system-browser helper that opens Proton Account as the
