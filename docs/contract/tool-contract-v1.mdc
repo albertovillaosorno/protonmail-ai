@@ -1,0 +1,247 @@
+# Mail tool contract v1
+
+## Status
+
+Frozen on 2026-09-29 as `mail-tools/v1`.
+
+The machine-readable inventory is `tool-contract-v1.json`. The Rust authority is
+`mail_capability_domain::contract_v1`. Tool annotations are MCP hints for client
+UX only; server authorization always follows the security model and
+`ActionGrant` checks.
+
+## Identifier rules
+
+All public identifiers are non-empty opaque strings. Clients must preserve them
+byte-for-byte and must not derive provider meaning from them.
+
+- `message_id`, `thread_id`, `mailbox_id`, `label_id`, `draft_id`, and
+  `sender_identity_id` are scoped to one authenticated account.
+- `attachment_id` is scoped to its parent message and is invalid with another
+  message.
+- `event_cursor` is scoped to account, selected adapter, and adapter generation.
+  It is not portable across logout, account switch, or adapter replacement.
+
+Provider-native identifiers may be encoded behind these values, but that is an
+adapter implementation detail.
+
+## Sender identities
+
+`list_senders` returns only identities the active adapter reports as currently
+available for sending. Each item has `sender_identity_id`, display name,
+address,
+and verification/availability state.
+
+Draft and send inputs select `sender_identity_id`, never a free-form From
+address. A missing, unverified, disabled, or account-mismatched sender returns
+`invalid_argument` or `permission_denied` before dispatch. Adapters do not
+silently substitute the account primary address.
+
+## Search grammar
+
+`search_v1` accepts a structured query rather than a provider query string:
+
+- optional free text over fields the adapter can faithfully search;
+- zero or more sender and recipient address filters;
+- optional mailbox and label identifiers;
+- read state: `any`, `read`, or `unread`;
+- attachment presence: `any`, `present`, or `absent`;
+- inclusive `after` and exclusive `before` RFC 3339 instants;
+- page size and opaque cursor.
+
+All instants are normalized to UTC for comparison. Naive local datetimes are
+rejected. Unsupported search dimensions produce `capability_unavailable`; they
+are never silently ignored.
+
+Search results use descending received time and a stable provider-neutral ID as
+tie breaker. Search semantics are snapshot-oriented as described below.
+
+## Pagination and ordering
+
+Every list/search page returns `items` and either an opaque `next_cursor` or
+`null`. The cursor binds the normalized query, account, adapter generation,
+ordering, page size, and snapshot boundary.
+
+Within one valid cursor chain:
+
+- order is `received_at` descending, then provider-neutral ID ascending;
+- an item already emitted is not emitted again;
+- an item belonging to the snapshot is not silently skipped because newer mail
+  arrived after the first page;
+- changing any query parameter requires starting a new chain;
+- an adapter unable to preserve the snapshot returns `cursor_expired` rather
+  than continuing approximately.
+
+`cursor_expired` requires pagination to restart. `invalid_cursor` is never
+retryable with the same cursor.
+
+Default page size is 50 and maximum page size is 100.
+
+## Message and thread schemas
+
+`message_v1` includes opaque IDs, thread ID when available, sender and recipient
+mailboxes, subject, sent/received instants, read state, mailbox/label IDs,
+headers requested by the caller, body representation, and attachment metadata.
+Adapters must mark unavailable optional fields rather than fabricate values.
+
+`thread_v1` contains thread identity, summary metadata, and an ordered message
+collection or message references. An adapter may advertise `get_thread` only
+when its threading semantics meet this contract; approximate subject threading
+is not equivalent.
+
+List/search page shapes contain summaries, not unbounded bodies.
+
+## Attachment schemas and bounds
+
+`attachment_get_v1` binds both `message_id` and `attachment_id`. The response
+contains sanitized filename metadata, declared content type, byte length when
+known, and either bounded inline bytes or a safe file-output result.
+
+Inline bytes are limited to 32 KiB. Larger data requires an explicitly enabled
+file destination or a future streaming contract. File output follows the threat
+model's root containment, traversal, symlink, size, overwrite, and partial-file
+rules.
+
+## Draft schemas
+
+`draft_create_v1` requires a client-generated `request_id` used as the draft
+creation idempotency identity. It accepts sender identity, normalized recipient
+sets, subject, body variant, and bounded attachment references/uploads.
+
+`draft_update_v1` requires `draft_id` and an optimistic version token. Conflict
+with a newer revision returns `conflict`; an adapter may not overwrite a newer
+draft silently.
+
+`read_draft` is read-only. `discard_draft` is reversible for contract purposes
+only when the adapter has a documented recovery path; otherwise that adapter
+must omit the capability.
+
+Draft creation/update never sends mail.
+
+## Send, reply, reply-all, and forward
+
+All external-side-effect inputs carry a client-generated `idempotency_key`.
+Adapters persist or map that identity before dispatch when their protocol allows
+it. Repeating an already completed key returns the original outcome rather than
+creating a second delivery.
+
+A transport loss after dispatch returns `ambiguous_outcome` unless delivery can
+be resolved safely. A new idempotency key is a new side-effect request.
+
+`reply` targets the original sender according to normalized message metadata.
+`reply_all` derives recipients from the original To/Cc sets, excludes the
+selected sender identity, de-duplicates normalized addresses, and exposes the
+resolved recipient set for confirmation before dispatch.
+
+`forward` creates new explicit recipients and never inherits original recipients
+implicitly.
+
+## Read state and mailbox actions
+
+`mark_read` and `mark_unread` are separate tools. Label addition and removal are
+separate explicit operations. Archive/unarchive, move, trash, and restore are
+separate reversible capabilities so adapters cannot collapse distinct provider
+semantics into one generic mutation.
+
+Permanent `delete_messages` is present in the frozen inventory only so its name
+and destructive classification cannot drift. It is disabled by default and has
+no executable `ActionGrant`.
+
+## Batch shape
+
+Batch mutations accept at most 100 unique message IDs. Duplicate input IDs are
+rejected as `invalid_argument` rather than executed twice.
+
+`batch_v1` returns one result per input ID in input order. Each item contains
+its
+ID plus either success metadata or a structured error. One item failing does not
+roll back unrelated successful items unless the tool explicitly documents an
+atomic provider operation.
+
+A retry targets only unresolved items and remains subject to that tool's
+idempotency contract.
+
+## Change waiting
+
+`change_wait_v1` accepts an optional event cursor and a bounded wait duration.
+The maximum wait is 30 seconds. The result returns ordered changes plus the next
+cursor even when no changes occurred.
+
+A cursor gap, adapter generation change, or inability to resume exactly returns
+`cursor_expired` or a typed compatibility error. The server does not silently
+skip forward. `wait_for_changes` is bounded request/response behavior, not an
+implicit forever-running public listener.
+
+## Error envelope
+
+Every failure has a stable code, safe message, optional retry-after duration,
+and optional per-item context made only from diagnostic-allowlisted fields.
+Raw provider payloads are never returned as errors.
+
+Version one codes are:
+
+- `authentication_required`, `session_expired`: reauthenticate first;
+- `permission_denied`, `capability_unavailable`, `not_found`,
+  `invalid_argument`, `invalid_cursor`, `conflict`, `compatibility_error`,
+  `size_limit`, `unsafe_path`, `destructive_disabled`: do not auto-retry;
+- `cursor_expired`: restart pagination or event observation;
+- `rate_limited`, `transient_provider`: the identical request may retry within
+  the workflow's bounded retry policy;
+- `ambiguous_outcome`: resolve state before another external side effect.
+
+## MCP annotations
+
+The JSON fixture serializes all four MCP annotation hints:
+
+- read-only tools set `readOnlyHint=true`;
+- permanent deletion sets `destructiveHint=true` but remains disabled;
+- tools whose identical request identity can be repeated safely set
+  `idempotentHint=true`;
+- all mail tools set `openWorldHint=true` because they interact with externally
+  mutable mailbox state.
+
+Hints are not authorization. A malicious or old client can ignore them, so the
+server independently checks account binding, capability availability, and the
+exact action grant.
+
+## Compatibility with Gmail-like mail tooling
+
+Version one intentionally follows the useful cross-provider surface rather than
+Gmail-specific resource shapes.
+
+- Search/list messages: equivalent intent; browser required; Bridge candidate
+  via IMAP.
+- Get message/attachment: equivalent intent; browser required; Bridge candidate
+  via IMAP.
+- Search/list/get threads: equivalent intent; browser required; Bridge deferred
+  until exact threading semantics are proven.
+- Mailboxes: provider-neutral folders; browser required; Bridge candidate.
+- Labels: provider-neutral label IDs; browser required; Bridge deferred unless
+  semantics match.
+- Sender identities: explicit verified IDs; browser required; Bridge deferred
+  until identity behavior is proven.
+- Draft CRUD: separate from send; browser required; Bridge deferred until draft
+  semantics prove parity.
+- Send/reply/reply-all/forward: explicit side effects; browser required; Bridge
+  candidate via SMTP plus identity/threading proof.
+- Read/unread: separate reversible tools; browser required; Bridge candidate via
+  IMAP flags.
+- Label changes: explicit add/remove; browser required; Bridge deferred unless
+  semantics match.
+- Archive/move/trash/restore: separate reversible tools; browser required;
+  Bridge candidate only with exact mailbox semantics.
+- Wait for changes: bounded resumable cursor; browser required; Bridge deferred
+  pending gap/resume proof.
+- Permanent delete: disabled for both adapters.
+
+"Required" means the primary browser-session adapter must prove this behavior
+before the tool is advertised. "Candidate" is not support: the Bridge adapter
+task must pass the same provider-neutral fixtures before advertising it.
+
+## Versioning
+
+Any change to tool names, identifier scope, schema meaning, ordering, cursor
+semantics, safety class, error retry class, or annotations requires either a
+reviewed backward-compatible extension or a new contract version.
+
+The golden JSON fixture and inventory-equality test make accidental drift a test
+failure before transport or adapter code can observe it.

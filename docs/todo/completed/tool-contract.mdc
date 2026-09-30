@@ -1,0 +1,46 @@
+---
+id: tool-contract
+priority: P0
+status: completed
+dependencies:
+  - architecture-and-auth
+  - security-model
+---
+
+# Freeze the Gmail-parity MCP contract
+
+## Goal
+
+Define a stable provider-neutral tool surface before transport and adapter code
+couple behavior to one implementation.
+
+## Completed work
+
+- Froze 29 public tool/capability names as `mail-tools/v1`.
+- Defined account-scoped opaque identifiers for messages, threads, mailboxes,
+  labels, drafts, senders, attachments, and event cursors.
+- Defined structured search, UTC time semantics, snapshot pagination, stable
+  ordering, cursor expiry, page limits, and bounded change waiting.
+- Defined verified sender selection and rejected free-form From substitution.
+- Defined separate draft, send, reply, reply-all, forward, read-state, label,
+  archive, move, trash, restore, and destructive operations.
+- Defined batch bounds, per-item results, attachment bounds, idempotency keys,
+  optimistic draft versions, and ambiguous-send behavior.
+- Defined a stable structured error vocabulary with retry classes.
+- Froze all four MCP annotation hints while keeping server authorization
+  independent from those hints.
+- Documented Gmail-like compatibility and explicit Bridge deferrals.
+- Added a machine-readable golden JSON fixture and serialization round-trip
+  test.
+
+## Acceptance evidence
+
+- `src/mail/capability/contract/v1.rs` owns the serialized contract boundary.
+- `docs/contract/tool-contract-v1.mdc` defines schema semantics and
+  compatibility.
+- `docs/contract/tool-contract-v1.json` is the golden machine-readable fixture.
+- Contract and `planned_capabilities()` inventories are asserted identical.
+- The golden contract serializes, deserializes, and byte-compares
+  deterministically.
+- Permanent deletion remains disabled by default and has no `ActionGrant`.
+- Targeted contract tests, strict Clippy, and Jig complete cleanly.

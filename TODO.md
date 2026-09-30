@@ -13,13 +13,6 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P0 — Authority, architecture, and safety
 
-### TODO - Freeze the Gmail-parity MCP contract
-
-Specify tool schemas, pagination, stable identifiers, annotations, error
-semantics, and capability boundaries independently of the provider adapter.
-
-[tool-contract](docs/todo/open/tool-contract.mdc)
-
 ## P1 — Working local mail path
 
 ### TODO - Implement interactive authentication and session custody

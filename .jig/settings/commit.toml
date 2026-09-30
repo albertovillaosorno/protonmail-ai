@@ -1,11 +1,11 @@
 domain = "commit"
 schema_version = 1
-allowed_scopes = ["architecture", "auth", "cli", "documentation", "legal", "mail", "mcp", "repo", "security"]
+allowed_scopes = ["architecture", "auth", "cli", "documentation", "legal", "mail", "mcp", "repo", "security", "tuning"]
 allowed_trailers = ["BREAKING CHANGE", "Co-authored-by", "Signed-off-by"]
 allowed_types = ["build", "chore", "docs", "feat", "fix", "refactor", "test"]
 allow_merge_commits = false
 allow_revert_type = false
-body_line_max_length = 80
+body_line_max_length = 210
 body_min_length = 1
 required_trailers = ["Signed-off-by"]
 require_scope = true

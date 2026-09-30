@@ -1,0 +1,532 @@
+{
+  "errors": [
+    {
+      "code": "authentication_required",
+      "retry": "reauthenticate"
+    },
+    {
+      "code": "session_expired",
+      "retry": "reauthenticate"
+    },
+    {
+      "code": "permission_denied",
+      "retry": "never"
+    },
+    {
+      "code": "capability_unavailable",
+      "retry": "never"
+    },
+    {
+      "code": "not_found",
+      "retry": "never"
+    },
+    {
+      "code": "invalid_argument",
+      "retry": "never"
+    },
+    {
+      "code": "invalid_cursor",
+      "retry": "never"
+    },
+    {
+      "code": "cursor_expired",
+      "retry": "restart_pagination"
+    },
+    {
+      "code": "conflict",
+      "retry": "never"
+    },
+    {
+      "code": "rate_limited",
+      "retry": "same_request"
+    },
+    {
+      "code": "transient_provider",
+      "retry": "same_request"
+    },
+    {
+      "code": "compatibility_error",
+      "retry": "never"
+    },
+    {
+      "code": "ambiguous_outcome",
+      "retry": "resolve_ambiguity"
+    },
+    {
+      "code": "size_limit",
+      "retry": "never"
+    },
+    {
+      "code": "unsafe_path",
+      "retry": "never"
+    },
+    {
+      "code": "destructive_disabled",
+      "retry": "never"
+    }
+  ],
+  "identifiers": [
+    {
+      "name": "message_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "thread_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "mailbox_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "label_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "draft_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "sender_identity_id",
+      "opaque": true,
+      "scope": "account"
+    },
+    {
+      "name": "attachment_id",
+      "opaque": true,
+      "scope": "message"
+    },
+    {
+      "name": "event_cursor",
+      "opaque": true,
+      "scope": "account_adapter_generation"
+    }
+  ],
+  "limits": {
+    "default_page_size": 50,
+    "max_batch_items": 100,
+    "max_inline_attachment_bytes": 32768,
+    "max_page_size": 100,
+    "max_wait_milliseconds": 30000
+  },
+  "pagination": {
+    "cursor": "opaque-request-bound-snapshot-cursor",
+    "expired_cursor_error": "cursor_expired",
+    "primary_order": "received_at_desc",
+    "tie_breaker": "provider_neutral_id_asc"
+  },
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "search_messages",
+      "enabled_by_default": true,
+      "input_schema": "search_v1",
+      "name": "search_messages",
+      "output_schema": "message_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "search_threads",
+      "enabled_by_default": true,
+      "input_schema": "search_v1",
+      "name": "search_threads",
+      "output_schema": "thread_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "list_messages",
+      "enabled_by_default": true,
+      "input_schema": "page_v1",
+      "name": "list_messages",
+      "output_schema": "message_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "list_threads",
+      "enabled_by_default": true,
+      "input_schema": "page_v1",
+      "name": "list_threads",
+      "output_schema": "thread_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "get_message",
+      "enabled_by_default": true,
+      "input_schema": "message_ref_v1",
+      "name": "get_message",
+      "output_schema": "message_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "get_thread",
+      "enabled_by_default": true,
+      "input_schema": "thread_ref_v1",
+      "name": "get_thread",
+      "output_schema": "thread_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "get_attachment",
+      "enabled_by_default": true,
+      "input_schema": "attachment_get_v1",
+      "name": "get_attachment",
+      "output_schema": "attachment_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "list_mailboxes",
+      "enabled_by_default": true,
+      "input_schema": "page_v1",
+      "name": "list_mailboxes",
+      "output_schema": "mailbox_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "list_labels",
+      "enabled_by_default": true,
+      "input_schema": "page_v1",
+      "name": "list_labels",
+      "output_schema": "label_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "list_senders",
+      "enabled_by_default": true,
+      "input_schema": "page_v1",
+      "name": "list_senders",
+      "output_schema": "sender_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "create_draft",
+      "enabled_by_default": true,
+      "input_schema": "draft_create_v1",
+      "name": "create_draft",
+      "output_schema": "draft_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "read_draft",
+      "enabled_by_default": true,
+      "input_schema": "draft_ref_v1",
+      "name": "read_draft",
+      "output_schema": "draft_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "update_draft",
+      "enabled_by_default": true,
+      "input_schema": "draft_update_v1",
+      "name": "update_draft",
+      "output_schema": "draft_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "discard_draft",
+      "enabled_by_default": true,
+      "input_schema": "draft_ref_v1",
+      "name": "discard_draft",
+      "output_schema": "mutation_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "send_draft",
+      "enabled_by_default": true,
+      "input_schema": "send_draft_v1",
+      "name": "send_draft",
+      "output_schema": "send_v1",
+      "safety": "external_side_effect"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "reply",
+      "enabled_by_default": true,
+      "input_schema": "reply_v1",
+      "name": "reply",
+      "output_schema": "send_v1",
+      "safety": "external_side_effect"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "reply_all",
+      "enabled_by_default": true,
+      "input_schema": "reply_v1",
+      "name": "reply_all",
+      "output_schema": "send_v1",
+      "safety": "external_side_effect"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "forward",
+      "enabled_by_default": true,
+      "input_schema": "forward_v1",
+      "name": "forward",
+      "output_schema": "send_v1",
+      "safety": "external_side_effect"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "mark_read",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "mark_read",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "mark_unread",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "mark_unread",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "apply_labels",
+      "enabled_by_default": true,
+      "input_schema": "label_batch_v1",
+      "name": "apply_labels",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "remove_labels",
+      "enabled_by_default": true,
+      "input_schema": "label_batch_v1",
+      "name": "remove_labels",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "archive",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "archive",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "unarchive",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "unarchive",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "move_messages",
+      "enabled_by_default": true,
+      "input_schema": "move_batch_v1",
+      "name": "move_messages",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "trash_messages",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "trash_messages",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "restore_messages",
+      "enabled_by_default": true,
+      "input_schema": "message_batch_v1",
+      "name": "restore_messages",
+      "output_schema": "batch_v1",
+      "safety": "reversible"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      },
+      "capability": "wait_for_changes",
+      "enabled_by_default": true,
+      "input_schema": "change_wait_v1",
+      "name": "wait_for_changes",
+      "output_schema": "change_page_v1",
+      "safety": "read_only"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "capability": "delete_messages",
+      "enabled_by_default": false,
+      "input_schema": "message_batch_v1",
+      "name": "delete_messages",
+      "output_schema": "batch_v1",
+      "safety": "destructive"
+    }
+  ],
+  "version": "mail-tools/v1"
+}

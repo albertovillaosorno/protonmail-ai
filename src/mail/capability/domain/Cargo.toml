@@ -18,5 +18,13 @@ path = "lib.rs"
 name = "mail-capability-domain-safety"
 path = "../../../../tests/mail/capability/domain/safety.rs"
 
+[[test]]
+name = "mail-capability-contract-v1"
+path = "../../../../tests/mail/capability/contract/v1.rs"
+
 [lints]
 workspace = true
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

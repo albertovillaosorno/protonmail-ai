@@ -65,9 +65,8 @@ impl MailProviderPort for SyntheticAdapter {
 
 #[test]
 fn adapter_selection_never_combines_partial_coverage() {
-    let capabilities = planned_capabilities();
-    let search = capabilities[0];
-    let message = capabilities[1];
+    let search = Capability::new("search_messages", SafetyClass::ReadOnly);
+    let message = Capability::new("get_message", SafetyClass::ReadOnly);
     let search_only = SyntheticAdapter {
         id: "search-only",
         supported: &["search_messages"],
@@ -83,8 +82,10 @@ fn adapter_selection_never_combines_partial_coverage() {
 
 #[test]
 fn adapter_selection_uses_ordered_complete_candidate() {
-    let capabilities = planned_capabilities();
-    let required = [capabilities[0], capabilities[1]];
+    let required = [
+        Capability::new("search_messages", SafetyClass::ReadOnly),
+        Capability::new("get_message", SafetyClass::ReadOnly),
+    ];
     let partial = SyntheticAdapter {
         id: "partial",
         supported: &["search_messages"],
@@ -96,8 +97,12 @@ fn adapter_selection_uses_ordered_complete_candidate() {
     let candidates = [partial, complete];
 
     let selected = select_adapter(&required, &candidates);
-    let selected = selected.expect("a complete adapter should be selected");
-    assert_eq!(selected.adapter_id(), "complete");
+    let selected_id = selected.map(MailProviderPort::adapter_id);
+    assert_eq!(
+        selected_id,
+        Some("complete"),
+        "the first complete adapter must be selected"
+    );
 }
 
 #[test]
