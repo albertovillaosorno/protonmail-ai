@@ -48,6 +48,78 @@ pub enum SafetyClass {
     Destructive,
 }
 
+/// The authority required to execute one non-destructive operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ActionGrant {
+    /// Authority to observe mailbox state only.
+    Observe,
+    /// Authority to make one reversible mailbox change.
+    ReversibleChange,
+    /// Authority to cause one external side effect such as sending mail.
+    ExternalSideEffect,
+}
+
+impl SafetyClass {
+    /// Returns the exact authority required for this side-effect class.
+    ///
+    /// Destructive operations deliberately have no grant while permanent
+    /// deletion remains disabled by repository policy.
+    #[must_use]
+    pub const fn required_grant(self) -> Option<ActionGrant> {
+        match self {
+            Self::ReadOnly => Some(ActionGrant::Observe),
+            Self::Reversible => Some(ActionGrant::ReversibleChange),
+            Self::ExternalSideEffect => Some(ActionGrant::ExternalSideEffect),
+            Self::Destructive => None,
+        }
+    }
+
+    /// Reports whether the supplied authority permits this side-effect class.
+    #[must_use]
+    pub const fn authorizes(self, grant: ActionGrant) -> bool {
+        matches!(
+            (self, grant),
+            (Self::ReadOnly, ActionGrant::Observe)
+                | (Self::Reversible, ActionGrant::ReversibleChange)
+                | (Self::ExternalSideEffect, ActionGrant::ExternalSideEffect)
+        )
+    }
+}
+
+/// A borrowed secret whose common formatting traits always redact its value.
+///
+/// This type is a diagnostic boundary, not durable secret storage. Adapters may
+/// expose the wrapped value only when calling the provider or credential store.
+pub struct SecretRef<'a> {
+    value: &'a str,
+}
+
+impl<'a> SecretRef<'a> {
+    /// Wraps a value that must not appear in diagnostics.
+    #[must_use]
+    pub const fn new(value: &'a str) -> Self {
+        Self { value }
+    }
+
+    /// Exposes the secret to an explicitly secret-aware integration boundary.
+    #[must_use]
+    pub const fn expose(self) -> &'a str {
+        self.value
+    }
+}
+
+impl core::fmt::Debug for SecretRef<'_> {
+    fn fmt(&self, out: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        out.write_str("[REDACTED]")
+    }
+}
+
+impl core::fmt::Display for SecretRef<'_> {
+    fn fmt(&self, out: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        out.write_str("[REDACTED]")
+    }
+}
+
 /// A planned public capability, independent of its adapter or transport.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Capability {

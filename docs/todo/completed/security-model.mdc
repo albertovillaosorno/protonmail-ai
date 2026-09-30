@@ -1,0 +1,44 @@
+---
+id: security-model
+priority: P0
+status: completed
+dependencies:
+  - architecture-and-auth
+---
+
+# Complete the credential and side-effect threat model
+
+## Goal
+
+Define how mailbox authority is acquired, held, constrained, observed, and
+revoked before real credentials are accepted.
+
+## Completed work
+
+- Modeled the user, AI client, MCP process, Proton, Bridge, browser boundary,
+  credential store, remote operator, remote client, and tenant boundaries.
+- Defined account-scoped session custody and explicit safe states for absence,
+  expiry, revocation, store failure, and account mismatch.
+- Defined conservative in-memory secret and zeroization expectations without
+  claiming impossible blanket wiping of ordinary Rust strings.
+- Defined structural diagnostic redaction and a safe field allowlist.
+- Defined exact, non-hierarchical grants for read, reversible, and external
+  side-effect operations while keeping destructive access disabled.
+- Defined prompt-injection and confused-deputy controls, retries, cancellation,
+  ambiguous send outcomes, and batch behavior.
+- Defined attachment size, path containment, symlink, content-type, overwrite,
+  and partial-write requirements.
+- Defined distinct local `stdio` and remote HTTP authorization boundaries.
+
+## Acceptance evidence
+
+- `docs/security/threat-model.mdc` records the complete security model.
+- `SafetyClass::required_grant` leaves destructive operations without any
+  executable grant.
+- `SafetyClass::authorizes` requires an exact grant for every enabled class.
+- `SecretRef` redacts both `Display` and `Debug` formatting by construction.
+- Synthetic tests prove grant separation and redaction without real account
+  data, network access, Bridge, or browser login.
+- The model gives safe states for expiry, logout, account switching, remote
+  revocation, and credential-store failure.
+- Targeted domain tests, Clippy, and Jig complete cleanly.

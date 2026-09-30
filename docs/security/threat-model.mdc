@@ -1,0 +1,566 @@
+# Credential and side-effect threat model
+
+## Status and scope
+
+Accepted for the first supported implementation on 2026-09-29.
+
+This model covers authority acquisition, storage, use, observation, revocation,
+mailbox side effects, local and remote MCP transport, diagnostics, and
+attachment output. It applies before any real Proton credential or mailbox data
+is accepted by the product.
+
+The repository remains a non-operational scaffold. The controls below are
+requirements for later adapter and transport tasks, not claims that live mailbox
+access already exists.
+
+## Security objectives
+
+The implementation must preserve these invariants:
+
+- Proton account passwords never enter MCP requests, configuration files, logs,
+  fixtures, or command output.
+- Browser session material and Bridge credentials never cross the MCP protocol.
+- One authenticated account maps to one isolated local credential namespace.
+- Read authority cannot authorize mutation, sending, or deletion.
+- Reversible mutation authority cannot authorize sending or permanent deletion.
+- Sending authority cannot authorize permanent deletion.
+- Permanent deletion remains disabled until a later reviewed policy explicitly
+  replaces that default.
+- Mail content is untrusted data and never grants authority to call another
+  capability.
+- Diagnostics are safe by construction rather than relying on humans to avoid
+  printing secret fields.
+- A credential-store, authorization, or identity ambiguity fails closed.
+- A network retry never turns an ambiguous send into a duplicate send.
+- Attachment output cannot escape an explicit caller-approved destination root.
+
+## Trust boundaries
+
+### Human user
+
+The human controls Proton login, second factors, account selection, explicit
+adapter selection, and any confirmation required by the accepted tool contract.
+Visible login prompts are trusted only when opened by the local authentication
+flow. The product never asks an AI client to collect a Proton password.
+
+### AI client or MCP host
+
+The MCP host can request tools but is not trusted with Proton authentication
+material. Local `stdio` inherits the identity and filesystem authority of the
+process that launched `protonmail-ai`; the process boundary is therefore the
+local authorization boundary.
+
+For remote HTTP, the MCP host is untrusted until transport authorization has
+validated its token and scopes. Remote authorization tokens are credentials for
+the MCP service only and must never be forwarded to Proton.
+
+### MCP process
+
+The process is trusted to enforce tool schemas, account binding, action grants,
+redaction, attachment bounds, and adapter capability negotiation. Compromise of
+this process can expose whatever decrypted mail and session authority is active,
+so it must keep secret lifetime and diagnostic surface small.
+
+### Visible browser and Playwright boundary
+
+The browser is trusted only to run the ordinary Proton login flow and maintain
+the authenticated session boundary accepted in the connectivity decision.
+
+Playwright-authenticated browser state can impersonate the signed-in account and
+is therefore secret. Durable plaintext `storageState` files are prohibited.
+Browser automation may observe login completion and transfer only the minimum
+accepted session authority to the approved credential store.
+
+### Operating-system credential store
+
+The operating-system credential store is the required durable secret boundary
+for interactive local sessions. On platforms where a suitable protected store
+is unavailable or locked, authentication fails closed. There is no plaintext
+file fallback.
+
+Proton Bridge itself also depends on an operating-system keychain or compatible
+secret service to protect local state. That reinforces the same fail-closed
+policy for this project.
+
+### Proton Mail Bridge
+
+Bridge is a separately trusted local process. It receives the user's Proton
+login directly through its own UI and exposes local IMAP/SMTP credentials.
+Those generated Bridge credentials are secrets distinct from the Proton account
+password and remain outside MCP traffic.
+
+Bridge local mail data can include decrypted content. The project treats its
+IMAP/SMTP streams as sensitive plaintext even when the local transport uses TLS.
+
+### Proton
+
+Proton is the remote authority for account and mailbox state. Provider responses
+are authenticated protocol input, not automatically trusted application data.
+Unexpected shapes, missing cryptographic state, or incompatible protocol changes
+fail as compatibility errors instead of being interpreted as empty mailbox
+state or success.
+
+### Remote operator and deployment platform
+
+A remote operator may provision service configuration and a secret store, but
+must not inject a Proton account password through an MCP call. Operator access
+and tenant access are distinct authorities.
+
+The deployment platform is trusted with the service process and its secret
+store. A deployment that cannot isolate tenants, TLS keys, and session material
+must not expose remote mode.
+
+### Remote MCP client
+
+A remote client receives only the service authorization needed for its tenant
+and allowed capability scopes. It receives no Proton browser state, Bridge
+password, account password, private key, or refresh token.
+
+## Credential classes and custody
+
+### Proton account password and second factors
+
+These exist only between the human and Proton's visible login surface. The
+product does not persist them, replay them, log them, expose them as environment
+configuration, or accept them as tool arguments.
+
+A security-key touch, recovery challenge, CAPTCHA, or time-based one-time code
+is
+an interactive action. The product must never cache a challenge answer for a
+future login attempt.
+
+### Browser session authority
+
+The accepted browser adapter may persist only the minimum revocable authority
+required to re-establish the authenticated session. The exact fields remain an
+implementation detail of the authentication task and must be reviewed before
+storage.
+
+Durable session material is account-scoped in the operating-system credential
+store. It is never written to the repository, a project log, shell history,
+stdout, MCP response, crash report, or plaintext setup file.
+
+### Bridge credentials
+
+Bridge-generated IMAP/SMTP username and password pairs are adapter-local
+secrets. They may be loaded from the operating-system credential store or an
+explicitly approved runtime secret source. They never appear in tool schemas.
+
+### Remote-service authorization tokens
+
+Remote MCP authorization tokens identify a service client or tenant. They are
+not Proton credentials. The HTTP boundary validates issuer, intended resource,
+expiry, and required scope before a protected request reaches tool execution.
+
+Token passthrough is forbidden: a token presented to the MCP service is not
+forwarded to Proton, Bridge, another MCP server, or an unrelated resource.
+
+### Private keys and decrypted mailbox content
+
+Cryptographic key material and decrypted bodies are sensitive runtime data. They
+are never diagnostic fields. The implementation minimizes copies and drops them
+as soon as the operation no longer needs them.
+
+## In-memory secret handling and zeroization
+
+Rust cannot guarantee that every historical copy of an ordinary `String` has
+been removed from process memory. The implementation therefore must not claim
+blanket zeroization.
+
+For future owned secret buffers:
+
+- use a reviewed secret container with zeroization on drop where the underlying
+  representation permits reliable wiping;
+- avoid cloning, formatting, serialization, and long-lived caching;
+- expose the raw value only at the provider or credential-store boundary;
+- do not keep both encoded and decoded secret copies unless the protocol
+  requires both;
+- remove temporary files immediately if a dependency requires one, and prefer
+  pipes or in-memory exchange instead.
+
+The current `SecretRef` type is only a diagnostic formatting boundary. Its
+`Display` and `Debug` forms are always `[REDACTED]`; it does not claim to wipe
+borrowed memory owned elsewhere.
+
+## Session state machine
+
+Each account-scoped session is in exactly one of these states:
+
+### Absent
+
+No local authority is available. Mail operations fail with an authentication
+required result. No automated password login is attempted.
+
+### Valid
+
+The credential store contains session authority and the provider accepts it.
+Only the account identity bound to that stored record is eligible for adapter
+selection.
+
+### Expired
+
+The provider reports that the authority has expired and cannot continue without
+an accepted refresh path. Mail operations fail closed. The session must never
+fall back to a stored Proton password because none exists.
+
+### Revoked
+
+Proton, the user, or the service has revoked the authority. Local cached state
+may be cleaned up, but it cannot be treated as valid merely because bytes remain
+in the credential store.
+
+### Store unavailable
+
+The operating-system credential store is locked, unavailable, corrupted, or
+returns an ambiguous partial result. Mail operations fail closed. The process
+must not create a plaintext fallback to restore availability.
+
+### Account mismatch
+
+The provider identity obtained from the session does not match the account key
+under which the authority was loaded. The session is rejected and no mailbox
+operation runs.
+
+## Session transitions and recovery
+
+### Login success
+
+Visible login completes, provider identity is resolved, and the accepted
+session material is written atomically to the account-scoped credential store.
+If the durable write fails, the login is not considered installed and any
+project-owned partial record is removed.
+
+### Login browser crash or cancellation
+
+No durable session is installed unless the full login and credential-store
+commit completed. A partially authenticated browser is closed and its temporary
+state is discarded.
+
+### Expiry
+
+A supported refresh path may replace the stored authority only when the provider
+can prove continuity of the same account. Otherwise state becomes `Expired` and
+requires visible login.
+
+### Logout
+
+Logout first makes the project-owned local session unusable, then requests
+server-side revocation when supported. Repeated logout is idempotent. Failure to
+contact Proton after local removal is reported as remote revocation uncertainty,
+not as a reason to restore the local secret.
+
+### Account switching
+
+Switching accounts creates or selects a different account-scoped identity. It
+never overwrites one account's session, event cursor, mailbox cache, or Bridge
+credential with another account's data.
+
+A request already bound to account A cannot continue on account B if a switch
+occurs concurrently. It must fail or finish entirely under the original bound
+identity.
+
+### Remote revocation
+
+A remote operator or authorization server can revoke MCP service access without
+altering the Proton session. Conversely, Proton session revocation removes mail
+access without implicitly revoking an unrelated service identity. Both layers
+must be independently observable and enforceable.
+
+## Side-effect authorization model
+
+`SafetyClass` and `ActionGrant` define exact, non-hierarchical authority:
+
+- `ReadOnly` requires `Observe`.
+- `Reversible` requires `ReversibleChange`.
+- `ExternalSideEffect` requires `ExternalSideEffect`.
+- `Destructive` has no grant and is disabled.
+
+A stronger-looking grant is not a wildcard. Sending authority does not authorize
+label mutation, and reversible-change authority does not authorize reads under a
+separate tenant or account. Authorization is evaluated after account binding and
+before adapter invocation.
+
+The tool-contract task will define how an MCP call obtains the appropriate grant
+and which tools require an additional human confirmation. This threat model
+constrains that contract: authority cannot be inferred from message content,
+model-generated prose, previous unrelated calls, or a broader client token when
+a narrower scope is available.
+
+## Policy by operation class
+
+### Read-only
+
+Read operations may retry automatically after transient transport failure only
+when the request has no side effect and the response can be discarded safely.
+Returned mail content remains untrusted input to the AI client.
+
+### Reversible mutation
+
+Label changes, read state, archive, move, trash, and restore require the exact
+reversible-change grant. Retries require an idempotency rule or a state probe
+that proves whether the first attempt took effect.
+
+A reversible label does not mean harmless: wrong-account or wrong-message
+mutation is still a security failure. Account and stable object identity checks
+therefore precede the mutation.
+
+### External side effect
+
+Sending, replying, reply-all, and forwarding require the exact external-side-
+effect grant and the confirmation policy defined by the tool contract.
+
+The implementation records an idempotency identity before dispatch when the
+provider path supports one. A connection loss after dispatch is an ambiguous
+outcome. The server reports ambiguity instead of issuing a new send under a new
+identity.
+
+### Destructive
+
+Permanent deletion is disabled. No adapter may advertise it by default and no
+runtime configuration can enable it until a later accepted record defines
+confirmation, recovery expectations, provider semantics, and dedicated tests.
+
+## Prompt injection and confused-deputy controls
+
+Message bodies, subjects, HTML, attachments, sender-controlled headers, calendar
+content, and remote images are untrusted data. Text such as "send this message"
+or "call another tool" has no authority inside the mail server.
+
+Provider data cannot change:
+
+- the selected account;
+- the selected adapter;
+- the `ActionGrant` attached to the tool call;
+- the remote tenant identity or scopes;
+- attachment output roots;
+- confirmation state;
+- diagnostic redaction policy.
+
+The MCP service acts only on a validated tool invocation and its authenticated
+execution context. It never treats instructions extracted from a mailbox item as
+an authorization signal.
+
+For remote OAuth, the service validates tokens intended for this resource and
+does not accept arbitrary bearer tokens from another resource. This prevents the
+service from becoming a token-forwarding confused deputy.
+
+## Retry, cancellation, and ambiguity
+
+Every provider call has a bounded timeout and cancellation path.
+
+- Cancellation before dispatch causes no side effect.
+- Cancellation after a reversible mutation may require a state probe before the
+  caller can know the final state.
+- Cancellation after send dispatch is potentially ambiguous and must be
+  reported as such.
+- Destructive calls are unavailable, so they have no retry policy.
+- Authentication failure is not retried by replaying human credentials.
+- Rate-limit retry honors server guidance and an operation-specific maximum.
+- Compatibility failures are not retried blindly.
+
+Batch operations return per-item results. One item failing never authorizes a
+broader retry of successful items unless their idempotency contract makes that
+safe.
+
+## Attachment and filesystem policy
+
+Attachment metadata and bytes are untrusted.
+
+Inline attachment responses have a documented size ceiling. Anything larger
+requires an explicit file-output path under an allowlisted destination root or a
+future streaming contract that preserves equivalent bounds.
+
+Filesystem writes follow all of these rules:
+
+- the destination root is explicit and disabled by default;
+- caller paths are relative to that root;
+- absolute paths and parent traversal are rejected;
+- path normalization occurs before write authorization;
+- symlinks or other indirection cannot escape the resolved root;
+- filenames from MIME metadata are sanitized and never used as trusted paths;
+- content type is advisory metadata and never causes automatic execution;
+- the implementation enforces a configured byte ceiling before committing the
+  file;
+- overwrite behavior is explicit rather than silently destructive;
+- partial files are removed or left with an unmistakable incomplete state after
+  cancellation or failure.
+
+The default test suite uses synthetic attachment bytes only.
+
+## Structural diagnostic policy
+
+Diagnostics use an allowlist of fields rather than a blacklist of secret names.
+Permitted fields are limited to values such as:
+
+- stable error code;
+- adapter kind;
+- operation name;
+- safety class;
+- locally generated correlation identifier;
+- elapsed time or bounded retry count;
+- coarse provider status category;
+- capability availability.
+
+Diagnostics do not contain:
+
+- passwords, cookies, access or refresh tokens, browser state, or private keys;
+- Bridge-generated passwords;
+- message bodies, attachment bytes, draft bodies, or decrypted protocol
+  payloads;
+- recipient lists, sender addresses, subjects, or filenames unless a future
+  reviewed diagnostic contract proves a safe need;
+- raw HTTP, IMAP, SMTP, or browser payload dumps.
+
+Values explicitly typed as secrets use the structural redaction wrapper before
+they can be formatted. Free-form provider error text is not automatically safe
+and must be translated to typed errors before normal diagnostics.
+
+## Local transport authorization
+
+Local MCP uses `stdio` by default. `stdio` has no independent HTTP authorization
+header, so the launcher process and operating-system user are the security
+boundary. The server does not start a listener implicitly.
+
+Local client configuration contains only the executable path and non-secret
+mode arguments. Proton session material remains in the credential store.
+
+## Remote transport authorization
+
+Remote mode is opt-in and is not implemented by this record. Its later task must
+preserve these constraints:
+
+- TLS is mandatory outside loopback test infrastructure;
+- every protected request is authenticated before tool execution;
+- bearer tokens are validated for issuer, intended resource, expiry, and scope;
+- tenants have separate authorization context and secret namespaces;
+- service authorization tokens are never passed through to Proton;
+- public binding is explicit and never a default fallback;
+- revocation, rate limits, audit events, and key rotation have tested behavior.
+
+The current MCP authorization specification treats an HTTP MCP server as an
+OAuth protected resource and requires resource-bound token handling. The local
+`stdio` transport has no equivalent token layer and therefore remains a
+process-level trust decision.
+
+## Threat inventory and mitigations
+
+### Secret disclosure
+
+Threat: logs, error strings, stdout, crash artifacts, fixtures, or files expose
+session or credential material.
+
+Mitigation: structural secret formatting, diagnostic allowlists, credential
+store custody, synthetic fixtures, and no raw protocol dumps.
+
+### Wrong-account action
+
+Threat: stale state or account switching causes a valid action on the wrong
+mailbox.
+
+Mitigation: account-scoped secret records, identity verification after session
+load, and per-request account binding.
+
+### Confused deputy
+
+Threat: a client presents authority meant for another service or mailbox and
+causes this service to act with its Proton session.
+
+Mitigation: exact local account binding; remote issuer, resource, and scope
+checks; no bearer-token passthrough; exact `ActionGrant` checks.
+
+### Prompt injection
+
+Threat: mailbox-controlled content tells the AI client or service to perform a
+side effect.
+
+Mitigation: mailbox data never becomes authorization state. Tool execution uses
+only validated invocation context and capability grants.
+
+### Unintended or duplicate send
+
+Threat: model error, retry, timeout, or cancellation sends mail unexpectedly or
+twice.
+
+Mitigation: distinct external-side-effect authority, later confirmation policy,
+idempotency identity, and explicit ambiguous-outcome handling.
+
+### Unintended deletion
+
+Threat: a mutation is mistaken for permanent deletion or a broad batch removes
+mail irreversibly.
+
+Mitigation: destructive capability has no grant and remains disabled. Trash is a
+separate reversible operation.
+
+### Replay
+
+Threat: an old request, confirmation, token, or session is reused outside its
+intended context.
+
+Mitigation: account and tenant binding, token expiry, provider revocation,
+idempotency identities, and no cached human challenge answers.
+
+### Attachment traversal or overwrite
+
+Threat: sender-controlled filenames or caller paths write outside the approved
+root or overwrite unrelated files.
+
+Mitigation: explicit allowlist root, relative paths, canonical containment,
+symlink protection, size limits, sanitized names, and explicit overwrite policy.
+
+### Log leakage
+
+Threat: provider errors or developer debug output include private mailbox data.
+
+Mitigation: typed error translation and field allowlists. Raw bodies and
+payloads
+are prohibited even at debug level.
+
+### Credential-store failure
+
+Threat: availability pressure encourages plaintext fallback or partial state.
+
+Mitigation: fail closed, atomic installation of session authority, and explicit
+`Store unavailable` state.
+
+### Remote tenant crossover
+
+Threat: one remote caller reaches another tenant's Proton session or cached
+state.
+
+Mitigation: tenant identity participates in every secret key, account binding,
+request context, and rate-limit namespace. Missing tenant context rejects the
+request.
+
+## Security-test rules
+
+Default security tests use only synthetic identifiers and values. They require
+no network, Proton account, Bridge instance, browser login, or credentials.
+
+The current domain tests prove:
+
+- destructive operations cannot obtain an `ActionGrant`;
+- read, reversible, and external-side-effect grants are distinct;
+- common formatting of a typed secret produces `[REDACTED]`;
+- synthetic secret values remain available only through an explicit
+  secret-aware accessor for future adapter boundaries.
+
+Later adapter tests must add credential-store failure injection, account switch,
+session expiry/revocation, attachment containment, ambiguous send, and redacted
+protocol-error coverage before live-account testing is eligible.
+
+## External security evidence
+
+Primary documentation consulted for this decision:
+
+- Proton explains that Bridge needs a supported operating-system keychain and
+  cannot persist account state when one is unavailable:
+  `proton.me/support/bridge-cannot-access-keychain`.
+- Proton explains that Bridge email clients use a Bridge-generated password,
+  not the Proton account password:
+  `proton.me/support/invalid-password-error-setting-email-client`.
+- Playwright warns that stored browser authentication state can impersonate the
+  signed-in account: `playwright.dev/docs/auth`.
+- MCP revision `2026-07-28` hardens authorization around resource and issuer
+  binding. Current MCP SDK documentation also states that HTTP authorization
+  does not protect `stdio`, whose trust boundary is the launching process.

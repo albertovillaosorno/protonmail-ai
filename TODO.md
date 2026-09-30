@@ -13,13 +13,6 @@ Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
 ## P0 — Authority, architecture, and safety
 
-### TODO - Complete the credential and side-effect threat model
-
-Define secret storage, redaction, trust boundaries, failure modes, confirmation
-policy, and recovery behavior before handling real mail.
-
-[security-model](docs/todo/open/security-model.mdc)
-
 ### TODO - Freeze the Gmail-parity MCP contract
 
 Specify tool schemas, pagination, stable identifiers, annotations, error

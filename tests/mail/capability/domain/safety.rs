@@ -30,7 +30,8 @@
 
 //! Integration checks for declared mail capability safety classes.
 
-use mail_capability_domain::{Capability, MailProviderPort, SafetyClass};
+use mail_capability_domain::{ActionGrant, Capability, MailProviderPort};
+use mail_capability_domain::{SafetyClass, SecretRef};
 use mail_capability_domain::{planned_capabilities, select_adapter};
 
 #[test]
@@ -97,4 +98,31 @@ fn adapter_selection_uses_ordered_complete_candidate() {
     let selected = select_adapter(&required, &candidates);
     let selected = selected.expect("a complete adapter should be selected");
     assert_eq!(selected.adapter_id(), "complete");
+}
+
+#[test]
+fn side_effect_classes_require_distinct_authority() {
+    assert!(SafetyClass::ReadOnly.authorizes(ActionGrant::Observe));
+    assert!(SafetyClass::Reversible.authorizes(ActionGrant::ReversibleChange));
+    let external = SafetyClass::ExternalSideEffect;
+    assert!(external.authorizes(ActionGrant::ExternalSideEffect));
+    assert!(!SafetyClass::Destructive.authorizes(ActionGrant::Observe));
+    assert!(
+        SafetyClass::Destructive.required_grant().is_none(),
+        "permanent deletion must remain disabled by policy"
+    );
+
+    assert!(!SafetyClass::ReadOnly.authorizes(ActionGrant::ReversibleChange));
+    assert!(!SafetyClass::Reversible.authorizes(ActionGrant::Observe));
+    assert!(!external.authorizes(ActionGrant::ReversibleChange));
+}
+
+#[test]
+fn secret_values_are_structurally_redacted_in_diagnostics() {
+    let synthetic_value = "synthetic-secret-never-real-account-data";
+    let synthetic_secret = SecretRef::new(synthetic_value);
+
+    assert_eq!(format!("{synthetic_secret}"), "[REDACTED]");
+    assert_eq!(format!("{synthetic_secret:?}"), "[REDACTED]");
+    assert_eq!(synthetic_secret.expose(), synthetic_value);
 }
