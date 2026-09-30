@@ -19,6 +19,20 @@ automates password, second-factor, CAPTCHA, recovery, or security-key input. It
 does not export cookies or web storage into MCP, config files, fixtures, or
 logs. Session custody remains inside the dedicated profile owned by the user.
 
+The first implemented slice is `protonmail-ai auth login`. It resolves an
+absolute XDG data home, falls back to `$HOME/.local/share`, creates only the
+project-owned `protonmail-ai/browser-profile`, restricts the project/profile
+directories to `0700` on Linux, and rejects symlinked project/profile paths.
+The Chromium launch uses an explicit `--user-data-dir` and no remote-debugging
+flag. Login completion detection and mailbox driving remain separate unfinished
+adapter work.
+
+Before any future browser interaction, the web adapter requires semantic
+`UiEvidence` and an explicit `UiTarget`. The policy cross-checks provider state,
+capability, side-effect class, action grant, and expected mailbox/composer
+surface. Login, authentication challenges, unknown blockers, and page-shape
+drift authorize no target.
+
 Pinned WebClients evidence also provides a lower-risk compose handoff before the
 full web adapter exists. Mail registers a `mailto:` protocol handler using the
 `/inbox/#mailto=%s` path and accepts recipient, subject, Cc, Bcc, and body

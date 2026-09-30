@@ -79,6 +79,18 @@ that browser session. Adapter code therefore treats unexpected pages, login
 expiry, dialogs, and selector drift as fail-closed state changes before any
 mailbox side effect.
 
+The local launcher owns only one fixed project profile beneath the resolved XDG
+data home. On Linux both the app directory and profile are forced to `0700`;
+symlinked app/profile paths and profile-shaped files are rejected before browser
+launch. No CLI option accepts a replacement profile path, and the launcher does
+not enable remote debugging.
+
+Mailbox browser controls are represented by a closed `UiTarget` enum. Password,
+second-factor, CAPTCHA, recovery, security-key, cookie, and session controls are
+not targetable values. The action gate rejects signed-out, authentication
+challenge, incompatible, wrong-surface, wrong-capability, and wrong-authority
+states before a browser driver may interact with the page.
+
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
 but MCP never receives an arbitrary local body-file path. Handoff bodies are

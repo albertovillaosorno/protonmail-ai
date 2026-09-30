@@ -21,6 +21,7 @@ path = "../../../../tests/mail/runtime/composition/provenance.rs"
 
 [dependencies]
 mail_capability_domain = { workspace = true }
+mail_web_adapter = { workspace = true }
 
 [lints]
 workspace = true
@@ -28,3 +29,6 @@ workspace = true
 [[test]]
 name = "web-compose-handoff"
 path = "../../../../tests/mail/runtime/composition/web_handoff.rs"
+[[test]]
+name = "web-profile-login"
+path = "../../../../tests/mail/web/adapter-outbound/profile.rs"

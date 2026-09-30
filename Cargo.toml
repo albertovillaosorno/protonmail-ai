@@ -4,6 +4,7 @@ members = [
     "src/mail/auth/domain",
     "src/mail/capability/domain",
     "src/mail/runtime/composition",
+    "src/mail/web/adapter-outbound",
 ]
 resolver = "3"
 
@@ -26,6 +27,7 @@ getrandom = "=0.4.3"
 mail_auth_domain = { path = "src/mail/auth/domain" }
 mail_auth_fork_adapter = { path = "src/mail/auth/adapter-outbound" }
 mail_capability_domain = { path = "src/mail/capability/domain" }
+mail_web_adapter = { path = "src/mail/web/adapter-outbound" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 zeroize = "=1.9.0"

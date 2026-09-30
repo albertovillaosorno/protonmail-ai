@@ -80,6 +80,26 @@ third-party Mail identity. The project will not substitute `ios-mail`,
 `android-mail`, `web-mail`, or another Proton-owned ID to bypass that check.
 
 
+## Available now: visible dedicated-profile login
+
+`protonmail-ai auth login` opens Proton Mail in a project-owned Chromium profile
+for visible, manual sign-in. On Linux the profile lives under
+`$XDG_DATA_HOME/protonmail-ai/browser-profile`, falling back to
+`$HOME/.local/share/protonmail-ai/browser-profile` when XDG data home is absent
+or invalid. The project and profile directories are restricted to mode `0700`.
+
+The launcher does not accept an arbitrary profile path, attach to an existing
+browser profile, enable remote debugging, or read password, second-factor,
+CAPTCHA, recovery, cookie, or web-storage values. Profile and project-directory
+symlinks fail closed. `PROTONMAIL_AI_BROWSER` may explicitly select the browser
+executable; otherwise a supported Chromium-family executable is discovered on
+`PATH`.
+
+This command currently launches the safe login surface only. It does not yet
+verify that sign-in completed or drive mailbox UI. Those steps remain in the
+open `web-ui-adapter` task and must pass semantic page-state gates before a
+browser interaction is allowed.
+
 ## Available now: prefilled web composer
 
 The binary can generate Proton Mail's own web-composer handoff without
@@ -110,7 +130,7 @@ Send.
 The completed binary has one installation and several explicit modes:
 
 ```text
-protonmail-ai auth login       Visible user-controlled provider login
+protonmail-ai auth login       Open dedicated profile for visible login
 protonmail-ai mail compose-url Prefilled Proton Mail web composer URL
 protonmail-ai mail ...         Human-facing CLI operations
 protonmail-ai mcp --stdio      Local MCP server
@@ -145,6 +165,7 @@ src/
   mail/capability/contract/  Serialized, versioned public tool contract.
   mail/capability/domain/    Provider-neutral capability and safety rules.
   mail/runtime/composition/  One binary for CLI, MCP, auth, and server modes.
+  mail/web/adapter-outbound/   Dedicated web profile and semantic UI gate.
 docs/todo/open/          Typed work records for delegated implementation.
 tests/                   Product tests outside implementation directories.
 ```

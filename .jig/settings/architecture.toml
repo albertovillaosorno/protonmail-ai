@@ -11,4 +11,7 @@ depends_on = []
 depends_on = []
 
 [component.mail_runtime]
+depends_on = ["mail_capability_domain", "mail_web_adapter"]
+
+[component.mail_web_adapter]
 depends_on = ["mail_capability_domain"]

@@ -32,6 +32,10 @@ web application without requiring Bridge or a third-party direct API identity.
   styling selectors.
 - Detect unexpected pages, selector drift, login expiry, and provider changes;
   fail closed instead of clicking a guessed control.
+- Require exclusive ownership of the dedicated profile while managed browser
+  automation is active. If the profile is locked by the visible login browser,
+  fail with a typed retryable state instead of attaching to another profile or
+  silently creating a fresh session.
 - Keep draft creation and send as distinct actions under the existing
   capability/authority model.
 
@@ -54,3 +58,21 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-vs-mutation control boundary tests
 - Draft/send side-effect tests
 - Redacted opt-in Free-account transcript
+## Current implementation
+
+- `protonmail-ai auth login` launches Proton Mail in a fixed, project-owned
+  Chromium profile using `--user-data-dir`; it does not attach to a personal
+  browser profile or enable remote debugging.
+- Absolute XDG data-home resolution, HOME fallback, `0700` Linux permissions,
+  executable discovery, and symlink/non-directory rejection are implemented.
+- Ten process tests exercise profile custody and launch behavior with a fake
+  browser; no live browser or account is used by the deterministic suite.
+- `mail_web_adapter` owns semantic `UiEvidence`, `UiTarget`, and action-gate
+  policy. Eight tests prove login/challenge/drift fail closed, read-only tools
+  cannot target mutation/send controls, draft/send remain distinct, destructive
+  capability has no target, and every non-destructive capability maps to at
+  least one semantic target.
+- Still required: a maintained persistent-context browser driver, exclusive
+  profile-lock handling, semantic extraction from the live Proton Mail page,
+  signed-in-state verification, all mailbox workflows, selector-drift fixtures,
+  and the separately opted-in Free-account acceptance transcript.

@@ -38,18 +38,38 @@ use std::env;
 use std::process::ExitCode;
 
 use mail_capability_domain::planned_capabilities;
+use mail_web_adapter::WebLoginPlan;
 use web_handoff::ComposeInput;
 
 fn main() -> ExitCode {
     let args = env::args().skip(1).collect::<Vec<_>>();
     match args.as_slice() {
+        [mode, command] if is_auth_login(mode, command) => web_login(),
         [mode, command, rest @ ..] if is_mail(mode, command) => emit_url(rest),
         [] => {
             print_status();
             ExitCode::SUCCESS
         }
         _ => {
-            eprintln!("{}", compose_usage());
+            eprintln!("{}", usage());
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn is_auth_login(mode: &str, command: &str) -> bool {
+    mode == "auth" && command == "login"
+}
+
+fn web_login() -> ExitCode {
+    match WebLoginPlan::from_environment().and_then(|plan| plan.launch()) {
+        Ok(()) => {
+            println!("protonmail-ai: opened dedicated Proton Mail profile");
+            println!("finish sign-in visibly; the CLI reads no credentials");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("cannot start web login: {error}");
             ExitCode::FAILURE
         }
     }
@@ -73,6 +93,13 @@ fn emit_url(args: &[String]) -> ExitCode {
     }
 }
 
+const fn usage() -> &'static str {
+    concat!(
+        "usage: protonmail-ai auth login\n",
+        "       protonmail-ai mail compose-url --to RECIPIENT ..."
+    )
+}
+
 const fn compose_usage() -> &'static str {
     concat!(
         "usage: protonmail-ai mail compose-url --to RECIPIENT ",
@@ -85,6 +112,6 @@ fn print_status() {
     let capability_count = planned_capabilities().len();
     println!("protonmail-ai: no mailbox was accessed");
     println!("planned capabilities: {capability_count}");
-    println!("available now: mail compose-url");
-    println!("planned modes: cli | mcp | serve | auth");
+    println!("available now: auth login | mail compose-url");
+    println!("planned modes: cli | mcp | serve");
 }
