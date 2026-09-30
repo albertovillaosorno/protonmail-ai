@@ -7,8 +7,8 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-readme = "../../../../README.md"
-keywords = ["email", "mcp", "proton-mail"]
+readme.workspace = true
+keywords.workspace = true
 categories = ["command-line-utilities", "email"]
 
 [[bin]]
@@ -20,7 +20,7 @@ name = "repository-provenance"
 path = "../../../../tests/mail/runtime/composition/provenance.rs"
 
 [dependencies]
-mail_capability_domain = { path = "../../capability/domain" }
+mail_capability_domain = { workspace = true }
 
 [lints]
 workspace = true

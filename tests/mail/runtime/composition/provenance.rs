@@ -134,6 +134,134 @@ fn collect_files(root: &Path, directory: &Path, output: &mut BTreeSet<String>) {
     }
 }
 
+fn dependency_section(header: &str) -> bool {
+    matches!(
+        header,
+        "[dependencies]" | "[dev-dependencies]" | "[build-dependencies]"
+    ) || (header.starts_with("[target.")
+        && (header.ends_with(".dependencies]")
+            || header.ends_with(".dev-dependencies]")
+            || header.ends_with(".build-dependencies]")))
+}
+
+fn dependency_line_is_inherited(trimmed: &str) -> bool {
+    let dotted = trimmed.ends_with(".workspace = true");
+    let inline = trimmed.contains("workspace = true");
+    dotted || inline
+}
+
+fn ignorable_manifest_line(active: bool, trimmed: &str) -> bool {
+    !active || trimmed.is_empty() || trimmed.starts_with('#')
+}
+
+fn numeric_version_part(part: &&str) -> bool {
+    !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit())
+}
+
+fn validate_workspace_manifest(manifest: &Path, content: &str) {
+    let mut inherited_section = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            assert!(
+                !trimmed.starts_with("[dependencies.")
+                    && !trimmed.starts_with("[dev-dependencies.")
+                    && !trimmed.starts_with("[build-dependencies."),
+                "{} must inherit dependencies from the workspace",
+                manifest.display()
+            );
+            inherited_section = dependency_section(trimmed);
+            continue;
+        }
+        if ignorable_manifest_line(inherited_section, trimmed) {
+            continue;
+        }
+        let inherited = dependency_line_is_inherited(trimmed);
+        assert!(
+            inherited,
+            "{} has a non-workspace dependency declaration: {trimmed}",
+            manifest.display()
+        );
+    }
+}
+
+fn validate_workspace_dependencies(root: &Path) {
+    let mut tracked = BTreeSet::new();
+    collect_files(root, &root.join("src"), &mut tracked);
+    let manifests = tracked
+        .iter()
+        .filter(|path| path.ends_with("Cargo.toml"))
+        .collect::<Vec<_>>();
+    assert!(
+        !manifests.is_empty(),
+        "workspace must contain member manifests"
+    );
+
+    for relative in manifests {
+        let manifest = root.join(relative);
+        let label = manifest.display().to_string();
+        let content = fs::read_to_string(&manifest)
+            .unwrap_or_else(|error| panic!("failed to read {label}: {error}"));
+        validate_workspace_manifest(&manifest, &content);
+    }
+}
+
+fn exact_stable_version(value: &str) -> bool {
+    let Some(version) = value.strip_prefix('=') else {
+        return false;
+    };
+    let parts = version.split('.').collect::<Vec<_>>();
+    let numeric = parts.iter().all(numeric_version_part);
+    parts.len() == 3 && numeric
+}
+
+fn validate_workspace_dependency_versions(root_manifest: &str) {
+    let mut workspace_dependencies = false;
+
+    for line in root_manifest.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            workspace_dependencies = trimmed == "[workspace.dependencies]";
+            continue;
+        }
+        if ignorable_manifest_line(workspace_dependencies, trimmed) {
+            continue;
+        }
+        if trimmed.contains("path =") {
+            continue;
+        }
+
+        let table_version = trimmed.split_once("version = \"");
+        let version = if let Some((_, value)) = table_version {
+            value.split('"').next().unwrap_or_default()
+        } else if let Some((_, value)) = trimmed.split_once("= \"") {
+            value.split('"').next().unwrap_or_default()
+        } else {
+            ""
+        };
+        assert!(
+            exact_stable_version(version),
+            "workspace dependency needs exact stable x.y.z: {trimmed}"
+        );
+    }
+}
+
+fn validate_no_dependency_bots(root: &Path) {
+    for relative in [
+        ".github/dependabot.yml",
+        ".github/dependabot.yaml",
+        "renovate.json",
+        ".renovaterc",
+        ".renovaterc.json",
+    ] {
+        assert!(
+            !root.join(relative).exists(),
+            "automated dependency-update bots are prohibited: {relative}"
+        );
+    }
+}
+
 fn validate_sources(root: &Path, notices: &str) -> BTreeMap<String, Record> {
     let sources_path = root.join("docs/provenance/sources.txt");
     let source_records = parse_manifest(&sources_path, "source");
@@ -260,4 +388,38 @@ fn governed_files_have_complete_provenance() {
         .expect("THIRD_PARTY_NOTICES.md must be readable");
     let sources = validate_sources(&root, &notices);
     validate_files(&root, &sources);
+}
+
+#[test]
+fn workspace_members_inherit_all_dependencies() {
+    validate_workspace_dependencies(&repository_root());
+}
+
+#[test]
+#[should_panic(expected = "non-workspace dependency declaration")]
+fn workspace_dependency_policy_rejects_member_local_versions() {
+    let manifest = Path::new("synthetic/Cargo.toml");
+    let content = "[dependencies]\nserde = \"=1.0.229\"\n";
+    validate_workspace_manifest(manifest, content);
+}
+
+#[test]
+fn root_workspace_dependencies_use_exact_versions() {
+    let root = repository_root();
+    let path = root.join("Cargo.toml");
+    let manifest = fs::read_to_string(path);
+    let manifest = manifest.expect("root Cargo.toml must be readable");
+    validate_workspace_dependency_versions(&manifest);
+}
+
+#[test]
+#[should_panic(expected = "exact stable x.y.z")]
+fn workspace_dependency_policy_rejects_vague_versions() {
+    let manifest = "[workspace.dependencies]\nserde = \"1\"\n";
+    validate_workspace_dependency_versions(manifest);
+}
+
+#[test]
+fn automated_dependency_update_bots_are_prohibited() {
+    validate_no_dependency_bots(&repository_root());
 }

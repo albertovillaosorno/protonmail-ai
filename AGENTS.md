@@ -40,6 +40,13 @@ invent another person's sign-off.
   `mcp`, and `serve` modes; do not create separately installed products.
 - Keep browser authentication, provider access, application workflows, and
   transports as distinct boundaries even though they ship in one binary.
+- Declare every reusable Cargo dependency in root `[workspace.dependencies]`;
+  member crates must inherit it with `workspace = true`.
+- When a workspace dependency needs a version, pin the newest stable release
+  compatible with the pinned Rust toolchain and verify it manually before
+  committing. Do not add abbreviated or intentionally stale version ranges.
+- Dependabot, Renovate, and equivalent automated dependency-update bots are
+  prohibited in this repository. Keep dependency updates explicit and reviewed.
 
 ## Validation
 
