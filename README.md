@@ -1,12 +1,56 @@
 # protonmail-ai
 
-Local-first Rust infrastructure for using Proton Mail through a CLI, the Model
-Context Protocol (MCP), or an explicitly configured remote service.
+**Proton Mail automation for AI agents, designed as a security boundary rather
+than a credential shortcut.**
+
+`protonmail-ai` is a local-first Rust project for using Proton Mail through a
+CLI, the Model Context Protocol (MCP), or an explicitly configured remote
+service. The premise is simple: an AI client should never need your Proton
+password, and *send mail* should never look like *read mail*.
 
 > [!IMPORTANT]
 > This repository is an early scaffold. It does not authenticate to Proton,
 > expose an MCP server, or modify mail yet. Follow [`TODO.md`](TODO.md) for the
 > implementation plan and acceptance criteria.
+
+## Why this exists
+
+Most mail automation gets easy by collapsing trust boundaries. This project
+chooses the opposite direction: visible authentication, local session custody,
+provider-neutral tools, explicit side-effect classes, and evidence that can be
+audited before a capability is advertised.
+
+The target is not merely "an MCP wrapper around Proton." It is one installable
+binary with a narrow, inspectable authority model:
+
+- **local-first by default** — stdio first, no surprise network listener;
+- **human-controlled authentication** — ordinary visible Proton login, including
+  2FA, CAPTCHA, or security-key challenges;
+- **least privilege by construction** — read, reversible mutation, send, and
+  destructive authority stay separate;
+- **provider-neutral behavior** — browser-session and Bridge adapters must prove
+  the same public contract instead of leaking provider quirks into clients;
+- **auditable failure modes** — opaque IDs, bounded retries, redacted secrets,
+  deterministic fixtures, and explicit ambiguous outcomes.
+
+## Design already frozen
+
+The codebase is still pre-provider, but the dangerous decisions are not being
+left for the end:
+
+- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects visible
+  browser-session authentication as the primary route, keeps Bridge explicit,
+  and refuses silent adapter blending;
+- [`threat-model.mdc`](docs/security/threat-model.mdc) separates observation,
+  reversible mutation, external side effects, and disabled destructive access;
+- [`tool-contract-v1.mdc`](docs/contract/tool-contract-v1.mdc) freezes a
+  29-operation provider-neutral surface with opaque IDs, cursor semantics,
+  stable errors, bounded batches, and explicit ambiguous-send behavior;
+- the repository gate rejects untracked provenance, member-local dependency
+  versions, vague dependency ranges, and automated dependency-update bots.
+
+That means implementation work has to conform to an accepted security and wire
+contract instead of inventing authority rules while handling a live mailbox.
 
 ## Intended outcome
 
@@ -60,10 +104,11 @@ transport security, tenancy, secret storage, and network binding.
 
 ```text
 src/
-  mail/capability/domain/  Provider-neutral capability and safety contracts.
+  mail/capability/contract/  Serialized, versioned public tool contract.
+  mail/capability/domain/    Provider-neutral capability and safety rules.
   mail/runtime/composition/  One binary for CLI, MCP, auth, and server modes.
-docs/todo/open/        Typed work records for delegated implementation.
-tests/                 Product tests outside implementation directories.
+docs/todo/open/          Typed work records for delegated implementation.
+tests/                   Product tests outside implementation directories.
 ```
 
 The large `reference/` corpus is deliberately local-only and ignored by Git.
@@ -82,6 +127,11 @@ jig check --root .
 
 No live-account test may run unless it is explicitly opted into and isolated
 from ordinary unit and integration tests.
+
+Every member crate inherits dependencies from root `[workspace.dependencies]`.
+External dependency versions are declared only there and should track the newest
+stable release supported by the pinned Rust toolchain. The repository test suite
+rejects member-local dependency versions, paths, or Git sources.
 
 ## Independence
 
