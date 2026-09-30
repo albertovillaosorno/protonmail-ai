@@ -1,0 +1,34 @@
+---
+id: mailbox-actions
+priority: P1
+status: open
+dependencies:
+  - read-workflows
+  - security-model
+---
+
+# Implement reversible mailbox actions
+
+## Goal
+
+Add controlled organization and state changes with recovery paths.
+
+## Required work
+
+- Mark messages read and unread.
+- Apply and remove labels.
+- Archive and move messages.
+- Move messages to trash and restore them.
+- Specify partial failure for batch operations.
+
+## Acceptance criteria
+
+- Every action declares its inverse or recovery behavior.
+- Batch results identify success and failure per item.
+- Repeated requests obey documented idempotency semantics.
+- Permanent deletion remains a distinct disabled capability.
+
+## Evidence
+
+- State-transition tests
+- Batch partial-failure tests

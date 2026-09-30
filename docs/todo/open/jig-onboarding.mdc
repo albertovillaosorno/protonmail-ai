@@ -1,0 +1,36 @@
+---
+id: jig-onboarding
+priority: P0
+status: open
+dependencies:
+  - provenance-and-licenses
+  - tool-contract
+---
+
+# Complete Jig repository onboarding
+
+## Goal
+
+Replace advisory validation with reviewed repository-specific Jig policy after
+the source, documentation, licensing, and task surfaces are stable.
+
+## Required work
+
+- Run `jig onboard --root .` and review the generated candidate.
+- Declare Rust as present and analyzed without fabricating other languages.
+- Declare Markdown/MDC documentation, GPL-3.0-only licensing, TODO topology, and
+  native Cargo validation.
+- Promote the reviewed candidate explicitly.
+- Install integrations only through Jig's owned lifecycle commands.
+
+## Acceptance criteria
+
+- `.jig/jig.toml` and its modular settings are repository-specific.
+- `jig check --root .` is clean.
+- No Jig-owned cache, dependency, or temporary output is tracked.
+- The policy does not claim tests or platforms that lack evidence.
+
+## Evidence
+
+- Promoted Jig configuration
+- Clean `jig check --root .` result

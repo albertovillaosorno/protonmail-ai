@@ -1,0 +1,36 @@
+---
+id: security-model
+priority: P0
+status: open
+dependencies:
+  - architecture-and-auth
+---
+
+# Complete the credential and side-effect threat model
+
+## Goal
+
+Define how mailbox authority is acquired, held, constrained, observed, and
+revoked before real credentials are accepted.
+
+## Required work
+
+- Model the user, AI client, MCP process, Bridge, operating system, and Proton.
+- Define credential storage and zeroization expectations.
+- Specify structural redaction and safe diagnostic fields.
+- Define confirmations, idempotency, retries, cancellation, and recovery.
+- Bound attachment paths, sizes, content types, and output destinations.
+
+## Acceptance criteria
+
+- Threats cover disclosure, confused deputy behavior, prompt injection,
+  unintended send, deletion, replay, attachment traversal, and log leakage.
+- Read, reversible, external-side-effect, and destructive tools have distinct
+  policy.
+- Permanent deletion remains disabled until separately proven.
+- Security tests contain no real account data.
+
+## Evidence
+
+- `docs/security/threat-model.md`
+- Redaction and authorization tests

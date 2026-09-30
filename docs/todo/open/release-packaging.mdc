@@ -1,0 +1,37 @@
+---
+id: release-packaging
+priority: P2
+status: open
+dependencies:
+  - mcp-transport
+  - integration-evidence
+  - jig-onboarding
+---
+
+# Package and document the first release
+
+## Goal
+
+Publish reproducible, verifiable binaries and enough operational guidance for a
+user to install, configure, upgrade, and remove the server safely.
+
+## Required work
+
+- Define supported operating systems and architectures from evidence.
+- Build reproducible release artifacts and checksums.
+- Include license, third-party notices, and provenance manifests.
+- Document Bridge setup, secret storage, Codex configuration, and removal.
+- Define compatibility and migration policy.
+
+## Acceptance criteria
+
+- Fresh-machine installation is exercised on every claimed platform.
+- Release archives contain no credentials or local reference corpus.
+- Checksums and exact source revision are published.
+- Upgrade and uninstall preserve the user's mailbox and secrets.
+
+## Evidence
+
+- Release workflow and manifest
+- Installation transcripts
+- Artifact-content audit

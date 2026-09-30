@@ -1,0 +1,34 @@
+---
+id: read-workflows
+priority: P1
+status: open
+dependencies:
+  - bridge-adapter
+  - tool-contract
+---
+
+# Implement read-only mailbox workflows
+
+## Goal
+
+Ship useful read access before any mailbox mutation is enabled.
+
+## Required work
+
+- Implement mailbox and label listing.
+- Implement paginated message and thread search.
+- Implement message, header, and attachment retrieval.
+- Bound body and attachment sizes and sanitize filenames.
+- Preserve stable identifiers across pagination and reconnects.
+
+## Acceptance criteria
+
+- Every path is classified read-only by the tool contract.
+- Search, pagination, Unicode, MIME, and malformed-message cases are tested.
+- Attachment traversal and oversized outputs fail safely.
+- Logs contain identifiers and timing only, never content.
+
+## Evidence
+
+- Synthetic mailbox fixtures
+- Contract and adapter integration tests

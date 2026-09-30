@@ -1,0 +1,36 @@
+---
+id: tool-contract
+priority: P0
+status: open
+dependencies:
+  - architecture-and-auth
+  - security-model
+---
+
+# Freeze the Gmail-parity MCP contract
+
+## Goal
+
+Define a stable provider-neutral tool surface before transport and adapter code
+couple behavior to one implementation.
+
+## Required work
+
+- Specify message, thread, mailbox, label, draft, and attachment identifiers.
+- Specify search grammar, pagination, ordering, and time semantics.
+- Define structured errors and retryability.
+- Assign MCP read-only, destructive, idempotent, and open-world annotations.
+- Reconcile Proton behavior with the useful Gmail connector surface.
+
+## Acceptance criteria
+
+- Schemas round-trip through serialization tests.
+- Pagination cannot silently duplicate or omit items under documented rules.
+- Drafting and sending are separate tools.
+- Every tool has a safety class and a capability requirement.
+
+## Evidence
+
+- Versioned contract module
+- Golden schema fixtures
+- Compatibility table

@@ -1,0 +1,36 @@
+---
+id: integration-evidence
+priority: P2
+status: open
+dependencies:
+  - bridge-adapter
+  - mcp-transport
+---
+
+# Build synthetic and opt-in integration evidence
+
+## Goal
+
+Prove behavior deterministically without making a real mailbox part of ordinary
+development or CI.
+
+## Required work
+
+- Build synthetic IMAP and SMTP fixtures with deterministic time and IDs.
+- Cover disconnects, timeouts, malformed MIME, partial batches, and ambiguity.
+- Create a separately gated live-account suite.
+- Prevent live tests from running through default Cargo commands.
+- Scan fixtures and logs for credential-shaped material.
+
+## Acceptance criteria
+
+- Default tests need no network or credentials.
+- Live tests require an explicit feature and opt-in environment signal.
+- Failure artifacts contain no message bodies or secrets.
+- Tests cover every declared safety class.
+
+## Evidence
+
+- Deterministic integration suite
+- Live-test isolation regression
+- Secret-scan result

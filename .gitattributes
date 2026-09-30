@@ -1,0 +1,33 @@
+# Core normalization policies
+* text=auto eol=lf
+
+# Product source
+*.rs              text eol=lf linguist-detectable
+crates/**/*        linguist-documentation=false linguist-detectable
+
+# Documentation is intentionally visible in GitHub language statistics.
+*.md              text eol=lf linguist-detectable
+*.mdc             text eol=lf linguist-detectable
+docs/**/*          linguist-documentation=false linguist-detectable
+
+# Configuration
+*.toml            text eol=lf
+*.yaml            text eol=lf
+*.yml             text eol=lf
+*.json            text eol=lf
+.gitignore        text eol=lf
+.gitattributes    text eol=lf
+
+# A future explicitly reviewed import remains third-party code in statistics.
+reference/**/*    linguist-vendored
+
+# Binary artifacts
+*.gif             binary
+*.ico             binary
+*.jpeg            binary
+*.jpg             binary
+*.pdf             binary
+*.png             binary
+*.webp            binary
+*.wasm            binary
+*.zip             binary

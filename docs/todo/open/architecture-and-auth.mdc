@@ -1,0 +1,34 @@
+---
+id: architecture-and-auth
+priority: P0
+status: open
+dependencies: []
+---
+
+# Select the supported connectivity architecture
+
+## Goal
+
+Choose the first production route to Proton Mail and document why it is safe,
+supportable, and compatible with the intended users.
+
+## Required work
+
+- Compare local Proton Mail Bridge IMAP/SMTP with a direct Proton API adapter.
+- Record account-plan requirements, platform limits, protocol coverage, and
+  failure behavior.
+- Keep direct API work behind a separate experimental boundary.
+- Define the provider-neutral port consumed by the core crate.
+
+## Acceptance criteria
+
+- One accepted architecture decision names the initial route and alternatives.
+- Authentication material never crosses the MCP protocol.
+- No browser-cookie or scraped-session shortcut is admitted.
+- The decision maps every planned capability to supported protocol evidence or
+  an explicit deferral.
+
+## Evidence
+
+- `docs/architecture/connectivity.md`
+- Provider-port tests using synthetic data

@@ -1,0 +1,37 @@
+---
+id: bridge-adapter
+priority: P1
+status: open
+dependencies:
+  - architecture-and-auth
+  - provenance-and-licenses
+  - security-model
+  - tool-contract
+---
+
+# Implement the Proton Mail Bridge adapter
+
+## Goal
+
+Provide a local adapter for the accepted IMAP/SMTP route without leaking Bridge
+credentials or provider details into the core contract.
+
+## Required work
+
+- Load credentials from an approved runtime secret source.
+- Validate loopback endpoints and TLS expectations explicitly.
+- Implement bounded connection pools, timeouts, cancellation, and reconnects.
+- Convert provider messages and mailboxes into core domain types.
+- Redact protocol diagnostics before they leave the adapter.
+
+## Acceptance criteria
+
+- No credential is accepted in MCP arguments or printed in diagnostics.
+- Connection loss yields typed retryable errors.
+- Adapter tests run against synthetic IMAP/SMTP fixtures.
+- The core crate does not depend on Bridge-specific types.
+
+## Evidence
+
+- Adapter unit and integration tests
+- Credential-leak regression tests

@@ -1,0 +1,29 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Local reference corpus: useful for research, never published wholesale.
+/reference/
+
+# Credentials and local state
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+/config/local.*
+/state/
+
+# Jig and local tooling state
+/.cache/
+/.dependencies/
+/.temp/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

@@ -1,0 +1,37 @@
+---
+id: mcp-transport
+priority: P2
+status: open
+dependencies:
+  - tool-contract
+  - read-workflows
+  - draft-and-send
+  - mailbox-actions
+---
+
+# Implement the local MCP transport
+
+## Goal
+
+Expose accepted capabilities to Codex and other MCP clients without adding an
+unnecessary public service boundary.
+
+## Required work
+
+- Implement stdio transport as the default.
+- Advertise schemas and annotations from one contract source.
+- Add capability configuration that fails closed.
+- Keep protocol output separate from diagnostics.
+- Document Codex configuration and lifecycle.
+
+## Acceptance criteria
+
+- No TCP listener starts by default.
+- Stdout contains MCP frames only.
+- Disabled tools are absent, not merely rejected after invocation.
+- A protocol conformance test exercises initialization and representative tools.
+
+## Evidence
+
+- MCP client integration test
+- Example Codex configuration without secrets
