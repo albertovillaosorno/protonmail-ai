@@ -104,6 +104,7 @@ transport security, tenancy, secret storage, and network binding.
 
 ```text
 src/
+  mail/auth/domain/          Secret-free authentication session state rules.
   mail/capability/contract/  Serialized, versioned public tool contract.
   mail/capability/domain/    Provider-neutral capability and safety rules.
   mail/runtime/composition/  One binary for CLI, MCP, auth, and server modes.

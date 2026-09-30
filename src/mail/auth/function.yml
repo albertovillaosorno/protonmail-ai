@@ -1,0 +1,18 @@
+schema: chassis-function/v1
+identity:
+  id: auth
+  path: src/mail/auth
+  domain: mail
+architecture:
+  route: src/<domain>/<function>/<kind>/<part>
+  kinds:
+    - domain
+capabilities:
+  - rust
+projects:
+tests:
+  root: tests/mail/auth
+ownership:
+  accountable: Alberto Villa Osorno
+validation:
+  mode: active
