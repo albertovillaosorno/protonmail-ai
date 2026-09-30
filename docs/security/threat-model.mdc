@@ -91,6 +91,24 @@ not targetable values. The action gate rejects signed-out, authentication
 challenge, incompatible, wrong-surface, wrong-capability, and wrong-authority
 states before a browser driver may interact with the page.
 
+Profile ownership is also fail-closed. Chromium `SingletonLock` is parsed
+as `hostname-pid`: a live local Chrome-family process, foreign host, malformed
+lock, or unreadable owner is busy. A dead/non-Chrome local PID is treated as
+stale so Chromium may perform its own recovery; protonmail-ai never removes the
+Chromium lock.
+
+Managed automation uses `.automation-lease` in the project data directory,
+mode `0600`, with only PID/start-time metadata. Active owners are rejected;
+dead owners are reclaimed only if the lease's inode/device still match the
+inspected stale
+file. Replaced, malformed, symlinked, or non-regular lease paths are not
+silently removed.
+
+Authenticated Mail state is bound to HTTPS `mail.proton.me`, not just visual
+shape. `account.proton.me` is accepted only as human-owned login/challenge
+state. A lookalike host or a page with Mail-like controls but the wrong origin
+is incompatible and cannot authorize a mailbox target.
+
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
 but MCP never receives an arbitrary local body-file path. Handoff bodies are

@@ -22,3 +22,7 @@ workspace = true
 [[test]]
 name = "mail-web-policy"
 path = "../../../../tests/mail/web/adapter-outbound/policy.rs"
+
+[[test]]
+name = "mail-web-lease"
+path = "../../../../tests/mail/web/adapter-outbound/lease.rs"

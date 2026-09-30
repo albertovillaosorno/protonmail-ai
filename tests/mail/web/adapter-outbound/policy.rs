@@ -33,25 +33,39 @@
 
 use mail_capability_domain::planned_capabilities;
 use mail_capability_domain::{ActionGrant as Grant, Capability, SafetyClass};
+use mail_web_adapter::AuthenticatedMailSurface as MailSurface;
+use mail_web_adapter::PageOrigin as Origin;
 use mail_web_adapter::WebSurface;
 use mail_web_adapter::authorize_ui_target as gate;
-use mail_web_adapter::{AuthSurface as Auth, UiEvidence};
+use mail_web_adapter::{AuthSurface as Auth, UiEvidence as Evidence};
 use mail_web_adapter::{UiGateError, UiTarget as Target};
 
-const fn mailbox() -> UiEvidence {
-    UiEvidence::new(true, false, Auth::None, false)
+const fn account(auth: Auth) -> Evidence {
+    Evidence::new(Origin::ProtonAccount, false, false, auth, false)
 }
 
-const fn composer() -> UiEvidence {
-    UiEvidence::new(true, true, Auth::None, false)
+const fn mail(shell: bool, composer: bool, blocker: bool) -> Evidence {
+    Evidence::new(Origin::ProtonMail, shell, composer, Auth::None, blocker)
+}
+
+const fn foreign_mail_shape() -> Evidence {
+    Evidence::new(Origin::Other, true, false, Auth::None, false)
+}
+
+const fn mailbox() -> Evidence {
+    mail(true, false, false)
+}
+
+const fn composer() -> Evidence {
+    mail(true, true, false)
 }
 
 #[test]
 fn page_state_fails_closed_for_login_challenge_and_drift() {
-    let login = UiEvidence::new(false, false, Auth::Login, false);
-    let challenge = UiEvidence::new(false, false, Auth::Challenge, false);
-    let drift = UiEvidence::new(false, false, Auth::None, false);
-    let blocker = UiEvidence::new(true, false, Auth::None, true);
+    let login = account(Auth::Login);
+    let challenge = account(Auth::Challenge);
+    let drift = mail(false, false, false);
+    let blocker = mail(true, false, true);
 
     assert_eq!(login.surface(), WebSurface::SignedOut);
     assert_eq!(challenge.surface(), WebSurface::AuthenticationChallenge);
@@ -202,4 +216,46 @@ fn every_non_destructive_capability_has_a_semantic_target() {
         });
         assert!(covered, "missing semantic target for {}", cap.name());
     }
+}
+
+#[test]
+fn provider_origin_classification_rejects_spoofed_hosts() {
+    assert_eq!(
+        Origin::from_location("https:", "mail.proton.me"),
+        Origin::ProtonMail
+    );
+    assert_eq!(
+        Origin::from_location("https:", "account.proton.me"),
+        Origin::ProtonAccount
+    );
+    assert_eq!(
+        Origin::from_location("https:", "MAIL.PROTON.ME"),
+        Origin::ProtonMail
+    );
+    for (protocol, hostname) in [
+        ("http:", "mail.proton.me"),
+        ("https:", "mail.proton.me.evil.example"),
+        ("https:", "proton.me"),
+        ("file:", ""),
+    ] {
+        assert_eq!(Origin::from_location(protocol, hostname), Origin::Other);
+    }
+}
+
+#[test]
+fn authenticated_mail_requires_mail_origin_and_shell() {
+    assert_eq!(mailbox().authenticated_mail(), Ok(MailSurface::Mailbox));
+    assert_eq!(composer().authenticated_mail(), Ok(MailSurface::Composer));
+
+    let fake_mail = foreign_mail_shape();
+    // jig-ignore-next-line: canonical rustfmt line.
+    let account_shell = Evidence::new(Origin::ProtonAccount, true, false, Auth::None, false);
+    assert_eq!(
+        fake_mail.authenticated_mail(),
+        Err(UiGateError::ProviderShapeMismatch)
+    );
+    assert_eq!(
+        account_shell.authenticated_mail(),
+        Err(UiGateError::ProviderShapeMismatch)
+    );
 }

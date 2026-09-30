@@ -34,9 +34,12 @@
 
 #![forbid(unsafe_code)]
 
+mod lease;
 mod policy;
 mod profile;
 
+pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use policy::authorize_ui_target;
-pub use policy::{AuthSurface, UiEvidence, UiGateError, UiTarget, WebSurface};
-pub use profile::{WebLoginError, WebLoginPlan};
+pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};
+pub use policy::{UiEvidence, UiGateError, UiTarget, WebSurface};
+pub use profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};

@@ -34,6 +34,8 @@
 use mail_capability_domain::{ActionGrant, Capability, SafetyClass};
 
 const BOX_CAPS: [&str; 3] = ["list_mailboxes", "list_labels", "list_senders"];
+type AuthenticatedResult = Result<AuthenticatedMailSurface, UiGateError>;
+
 const MESSAGE_NAV_CAPS: [&str; 5] = [
     "list_messages",
     "list_threads",
@@ -41,6 +43,43 @@ const MESSAGE_NAV_CAPS: [&str; 5] = [
     "get_thread",
     "read_draft",
 ];
+
+/// Trusted provider origin derived from normalized browser location fields.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PageOrigin {
+    /// Proton Account authentication origin.
+    ProtonAccount,
+    /// Proton Mail application origin.
+    ProtonMail,
+    /// Any other scheme/host combination.
+    Other,
+}
+
+impl PageOrigin {
+    /// Classifies normalized `location.protocol` and `location.hostname`.
+    #[must_use]
+    pub fn from_location(protocol: &str, hostname: &str) -> Self {
+        if protocol != "https:" {
+            return Self::Other;
+        }
+        if hostname.eq_ignore_ascii_case("mail.proton.me") {
+            return Self::ProtonMail;
+        }
+        if hostname.eq_ignore_ascii_case("account.proton.me") {
+            return Self::ProtonAccount;
+        }
+        Self::Other
+    }
+}
+
+/// Authenticated Proton Mail surface safe for post-login automation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuthenticatedMailSurface {
+    /// Authenticated composer inside Proton Mail.
+    Composer,
+    /// Authenticated mailbox shell inside Proton Mail.
+    Mailbox,
+}
 
 /// High-level visible state derived from semantic page evidence.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,6 +113,7 @@ pub struct UiEvidence {
     auth_surface: AuthSurface,
     composer_visible: bool,
     mail_shell_visible: bool,
+    origin: PageOrigin,
     unexpected_blocker_visible: bool,
 }
 
@@ -81,6 +121,7 @@ impl UiEvidence {
     /// Builds one semantic page observation without carrying DOM selectors.
     #[must_use]
     pub const fn new(
+        origin: PageOrigin,
         mail_shell_visible: bool,
         composer_visible: bool,
         auth_surface: AuthSurface,
@@ -90,6 +131,7 @@ impl UiEvidence {
             auth_surface,
             composer_visible,
             mail_shell_visible,
+            origin,
             unexpected_blocker_visible,
         }
     }
@@ -97,12 +139,21 @@ impl UiEvidence {
     /// Classifies the page conservatively before any mailbox interaction.
     #[must_use]
     pub const fn surface(self) -> WebSurface {
-        match self.auth_surface {
-            AuthSurface::Challenge => {
+        use AuthSurface::{Challenge, Login, None};
+        use PageOrigin::{Other, ProtonAccount, ProtonMail};
+
+        match (self.origin, self.auth_surface) {
+            (ProtonAccount, Challenge) => {
                 return WebSurface::AuthenticationChallenge;
             }
-            AuthSurface::Login => return WebSurface::SignedOut,
-            AuthSurface::None => {}
+            (ProtonAccount, Login) => {
+                return WebSurface::SignedOut;
+            }
+            (ProtonMail, None) => {}
+            // jig-ignore-next-line: canonical rustfmt line.
+            (ProtonAccount, None) | (ProtonMail, Challenge | Login) | (Other, _) => {
+                return WebSurface::Incompatible;
+            }
         }
         if self.unexpected_blocker_visible || !self.mail_shell_visible {
             return WebSurface::Incompatible;
@@ -111,6 +162,22 @@ impl UiEvidence {
             return WebSurface::Composer;
         }
         WebSurface::Mailbox
+    }
+
+    /// Requires an authenticated Proton Mail application surface.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same fail-closed state errors used by UI action gating.
+    pub const fn authenticated_mail(self) -> AuthenticatedResult {
+        match self.surface() {
+            WebSurface::Composer => Ok(AuthenticatedMailSurface::Composer),
+            WebSurface::Mailbox => Ok(AuthenticatedMailSurface::Mailbox),
+            // jig-ignore-next-line: canonical rustfmt line.
+            WebSurface::AuthenticationChallenge => Err(UiGateError::AuthenticationChallenge),
+            WebSurface::SignedOut => Err(UiGateError::AuthenticationRequired),
+            WebSurface::Incompatible => Err(UiGateError::ProviderShapeMismatch),
+        }
     }
 }
 

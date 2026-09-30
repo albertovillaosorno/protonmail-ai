@@ -65,14 +65,23 @@ web application without requiring Bridge or a third-party direct API identity.
   browser profile or enable remote debugging.
 - Absolute XDG data-home resolution, HOME fallback, `0700` Linux permissions,
   executable discovery, and symlink/non-directory rejection are implemented.
-- Ten process tests exercise profile custody and launch behavior with a fake
-  browser; no live browser or account is used by the deterministic suite.
-- `mail_web_adapter` owns semantic `UiEvidence`, `UiTarget`, and action-gate
-  policy. Eight tests prove login/challenge/drift fail closed, read-only tools
-  cannot target mutation/send controls, draft/send remain distinct, destructive
-  capability has no target, and every non-destructive capability maps to at
-  least one semantic target.
-- Still required: a maintained persistent-context browser driver, exclusive
-  profile-lock handling, semantic extraction from the live Proton Mail page,
-  signed-in-state verification, all mailbox workflows, selector-drift fixtures,
-  and the separately opted-in Free-account acceptance transcript.
+- Eleven process tests exercise profile custody and launch behavior with a
+  fake browser; active managed automation blocks visible login before browser
+  launch, and no live browser/account is used by the deterministic suite.
+- `AutomationProfileLease` classifies Chromium `SingletonLock` ownership,
+  refuses active/foreign/malformed owners without deleting Chromium state, and
+  serializes managed
+  drivers with a `0600` PID/start-time lease, safely reclaims dead owners, and
+  protects replacement files by inode/device identity. Ten synthetic lease
+  tests cover active, stale, corrupt, symlink, local-live/local-stale Chromium,
+  foreign/malformed Chromium, and replacement states.
+- `mail_web_adapter` owns semantic `UiEvidence`, `UiTarget`, origin binding, and
+  action-gate policy. Ten tests prove login/challenge/drift fail closed,
+  lookalike origins are rejected, authenticated Mail requires HTTPS
+  `mail.proton.me` plus Mail shell evidence, read-only tools cannot target
+  mutation/send controls, draft/send remain distinct, destructive capability
+  has no target, and every non-destructive capability maps to a semantic target.
+- Still required: a maintained persistent-context browser driver, semantic
+  extraction from the live Proton Mail page, all mailbox workflows,
+  selector-drift fixtures tied to that driver, and the separately opted-in
+  Free-account acceptance transcript.

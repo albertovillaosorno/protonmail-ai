@@ -95,10 +95,20 @@ symlinks fail closed. `PROTONMAIL_AI_BROWSER` may explicitly select the browser
 executable; otherwise a supported Chromium-family executable is discovered on
 `PATH`.
 
-This command currently launches the safe login surface only. It does not yet
-verify that sign-in completed or drive mailbox UI. Those steps remain in the
-open `web-ui-adapter` task and must pass semantic page-state gates before a
-browser interaction is allowed.
+This command currently launches the safe login surface only. Managed automation
+uses a separate exclusive lease and refuses to start while Chromium's
+`SingletonLock` identifies a live local Chrome-family process or foreign host.
+The
+project never deletes Chromium's singleton lock. Its own lease contains only a
+PID and Linux process start-time tick value, so it carries no account/session
+material and can safely recover a dead owner.
+
+The adapter now also defines the post-login readiness contract: a page is
+considered authenticated Mail only when its normalized browser origin is
+`https://mail.proton.me` and the expected Mail shell is visible. Proton Account
+login/challenge pages, foreign hosts, missing shell state, and unexpected
+blockers all fail closed. A browser driver still has to extract those semantic
+signals and drive real mailbox workflows; that remains in `web-ui-adapter`.
 
 ## Available now: prefilled web composer
 

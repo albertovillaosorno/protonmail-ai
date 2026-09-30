@@ -40,6 +40,8 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::lease::AutomationProfileLease;
+
 const MAIL_URL: &str = "https://mail.proton.me/";
 const BROWSER_ENV: &str = "PROTONMAIL_AI_BROWSER";
 const APP_DIR: &str = "protonmail-ai";
@@ -52,11 +54,57 @@ const BROWSER_CANDIDATES: [&str; 5] = [
     "microsoft-edge-stable",
 ];
 
+/// Fixed project-owned browser profile used by visible login and automation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DedicatedBrowserProfile {
+    path: PathBuf,
+}
+
+impl DedicatedBrowserProfile {
+    /// Resolves the dedicated profile from XDG/HOME process context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when no absolute data home can be resolved.
+    pub fn from_environment() -> Result<Self, WebLoginError> {
+        Ok(Self {
+            path: profile_dir_from_environment()?,
+        })
+    }
+
+    /// Creates a dedicated profile beneath one absolute synthetic data home.
+    ///
+    /// This constructor still appends the fixed project/profile suffix; callers
+    /// cannot supply a browser profile path directly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `data_home` is not absolute.
+    pub fn under_data_home(data_home: &Path) -> Result<Self, WebLoginError> {
+        if !data_home.is_absolute() {
+            return Err(WebLoginError::MissingDataHome);
+        }
+        Ok(Self {
+            path: data_home.join(APP_DIR).join(PROFILE_DIR),
+        })
+    }
+
+    /// Returns the fixed project-owned profile path.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub(crate) fn prepare(&self) -> Result<(), WebLoginError> {
+        prepare_profile_dir(&self.path)
+    }
+}
+
 /// Browser launch details that preserve a dedicated profile boundary.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WebLoginPlan {
     browser: String,
-    profile_dir: PathBuf,
+    profile: DedicatedBrowserProfile,
 }
 
 impl WebLoginPlan {
@@ -66,18 +114,15 @@ impl WebLoginPlan {
     ///
     /// Returns an error when no safe data home or browser candidate is present.
     pub fn from_environment() -> Result<Self, WebLoginError> {
-        let profile_dir = profile_dir_from_environment()?;
+        let profile = DedicatedBrowserProfile::from_environment()?;
         let browser = browser_from_environment()?;
-        Ok(Self {
-            browser,
-            profile_dir,
-        })
+        Ok(Self { browser, profile })
     }
 
     /// Returns the project-owned profile path used for this launch.
     #[must_use]
     pub fn profile_dir(&self) -> &Path {
-        &self.profile_dir
+        self.profile.path()
     }
 
     /// Creates the dedicated profile when needed and opens Proton Mail.
@@ -87,8 +132,11 @@ impl WebLoginPlan {
     /// Fails closed when the profile path is a symlink or not a directory, or
     /// when the browser process cannot be started.
     pub fn launch(&self) -> Result<(), WebLoginError> {
-        prepare_profile_dir(&self.profile_dir)?;
-        let profile = self.profile_dir.display();
+        self.profile.prepare()?;
+        if AutomationProfileLease::is_active(&self.profile)? {
+            return Err(WebLoginError::AutomationInUse);
+        }
+        let profile = self.profile.path().display();
         let user_data = format!("--user-data-dir={profile}");
         Command::new(&self.browser)
             .arg(user_data)
@@ -116,8 +164,12 @@ pub enum WebLoginError {
     ProfileIsNotDirectory(PathBuf),
     /// The project profile directory could not be created.
     ProfileCreate(PathBuf),
+    /// Managed automation already owns the dedicated profile.
+    AutomationInUse,
     /// The selected browser process could not be launched.
     BrowserLaunch(String),
+    /// Automation lease state could not be inspected safely.
+    LeaseInspect,
 }
 
 impl fmt::Display for WebLoginError {
@@ -125,6 +177,8 @@ impl fmt::Display for WebLoginError {
         match self {
             Self::MissingDataHome => f.write_str("browser data unavailable"),
             Self::BrowserUnavailable => f.write_str("Chromium unavailable"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::AutomationInUse => f.write_str("profile owned by managed automation"),
             Self::ProfileLink(path) => path_err(f, "profile symlink", path),
             Self::ProjectLink(path) => path_err(f, "project symlink", path),
             Self::ProfileIsNotDirectory(path) => {
@@ -140,6 +194,7 @@ impl fmt::Display for WebLoginError {
             Self::BrowserLaunch(browser) => {
                 write!(f, "cannot launch browser: {browser}")
             }
+            Self::LeaseInspect => f.write_str("cannot inspect profile lease"),
         }
     }
 }

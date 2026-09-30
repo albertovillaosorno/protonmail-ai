@@ -39,6 +39,9 @@ use std::process::{self, Command, Output};
 use std::thread;
 use std::time::Duration;
 
+use mail_web_adapter::AutomationProfileLease as Lease;
+use mail_web_adapter::DedicatedBrowserProfile as Profile;
+
 const LOGIN_ARGS_FILE: &str = "PROTONMAIL_AI_TEST_ARGS";
 
 fn test_root(label: &str) -> PathBuf {
@@ -294,5 +297,25 @@ fn arbitrary_profile_cli_option_is_rejected_before_browser_launch() {
     assert!(!output.status.success());
     assert!(!args_file.exists());
     assert!(!personal.exists());
+    cleanup(&root);
+}
+
+#[test]
+fn active_automation_lease_blocks_visible_login_launch() {
+    let root = test_root("automation-owned");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let data_home = root.join("xdg-data");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let profile = Profile::under_data_home(&data_home).expect("create profile descriptor");
+    let lease = Lease::acquire(&profile).expect("acquire lease");
+    let browser = fake_browser(&root);
+
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(!output.status.success());
+    assert!(!root.join("browser-args.txt").exists());
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(stderr.contains("owned by managed automation"));
+
+    drop(lease);
     cleanup(&root);
 }

@@ -33,6 +33,23 @@ capability, side-effect class, action grant, and expected mailbox/composer
 surface. Login, authentication challenges, unknown blockers, and page-shape
 drift authorize no target.
 
+Managed automation additionally requires exclusive ownership of the dedicated
+profile. `AutomationProfileLease` parses Chromium's `SingletonLock` and
+refuses a live local Chrome-family owner, foreign host, or malformed lock; it
+then creates a project-local `0600` lease containing only PID and Linux process
+start ticks. A second live owner fails closed; a dead owner can be reclaimed.
+The lease records inode/device identity before cleanup so stale recovery never
+deletes a replacement file.
+
+Chromium's singleton files are treated as provider state and are never removed
+by protonmail-ai.
+
+Signed-in readiness is origin-bound. The driver must provide normalized browser
+`location.protocol` and `location.hostname`; only HTTPS `mail.proton.me` plus
+the expected Mail shell may become authenticated Mailbox/Composer state.
+`account.proton.me` can represent visible login/challenge state only. Foreign or
+spoofed hosts, HTTP, missing shell evidence, and blockers are incompatible.
+
 Pinned WebClients evidence also provides a lower-risk compose handoff before the
 full web adapter exists. Mail registers a `mailto:` protocol handler using the
 `/inbox/#mailto=%s` path and accepts recipient, subject, Cc, Bcc, and body
