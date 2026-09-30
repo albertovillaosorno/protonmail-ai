@@ -99,3 +99,19 @@ stable = "2.55.0"
 kind = "tool"
 target = "git"
 template = "{version}"
+
+[authority.command-fds]
+current = "0.3.3"
+stable = "0.3.3"
+
+[authority.command-fds.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/command-fds"
+
+[authority.command-fds.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.command-fds"
+template = "={version}"

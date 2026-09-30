@@ -44,11 +44,20 @@ deletes a replacement file.
 Chromium's singleton files are treated as provider state and are never removed
 by protonmail-ai.
 
-Signed-in readiness is origin-bound. The driver must provide normalized browser
-`location.protocol` and `location.hostname`; only HTTPS `mail.proton.me` plus
-the expected Mail shell may become authenticated Mailbox/Composer state.
-`account.proton.me` can represent visible login/challenge state only. Foreign or
-spoofed hosts, HTTP, missing shell evidence, and blockers are incompatible.
+Managed browser control uses Chromium `--remote-debugging-pipe` only on the
+non-default project profile. The parent maps the private protocol to child file
+descriptors 3 and 4; no remote-debugging TCP port is opened. The transport caps
+one response at 1 MiB and uses five-second pipe I/O timeouts. It also bounds
+unsolicited events while waiting for a response.
+
+Signed-in readiness is origin-bound. Discovery accepts exactly one Proton
+Mail/Account page and then re-checks its execution context using only
+`location.protocol`, `location.hostname`, and `location.port`. Target metadata
+and live context must agree. HTTPS `mail.proton.me` may proceed toward Mail
+shell
+verification; `account.proton.me` remains human-owned login/challenge state.
+
+Foreign/spoofed hosts, non-default ports, and origin drift fail closed.
 
 Pinned WebClients evidence also provides a lower-risk compose handoff before the
 full web adapter exists. Mail registers a `mailto:` protocol handler using the

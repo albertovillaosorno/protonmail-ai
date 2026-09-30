@@ -98,17 +98,22 @@ executable; otherwise a supported Chromium-family executable is discovered on
 This command currently launches the safe login surface only. Managed automation
 uses a separate exclusive lease and refuses to start while Chromium's
 `SingletonLock` identifies a live local Chrome-family process or foreign host.
-The
-project never deletes Chromium's singleton lock. Its own lease contains only a
+The project never deletes Chromium's singleton lock. Its own lease contains only
+a
 PID and Linux process start-time tick value, so it carries no account/session
 material and can safely recover a dead owner.
 
-The adapter now also defines the post-login readiness contract: a page is
-considered authenticated Mail only when its normalized browser origin is
-`https://mail.proton.me` and the expected Mail shell is visible. Proton Account
-login/challenge pages, foreign hosts, missing shell state, and unexpected
-blockers all fail closed. A browser driver still has to extract those semantic
-signals and drive real mailbox workflows; that remains in `web-ui-adapter`.
+Managed automation now launches the same dedicated profile with Chromium's
+private `--remote-debugging-pipe`, inherited only as child file descriptors 3
+and 4. It never opens a remote-debugging TCP port. Responses are bounded and
+timed out, and provider discovery accepts exactly one Proton Mail/Account page.
+
+The driver re-checks that page from its execution context by evaluating only
+`location.protocol`, `location.hostname`, and `location.port`; it never requests
+DOM, storage, cookie, message, or authentication values for this check. A
+redirect between discovery and verification becomes typed origin drift and
+fails closed. Mail-shell semantic extraction and real mailbox workflows remain
+unfinished in `web-ui-adapter`.
 
 ## Available now: prefilled web composer
 

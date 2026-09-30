@@ -114,3 +114,16 @@ verification=git-blob-tree-match
 verified_at=2026-09-29
 local_only=-
 distribution_license=-
+
+[source]
+id=chromium-devtools-pipe
+upstream=https://github.com/chromium/chromium
+revision=e972c575b9a075ab5dcadddf269d60bb23d4af35
+license=BSD-3-Clause
+reference_root=reference/bsd/chromium-devtools-pipe
+usage=research-only
+verified_files=2
+verification=git-blob-tree-match
+verified_at=2026-09-30
+local_only=-
+distribution_license=-

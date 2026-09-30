@@ -73,12 +73,32 @@ copyright notices, and substantive modifications here.
 - License: MIT
 - Initial use: safety and workflow research only
 
+### Chromium DevTools pipe
+
+- Upstream: <https://github.com/chromium/chromium>
+- Revision: `e972c575b9a075ab5dcadddf269d60bb23d4af35`
+- License: BSD-3-Clause
+- Initial use: DevTools pipe descriptor and framing research only
+- Verified files: `components/devtools/devtools_pipe/devtools_pipe.h` and
+  `content/browser/devtools/devtools_pipe_handler.cc`
+
 ### svgrepus Proton Mail MCP
 
 - Upstream: <https://github.com/svgrepus/proton-mail-mcp>
 - Revision: `1e40387ce6ce0d5a76f6c1682176d4c2b1376c6d`
 - License: MIT
 - Initial use: MCP research only
+
+
+## Distributed runtime dependencies
+
+### command-fds
+
+- Upstream: <https://github.com/google/command-fds>
+- Version: `0.3.3`
+- License: Apache-2.0
+- Use: unchanged Cargo dependency for mapping the private Chromium DevTools
+  pipe onto child file descriptors 3 and 4.
 
 ## Reference verification
 

@@ -12,7 +12,9 @@ keywords.workspace = true
 categories = ["email", "web-programming"]
 
 [dependencies]
+command-fds = { workspace = true }
 mail_capability_domain = { workspace = true }
+serde_json = { workspace = true }
 
 [lib]
 path = "lib.rs"
@@ -26,3 +28,7 @@ path = "../../../../tests/mail/web/adapter-outbound/policy.rs"
 [[test]]
 name = "mail-web-lease"
 path = "../../../../tests/mail/web/adapter-outbound/lease.rs"
+
+[[test]]
+name = "mail-web-driver"
+path = "../../../../tests/mail/web/adapter-outbound/driver.rs"

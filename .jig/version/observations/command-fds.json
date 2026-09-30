@@ -1,0 +1,10 @@
+{
+  "authority": "command-fds",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "9557a1f8ed2c2f21b3a5c154506473fbe19ea4663c5df6aabe046b7cbe93933e",
+  "observed_on": "2026-09-30",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/command-fds",
+  "stable": "0.3.3"
+}

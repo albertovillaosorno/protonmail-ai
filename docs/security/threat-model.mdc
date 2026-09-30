@@ -100,14 +100,24 @@ Chromium lock.
 Managed automation uses `.automation-lease` in the project data directory,
 mode `0600`, with only PID/start-time metadata. Active owners are rejected;
 dead owners are reclaimed only if the lease's inode/device still match the
-inspected stale
-file. Replaced, malformed, symlinked, or non-regular lease paths are not
+inspected stale file. Replaced, malformed, symlinked, or non-regular lease paths
+are not
 silently removed.
 
 Authenticated Mail state is bound to HTTPS `mail.proton.me`, not just visual
 shape. `account.proton.me` is accepted only as human-owned login/challenge
 state. A lookalike host or a page with Mail-like controls but the wrong origin
 is incompatible and cannot authorize a mailbox target.
+
+Managed automation never exposes a DevTools TCP listener. Chromium receives
+`--remote-debugging-pipe` only with the dedicated `--user-data-dir`; the parent
+owns the other pipe ends. Frames are NUL-delimited, capped at 1 MiB, bounded by
+I/O timeouts/event count, and parsed as untrusted JSON.
+
+Origin revalidation evaluates only browser `location.protocol`, `hostname`, and
+`port` inside the selected target. The adapter does not use that mechanism to
+read DOM content, cookies, web storage, messages, or authentication fields.
+Metadata/context disagreement is a typed fail-closed origin-drift state.
 
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,

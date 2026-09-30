@@ -34,10 +34,13 @@
 
 #![forbid(unsafe_code)]
 
+mod driver;
 mod lease;
 mod policy;
 mod profile;
 
+pub use driver::ProviderPage;
+pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};

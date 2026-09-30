@@ -81,7 +81,13 @@ web application without requiring Bridge or a third-party direct API identity.
   `mail.proton.me` plus Mail shell evidence, read-only tools cannot target
   mutation/send controls, draft/send remain distinct, destructive capability
   has no target, and every non-destructive capability maps to a semantic target.
-- Still required: a maintained persistent-context browser driver, semantic
-  extraction from the live Proton Mail page, all mailbox workflows,
-  selector-drift fixtures tied to that driver, and the separately opted-in
+- `ManagedBrowser` now launches the dedicated profile with Chromium's private
+  DevTools pipe on child FDs 3/4 and no TCP debugging listener. Six synthetic
+  driver tests cover handshake, exact provider discovery, lookalike rejection,
+  page ambiguity, execution-context origin verification, and origin drift.
+- An opt-in smoke with installed Chrome uses only a synthetic profile and proves
+  the real FD3/FD4 handshake, target discovery, bounded origin probe, and clean
+  `Browser.close` lifecycle without account data.
+- Still required: semantic Mail-shell extraction, all mailbox workflows,
+  selector-drift fixtures tied to those semantics, and the separately opted-in
   Free-account acceptance transcript.

@@ -23,6 +23,7 @@ keywords = ["ai-agents", "email", "local-first", "mcp", "proton-mail"]
 # only here and track the newest stable release supported by the workspace.
 aes-gcm = { version = "=0.11.1", features = ["zeroize"] }
 base64 = "=0.23.1"
+command-fds = "=0.3.3"
 getrandom = "=0.4.3"
 mail_auth_domain = { path = "src/mail/auth/domain" }
 mail_auth_fork_adapter = { path = "src/mail/auth/adapter-outbound" }

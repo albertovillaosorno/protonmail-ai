@@ -125,6 +125,14 @@ impl WebLoginPlan {
         self.profile.path()
     }
 
+    pub(crate) fn browser(&self) -> &str {
+        &self.browser
+    }
+
+    pub(crate) const fn profile(&self) -> &DedicatedBrowserProfile {
+        &self.profile
+    }
+
     /// Creates the dedicated profile when needed and opens Proton Mail.
     ///
     /// # Errors
