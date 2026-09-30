@@ -3,7 +3,7 @@ id: read-workflows
 priority: P1
 status: open
 dependencies:
-  - bridge-adapter
+  - browser-session-adapter
   - tool-contract
 ---
 
@@ -18,6 +18,8 @@ Ship useful read access before any mailbox mutation is enabled.
 - Implement mailbox and label listing.
 - Implement paginated message and thread search.
 - Implement message, header, and attachment retrieval.
+- Implement conversation retrieval with explicit mapping between Proton
+  conversations and provider-neutral threads.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
@@ -27,6 +29,8 @@ Ship useful read access before any mailbox mutation is enabled.
 - Search, pagination, Unicode, MIME, and malformed-message cases are tested.
 - Attachment traversal and oversized outputs fail safely.
 - Logs contain identifiers and timing only, never content.
+- The primary visible-login path passes every read workflow; Bridge is not an
+  unstated prerequisite.
 
 ## Evidence
 

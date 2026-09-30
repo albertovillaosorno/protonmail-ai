@@ -16,6 +16,8 @@ revoked before real credentials are accepted.
 ## Required work
 
 - Model the user, AI client, MCP process, Bridge, operating system, and Proton.
+- Model the visible browser/Playwright boundary, credential store, remote
+  operator, remote client, and tenant boundaries.
 - Define credential storage and zeroization expectations.
 - Specify structural redaction and safe diagnostic fields.
 - Define confirmations, idempotency, retries, cancellation, and recovery.
@@ -29,6 +31,8 @@ revoked before real credentials are accepted.
   policy.
 - Permanent deletion remains disabled until separately proven.
 - Security tests contain no real account data.
+- Session expiry, logout, account switching, remote revocation, and credential
+  store failure have explicit safe states.
 
 ## Evidence
 

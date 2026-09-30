@@ -13,6 +13,9 @@ editing. This repository begins as a scaffold, not as a working mail client.
 4. Move a completed record from `docs/todo/open/` to `docs/todo/completed/` and
    remove it from `TODO.md` only when every criterion is satisfied.
 5. Do not mark a task complete because a placeholder compiles.
+6. Do not declare the product complete until the root TODO is empty and the
+   installed release passes the redacted live-account acceptance path through a
+   real MCP client. Internal APIs, mocks, and schema tests are insufficient.
 
 All commits must use the configured Conventional Commit grammar and include an
 exact DCO `Signed-off-by: Name <email>` trailer. Use `git commit -s`; never
@@ -35,6 +38,8 @@ invent another person's sign-off.
 - Avoid unaudited browser automation as an authentication shortcut.
 - Keep one installable `protonmail-ai` binary with explicit `auth`, `mail`,
   `mcp`, and `serve` modes; do not create separately installed products.
+- Keep browser authentication, provider access, application workflows, and
+  transports as distinct boundaries even though they ship in one binary.
 
 ## Validation
 

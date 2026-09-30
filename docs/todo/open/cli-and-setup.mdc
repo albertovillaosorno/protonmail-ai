@@ -1,0 +1,46 @@
+---
+id: cli-and-setup
+priority: P2
+status: open
+dependencies:
+  - draft-and-send
+  - interactive-auth-and-session
+  - mailbox-actions
+  - mailbox-events
+  - mcp-transport
+  - read-workflows
+  - security-model
+  - tool-contract
+---
+
+# Implement the CLI and one-command local setup
+
+## Goal
+
+Make one installed `protonmail-ai` binary usable directly by a person and easy
+to register as a local MCP server.
+
+## Required work
+
+- Implement `auth`, `mail`, `mcp`, `doctor`, and `serve` command groups, with
+  remote behavior remaining disabled until the remote-service task is complete.
+- Keep one application service layer behind CLI and MCP transports.
+- Provide a one-command installation path with integrity verification.
+- Provide a one-action MCP-client setup path that resolves the installed binary
+  and writes or prints secret-free configuration.
+- Make configuration precedence, account selection, and diagnostics explicit.
+
+## Acceptance criteria
+
+- One documented command installs the complete product.
+- CLI and MCP produce equivalent results for the same accepted operation.
+- Local usage needs no cloud account or hosted intermediary.
+- Installation, upgrade, and removal are exercised on claimed platforms.
+- From a clean supported machine, a user can install, log in, run `doctor`,
+  register the MCP server, and invoke a read-only tool without editing JSON.
+
+## Evidence
+
+- End-to-end CLI/MCP equivalence tests
+- Fresh-machine installation transcript
+- Redacted login, doctor, client-setup, and first-tool transcript

@@ -17,7 +17,7 @@ Add controlled organization and state changes with recovery paths.
 
 - Mark messages read and unread.
 - Apply and remove labels.
-- Archive and move messages.
+- Archive, unarchive, and move messages.
 - Move messages to trash and restore them.
 - Specify partial failure for batch operations.
 
@@ -27,6 +27,7 @@ Add controlled organization and state changes with recovery paths.
 - Batch results identify success and failure per item.
 - Repeated requests obey documented idempotency semantics.
 - Permanent deletion remains a distinct disabled capability.
+- The primary visible-login adapter passes every reversible workflow.
 
 ## Evidence
 

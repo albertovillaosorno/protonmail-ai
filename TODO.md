@@ -4,6 +4,13 @@ Only unfinished work appears here. Each item links to the typed record that owns
 its dependencies, constraints, acceptance criteria, and evidence. Complete one
 record at a time; a compiling placeholder is not completion.
 
+## Completion invariant
+
+An empty TODO means the released binary has been installed from scratch,
+authenticated through Proton's visible login flow, configured in a real MCP
+client, and used against an opt-in live account for every advertised capability.
+Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
+
 ## P0 — Authority, architecture, and safety
 
 ### TODO - Select the supported connectivity architecture
@@ -36,6 +43,21 @@ semantics, and capability boundaries independently of the provider adapter.
 
 ## P1 — Working local mail path
 
+### TODO - Implement interactive authentication and session custody
+
+Open Proton's normal login flow, let the user complete all challenges, keep the
+result out of MCP traffic, and support status, expiry, refresh, and revocation.
+
+[interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
+
+### TODO - Implement the browser-session Proton adapter
+
+Use the accepted authenticated browser boundary as the primary provider path,
+with bounded requests, typed failures, capability detection, and no DOM scraping
+where a stable authenticated protocol boundary is available.
+
+[browser-session-adapter](docs/todo/open/browser-session-adapter.mdc)
+
 ### TODO - Implement the Proton Mail Bridge adapter
 
 Build the local IMAP/SMTP adapter with TLS policy, credential isolation,
@@ -64,6 +86,13 @@ permanent deletion.
 
 [mailbox-actions](docs/todo/open/mailbox-actions.mdc)
 
+### TODO - Implement mailbox change observation
+
+Expose bounded waiting and resumable change cursors without aggressive polling,
+silent gaps, or an always-running public service.
+
+[mailbox-events](docs/todo/open/mailbox-events.mdc)
+
 ## P2 — Productization and evidence
 
 ### TODO - Implement the local MCP transport
@@ -73,12 +102,19 @@ listener and with capability-aware tool annotations.
 
 [mcp-transport](docs/todo/open/mcp-transport.mdc)
 
-### TODO - Implement one-command CLI and remote modes
+### TODO - Implement the CLI and one-command local setup
 
-Complete the human CLI and explicit remote-server modes in the same installable
-binary, with secure defaults and cloud deployment guidance.
+Complete the human CLI, diagnostics, authentication lifecycle, and MCP-client
+setup in the same installable binary.
 
-[cli-and-remote](docs/todo/open/cli-and-remote.mdc)
+[cli-and-setup](docs/todo/open/cli-and-setup.mdc)
+
+### TODO - Implement the explicit remote service
+
+Add an opt-in authenticated remote transport with TLS, tenancy isolation,
+revocation, rate limits, and a proven cloud deployment path.
+
+[remote-service](docs/todo/open/remote-service.mdc)
 
 ### TODO - Build synthetic and opt-in integration evidence
 

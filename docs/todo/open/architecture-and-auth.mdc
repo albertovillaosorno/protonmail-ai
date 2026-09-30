@@ -24,6 +24,8 @@ supportable, and compatible with local and remote operation.
 - Keep environment-supplied credentials explicit and less recommended.
 - Keep direct API work behind a separate experimental boundary.
 - Define the provider-neutral port consumed by runtime composition.
+- Define adapter selection, capability negotiation, and failover rules without
+  ever combining partial results from different adapters silently.
 
 ## Acceptance criteria
 
@@ -34,6 +36,8 @@ supportable, and compatible with local and remote operation.
   completion of 2FA or challenges, rather than credential replay.
 - The decision maps every planned capability to supported protocol evidence or
   an explicit deferral.
+- The accepted primary route can support a normal Proton account without making
+  Bridge installation or a paid Bridge-compatible plan an unstated requirement.
 
 ## Evidence
 

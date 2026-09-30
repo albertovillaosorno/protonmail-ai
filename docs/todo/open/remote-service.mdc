@@ -1,0 +1,46 @@
+---
+id: remote-service
+priority: P2
+status: open
+dependencies:
+  - cli-and-setup
+  - mcp-transport
+  - security-model
+  - integration-evidence
+---
+
+# Implement the explicit remote service
+
+## Goal
+
+Make the same application service available remotely only when the operator has
+explicitly chosen and safely configured a network deployment.
+
+## Required work
+
+- Define the remote MCP transport and lifecycle without changing mail semantics.
+- Require authenticated clients, TLS termination, account and tenant isolation,
+  rate limits, request bounds, audit-safe diagnostics, and revocation.
+- Define secure session provisioning for a remote host without copying plaintext
+  browser state or accepting account credentials in tool calls.
+- Refuse wildcard or public binding unless the complete security configuration
+  is present and validated.
+- Publish one reproducible cloud deployment recipe and one local loopback
+  recipe.
+
+## Acceptance criteria
+
+- Remote mode cannot start with anonymous access, plaintext transport, a shared
+  cross-tenant secret namespace, or accidental public binding.
+- Local stdio remains fully usable without remote mode or a cloud account.
+- Remote and local transports pass the same contract suite.
+- Revoking a remote client or Proton session stops subsequent authority without
+  requiring a rebuild or data loss.
+- The cloud recipe is deployed and exercised end to end from a fresh
+  environment.
+
+## Evidence
+
+- Remote transport conformance tests
+- Tenant-isolation, authentication, rate-limit, and revocation tests
+- Redacted fresh-deployment transcript

@@ -6,6 +6,7 @@ dependencies:
   - tool-contract
   - read-workflows
   - draft-and-send
+  - mailbox-events
   - mailbox-actions
 ---
 
@@ -23,6 +24,8 @@ unnecessary public service boundary.
 - Add capability configuration that fails closed.
 - Keep protocol output separate from diagnostics.
 - Document Codex configuration and lifecycle.
+- Provide a setup command or generated configuration that registers the exact
+  installed executable without embedding credentials.
 
 ## Acceptance criteria
 
@@ -30,8 +33,11 @@ unnecessary public service boundary.
 - Stdout contains MCP frames only.
 - Disabled tools are absent, not merely rejected after invocation.
 - A protocol conformance test exercises initialization and representative tools.
+- A real MCP client can discover and invoke every enabled capability after one
+  documented setup action.
 
 ## Evidence
 
 - MCP client integration test
 - Example Codex configuration without secrets
+- Redacted real-client discovery and invocation transcript

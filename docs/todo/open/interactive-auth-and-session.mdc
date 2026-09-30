@@ -1,0 +1,55 @@
+---
+id: interactive-auth-and-session
+priority: P1
+status: open
+dependencies:
+  - architecture-and-auth
+  - security-model
+---
+
+# Implement interactive authentication and session custody
+
+## Goal
+
+Make `protonmail-ai auth login` use Proton's ordinary visible login flow while
+the user retains control of passwords, 2FA, CAPTCHA, security-key prompts, and
+session revocation.
+
+## Required work
+
+- Launch and supervise the accepted maintained Playwright boundary without
+  replaying credentials or injecting them from MCP arguments.
+- Pin and provision any required browser driver/runtime through the product
+  installer with integrity and license checks; do not assume Node, Playwright,
+  or a compatible browser is already installed.
+- Let the user complete login challenges in the visible browser.
+- Store only the minimum revocable session material in the operating-system
+  credential store under an account-scoped identity.
+- Implement `login`, `status`, `logout`, expiry detection, refresh, and account
+  switching with deterministic state transitions.
+- Define an explicit, less-recommended non-interactive secret source for remote
+  deployments without accepting raw account credentials through MCP.
+- Recover cleanly from cancelled login, expired sessions, revoked sessions,
+  browser crashes, and partial credential-store writes.
+
+## Acceptance criteria
+
+- A password, 2FA value, CAPTCHA answer, cookie, or session blob never appears
+  in CLI output, MCP frames, logs, crash reports, repository files, or process
+  arguments.
+- Login works with the normal visible Proton flow and waits for the user instead
+  of bypassing or automating challenges.
+- `status` distinguishes absent, valid, expired, and revoked sessions without
+  exposing secret material.
+- `logout` revokes or removes all project-owned local authority and is safe to
+  repeat.
+- Credential-store and browser failure paths leave no plaintext fallback file.
+- A fresh supported machine can complete login without separately installing a
+  development toolchain or manually locating a browser driver.
+
+## Evidence
+
+- Authentication state-machine tests
+- Operating-system credential-store integration tests
+- Visible-login transcript with all secret values redacted
+- Expiry, cancellation, crash, and revocation regression tests

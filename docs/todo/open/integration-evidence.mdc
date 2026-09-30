@@ -3,7 +3,9 @@ id: integration-evidence
 priority: P2
 status: open
 dependencies:
+  - browser-session-adapter
   - bridge-adapter
+  - interactive-auth-and-session
   - mcp-transport
 ---
 
@@ -19,6 +21,8 @@ development or CI.
 - Build synthetic IMAP and SMTP fixtures with deterministic time and IDs.
 - Cover disconnects, timeouts, malformed MIME, partial batches, and ambiguity.
 - Create a separately gated live-account suite.
+- Exercise the installed binary through a real MCP client, not only through
+  internal Rust APIs.
 - Prevent live tests from running through default Cargo commands.
 - Scan fixtures and logs for credential-shaped material.
 
@@ -28,9 +32,14 @@ development or CI.
 - Live tests require an explicit feature and opt-in environment signal.
 - Failure artifacts contain no message bodies or secrets.
 - Tests cover every declared safety class.
+- The opt-in live suite proves every advertised capability on the primary
+  visible-login adapter, including attachments and mailbox event waiting.
+- Live send and mutation fixtures target an explicitly designated test account
+  and leave it in the documented recovered state.
 
 ## Evidence
 
 - Deterministic integration suite
 - Live-test isolation regression
 - Secret-scan result
+- Redacted installed-binary and real-MCP-client transcript

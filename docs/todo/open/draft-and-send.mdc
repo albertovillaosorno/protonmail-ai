@@ -19,6 +19,8 @@ and external side effects into one opaque action.
 - Create, read, update, and discard drafts.
 - Implement send-draft, reply, reply-all, and forward.
 - Define recipient normalization, MIME generation, and attachment constraints.
+- Resolve From addresses through verified Proton sender identities and reject
+  spoofed or unavailable identities before creating an external side effect.
 - Add idempotency and ambiguous-delivery handling.
 - Require explicit send authority separate from draft authority.
 
@@ -29,6 +31,8 @@ and external side effects into one opaque action.
 - Recipient, threading, Unicode, HTML/plain text, and attachment cases are
   tested.
 - Ambiguous SMTP outcomes are surfaced instead of guessed.
+- The primary visible-login adapter, not only SMTP, passes the full suite.
+- Alias, default-identity, and unavailable-sender cases are tested.
 
 ## Evidence
 

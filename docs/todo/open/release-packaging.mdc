@@ -3,9 +3,11 @@ id: release-packaging
 priority: P2
 status: open
 dependencies:
+  - cli-and-setup
   - mcp-transport
   - integration-evidence
   - jig-onboarding
+  - remote-service
 ---
 
 # Package and document the first release
@@ -22,16 +24,27 @@ user to install, configure, upgrade, and remove the server safely.
 - Include license, third-party notices, and provenance manifests.
 - Document Bridge setup, secret storage, Codex configuration, and removal.
 - Define compatibility and migration policy.
+- Gate release creation on every advertised tool succeeding through the
+  installed binary and a real MCP client on the primary visible-login path.
 
 ## Acceptance criteria
 
 - Fresh-machine installation is exercised on every claimed platform.
+- Fresh-machine evidence starts without a Rust/Node toolchain, Playwright, or a
+  pre-provisioned compatible browser unless the support matrix says otherwise.
 - Release archives contain no credentials or local reference corpus.
 - Checksums and exact source revision are published.
 - Upgrade and uninstall preserve the user's mailbox and secrets.
+- A new user can install with one documented command, authenticate normally,
+  register the MCP server with one action, and use it without source checkout.
+- The release does not advertise a capability, platform, or remote deployment
+  that lacks its named acceptance transcript.
+- `TODO.md` has no remaining open record when the first supported release is
+  declared; mock-only or skipped live evidence fails this criterion.
 
 ## Evidence
 
 - Release workflow and manifest
 - Installation transcripts
 - Artifact-content audit
+- Redacted end-to-end release acceptance transcript

@@ -1,0 +1,51 @@
+---
+id: browser-session-adapter
+priority: P1
+status: open
+dependencies:
+  - architecture-and-auth
+  - interactive-auth-and-session
+  - provenance-and-licenses
+  - security-model
+  - tool-contract
+---
+
+# Implement the browser-session Proton adapter
+
+## Goal
+
+Provide the primary Proton adapter behind the provider-neutral mail port using
+the authenticated session established by the visible login flow.
+
+## Required work
+
+- Use the stable authenticated protocol boundary accepted by the architecture
+  decision; isolate any unavoidable browser interaction behind one adapter.
+- Detect account and server capabilities instead of assuming a plan or rollout.
+- Implement bounded timeouts, cancellation, retry policy, backoff, concurrency,
+  session refresh, and structured provider error conversion.
+- Convert Proton messages, conversations, labels, drafts, events, and
+  attachments into provider-neutral domain types.
+- Preserve end-to-end cryptographic behavior required to read and send mail;
+  never log decrypted content or key material.
+- Fail closed when Proton changes an observed contract, rather than silently
+  returning incomplete or mis-threaded data.
+
+## Acceptance criteria
+
+- Every capability advertised by the MCP server has a tested implementation or
+  is omitted through capability negotiation.
+- The adapter survives session refresh, pagination, rate limiting, transient
+  disconnects, and a controlled incompatible-response fixture.
+- Provider-specific types, URLs, cookies, and cryptographic material do not
+  cross into the capability domain or public tool schemas.
+- Browser automation is not used as brittle click-and-scrape mail transport.
+- A live opt-in account can perform the complete advertised read, draft, send,
+  reversible-action, attachment, and mailbox-event workflow through this path.
+
+## Evidence
+
+- Adapter contract and protocol-fixture tests
+- Capability-negotiation matrix
+- Session-refresh and provider-change regression tests
+- Redacted live-account adapter transcript

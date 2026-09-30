@@ -1,0 +1,39 @@
+---
+id: mailbox-events
+priority: P1
+status: open
+dependencies:
+  - browser-session-adapter
+  - read-workflows
+  - security-model
+---
+
+# Implement mailbox change observation
+
+## Goal
+
+Wait for new or changed mail efficiently while preserving resumable ordering and
+bounded resource use.
+
+## Required work
+
+- Define a provider-neutral change cursor and change-event envelope.
+- Implement bounded wait, cancellation, timeout, reconnect, and backoff.
+- Resume from the last acknowledged cursor and detect an invalid or expired
+  cursor without silently skipping mailbox changes.
+- Coalesce duplicate provider events without discarding distinct changes.
+- Expose observation only while a client request or explicit service lifecycle
+  owns it; do not create an implicit public daemon.
+
+## Acceptance criteria
+
+- Tests prove no duplicate or missing event across reconnect and cursor resume
+  under the documented consistency model.
+- A timed-out wait is a successful empty result, not an ambiguous failure.
+- Cancellation releases connections and background work promptly.
+- Event diagnostics contain identifiers and timing, never message content.
+
+## Evidence
+
+- Deterministic event-stream fixture
+- Reconnect, duplicate, cursor-expiry, timeout, and cancellation tests

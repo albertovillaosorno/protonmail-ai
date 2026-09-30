@@ -13,8 +13,9 @@ dependencies:
 
 ## Goal
 
-Provide a local adapter for the accepted IMAP/SMTP route without leaking Bridge
-credentials or provider details into the core contract.
+Provide an optional local adapter for users who explicitly select Proton Mail
+Bridge, without leaking Bridge credentials or provider details into the core
+contract.
 
 ## Required work
 
@@ -30,6 +31,8 @@ credentials or provider details into the core contract.
 - Connection loss yields typed retryable errors.
 - Adapter tests run against synthetic IMAP/SMTP fixtures.
 - The capability domain does not depend on Bridge-specific types.
+- Unsupported Gmail-parity capabilities are omitted during negotiation rather
+  than simulated incorrectly or silently routed through another adapter.
 
 ## Evidence
 
