@@ -32,19 +32,59 @@
 
 #![forbid(unsafe_code)]
 
+pub mod web_handoff;
+
+use std::env;
+use std::process::ExitCode;
+
 use mail_capability_domain::planned_capabilities;
+use web_handoff::ComposeInput;
 
-fn main() {
+fn main() -> ExitCode {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    match args.as_slice() {
+        [mode, command, rest @ ..] if is_mail(mode, command) => emit_url(rest),
+        [] => {
+            print_status();
+            ExitCode::SUCCESS
+        }
+        _ => {
+            eprintln!("{}", compose_usage());
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn is_mail(mode: &str, command: &str) -> bool {
+    mode == "mail" && command == "compose-url"
+}
+
+fn emit_url(args: &[String]) -> ExitCode {
+    match ComposeInput::parse(args) {
+        Ok(input) => {
+            println!("{}", input.web_url());
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("invalid compose request: {error}");
+            eprintln!("{}", compose_usage());
+            ExitCode::FAILURE
+        }
+    }
+}
+
+const fn compose_usage() -> &'static str {
+    concat!(
+        "usage: protonmail-ai mail compose-url --to RECIPIENT ",
+        "[--cc RECIPIENTS] [--bcc RECIPIENTS] ",
+        "[--subject TEXT] [--body TEXT | --body-file PATH]"
+    )
+}
+
+fn print_status() {
     let capability_count = planned_capabilities().len();
-
-    println!(
-        "{}",
-        concat!(
-            "protonmail-ai is an implementation scaffold; ",
-            "no mailbox was accessed."
-        )
-    );
+    println!("protonmail-ai: no mailbox was accessed");
     println!("planned capabilities: {capability_count}");
+    println!("available now: mail compose-url");
     println!("planned modes: cli | mcp | serve | auth");
-    println!("see TODO.md before enabling an adapter");
 }

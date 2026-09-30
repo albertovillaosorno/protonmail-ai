@@ -3,9 +3,9 @@ id: mailbox-events
 priority: P1
 status: open
 dependencies:
-  - direct-session-adapter
   - read-workflows
   - security-model
+  - web-ui-adapter
 ---
 
 # Implement mailbox change observation

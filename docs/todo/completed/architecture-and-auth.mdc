@@ -9,18 +9,21 @@ dependencies: []
 
 ## Goal
 
-Choose the adapter strategy and keep authentication on Proton-owned surfaces
-without turning browser automation into part of the product security boundary.
+Choose the adapter strategy while keeping account authentication on
+Proton-owned surfaces and preserving explicit transport boundaries.
 
 ## Completed work
 
-- Select Proton Mail's direct QR/manual-code session-fork flow as the supported
-  version-one authentication path.
+- Initially select the direct QR/manual-code session-fork family, then revise
+  `connectivity.mdc` after live identity evidence showed it could not be the
+  practical Free-plan prerequisite.
+- Select a user-controlled Proton Mail web profile as the primary version-one
+  path, with visible manual login and no Bridge requirement.
 - Record the SDK `Other` child identity without treating it as a production
   authorization grant; a later live probe is tracked by
   `provider-client-identity`.
-- Reject Bridge, bundled Playwright/Chromium, browser-profile scraping, and raw
-  account-credential login as supported fallbacks.
+- Reject Bridge as a required fallback, existing-profile scraping, session
+  export, and automated account-credential/challenge login.
 - Record the current Mail Rust SDK and Drive CLI implementations as evidence for
   target-side fork initiation, payload framing, polling, key transfer, refresh,
   and revocation behavior.
@@ -31,8 +34,9 @@ without turning browser automation into part of the product security boundary.
 
 ## Acceptance evidence
 
-- `docs/architecture/connectivity.mdc` accepts direct session-fork authority as
-  the only version-one Mail provider path.
+- `docs/architecture/connectivity.mdc` accepts the user-controlled web
+  application as the primary version-one path and keeps direct session-fork
+  access optional behind its own provider-identity gate.
 - Authentication remains separate from MCP; account passwords, handoff secrets,
   access/refresh tokens, key passwords, and session blobs never cross MCP.
 - Current Proton Mail SDK source proves target and host QR-login state machines,

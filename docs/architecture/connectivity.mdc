@@ -8,34 +8,30 @@ login flow.
 
 ## Decision
 
-The preferred version-one path is Proton's direct session-fork protocol and
-Proton Mail's authenticated protocol boundary. Proton Mail Bridge is not a
-product dependency or fallback.
+The primary version-one path is Proton Mail's ordinary web application in a
+dedicated project browser profile. The user performs login visibly through
+Proton's own UI; automation begins only after the expected authenticated Mail
+application state is present. Proton Mail Bridge is not a product dependency or
+fallback.
 
-Live direct authentication is currently blocked on an authorized third-party
-Mail client identity. The SDK's unversioned `Other` value is useful for protocol
-modeling but a production anonymous-session bootstrap rejects it. Live
-networking therefore remains disabled under `Other`.
+The web adapter never attaches to an existing personal browser profile and never
+automates password, second-factor, CAPTCHA, recovery, or security-key input. It
+does not export cookies or web storage into MCP, config files, fixtures, or
+logs. Session custody remains inside the dedicated profile owned by the user.
 
-Once an authorized third-party Mail identity exists, `protonmail-ai auth
-login` will bootstrap Proton's anonymous transport session with
-`POST /auth/v4/sessions`, then use that anonymous UID/access authority for the
-subsequent `GET /auth/v4/sessions/forks` request. Muon's `Other` default
-resolves
-the Mail host for protocol modeling, not production authorization.
+Pinned WebClients evidence also provides a lower-risk compose handoff before the
+full web adapter exists. Mail registers a `mailto:` protocol handler using the
+`/inbox/#mailto=%s` path and accepts recipient, subject, Cc, Bcc, and body
+fields. `protonmail-ai mail compose-url` implements this handoff without opening
+a browser or creating a send side effect.
 
-The target then creates a fresh 32-byte encryption key and presents the Proton
-QR/manual-code payload to the user. An already authenticated Proton device
-approves the target session. The CLI polls the returned selector until Proton
-returns the forked user session, decrypts the fork payload locally, and stores
-only the resulting revocable authority in the operating-system credential
-store.
+Direct session-fork access remains an optional protocol track. It is still
+blocked on an authorized third-party Mail client identity; the SDK's unversioned
+`Other` value is useful for modeling but is rejected for production bootstrap.
+That blocker applies only to the optional direct adapter, not to the primary
+Free-plan web path.
 
-The SDK default child client identity is `Other`. It is protocol evidence, not
-an authorized third-party Mail identity, and is intentionally distinct from
-first-party IDs such as `ios-mail`, `android-mail`, or `web-mail`.
-
-## Why this path is accepted
+## Optional direct protocol evidence
 
 This is not a reverse-engineered login shortcut. Proton's current Mail Rust SDK
 contains the complete target and host QR-login state machine:
@@ -73,7 +69,7 @@ Primary evidence:
   `proton-crypto-subtle/src/aead.rs`
 - `proton.me/support/qr-code-sign-in`
 
-## User experience
+## Optional direct session-fork user experience
 
 The initial supported UX is QR/manual-code approval rather than password entry:
 
@@ -94,7 +90,7 @@ The handoff payload is authorization material. It is never logged, emitted over
 MCP, placed in shell arguments, written to repository files, or included in
 crash reports.
 
-## Browser handoff
+## Optional direct session-fork browser handoff
 
 The browser can be used safely as the authenticated **origin** of the fork.
 Proton WebClients' signed-in account UI accepts the complete target QR payload
@@ -150,13 +146,14 @@ the same provider-neutral session and capability boundaries.
 The following are outside the supported architecture:
 
 - Proton Mail Bridge as a required runtime dependency or fallback;
-- Playwright, Chromium, Selenium, or browser-debugging login automation;
-- copying cookies or web storage from the user's browser profile;
-- collecting Proton passwords, 2FA codes, CAPTCHA answers, or recovery answers;
+- automating Proton password, 2FA, CAPTCHA, recovery, or security-key input;
+- attaching automation to an existing personal browser profile;
+- exporting cookies, local storage, or other browser session state;
+- collecting Proton passwords or authentication challenge answers in MCP tools;
 - identifying as `ios-mail`, `android-mail`, `web-mail`, or another first-party
   client merely to bypass server checks;
-- silently falling back to credential login if a fork is unavailable;
-- writing access tokens, refresh tokens, key passwords, or handoff secrets to
+- silently falling back to credential login if an optional direct fork fails;
+- writing access tokens, refresh tokens, key passwords, or fork secrets to
   plaintext configuration files.
 
 ## Session custody
@@ -180,7 +177,7 @@ operating-system credential store. Credential-store failure is fail-closed with
 no plaintext fallback. Logout removes project-owned local authority and requests
 provider-side session revocation when supported.
 
-## Provider protocol boundary
+## Optional direct provider protocol boundary
 
 After authentication, Mail operations use a direct Proton adapter behind the
 provider-neutral `MailProviderPort`. The pinned Proton Mail Rust SDK, Proton
@@ -193,21 +190,26 @@ key material, and encrypted payloads never cross into MCP tool schemas.
 
 ## Adapter selection
 
-There is one supported Mail provider path in version one: direct Proton session
-access established by session fork.
+The primary local adapter is the user-controlled Proton Mail web application.
+It is selected for Free-plan compatibility and requires no Bridge subscription
+or third-party direct API registration.
 
-No request silently crosses to another transport. If direct authentication or a
-required capability is unavailable, the server returns a typed unavailable or
-compatibility error and performs no partial side effect.
+The direct session-fork adapter is optional and can be selected only when its
+provider identity and live compatibility evidence are complete. Requests never
+silently cross between adapters. If a selected adapter cannot prove the required
+capability, the operation fails before any partial side effect.
 
 ## Capability evidence
 
-Every advertised capability must have direct protocol fixtures and opt-in live
-evidence before MCP exposes it. The capability contract remains provider-neutral
-for search, fetch, threads, labels, drafts, send/reply/forward, reversible
-mailbox actions, attachments, and resumable mailbox changes.
+Every capability advertised by the primary web adapter must have deterministic
+page-state fixtures and opt-in live evidence before MCP exposes it. The same
+provider-neutral contract covers search, fetch, threads, labels, drafts,
+send/reply/forward, reversible mailbox actions, attachments, and resumable
+mailbox changes.
 
-Permanent deletion remains disabled by default regardless of protocol support.
+The optional direct adapter maintains its own protocol-fixture and live evidence
+and may advertise only the subset it independently proves. Permanent deletion
+remains disabled by default regardless of adapter support.
 
 ## Failure rules
 

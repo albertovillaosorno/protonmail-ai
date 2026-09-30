@@ -62,19 +62,40 @@ redaction, attachment bounds, and adapter capability negotiation. Compromise of
 this process can expose whatever decrypted mail and session authority is active,
 so it must keep secret lifetime and diagnostic surface small.
 
-### Proton session-fork handoff boundary
+### User-controlled web profile boundary
+
+The primary Free-plan adapter uses a dedicated project browser profile. The
+human completes Proton login visibly in Proton's own UI; automation begins only
+after the expected signed-in Mail application state is present.
+
+The profile may contain cookies, local storage, and other provider session
+material and is therefore sensitive local authority. `protonmail-ai` must not
+copy that material into MCP messages, plaintext config, fixtures, logs, or an
+existing personal browser profile. Password, 2FA, CAPTCHA, recovery, and
+security-key fields remain human-controlled and outside automation.
+
+A compromised dedicated profile can expose the mailbox authority available to
+that browser session. Adapter code therefore treats unexpected pages, login
+expiry, dialogs, and selector drift as fail-closed state changes before any
+mailbox side effect.
+
+Web-composer handoff URLs contain message content and are not safe diagnostics.
+The human CLI may read an explicitly named `--body-file` to construct that URL,
+but MCP never receives an arbitrary local body-file path. Handoff bodies are
+bounded before encoding to avoid unbounded file reads and URLs.
+
+### Optional Proton session-fork handoff boundary
 
 Production session-fork authentication is disabled until Proton supplies or
 publishes an authorized third-party Mail client identity. The SDK default
 `Other` is not sufficient production authorization: a secret-free bootstrap
 probe returned HTTP 422 / API code 8004.
 
-The intended version-one login is a direct target-side Proton session fork,
-but live use is blocked until a third-party Mail identity is authorized.
-The project first creates Proton's anonymous transport session, then requests a
+The direct target-side Proton session fork is an optional protocol path and
+remains blocked until a third-party Mail identity is authorized. When enabled,
+the project first creates Proton's anonymous transport session, requests a
 short-lived fork code under that anonymous authority, generates a local 32-byte
-handoff key, and presents the resulting QR/manual-code payload to the human
-user.
+handoff key, and presents the resulting QR/manual-code payload to the human.
 
 Approval occurs in an already authenticated Proton session. Account passwords,
 second factors, CAPTCHA answers, security-key responses, and recovery answers
@@ -100,9 +121,14 @@ diagnostics.
 ### Operating-system credential store
 
 The operating-system credential store is the required durable secret boundary
-for interactive local sessions. On platforms where a suitable protected store
-is unavailable or locked, authentication fails closed. There is no plaintext
-file fallback.
+for optional direct sessions. On platforms where a suitable protected store is
+unavailable or locked, direct authentication fails closed. There is no
+plaintext token-file fallback.
+
+The primary web adapter instead leaves provider session state inside its
+dedicated browser profile. The project never copies those cookies or web-storage
+values into the credential store merely to make them available to another
+transport.
 
 ### Proton
 

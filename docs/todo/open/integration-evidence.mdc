@@ -3,8 +3,8 @@ id: integration-evidence
 priority: P2
 status: open
 dependencies:
-  - direct-session-adapter
   - mcp-transport
+  - web-ui-adapter
 ---
 
 # Build synthetic and opt-in integration evidence
@@ -16,7 +16,8 @@ development or CI.
 
 ## Required work
 
-- Build synthetic IMAP and SMTP fixtures with deterministic time and IDs.
+- Build synthetic provider and web UI fixtures with deterministic time and
+  IDs.
 - Cover disconnects, timeouts, malformed MIME, partial batches, and ambiguity.
 - Create a separately gated live-account suite.
 - Exercise the installed binary through a real MCP client, not only through

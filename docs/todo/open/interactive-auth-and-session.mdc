@@ -1,6 +1,6 @@
 ---
 id: interactive-auth-and-session
-priority: P1
+priority: P2
 status: open
 dependencies:
   - architecture-and-auth
@@ -8,12 +8,12 @@ dependencies:
   - security-model
 ---
 
-# Implement QR/manual-code session-fork authentication
+# Implement optional QR/manual-code session-fork authentication
 
 ## Goal
 
-Make `protonmail-ai auth login` establish a direct Proton session without
-collecting account credentials or controlling a browser.
+Provide an optional direct Proton session-fork login without collecting
+account credentials. The primary web UI login remains a separate P1 path.
 
 ## Required work
 

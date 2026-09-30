@@ -1,0 +1,36 @@
+---
+id: web-compose-handoff
+priority: P1
+status: completed
+dependencies:
+  - architecture-and-auth
+  - provenance-and-licenses
+---
+
+# Ship the Proton Mail web-composer handoff
+
+## Goal
+
+Provide an immediately useful Free-plan composition path that does not depend on
+Bridge, provider client registration, or mailbox authority.
+
+## Completed work
+
+- Verified the pinned WebClients `mailto:` protocol-handler path and field
+  parser.
+- Added `protonmail-ai mail compose-url` for To, Cc, Bcc, subject, and body.
+- Preserved tagged aliases, Unicode text, and line breaks through the two
+  required percent-encoding layers.
+- Added `--body-file` so long message text need not be supplied as a process
+  argument.
+- Kept the command side-effect free: it emits text only and does not open a
+  browser or send mail.
+- Classified the implementation as fact-informed by pinned WebClients source.
+
+## Acceptance evidence
+
+- `web-compose-handoff` integration target exercises the built binary.
+- Nine synthetic process tests cover valid encoding and fail-closed input.
+- Repository provenance validation covers the new implementation and tests.
+- `docs/architecture/web-compose-handoff.mdc` records the pinned provider
+  behavior and privacy boundary.

@@ -28,16 +28,17 @@ invent another person's sign-off.
 - Never log message bodies or secret-bearing protocol payloads.
 - Keep read, draft, send, and destructive capabilities separate.
 - Default to local stdio transport and loopback-only test infrastructure.
-- Treat Proton Mail session-fork QR/manual-code login as the intended
-  version-one protocol boundary.
-- Keep live Mail auth disabled until Proton documents or issues a third-party
-  client identity; never reuse a Proton-owned Mail client ID.
+- Treat the user-controlled Proton Mail web application as the primary
+  version-one provider boundary for Free-plan users.
+- Keep the optional direct Mail API/session-fork path disabled until Proton
+  documents or issues a third-party client identity; never reuse a Proton-owned
+  Mail client ID.
 - A `ThirdPartyIdentityCandidate` proves only negative validation; never treat
   it as provider approval or as permission to enable live HTTP.
 - `ProviderProfile::live_auth_supported()` must stay derived from the typed
   provider-authorization snapshot; never reintroduce an independent live flag.
-- Every live Proton request must carry an `Approved`
-  `ProviderRequestIdentity`; live transport must obtain app-version and API
+- Every optional direct-API Proton request must carry an `Approved`
+  `ProviderRequestIdentity`; that transport must obtain app-version and API
   base only through live accessors and reject `None` before network I/O.
 - Treat environment-supplied credentials as an explicit, less-recommended
   deployment fallback; never accept them through MCP tool arguments.
@@ -45,8 +46,13 @@ invent another person's sign-off.
   file-level origin, license, and modifications in `THIRD_PARTY_NOTICES.md`.
 - GPL WebClients-derived code must retain compatible licensing and attribution.
 - Test fixtures must be synthetic.
-- Do not use Playwright, Chromium, Selenium, browser-profile scraping, or remote
-  debugging as an authentication shortcut.
+- Web-composer handoff URLs may contain recipients, subject, and body text;
+  emit them only on explicit user request and never treat them as safe logs.
+- `mail compose-url --body-file` is a human CLI file-read boundary; never
+  expose an arbitrary body-file path as an MCP tool argument.
+- A web UI adapter may automate only a dedicated project browser profile after
+  visible user-controlled login. Never attach to an existing personal profile,
+  automate password/2FA/CAPTCHA/recovery input, or export cookies/web storage.
 - Keep one installable `protonmail-ai` binary with explicit `auth`, `mail`,
   `mcp`, and `serve` modes; do not create separately installed products.
 - Keep external authentication handoff, provider access, application workflows,

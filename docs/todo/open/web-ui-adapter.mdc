@@ -1,0 +1,56 @@
+---
+id: web-ui-adapter
+priority: P1
+status: open
+dependencies:
+  - architecture-and-auth
+  - provenance-and-licenses
+  - security-model
+  - tool-contract
+---
+
+# Implement the user-controlled Proton Mail web adapter
+
+## Goal
+
+Provide the primary Free-plan local provider path through Proton Mail's ordinary
+web application without requiring Bridge or a third-party direct API identity.
+
+## Required work
+
+- Use a dedicated project browser profile instead of attaching to an existing
+  personal browser profile.
+- Keep sign-in visible and fully user-controlled; password, second factor,
+  CAPTCHA, recovery, and security-key interactions remain outside automation.
+- Begin mailbox automation only after the dedicated profile is already signed
+  in and the expected Proton Mail application state is visible.
+- Never export cookies, local storage, session state, passwords, or challenge
+  answers into MCP, config files, fixtures, or logs.
+- Implement provider-neutral read, draft, send, reversible mailbox actions, and
+  change observation through explicit UI state assertions.
+- Prefer semantic roles, labels, and observable application state over brittle
+  styling selectors.
+- Detect unexpected pages, selector drift, login expiry, and provider changes;
+  fail closed instead of clicking a guessed control.
+- Keep draft creation and send as distinct actions under the existing
+  capability/authority model.
+
+## Acceptance criteria
+
+- A Proton Free account can establish the dedicated profile through visible
+  manual login with no Bridge dependency.
+- Existing browser profiles are never read or modified.
+- Tests prove password and authentication challenge fields are never targeted.
+- Read-only workflows cannot trigger mutation or send controls.
+- Draft and send remain separately authorized and observable.
+- Selector or page-shape drift fails closed before a side effect.
+- An opt-in live account can execute every capability advertised by this
+  adapter.
+
+## Evidence
+
+- Dedicated-profile lifecycle tests
+- Synthetic page-state and selector-drift fixtures
+- Read-vs-mutation control boundary tests
+- Draft/send side-effect tests
+- Redacted opt-in Free-account transcript

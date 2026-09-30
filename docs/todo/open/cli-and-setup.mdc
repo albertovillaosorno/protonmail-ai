@@ -3,8 +3,8 @@ id: cli-and-setup
 priority: P2
 status: open
 dependencies:
-  - interactive-auth-and-session
   - draft-and-send
+  - web-ui-adapter
   - mailbox-actions
   - mailbox-events
   - mcp-transport

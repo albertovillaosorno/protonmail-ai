@@ -1,0 +1,63 @@
+# Proton Mail web-composer handoff
+
+## Status
+
+Accepted on 2026-09-30 from pinned Proton WebClients behavior.
+
+## Decision
+
+`protonmail-ai` may generate Proton Mail's web-composer `mailto:` handoff as a
+local, no-send utility. This path is independent of Bridge and independent of
+the optional direct API/session-fork client-identity blocker.
+
+The command emits a URL only. It does not open a browser, authenticate, create a
+draft through provider APIs, or send mail. The user opens the URL in an already
+signed-in Proton Mail web session and reviews the resulting composer.
+
+## Pinned evidence
+
+At Proton WebClients revision
+`74773f0b10cc31d32e43e82c061da5d75fef96ce`:
+
+- `applications/mail/src/app/bootstrap.ts` registers Mail as a Chromium
+  `mailto:` protocol handler;
+- `applications/mail/src/app/constants.ts` defines the handler path as
+  `/inbox/#mailto=%s`;
+- `applications/mail/src/app/hooks/useMailtoHash.ts` accepts both raw and
+  percent-encoded handoff values and guards against duplicate reopening;
+- `applications/mail/src/app/helpers/url.ts` parses the primary recipient plus
+  `subject`, `cc`, `bcc`, and `body` fields;
+- `applications/mail/src/app/containers/ComposeProvider.tsx` turns the parsed
+  handoff into a new-message composer action.
+
+A current-main verification on 2026-09-30 at WebClients commit
+`c571cd48b27ffcbc37b122eeaac4ee5233f532c4` found identical Git blob IDs for
+`useMailtoHash.ts`, `helpers/url.ts`, `constants.ts`, and
+`ComposeProvider.tsx`. The pinned behavior used here therefore still matches
+current upstream for those critical files.
+
+The parser deliberately does not translate `+` into a space before recipient
+handling, which preserves tagged email aliases. Body line breaks are converted
+for the HTML composer after URL decoding, and imported values pass through the
+WebClients sanitization path.
+
+## Encoding contract
+
+The CLI first constructs an RFC 6068-style `mailto:` URI with each recipient or
+query value percent-encoded. It then percent-encodes that complete URI for the
+`#mailto=` handoff. The two layers are intentional: WebClients first decodes the
+hash handoff and later decodes the individual mailto fields.
+
+Tests cover tagged aliases, Unicode subject/body text, Cc/Bcc, line breaks,
+missing recipients, duplicate flags, and body-file input.
+
+## Privacy and side effects
+
+Recipients, subject, and body are message content. They may appear in the
+emitted URL and subsequently in browser history, terminal output, or clipboard
+history. The generated URL must therefore never be treated as safe diagnostic
+text.
+
+`--body-file` avoids putting a long body directly in process arguments, but the
+resulting URL still contains that body. The handoff never implies delivery;
+reviewing and sending remain distinct side-effect boundaries.

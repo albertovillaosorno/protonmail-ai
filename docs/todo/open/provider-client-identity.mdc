@@ -1,18 +1,19 @@
 ---
 id: provider-client-identity
-priority: P0
+priority: P2
 status: open
 dependencies:
   - architecture-and-auth
   - provenance-and-licenses
 ---
 
-# Establish an authorized third-party Proton Mail client identity
+# Track an authorized Mail identity for optional direct access
 
 ## Goal
 
-Obtain or document a Proton-supported third-party Mail client identity before
-any live direct-session authentication is enabled.
+Track whether Proton exposes a supported third-party Mail client identity for
+the optional direct-session adapter. This task does not block the primary web UI
+path.
 
 ## Required work
 
@@ -51,6 +52,7 @@ any live direct-session authentication is enabled.
 ## Acceptance criteria
 
 - Live direct auth remains disabled while this task is open.
+- The primary web UI adapter remains independent of this task.
 - `ProviderProfile::authorization()` remains `Blocked` with no approved
   identity while provider evidence is absent or incomplete.
 - `ProviderProfile::live_auth_supported()` derives from the validated approval

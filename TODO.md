@@ -7,34 +7,24 @@ record at a time; a compiling placeholder is not completion.
 ## Completion invariant
 
 An empty TODO means the released binary has been installed from scratch,
-authenticated through a supported provider handoff, configured in a real MCP
-client, and used against an opt-in live account for every advertised capability.
+authenticated through the primary user-controlled provider flow, configured in
+a real MCP client, and used against an opt-in live account for every advertised
+capability.
 Mocks, schemas, or a compiling transport alone can never satisfy that invariant.
 
-## P0 — Authority, architecture, and safety
-
-### TODO - Establish an authorized third-party Proton Mail client identity
-
-Keep live direct authentication disabled until Proton documents or issues a
-third-party Mail identity.
-
-[provider-client-identity](docs/todo/open/provider-client-identity.mdc)
+A first supported local release does not require optional direct-API or remote
+service records to be complete when those modes are not advertised. The empty
+TODO invariant is stronger: it means the full tracked roadmap is complete.
 
 ## P1 — Working local mail path
 
-### TODO - Implement QR/manual-code session-fork authentication
+### TODO - Implement the user-controlled Proton Mail web adapter
 
-Implement the session-fork flow only after an authorized third-party Mail
-identity is established; never automate login or collect account credentials.
+Use Proton Mail's ordinary web application with a dedicated project browser
+profile and visible manual login. This is the primary Free-plan path and does
+not require Mail Bridge or a third-party direct API identity.
 
-[interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
-
-### TODO - Implement the direct-session Proton adapter
-
-Use the fork-established Proton session for direct Mail protocol access with
-provider-neutral capability and cryptographic boundaries.
-
-[direct-session-adapter](docs/todo/open/direct-session-adapter.mdc)
+[web-ui-adapter](docs/todo/open/web-ui-adapter.mdc)
 
 ### TODO - Implement read-only mailbox workflows
 
@@ -64,7 +54,30 @@ silent gaps, or an always-running public service.
 
 [mailbox-events](docs/todo/open/mailbox-events.mdc)
 
-## P2 — Productization and evidence
+## P2 — Optional direct protocol, productization, and evidence
+
+### TODO - Track a third-party Proton Mail client identity
+
+Keep the optional direct API/session-fork path fail-closed unless Proton later
+documents or issues a third-party Mail identity. This no longer blocks the
+primary Free-plan web UI path.
+
+[provider-client-identity](docs/todo/open/provider-client-identity.mdc)
+
+### TODO - Implement optional QR/manual-code session-fork authentication
+
+Implement the direct session-fork flow only when a valid third-party Mail
+identity exists. This is an optional protocol path, not a prerequisite for the
+primary local product.
+
+[interactive-auth-and-session](docs/todo/open/interactive-auth-and-session.mdc)
+
+### TODO - Implement the optional direct-session Proton adapter
+
+Use fork-established Proton authority for direct protocol access when available,
+without making it a prerequisite for Free-plan users.
+
+[direct-session-adapter](docs/todo/open/direct-session-adapter.mdc)
 
 ### TODO - Implement the local MCP transport
 
@@ -89,7 +102,7 @@ revocation, rate limits, and a proven cloud deployment path.
 
 ### TODO - Build synthetic and opt-in integration evidence
 
-Create deterministic fake-server coverage and a separately gated live-account
+Create deterministic fake-provider coverage and a separately gated live-account
 suite that cannot run accidentally.
 
 [integration-evidence](docs/todo/open/integration-evidence.mdc)

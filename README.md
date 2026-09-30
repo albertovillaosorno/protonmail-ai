@@ -10,8 +10,9 @@ password, and *send mail* should never look like *read mail*.
 
 > [!IMPORTANT]
 > This repository is an early scaffold. It does not authenticate to Proton,
-> expose an MCP server, or modify mail yet. Follow [`TODO.md`](TODO.md) for the
-> implementation plan and acceptance criteria.
+> expose an MCP server, or modify mail yet. It can already generate prefilled
+> Proton Mail web-composer URLs with `mail compose-url`. Follow
+> [`TODO.md`](TODO.md) for the remaining implementation plan.
 
 ## Why this exists
 
@@ -38,13 +39,13 @@ binary with a narrow, inspectable authority model:
 The codebase is still pre-provider, but the dangerous decisions are not being
 left for the end:
 
-- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects direct
-  session-fork as the preferred protocol, blocks live use until an authorized
-  third-party Mail identity exists, and rejects credential replay, Bridge, and
-  browser automation;
+- [`connectivity.mdc`](docs/architecture/connectivity.mdc) selects the
+  user-controlled Proton Mail web application as the primary Free-plan path,
+  keeps Bridge out of the runtime, and leaves direct session-fork as an optional
+  protocol track behind its own authorization gate;
 - [`provider-client-registration.mdc`][provider-registration]
-  records the current provider blocker, public contact paths, and exact
-  registration questions required before live Mail auth can be enabled;
+  records the current blocker for the optional direct API/session-fork path;
+  it no longer blocks the primary web UI adapter;
 - [`threat-model.mdc`](docs/security/threat-model.mdc) separates observation,
   reversible mutation, external side effects, and disabled destructive access;
 - [`tool-contract-v1.mdc`](docs/contract/tool-contract-v1.mdc) freezes a
@@ -67,34 +68,50 @@ The finished project should offer a Gmail-like tool surface for Proton Mail:
 - archive, move, label, mark, trash, and restore messages;
 - wait for mailbox changes without polling aggressively.
 
-The intended version-one provider route is direct Proton session access, but
-live authentication is currently disabled until Proton documents or issues a
-third-party Mail client identity. The protocol implementation can build and
-validate session-fork handoffs offline without claiming live authorization.
+The intended version-one provider route is Proton Mail's ordinary web
+application in a dedicated project browser profile. Login remains visible and
+manual in Proton's own UI; automation begins only after the expected signed-in
+Mail state is present. This route is designed for Free-plan users and does not
+require Mail Bridge or a third-party direct API client identity.
 
-Once that identity exists, `protonmail-ai auth login` can start Proton's
-session-fork flow, generate a fresh short-lived QR/manual-code handoff, and wait
-for approval from an already authenticated Proton session.
+The direct session-fork implementation remains an optional protocol track. Its
+live networking stays fail-closed until Proton documents or issues a suitable
+third-party Mail identity. The project will not substitute `ios-mail`,
+`android-mail`, `web-mail`, or another Proton-owned ID to bypass that check.
 
-As a convenience, it may open the normal Proton Account site so the browser can
-act as the origin: the user signs in there and enters the target code through
-Proton's own **Sign in on another device** UI. The CLI never reads browser state
-or receives the account password or second factor. After approval, it stores
-only the resulting revocable session and key authority required to unlock the
-mailbox locally.
 
-The Mail SDK's `Other` client identity is retained only for protocol modeling:
-a production anonymous-session probe rejected it with API code 8004. The
-project will not substitute `ios-mail`, `android-mail`, `web-mail`, or any other
-Proton-owned ID. Live login remains fail-closed until a Mail identity intended
-for third-party software is available.
+## Available now: prefilled web composer
+
+The binary can generate Proton Mail's own web-composer handoff without
+accessing a mailbox or sending anything:
+
+```text
+protonmail-ai mail compose-url --to RECIPIENT \
+  --subject "Interview follow-up" --body-file ./message.txt
+```
+
+The result is a `https://mail.proton.me/inbox/#mailto=...` URL. Open it in an
+already signed-in Proton Mail browser session to get a prefilled composer. The
+pinned WebClients implementation accepts To, Cc, Bcc, subject, and body fields;
+this command preserves `+` aliases, Unicode, and body line breaks.
+
+`--body-file` is preferred for longer messages so the body does not need to be
+placed directly in the command arguments. Bodies are bounded to 16 KiB. The
+generated URL itself still contains the composition data, so treat it like
+message content: do not put it in logs or bug reports.
+
+`--body-file` is a human CLI boundary and is not an MCP file-read capability.
+This handoff creates no
+send side effect; the current user must still review the composer and choose
+Send.
 
 ## Intended command surface
 
 The completed binary has one installation and several explicit modes:
 
 ```text
-protonmail-ai auth login       Direct QR/manual-code session fork
+protonmail-ai auth login       Visible user-controlled provider login
+protonmail-ai mail compose-url Prefilled Proton Mail web composer URL
 protonmail-ai mail ...         Human-facing CLI operations
 protonmail-ai mcp --stdio      Local MCP server
 protonmail-ai serve ...        Explicit remote/cloud service
@@ -111,8 +128,9 @@ transport security, tenancy, secret storage, and network binding.
 - Draft creation is separated from sending.
 - Sending and destructive actions require explicit policy and clear MCP tool
   annotations.
-- No Playwright, bundled Chromium, browser-profile scraping, or official-client
-  impersonation is accepted as a login mechanism.
+- The primary web adapter may automate only a dedicated project browser
+  profile after visible manual login; it never attaches to a personal profile
+  or automates password, 2FA, CAPTCHA, recovery, or security-key input.
 - Account passwords, handoff secrets, session material, message bodies, and
   attachments must never appear in logs or repository fixtures.
 - Secrets belong in an operating-system credential store or an explicitly

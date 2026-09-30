@@ -1,6 +1,6 @@
 ---
 id: direct-session-adapter
-priority: P1
+priority: P2
 status: open
 dependencies:
   - architecture-and-auth
@@ -10,12 +10,12 @@ dependencies:
   - tool-contract
 ---
 
-# Implement the direct Proton Mail adapter
+# Implement the optional direct Proton Mail adapter
 
 ## Goal
 
-Provide the version-one Mail provider path using authority established by the
-session-fork login flow.
+Provide an optional direct Mail provider path using authority established by
+the session-fork login flow, without blocking the primary web UI adapter.
 
 ## Required work
 

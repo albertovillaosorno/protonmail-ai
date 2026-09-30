@@ -7,7 +7,6 @@ dependencies:
   - mcp-transport
   - integration-evidence
   - jig-onboarding
-  - remote-service
 ---
 
 # Package and document the first release
@@ -22,17 +21,18 @@ user to install, configure, upgrade, and remove the server safely.
 - Define supported operating systems and architectures from evidence.
 - Build reproducible release artifacts and checksums.
 - Include license, third-party notices, and provenance manifests.
-- Document QR login, secret storage, Codex configuration, and removal.
+- Document visible web login, optional direct QR login, secret storage,
+  Codex configuration, and removal.
 - Define compatibility and migration policy.
 - Gate release creation on every advertised tool succeeding through the
-  installed binary and a real MCP client on the direct session-fork path.
+  installed binary and a real MCP client on the primary web UI path.
 
 ## Acceptance criteria
 
 - Fresh-machine installation is exercised on every claimed platform.
-- Fresh-machine evidence starts without a Rust/Node toolchain or browser
-  automation runtime or Mail Bridge. Direct-login prerequisites are exercised
-  explicitly rather than hidden behind a fallback.
+- Fresh-machine evidence starts without a Rust/Node toolchain or Mail Bridge.
+  Browser-runtime prerequisites for the primary web UI adapter are installed or
+  detected explicitly rather than hidden behind a fallback.
 - Release archives contain no credentials or local reference corpus.
 - Checksums and exact source revision are published.
 - Upgrade and uninstall preserve the user's mailbox and secrets.
@@ -40,8 +40,11 @@ user to install, configure, upgrade, and remove the server safely.
   register the MCP server with one action, and use it without source checkout.
 - The release does not advertise a capability, platform, or remote deployment
   that lacks its named acceptance transcript.
-- `TODO.md` has no remaining open record when the first supported release is
-  declared; mock-only or skipped live evidence fails this criterion.
+- Every dependency of this release record is complete. Optional direct-API
+  and remote-service records may remain open only when the compatibility matrix
+  clearly marks those modes unavailable and the release does not advertise them.
+- Mock-only or skipped live evidence for an advertised capability fails the
+  release criterion.
 
 ## Evidence
 
