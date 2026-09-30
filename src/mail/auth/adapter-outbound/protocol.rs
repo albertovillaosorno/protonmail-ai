@@ -517,7 +517,7 @@ impl fmt::Debug for KeyPassword {
 
 /// Encrypted fork-payload format negotiated on the approval URL.
 ///
-/// Mirrors pinned WebClients fork payload versions 1 through 3.
+/// Mirrors pinned `WebClients` fork payload versions 1 through 3.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ForkPayloadVersion {
     /// Legacy 16-byte IV without additional authenticated data.
