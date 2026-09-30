@@ -45,6 +45,9 @@ use base64::engine::general_purpose::STANDARD;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
+use crate::identity::ApprovedMailIdentity;
+use crate::identity::ProviderAuthorizationSnapshot;
+
 const HTTP_OK: u16 = 200;
 const HTTP_UNPROCESSABLE_ENTITY: u16 = 422;
 const STANDARD_NONCE_LEN: usize = 12;
@@ -60,15 +63,43 @@ type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ProviderProfile;
 
-const _: () = assert!(!ProviderProfile::LIVE_AUTH_SUPPORTED);
-
 impl ProviderProfile {
     /// Production base selected by Muon for an unnamed `Other` Mail app.
     pub const API_BASE: &'static str = "https://mail.proton.me/api";
     /// Unversioned SDK default used only for protocol modeling.
     pub const SDK_DEFAULT_APP_VERSION: &'static str = "Other";
-    /// Whether the SDK default is authorized for live Mail authentication.
-    pub const LIVE_AUTH_SUPPORTED: bool = false;
+
+    /// Returns the repository's current provider-authorization snapshot.
+    #[must_use]
+    pub fn authorization() -> ProviderAuthorizationSnapshot<'static> {
+        ProviderAuthorizationSnapshot::current()
+    }
+
+    /// Returns the provider-approved fork payload version when available.
+    #[must_use]
+    pub fn live_fork_payload_version() -> Option<ForkPayloadVersion> {
+        let version = Self::authorization().approved()?.fork_payload_version();
+        match version {
+            1 => Some(ForkPayloadVersion::V1),
+            2 => Some(ForkPayloadVersion::V2),
+            3 => Some(ForkPayloadVersion::V3),
+            _ => None,
+        }
+    }
+
+    /// Reports whether complete validated provider approval permits live auth.
+    #[must_use]
+    pub fn live_identity() -> Option<ProviderRequestIdentity<'static>> {
+        Self::authorization()
+            .approved()
+            .map(ProviderRequestIdentity::approved)
+    }
+
+    /// Reports whether complete validated provider approval permits live auth.
+    #[must_use]
+    pub fn live_auth_supported() -> bool {
+        Self::live_identity().is_some()
+    }
     /// Header carrying the app identity.
     pub const APP_VERSION_HEADER: &'static str = "x-pm-appversion";
     /// Header binding an authenticated or anonymous provider session.
@@ -92,10 +123,82 @@ impl ProviderProfile {
         RequestSpec {
             method: RequestMethod::Post,
             path: Cow::Borrowed(Self::SESSION_BOOTSTRAP_PATH),
+            identity: ProviderRequestIdentity::sdk_model(),
             uid: None,
             bearer: None,
             body: None,
         }
+    }
+}
+
+/// Provenance class for the client identity attached to provider requests.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProviderRequestIdentityKind {
+    /// Protocol-model identity using the SDK fallback `Other`.
+    SdkModel,
+    /// Identity emitted from complete provider-approval evidence.
+    Approved,
+}
+
+/// Client identity that an outbound provider request must carry.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProviderRequestIdentity<'identity> {
+    kind: ProviderRequestIdentityKind,
+    app_version: &'identity str,
+    api_base: &'identity str,
+}
+
+impl ProviderRequestIdentity<'static> {
+    /// Returns the SDK fallback identity for offline protocol modeling only.
+    #[must_use]
+    pub const fn sdk_model() -> Self {
+        Self {
+            kind: ProviderRequestIdentityKind::SdkModel,
+            app_version: ProviderProfile::SDK_DEFAULT_APP_VERSION,
+            api_base: ProviderProfile::API_BASE,
+        }
+    }
+}
+
+impl<'identity> ProviderRequestIdentity<'identity> {
+    const fn approved(identity: ApprovedMailIdentity<'identity>) -> Self {
+        Self {
+            kind: ProviderRequestIdentityKind::Approved,
+            app_version: identity.app_version(),
+            api_base: identity.api_base(),
+        }
+    }
+
+    /// Returns how the identity was authorized.
+    #[must_use]
+    pub const fn kind(&self) -> ProviderRequestIdentityKind {
+        self.kind
+    }
+
+    /// Returns the API base only when provider approval backs the identity.
+    #[must_use]
+    pub const fn live_api_base(&self) -> Option<&str> {
+        if self.is_live_authorized() {
+            Some(self.api_base)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the app-version only when provider approval backs the identity.
+    #[must_use]
+    pub const fn live_app_version(&self) -> Option<&str> {
+        if self.is_live_authorized() {
+            Some(self.app_version)
+        } else {
+            None
+        }
+    }
+
+    /// Reports whether provider approval, rather than an SDK model, backs it.
+    #[must_use]
+    pub const fn is_live_authorized(&self) -> bool {
+        matches!(self.kind, ProviderRequestIdentityKind::Approved)
     }
 }
 
@@ -117,6 +220,7 @@ pub enum RequestMethod {
 pub struct RequestSpec<'authority> {
     method: RequestMethod,
     path: Cow<'authority, str>,
+    identity: ProviderRequestIdentity<'authority>,
     uid: Option<&'authority str>,
     bearer: Option<&'authority str>,
     body: Option<Zeroizing<String>>,
@@ -127,6 +231,7 @@ impl fmt::Debug for RequestSpec<'_> {
         f.debug_struct("RequestSpec")
             .field("method", &self.method)
             .field("path", &self.path)
+            .field("identity", &self.identity)
             .field("uid", &self.uid.map(|_| "[REDACTED]"))
             .field("bearer", &self.bearer.map(|_| "[REDACTED]"))
             .field("body", &self.body.as_ref().map(|_| "[REDACTED]"))
@@ -145,6 +250,12 @@ impl RequestSpec<'_> {
     #[must_use]
     pub fn path(&self) -> &str {
         self.path.as_ref()
+    }
+
+    /// Returns the typed client identity required by the outbound transport.
+    #[must_use]
+    pub const fn request_identity(&self) -> ProviderRequestIdentity<'_> {
+        self.identity
     }
 
     /// Exposes the provider session UID only to the outbound transport.
@@ -243,8 +354,12 @@ impl AnonymousSession {
 
     /// Builds the authenticated request that allocates a fork challenge.
     #[must_use]
-    pub fn fork_start_request(&self) -> RequestSpec<'_> {
+    pub fn fork_start_request<'authority>(
+        &'authority self,
+        identity: ProviderRequestIdentity<'authority>,
+    ) -> RequestSpec<'authority> {
         self.authenticated_request(
+            identity,
             RequestMethod::Get,
             Cow::Borrowed(ProviderProfile::FORK_START_PATH),
         )
@@ -252,19 +367,25 @@ impl AnonymousSession {
 
     /// Builds one selector-scoped polling request.
     #[must_use]
-    pub fn poll_request(&self, challenge: &ForkChallenge) -> RequestSpec<'_> {
+    pub fn poll_request<'authority>(
+        &'authority self,
+        identity: ProviderRequestIdentity<'authority>,
+        challenge: &ForkChallenge,
+    ) -> RequestSpec<'authority> {
         let path = Cow::Owned(challenge.poll_path());
-        self.authenticated_request(RequestMethod::Get, path)
+        self.authenticated_request(identity, RequestMethod::Get, path)
     }
 
     fn authenticated_request<'authority>(
         &'authority self,
+        identity: ProviderRequestIdentity<'authority>,
         method: RequestMethod,
         path: Cow<'authority, str>,
     ) -> RequestSpec<'authority> {
         RequestSpec {
             method,
             path,
+            identity,
             uid: Some(self.uid()),
             bearer: Some(self.expose_access_token()),
             body: None,
@@ -464,7 +585,10 @@ impl ForkSession {
     /// # Errors
     ///
     /// Returns an error only if JSON serialization fails.
-    pub fn refresh_request(&self) -> ForkResult<RequestSpec<'_>> {
+    pub fn refresh_request<'authority>(
+        &'authority self,
+        identity: ProviderRequestIdentity<'authority>,
+    ) -> ForkResult<RequestSpec<'authority>> {
         let body = RefreshBody {
             refresh_token: self.expose_refresh_token(),
             response_type: "token",
@@ -479,6 +603,7 @@ impl ForkSession {
         Ok(RequestSpec {
             method: RequestMethod::Post,
             path: Cow::Borrowed(ProviderProfile::REFRESH_PATH),
+            identity,
             uid: Some(self.uid()),
             bearer: None,
             body: Some(Zeroizing::new(serialized)),
@@ -487,10 +612,14 @@ impl ForkSession {
 
     /// Builds the provider logout request for the current child session.
     #[must_use]
-    pub fn logout_request(&self) -> RequestSpec<'_> {
+    pub fn logout_request<'authority>(
+        &'authority self,
+        identity: ProviderRequestIdentity<'authority>,
+    ) -> RequestSpec<'authority> {
         RequestSpec {
             method: RequestMethod::Delete,
             path: Cow::Borrowed(ProviderProfile::LOGOUT_PATH),
+            identity,
             uid: Some(self.uid()),
             bearer: Some(self.expose_access_token()),
             body: None,

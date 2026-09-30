@@ -17,8 +17,9 @@ collecting account credentials or controlling a browser.
 
 ## Required work
 
-- Bootstrap `POST /auth/v4/sessions` only after the authorized third-party
-  Mail app-version/client identity is established.
+- Bootstrap `POST /auth/v4/sessions` only after
+  `ProviderProfile::live_identity()` yields an `Approved` request identity.
+- Reject `SdkModel` request identity at the live transport boundary.
 - Require the bootstrap authority to have no bound `UserID`; retain its UID and
   tokens only as sensitive transport authority.
 - Initiate `GET /auth/v4/sessions/forks` with `x-pm-uid` and Bearer authority

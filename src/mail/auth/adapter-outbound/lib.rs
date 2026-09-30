@@ -37,11 +37,14 @@
 mod identity;
 mod protocol;
 
-pub use identity::{ClientIdentityError, ThirdPartyIdentityCandidate};
+pub use identity::ThirdPartyIdentityCandidate;
+pub use identity::{ApprovedMailIdentity, ClientIdentityError};
+pub use identity::{ProviderAuthorizationSnapshot, ProviderAuthorizationStatus};
 pub use protocol::ForkPayloadVersion;
 pub use protocol::{AnonymousSession, ForkChallenge, ForkPayloadDecoder};
 pub use protocol::{ForkPoll, ForkSession, KeyPassword, ProtocolError};
-pub use protocol::{ProviderProfile, RequestMethod, RequestSpec};
+pub use protocol::{ProviderProfile, ProviderRequestIdentity};
+pub use protocol::{ProviderRequestIdentityKind, RequestMethod, RequestSpec};
 
 use std::fmt;
 

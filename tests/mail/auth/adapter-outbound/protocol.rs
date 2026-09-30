@@ -37,6 +37,9 @@ use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use mail_auth_fork_adapter::ForkPayloadVersion;
+use mail_auth_fork_adapter::ProviderAuthorizationStatus;
+use mail_auth_fork_adapter::ProviderRequestIdentity;
+use mail_auth_fork_adapter::ProviderRequestIdentityKind;
 use mail_auth_fork_adapter::TargetHandoff;
 use mail_auth_fork_adapter::{AnonymousSession, ForkChallenge, ForkPoll};
 use mail_auth_fork_adapter::{ProtocolError, ProviderProfile, RequestMethod};
@@ -50,10 +53,17 @@ const KEY_PASSWORD: &str = "synthetic-key-password";
 
 type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 
-const _: () = assert!(!ProviderProfile::LIVE_AUTH_SUPPORTED);
-
 #[test]
 fn provider_profile_records_sdk_default_mail_route() {
+    let authorization = ProviderProfile::authorization();
+    assert_eq!(authorization.status(), ProviderAuthorizationStatus::Blocked);
+    assert_eq!(authorization.approved(), None);
+    assert_eq!(authorization.evidence_reviewed_on(), "2026-09-30");
+    assert_eq!(
+        authorization.evidence_reference(),
+        "docs/architecture/provider-client-registration.mdc"
+    );
+    assert!(!ProviderProfile::live_auth_supported());
     assert_eq!(ProviderProfile::API_BASE, "https://mail.proton.me/api");
     assert_eq!(ProviderProfile::SDK_DEFAULT_APP_VERSION, "Other");
     assert_eq!(ProviderProfile::APP_VERSION_HEADER, "x-pm-appversion");
@@ -69,6 +79,13 @@ fn bootstrap_request_has_no_provider_authority() {
 
     assert_eq!(request.method(), RequestMethod::Post);
     assert_eq!(request.path(), "/auth/v4/sessions");
+    assert_eq!(
+        request.request_identity().kind(),
+        ProviderRequestIdentityKind::SdkModel
+    );
+    assert_eq!(request.request_identity().live_app_version(), None);
+    assert_eq!(request.request_identity().live_api_base(), None);
+    assert!(!request.request_identity().is_live_authorized());
     assert_eq!(request.expose_uid(), None);
     assert_eq!(request.expose_bearer(), None);
     assert_eq!(request.expose_body(), None);
@@ -133,17 +150,19 @@ fn challenge_poll_path_is_selector_scoped() {
 fn fork_start_and_poll_requests_borrow_anonymous_authority() {
     let auth = anonymous_session();
     let challenge = challenge();
-    let start = auth.fork_start_request();
-    let poll = auth.poll_request(&challenge);
+    let start = auth.fork_start_request(sdk_identity());
+    let poll = auth.poll_request(sdk_identity(), &challenge);
 
     assert_eq!(start.method(), RequestMethod::Get);
     assert_eq!(start.path(), "/auth/v4/sessions/forks");
     assert_eq!(start.expose_uid(), Some("synthetic-anonymous-uid"));
     assert_eq!(start.expose_bearer(), Some(ACCESS_TOKEN));
+    assert_eq!(start.request_identity(), sdk_identity());
     assert_eq!(poll.method(), RequestMethod::Get);
     assert_eq!(poll.path(), challenge.poll_path());
     assert_eq!(poll.expose_uid(), Some("synthetic-anonymous-uid"));
     assert_eq!(poll.expose_bearer(), Some(ACCESS_TOKEN));
+    assert_eq!(poll.request_identity(), sdk_identity());
     assert!(!format!("{poll:?}").contains(ACCESS_TOKEN));
 }
 
@@ -197,15 +216,16 @@ fn refresh_and_logout_specs_keep_secret_material_redacted() {
     let response = complete_response(None);
     let session = completed_session(&response);
     let refresh = session
-        .refresh_request()
+        .refresh_request(sdk_identity())
         .expect("refresh body must serialize");
-    let logout = session.logout_request();
+    let logout = session.logout_request(sdk_identity());
     let body = refresh.expose_body().expect("refresh body is required");
 
     assert_eq!(refresh.method(), RequestMethod::Post);
     assert_eq!(refresh.path(), "/auth/v4/refresh");
     assert_eq!(refresh.expose_uid(), Some("synthetic-session-uid"));
     assert_eq!(refresh.expose_bearer(), None);
+    assert_eq!(refresh.request_identity(), sdk_identity());
     assert!(body.contains(REFRESH_TOKEN));
     assert!(body.contains("https://protonmail.ch"));
     assert!(!format!("{refresh:?}").contains(REFRESH_TOKEN));
@@ -215,6 +235,7 @@ fn refresh_and_logout_specs_keep_secret_material_redacted() {
     assert_eq!(logout.expose_uid(), Some("synthetic-session-uid"));
     assert_eq!(logout.expose_bearer(), Some(ACCESS_TOKEN));
     assert_eq!(logout.expose_body(), None);
+    assert_eq!(logout.request_identity(), sdk_identity());
     assert!(!format!("{logout:?}").contains(ACCESS_TOKEN));
 }
 
@@ -314,6 +335,10 @@ fn absent_payload_decodes_to_empty_key_password() {
         .expect("missing payload represents empty key password");
 
     assert!(password.expose().is_empty());
+}
+
+const fn sdk_identity() -> ProviderRequestIdentity<'static> {
+    ProviderRequestIdentity::sdk_model()
 }
 
 fn sdk_handoff() -> TargetHandoff {

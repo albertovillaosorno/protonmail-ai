@@ -34,6 +34,11 @@ invent another person's sign-off.
   client identity; never reuse a Proton-owned Mail client ID.
 - A `ThirdPartyIdentityCandidate` proves only negative validation; never treat
   it as provider approval or as permission to enable live HTTP.
+- `ProviderProfile::live_auth_supported()` must stay derived from the typed
+  provider-authorization snapshot; never reintroduce an independent live flag.
+- Every live Proton request must carry an `Approved`
+  `ProviderRequestIdentity`; live transport must obtain app-version and API
+  base only through live accessors and reject `None` before network I/O.
 - Treat environment-supplied credentials as an explicit, less-recommended
   deployment fallback; never accept them through MCP tool arguments.
 - Do not copy from `reference/` without recording the exact source, revision,

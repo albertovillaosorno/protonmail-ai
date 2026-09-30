@@ -43,6 +43,226 @@ const FIRST_PARTY_MAIL_IDS: [&str; 6] = [
     "android-mail",
 ];
 
+/// Provider authorization state for direct Proton Mail authentication.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProviderAuthorizationStatus {
+    /// No provider-issued third-party Mail identity is recorded.
+    Blocked,
+    /// Provider evidence authorizes a complete third-party Mail identity.
+    Approved,
+}
+
+/// Complete provider-approved identity and its non-secret evidence metadata.
+///
+/// Values of this type can only come from the repository's current provider
+/// authorization policy after candidate and evidence validation succeeds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ApprovedMailIdentity<'evidence> {
+    app_version: &'evidence str,
+    child_client_id: &'evidence str,
+    api_base: &'evidence str,
+    fork_payload_version: u8,
+    desktop_login_path: &'evidence str,
+    approval_reference: &'evidence str,
+    approved_on: &'evidence str,
+}
+
+impl<'evidence> ApprovedMailIdentity<'evidence> {
+    /// Returns the provider-approved `x-pm-appversion` value.
+    #[must_use]
+    pub const fn app_version(&self) -> &'evidence str {
+        self.app_version
+    }
+
+    /// Returns the provider-approved session-fork child client ID.
+    #[must_use]
+    pub const fn child_client_id(&self) -> &'evidence str {
+        self.child_client_id
+    }
+
+    /// Returns the provider-approved API base.
+    #[must_use]
+    pub const fn api_base(&self) -> &'evidence str {
+        self.api_base
+    }
+
+    /// Returns the provider-approved encrypted fork-payload version.
+    #[must_use]
+    pub const fn fork_payload_version(&self) -> u8 {
+        self.fork_payload_version
+    }
+
+    /// Returns the provider-approved interactive desktop-login path.
+    #[must_use]
+    pub const fn desktop_login_path(&self) -> &'evidence str {
+        self.desktop_login_path
+    }
+
+    /// Returns the non-secret provider-approval evidence reference.
+    #[must_use]
+    pub const fn approval_reference(&self) -> &'evidence str {
+        self.approval_reference
+    }
+
+    /// Returns the date recorded for provider approval.
+    #[must_use]
+    pub const fn approved_on(&self) -> &'evidence str {
+        self.approved_on
+    }
+}
+
+/// Non-secret snapshot of the repository's current provider authorization.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProviderAuthorizationSnapshot<'evidence> {
+    status: ProviderAuthorizationStatus,
+    evidence_reviewed_on: &'evidence str,
+    evidence_reference: &'evidence str,
+    approved_identity: Option<ApprovedMailIdentity<'evidence>>,
+}
+
+impl ProviderAuthorizationSnapshot<'static> {
+    /// Returns the repository's current provider-authorization snapshot.
+    #[must_use]
+    pub fn current() -> Self {
+        CURRENT_AUTHORIZATION.snapshot()
+    }
+}
+
+impl<'evidence> ProviderAuthorizationSnapshot<'evidence> {
+    /// Returns whether provider evidence is blocked or approved.
+    #[must_use]
+    pub const fn status(&self) -> ProviderAuthorizationStatus {
+        self.status
+    }
+
+    /// Returns when the public provider evidence was last reviewed.
+    #[must_use]
+    pub const fn evidence_reviewed_on(&self) -> &'evidence str {
+        self.evidence_reviewed_on
+    }
+
+    /// Returns the non-secret repository evidence reference.
+    #[must_use]
+    pub const fn evidence_reference(&self) -> &'evidence str {
+        self.evidence_reference
+    }
+
+    /// Returns the complete approved identity when validation succeeds.
+    #[must_use]
+    pub const fn approved(&self) -> Option<ApprovedMailIdentity<'evidence>> {
+        self.approved_identity
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AuthorizationPolicy {
+    status: ProviderAuthorizationStatus,
+    evidence_reviewed_on: &'static str,
+    evidence_reference: &'static str,
+    app_version: Option<&'static str>,
+    child_client_id: Option<&'static str>,
+    api_base: Option<&'static str>,
+    fork_payload_version: Option<u8>,
+    login_path: Option<&'static str>,
+    approval_ref: Option<&'static str>,
+    approved_on: Option<&'static str>,
+}
+
+const CURRENT_AUTHORIZATION: AuthorizationPolicy = AuthorizationPolicy {
+    status: ProviderAuthorizationStatus::Blocked,
+    evidence_reviewed_on: "2026-09-30",
+    evidence_reference: "docs/architecture/provider-client-registration.mdc",
+    app_version: None,
+    child_client_id: None,
+    api_base: None,
+    fork_payload_version: None,
+    login_path: None,
+    approval_ref: None,
+    approved_on: None,
+};
+
+impl AuthorizationPolicy {
+    fn snapshot(self) -> ProviderAuthorizationSnapshot<'static> {
+        let approved_identity = self.approved_identity();
+        let status = if approved_identity.is_some() {
+            ProviderAuthorizationStatus::Approved
+        } else {
+            ProviderAuthorizationStatus::Blocked
+        };
+        ProviderAuthorizationSnapshot {
+            status,
+            evidence_reviewed_on: self.evidence_reviewed_on,
+            evidence_reference: self.evidence_reference,
+            approved_identity,
+        }
+    }
+
+    fn approved_identity(self) -> Option<ApprovedMailIdentity<'static>> {
+        if self.status != ProviderAuthorizationStatus::Approved {
+            return None;
+        }
+
+        let app_version = self.app_version?;
+        let child_client_id = self.child_client_id?;
+        validate_field(app_version).ok()?;
+        validate_field(child_client_id).ok()?;
+        validate_versioned_app(app_version).ok()?;
+        reject_reserved(app_version, child_client_id).ok()?;
+
+        validate_date(self.evidence_reviewed_on)?;
+        validate_evidence_field(self.evidence_reference)?;
+        let api_base = validate_api_base(self.api_base?)?;
+        let fork_payload_version = self.fork_payload_version?;
+        if !(1..=3).contains(&fork_payload_version) {
+            return None;
+        }
+        let login_path = validate_login_path(self.login_path?)?;
+        let approval_ref = validate_evidence_field(self.approval_ref?)?;
+        let approved_on = validate_date(self.approved_on?)?;
+
+        Some(ApprovedMailIdentity {
+            app_version,
+            child_client_id,
+            api_base,
+            fork_payload_version,
+            desktop_login_path: login_path,
+            approval_reference: approval_ref,
+            approved_on,
+        })
+    }
+}
+
+fn validate_evidence_field(value: &str) -> Option<&str> {
+    let invalid = value.is_empty()
+        || value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace());
+    (!invalid).then_some(value)
+}
+
+fn validate_api_base(value: &str) -> Option<&str> {
+    let value = validate_evidence_field(value)?;
+    value.starts_with("https://").then_some(value)
+}
+
+fn validate_login_path(value: &str) -> Option<&str> {
+    let value = validate_evidence_field(value)?;
+    value.starts_with('/').then_some(value)
+}
+
+const fn is_date_byte((index, byte): (usize, u8)) -> bool {
+    index == 4 || index == 7 || byte.is_ascii_digit()
+}
+
+fn validate_date(value: &str) -> Option<&str> {
+    let bytes = value.as_bytes();
+    let valid = bytes.len() == 10
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes.iter().copied().enumerate().all(is_date_byte);
+    valid.then_some(value)
+}
+
 /// A syntactically plausible third-party identity candidate.
 ///
 /// This type proves only negative checks. Construction does **not** prove that

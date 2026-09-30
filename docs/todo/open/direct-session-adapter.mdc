@@ -20,8 +20,8 @@ session-fork login flow.
 ## Required work
 
 - Use only session authority produced by the accepted fork lifecycle.
-- Send the third-party app-version identity expected by Proton without claiming
-  a first-party Mail client.
+- Require an `Approved` `ProviderRequestIdentity` on every live provider
+  request; never reconstruct `x-pm-appversion` from raw configuration text.
 - Implement bounded timeouts, cancellation, retry/backoff, refresh, pagination,
   concurrency control, and structured provider error conversion.
 - Convert Proton messages, conversations, labels, drafts, events, and
@@ -35,6 +35,9 @@ session-fork login flow.
 
 - No Bridge, automated browser, or account-password fallback exists in the
   supported path.
+- The live transport obtains both `x-pm-appversion` and API base only through
+  `ProviderRequestIdentity` live accessors and rejects `None` before network
+  I/O.
 - Every advertised capability has direct protocol fixture evidence or is omitted
   during negotiation.
 - Provider-specific URLs, tokens, encrypted payloads, and key material do not

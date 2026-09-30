@@ -31,11 +31,47 @@
 //! Proton Mail client-identity candidate policy regression tests.
 
 use mail_auth_fork_adapter::ClientIdentityError;
+use mail_auth_fork_adapter::ProviderAuthorizationStatus;
+use mail_auth_fork_adapter::ProviderProfile;
 use mail_auth_fork_adapter::ThirdPartyIdentityCandidate as Candidate;
 
 const CANDIDATE_APP: &str = "thirdparty-example@1.0.0";
 const CANDIDATE_APP_V2: &str = "thirdparty-example@1.2.3";
 const CANDIDATE_CHILD: &str = "thirdparty-example";
+const REGISTRATION_DOSSIER: &str = include_str!(concat!(
+    "../../../../docs/architecture/",
+    "provider-client-registration.mdc"
+));
+
+#[test]
+fn blocked_policy_and_registration_dossier_remain_aligned() {
+    let authorization = ProviderProfile::authorization();
+
+    assert_eq!(authorization.status(), ProviderAuthorizationStatus::Blocked);
+    let blocked = "Status: blocked on provider authorization.";
+    assert!(REGISTRATION_DOSSIER.contains(blocked));
+    assert!(REGISTRATION_DOSSIER.contains("Evidence reviewed: 2026-09-30."));
+    assert_eq!(
+        authorization.evidence_reference(),
+        "docs/architecture/provider-client-registration.mdc"
+    );
+}
+
+#[test]
+fn current_provider_authorization_is_blocked_and_has_no_identity() {
+    let authorization = ProviderProfile::authorization();
+
+    assert_eq!(authorization.status(), ProviderAuthorizationStatus::Blocked);
+    assert_eq!(authorization.evidence_reviewed_on(), "2026-09-30");
+    assert_eq!(
+        authorization.evidence_reference(),
+        "docs/architecture/provider-client-registration.mdc"
+    );
+    assert_eq!(authorization.approved(), None);
+    assert_eq!(ProviderProfile::live_identity(), None);
+    assert_eq!(ProviderProfile::live_fork_payload_version(), None);
+    assert!(!ProviderProfile::live_auth_supported());
+}
 
 #[test]
 fn versioned_unreserved_candidate_is_only_a_candidate() {

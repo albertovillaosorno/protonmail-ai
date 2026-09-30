@@ -161,6 +161,38 @@ If direct third-party Mail API access is not supported, confirmation of that is
 also useful so the project can keep the route disabled and document the
 supported alternative accurately.
 
+## Repository authorization gate
+
+The adapter keeps one typed provider-authorization policy. Its current snapshot
+is `Blocked`, records this dossier as the evidence reference, and contains no
+approved identity fields. `ProviderProfile::live_auth_supported()` is derived
+from whether that snapshot can produce a complete validated identity; it is not
+a standalone boolean that can be enabled independently.
+
+Changing only the internal status to `Approved` is insufficient. A future record
+must also provide app version, child client ID, API base, fork payload version,
+desktop-login path, approval reference, and approval date. Until all of those
+validate, the public
+snapshot itself continues to report `Blocked`.
+
+Candidate validation still rejects `Other`, known first-party Mail identities,
+malformed framing values, and unversioned app identities. Approval metadata
+additionally requires an HTTPS API base, fork payload version 1 through 3, a
+path beginning with `/`, date-shaped review/approval fields, and non-empty
+whitespace-free evidence references.
+
+The external identity regression test pins the blocked snapshot to this
+versioned dossier and review date so code and provider evidence cannot drift
+silently.
+
+Every outbound auth `RequestSpec` also carries a `ProviderRequestIdentity`.
+`SdkModel` is explicitly not live-authorized and carries only the SDK fallback
+`Other`. The `Approved` request-identity class has no public constructor; it is
+created only from an `ApprovedMailIdentity` emitted by the validated provider
+authorization snapshot. That request identity binds both the approved
+`x-pm-appversion` and approved API base; raw getters remain private to the
+adapter so external transports must use the fail-closed live accessors.
+
 ## Approval evidence required by this repository
 
 The P0 blocker may close only with provider evidence that identifies the allowed
@@ -175,4 +207,5 @@ first-party Mail identity.
 
 A redacted anonymous-session bootstrap must then succeed under the approved
 identity. Session-fork allocation must succeed under the same identity before
-`LIVE_AUTH_SUPPORTED` can change from `false`.
+the policy may become `Approved` and `ProviderProfile::live_auth_supported()`
+may return `true`.

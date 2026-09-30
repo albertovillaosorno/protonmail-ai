@@ -88,6 +88,11 @@ A syntactically valid `ThirdPartyIdentityCandidate` is also not authorization.
 It exists only to reject known unsafe proposals before provider evidence is
 reviewed. No candidate can currently construct a live handoff.
 
+Outbound auth requests carry a typed `ProviderRequestIdentity`. The SDK-model
+class is non-live and uses `Other`; only a validated approved identity can
+produce the `Approved` class. A future network transport must use
+`live_app_version()` and reject `None` before network I/O.
+
 The QR/manual-code value contains authorization material. It is exposed only at
 the deliberate user-facing login boundary and is structurally redacted from
 diagnostics.
