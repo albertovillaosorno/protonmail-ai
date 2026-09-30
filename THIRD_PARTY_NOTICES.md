@@ -46,7 +46,12 @@ copyright notices, and substantive modifications here.
 ### robotben ProtonMail MCP
 
 - Upstream: <https://github.com/robotben/protonmail-mcp>
+- Observed revision: `dc638cc367323f81d50c07e53db4e4beabf56f33`
 - License: MIT (declared in `package.json` and the README)
+- Local license receipt: upstream omits a `LICENSE` file, so the standard MIT
+  text was added locally with `Copyright (c) 2025 Ben Larson`, matching the
+  original commit author and year. This receipt documents upstream intent; it
+  is not represented as an upstream-authored file.
 - Initial use: tool-taxonomy research only
 
 ### roman Proton CLI
@@ -67,9 +72,13 @@ copyright notices, and substantive modifications here.
 - License: MIT
 - Initial use: MCP research only
 
-The local snapshots currently lack immutable revision receipts. They are not
-admissible sources for copied code until the provenance task in `TODO.md` pins
-and verifies them.
+Except for the robotben receipt above, the local snapshots currently lack
+immutable revision receipts. They are not admissible sources for copied code
+until the provenance task in `TODO.md` pins and verifies them. The snapshots are
+also intentionally pruned: product source, dependency/build manifests,
+licenses, scripts, tests in source form, and useful documentation remain;
+repository automation, lint/format configuration, localization payloads, and
+large binary assets do not.
 
 ## License choice
 
