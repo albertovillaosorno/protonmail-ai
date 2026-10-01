@@ -45,6 +45,8 @@ use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
+use crate::mailbox_event_watermark::MailboxEventNetworkCapture;
+use crate::mailbox_event_watermark::MailboxEventNetworkError;
 use crate::mailbox_list::NextPageControl;
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
 use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
@@ -219,6 +221,27 @@ pub struct ManagedBrowser {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
     _lease: AutomationProfileLease,
+}
+
+trait CdpEventObserver {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError>;
+}
+
+impl CdpEventObserver for MessageListNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::MessageListNetwork)
+    }
+}
+
+impl CdpEventObserver for MailboxEventNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::MailboxEventNetwork)
+    }
 }
 
 impl ManagedBrowser {
@@ -1218,7 +1241,7 @@ impl ManagedBrowser {
         session: &str,
         method: &str,
         params: &Value,
-        capture: &mut MessageListNetworkCapture,
+        capture: &mut dyn CdpEventObserver,
     ) -> Result<Value, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         self.call_with_session_observer(Some(session), method, params, Some(capture))
@@ -1229,7 +1252,7 @@ impl ManagedBrowser {
         session: Option<&str>,
         method: &str,
         params: &Value,
-        mut capture: Option<&mut MessageListNetworkCapture>,
+        mut capture: Option<&mut dyn CdpEventObserver>,
     ) -> Result<Value, BrowserDriverError> {
         let id = self.allocate_id()?;
         self.send_request(id, session, method, params)?;
@@ -1242,9 +1265,7 @@ impl ManagedBrowser {
             // jig-ignore-next-line: canonical rustfmt line.
             let Some(response_id) = message.get("id").and_then(Value::as_u64) else {
                 if let Some(observer) = capture.as_deref_mut() {
-                    observer
-                        .observe(&message)
-                        .map_err(BrowserDriverError::MessageListNetwork)?;
+                    observer.observe_event(&message)?;
                 }
                 continue;
             };
@@ -1351,6 +1372,8 @@ pub enum BrowserDriverError {
     MailboxPageNotSettled,
     /// Exact message-list Network lifecycle failed closed.
     MessageListNetwork(MessageListNetworkError),
+    /// Exact legacy Mail event Network lifecycle failed closed.
+    MailboxEventNetwork(MailboxEventNetworkError),
     /// Exact message-list response body failed bounded projection.
     MessageListResponse(MessageListResponseError),
     /// Stable visible rows could not be reconciled to captured machine
@@ -1425,6 +1448,9 @@ impl fmt::Display for BrowserDriverError {
             Self::MailboxPageNotSettled => f.write_str("Proton Mail list is not settled"),
             Self::MessageListNetwork(_error) => {
                 f.write_str("message-list Network observation failed")
+            }
+            Self::MailboxEventNetwork(_error) => {
+                f.write_str("mailbox-event Network observation failed")
             }
             Self::MessageListResponse(_error) => {
                 f.write_str("message-list response projection failed")
