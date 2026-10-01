@@ -247,7 +247,7 @@ while IFS= read -r -d '' message <&3; do
         finished+='"requestId":"list-2"}}'
         printf '%s\0' "$finished" >&4
       fi
-      body='{\"Code\":1000,\"Total\":__TOTAL__,\"Messages\":[{'
+      body='{\"Code\":1000,\"Stale\":0,\"Total\":__TOTAL__,\"Messages\":[{'
       body+='\"ID\":\"m-1\",\"Time\":1790848000,\"Order\":9,'
       body+='\"Subject\":\"secret subject\"}]}'
       prefix='{"id":'"$id"',"result":{"body":"'
@@ -255,7 +255,7 @@ while IFS= read -r -d '' message <&3; do
       printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
     *'Network.getResponseBody'*'"requestId":"list-2"'*)
       printf 'body\n' >> '__LOG__'
-      body='{\"Code\":1000,\"Total\":2,\"Messages\":[{'
+      body='{\"Code\":1000,\"Stale\":0,\"Total\":2,\"Messages\":[{'
       body+='\"ID\":\"m-2\",\"Time\":__SECOND_TIME__,\"Order\":8}]}'
       prefix='{"id":'"$id"',"result":{"body":"'
       suffix='","base64Encoded":false}}'

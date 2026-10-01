@@ -261,7 +261,8 @@ fn stable_message_page_reconciles_only_its_visible_ids() {
         "GET",
         "https://mail.proton.me/api/mail/v4/messages?Page=0",
         concat!(
-            r#"{"Total":2,"Messages":[{"ID":"prefetch","Time":2,"Order":2},"#,
+            // jig-ignore-next-line: indivisible synthetic JSON fixture.
+            r#"{"Stale":0,"Total":2,"Messages":[{"ID":"prefetch","Time":2,"Order":2},"#,
             r#"{"ID":"message-a","Time":1,"Order":1}]}"#,
         ),
     )
@@ -286,7 +287,8 @@ fn stable_message_page_rejects_missing_machine_metadata() {
     let response = ObservedMessageListResponse::parse(
         "GET",
         "https://mail.proton.me/api/mail/v4/messages?Page=0",
-        r#"{"Total":1,"Messages":[{"ID":"other","Time":1,"Order":1}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"other","Time":1,"Order":1}]}"#,
     )
     .expect("parse unrelated provider metadata");
     assert_eq!(

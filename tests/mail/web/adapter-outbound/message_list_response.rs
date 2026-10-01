@@ -43,7 +43,7 @@ const URL: &str = concat!(
 fn exact_get_list_response_projects_only_required_metadata() {
     let body = r#"{
         "Code":1000,
-        "Total":2,
+        "Stale":0,"Total":2,
         "Messages":[
             {"ID":"m-2","Time":1790840002,"Order":22,
              "Subject":"secret two","Sender":{"Address":"two@example.test"}},
@@ -67,7 +67,7 @@ fn exact_get_list_response_projects_only_required_metadata() {
 
 #[test]
 fn mutation_and_neighbor_endpoints_are_rejected() {
-    let body = r#"{"Total":0,"Messages":[]}"#;
+    let body = r#"{"Stale":0,"Total":0,"Messages":[]}"#;
     assert_eq!(
         ObservedMessageListResponse::parse("POST", URL, body),
         Err(MessageListResponseError::UnexpectedEndpoint)
@@ -89,11 +89,12 @@ fn mutation_and_neighbor_endpoints_are_rejected() {
 #[test]
 fn malformed_or_duplicate_metadata_fails_closed() {
     for body in [
-        r#"{"Total":1,"Messages":[{"ID":"","Time":1,"Order":1}]}"#,
-        r#"{"Total":1,"Messages":[{"ID":"m-1","Time":"1","Order":1}]}"#,
-        r#"{"Total":1,"Messages":[{"ID":"m-1","Time":1}]}"#,
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"","Time":1,"Order":1}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"m-1","Time":"1","Order":1}]}"#,
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"m-1","Time":1}]}"#,
         r#"{"Messages":[]}"#,
-        r#"{"Total":0,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
+        r#"{"Stale":0,"Total":0,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
     ] {
         assert_eq!(
             ObservedMessageListResponse::parse("GET", URL, body),
@@ -102,12 +103,21 @@ fn malformed_or_duplicate_metadata_fails_closed() {
     }
 
     let duplicate = concat!(
-        r#"{"Total":2,"Messages":[{"ID":"m-1","Time":2,"Order":2},"#,
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-1","Time":2,"Order":2},"#,
         r#"{"ID":"m-1","Time":1,"Order":1}]}"#,
     );
     assert_eq!(
         ObservedMessageListResponse::parse("GET", URL, duplicate),
         Err(MessageListResponseError::DuplicateMessageId)
+    );
+}
+
+#[test]
+fn stale_response_is_rejected() {
+    assert_eq!(
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        ObservedMessageListResponse::parse("GET", URL, r#"{"Stale":1,"Total":0,"Messages":[]}"#,),
+        Err(MessageListResponseError::StaleResponse)
     );
 }
 
@@ -118,7 +128,7 @@ fn oversized_page_is_rejected() {
         .map(|index| format!(r#"{{"ID":"m-{index}","Time":1,"Order":{index}}}"#))
         .collect::<Vec<_>>()
         .join(",");
-    let body = format!(r#"{{"Total":101,"Messages":[{messages}]}}"#);
+    let body = format!(r#"{{"Stale":0,"Total":101,"Messages":[{messages}]}}"#);
     assert_eq!(
         ObservedMessageListResponse::parse("GET", URL, &body),
         Err(MessageListResponseError::TooManyMessages)
@@ -302,7 +312,8 @@ fn network_capture_bounds_unfinished_list_requests() {
 fn cdp_body_projection_requires_decoded_bounded_json() {
     use serde_json::json;
 
-    let body = r#"{"Total":1,"Messages":[{"ID":"m-1","Time":7,"Order":3}]}"#;
+    // jig-ignore-next-line: indivisible synthetic JSON fixture.
+    let body = r#"{"Stale":0,"Total":1,"Messages":[{"ID":"m-1","Time":7,"Order":3}]}"#;
     let response = ObservedMessageListResponse::parse_cdp_body(&json!({
         "body":body,"base64Encoded":false
     }))
@@ -335,7 +346,8 @@ fn visible_ids_reconcile_across_non_overlapping_prefetch_batches() {
         "GET",
         URL,
         concat!(
-            r#"{"Total":4,"Messages":[{"ID":"m-4","Time":40,"Order":4},"#,
+            // jig-ignore-next-line: indivisible synthetic JSON fixture.
+            r#"{"Stale":0,"Total":4,"Messages":[{"ID":"m-4","Time":40,"Order":4},"#,
             r#"{"ID":"m-3","Time":30,"Order":3}]}"#,
         ),
     )
@@ -344,7 +356,8 @@ fn visible_ids_reconcile_across_non_overlapping_prefetch_batches() {
         "GET",
         URL,
         concat!(
-            r#"{"Total":4,"Messages":[{"ID":"m-2","Time":20,"Order":2},"#,
+            // jig-ignore-next-line: indivisible synthetic JSON fixture.
+            r#"{"Stale":0,"Total":4,"Messages":[{"ID":"m-2","Time":20,"Order":2},"#,
             r#"{"ID":"m-1","Time":10,"Order":1}]}"#,
         ),
     )
@@ -367,7 +380,8 @@ fn visible_metadata_reconciliation_fails_closed_on_coverage_drift() {
     let first = ObservedMessageListResponse::parse(
         "GET",
         URL,
-        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
     )
     .expect("parse first batch");
     assert_eq!(
@@ -378,13 +392,15 @@ fn visible_metadata_reconciliation_fails_closed_on_coverage_drift() {
     let overlap_a = ObservedMessageListResponse::parse(
         "GET",
         URL,
-        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
     )
     .expect("parse overlap a");
     let overlap_b = ObservedMessageListResponse::parse(
         "GET",
         URL,
-        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
     )
     .expect("parse overlap b");
     assert_eq!(
@@ -404,7 +420,8 @@ fn explicit_empty_reconciliation_rejects_observed_messages() {
     let nonempty = ObservedMessageListResponse::parse(
         "GET",
         URL,
-        r#"{"Total":1,"Messages":[{"ID":"m-1","Time":10,"Order":1}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"m-1","Time":10,"Order":1}]}"#,
     )
     .expect("parse nonempty response");
     assert_eq!(

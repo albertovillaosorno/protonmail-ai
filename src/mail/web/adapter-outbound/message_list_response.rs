@@ -548,6 +548,13 @@ impl ObservedMessageListResponse {
         let value: Value =
     // jig-ignore-next-line: canonical rustfmt line.
             serde_json::from_str(body).map_err(|_error| MessageListResponseError::Malformed)?;
+        let stale = value
+            .get("Stale")
+            .and_then(Value::as_u64)
+            .ok_or(MessageListResponseError::Malformed)?;
+        if stale != 0 {
+            return Err(MessageListResponseError::StaleResponse);
+        }
         let total = value
             .get("Total")
             .and_then(Value::as_u64)
@@ -746,6 +753,8 @@ pub enum MessageListResponseError {
     BodyTooLarge,
     /// JSON shape or required metadata is malformed.
     Malformed,
+    /// Provider marks the list stale and `WebClients` would refetch it.
+    StaleResponse,
     /// Response contains more rows than the adapter's maximum page size.
     TooManyMessages,
     /// Response repeats a provider message identifier.

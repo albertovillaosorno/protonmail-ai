@@ -123,7 +123,7 @@ while IFS= read -r -d '' message <&3; do
       printf '%s\0' "$finished" >&4
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *'Network.getResponseBody'*)
-      body='{{\"Total\":0,\"Messages\":[]}}'
+      body='{{\"Stale\":0,\"Total\":0,\"Messages\":[]}}'
       printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' \
         "$id" "$body" >&4;;
     *'Network.disable'*)
