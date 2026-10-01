@@ -55,6 +55,7 @@ use crate::message_list_response::MessageListNetworkError;
 use crate::message_list_response::MessageListReconciliationError;
 use crate::message_list_response::MessageListResponseError;
 use crate::message_list_response::ObservedMessageListResponse;
+use crate::message_list_response::ObservedMessageMetadata;
 use crate::message_list_response::ReconciledVisibleMessageMetadata;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
@@ -733,7 +734,9 @@ impl ManagedBrowser {
         let initial_descending = first_request.descending;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_message_list_body(session, &first_request, capture)?;
-        if first.messages().len() > first_request.limit {
+        if first.messages().len() > first_request.limit
+            || !response_matches_declared_time_order(&first_request, &first)
+        {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
         if first.messages().len() < first_request.limit {
@@ -764,8 +767,14 @@ impl ManagedBrowser {
         }
         // jig-ignore-next-line: canonical rustfmt line.
         let second = self.read_message_list_body(session, &second_request, capture)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        if second.messages().len() > second_request.limit || capture.tracked_request_count() != 0 {
+        if second.messages().len() > second_request.limit
+            || !response_matches_declared_time_order(&second_request, &second)
+            // jig-ignore-next-line: canonical rustfmt line.
+            || !batch_boundary_matches_time_order(&first_request, &first, &second)
+        {
+            return Err(BrowserDriverError::MessageListBatchIncompatible);
+        }
+        if capture.tracked_request_count() != 0 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
         }
         Ok(CapturedMessageListResponses {
@@ -1407,6 +1416,50 @@ impl fmt::Display for BrowserDriverError {
             Self::ProcessControl => f.write_str("managed browser did not exit"),
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
+    }
+}
+
+fn response_matches_declared_time_order(
+    request: &CompletedMessageListRequest,
+    response: &ObservedMessageListResponse,
+) -> bool {
+    if request.sort_key != "Time" {
+        return true;
+    }
+    response
+        .messages()
+        .windows(2)
+        // jig-ignore-next-line: canonical rustfmt line.
+        .all(|pair| metadata_pair_matches_time_order(&pair[0], &pair[1], request.descending))
+}
+
+fn batch_boundary_matches_time_order(
+    request: &CompletedMessageListRequest,
+    first: &ObservedMessageListResponse,
+    second: &ObservedMessageListResponse,
+) -> bool {
+    if request.sort_key != "Time" {
+        return true;
+    }
+    match (first.messages().last(), second.messages().first()) {
+        (Some(left), Some(right)) => {
+            metadata_pair_matches_time_order(left, right, request.descending)
+        }
+        _ => true,
+    }
+}
+
+fn metadata_pair_matches_time_order(
+    left: &ObservedMessageMetadata,
+    right: &ObservedMessageMetadata,
+    descending: bool,
+) -> bool {
+    let primary = left.time().cmp(&right.time());
+    let tie = left.order().cmp(&right.order());
+    if descending {
+        primary.is_gt() || (primary.is_eq() && !tie.is_lt())
+    } else {
+        primary.is_lt() || (primary.is_eq() && !tie.is_gt())
     }
 }
 

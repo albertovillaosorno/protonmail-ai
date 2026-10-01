@@ -237,7 +237,11 @@ web application without requiring Bridge or a third-party direct API identity.
   ordering evidence. Exact `Sort=Time&Desc=1` clears
   `ProviderSortKeyUnproven`; visible newest-first backed by `SnoozeTime` or
   ascending `Time` stays blocked. Synthetic readiness coverage proves both
-  `Time`-descending and `SnoozeTime`-descending newest-visible cases.
+  `Time`-descending and `SnoozeTime`-descending newest-visible cases. Declared
+  `Time` ordering is also checked against projected `Time` plus provider `Order`
+  within each batch and at the batch boundary; contradictions fail closed, while
+  provider `Order` remains explicitly insufficient for the contract's ID
+  tie-break.
 - Still required: prove whether the provider anchor can support an immutable
   snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
   then implement a durable cursor/snapshot chain,
