@@ -43,9 +43,10 @@ use mail_web_adapter::{MailboxSortOrder, ManagedBrowser, ManagedBrowserPlan};
 const VISIBLE_AX: &str = r#"[{"ignored":false}]"#;
 const ABSENT_AX: &str = "[]";
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum SortScenario {
     Newest,
+    NewestCompleteTie,
     NewestBoundaryClear,
     NewestBoundaryTie,
     NewestSnooze,
@@ -63,6 +64,7 @@ type PressedPair = (&'static str, &'static str);
 const fn pressed_values(scenario: SortScenario) -> PressedPair {
     match scenario {
         SortScenario::Newest
+        | SortScenario::NewestCompleteTie
         | SortScenario::NewestBoundaryClear
         | SortScenario::NewestBoundaryTie
         | SortScenario::NewestSnooze => ("true", "false"),
@@ -75,6 +77,7 @@ const fn pressed_values(scenario: SortScenario) -> PressedPair {
 const fn provider_query_sort(scenario: SortScenario) -> (&'static str, &'static str) {
     match scenario {
         SortScenario::Newest
+        | SortScenario::NewestCompleteTie
         | SortScenario::NewestBoundaryClear
         | SortScenario::NewestBoundaryTie
         | SortScenario::Multiple => ("Time", "1"),
@@ -96,11 +99,13 @@ fn fake(root: &Path, scenario: SortScenario, starts_open: bool) -> PathBuf {
         SortScenario::NewestBoundaryClear => Some(9u64),
         SortScenario::NewestBoundaryTie => Some(10u64),
         SortScenario::Newest
+        | SortScenario::NewestCompleteTie
         | SortScenario::NewestSnooze
         | SortScenario::Oldest
         | SortScenario::Multiple => None,
     };
     let multi_batch = i32::from(boundary_time.is_some());
+    let complete_tie = i32::from(scenario == SortScenario::NewestCompleteTie);
     let network_limit = if boundary_time.is_some() { 1i32 } else { 50i32 };
     let open = i32::from(starts_open);
     let body = format!(
@@ -164,6 +169,9 @@ while IFS= read -r -d '' message <&3; do
       elif [ {multi_batch} -eq 1 ]; then
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         body='{{\"Stale\":0,\"Total\":1,\"Messages\":[{{\"ID\":\"m-2\",\"Time\":{boundary_time},\"Order\":8}}]}}'
+      elif [ {complete_tie} -eq 1 ]; then
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{{\"Stale\":0,\"Total\":2,\"Messages\":[{{\"ID\":\"z-id\",\"Time\":10,\"Order\":9}},{{\"ID\":\"a-id\",\"Time\":10,\"Order\":8}}]}}'
       else
         body='{{\"Stale\":0,\"Total\":0,\"Messages\":[]}}'
       fi
@@ -222,6 +230,7 @@ done
         provider_desc = provider_desc,
         network_limit = network_limit,
         multi_batch = multi_batch,
+        complete_tie = complete_tie,
         boundary_time = boundary_time.unwrap_or(0),
         visible = VISIBLE_AX,
         absent = ABSENT_AX,
@@ -352,6 +361,22 @@ fn complete_time_descending_page_needs_only_snapshot_boundary() {
     );
     let readiness = result.expect("readiness must be inspectable");
     assert_eq!(readiness.observed_sort(), MailboxSortOrder::NewestFirst);
+    assert_eq!(
+        readiness.blockers(),
+        [ListMessagesBlocker::MissingSnapshotBoundary]
+    );
+    assert!(!readiness.ready());
+}
+
+#[test]
+fn complete_equal_time_group_bounds_provider_neutral_tie_break() {
+    let (result, _log) = with_browser(
+        "readiness-complete-tie",
+        SortScenario::NewestCompleteTie,
+        false,
+        ManagedBrowser::inspect_list_messages_readiness,
+    );
+    let readiness = result.expect("readiness must be inspectable");
     assert_eq!(
         readiness.blockers(),
         [ListMessagesBlocker::MissingSnapshotBoundary]
