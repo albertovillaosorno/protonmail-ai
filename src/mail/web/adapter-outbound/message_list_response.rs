@@ -76,7 +76,6 @@ struct TrackedMessageListRequest {
     page: Option<u32>,
     sort_key: MessageListSortKey,
     descending: bool,
-    context_fingerprint: [u64; 2],
     anchor: Option<u64>,
     anchor_id: Option<String>,
 }
@@ -89,6 +88,26 @@ pub struct MessageListNetworkCapture {
     context_fingerprint: Option<[u64; 2]>,
     fingerprint_hashers: [RandomState; 2],
 }
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "default ne preserves the Eq contract for sanitized capture state"
+)]
+impl PartialEq for MessageListNetworkCapture {
+    fn eq(&self, other: &Self) -> bool {
+        let context_bound = self.context_fingerprint.is_some();
+        let other_context_bound = other.context_fingerprint.is_some();
+        self.session_id == other.session_id
+            && self.requests == other.requests
+            && context_bound == other_context_bound
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Eq marker defaults require no custom randomized-state behavior"
+)]
+impl Eq for MessageListNetworkCapture {}
 
 impl MessageListNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
@@ -259,7 +278,6 @@ impl MessageListNetworkCapture {
                 page,
                 sort_key,
                 descending,
-                context_fingerprint,
                 anchor,
                 anchor_id,
             },
@@ -311,7 +329,7 @@ impl MessageListNetworkCapture {
             || request.page != page
             || request.sort_key != sort_key
             || request.descending != descending
-            || request.context_fingerprint != context_fingerprint
+            || self.context_fingerprint != Some(context_fingerprint)
             || request.anchor != anchor
             || request.anchor_id != anchor_id
         {

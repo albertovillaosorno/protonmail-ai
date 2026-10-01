@@ -30,6 +30,7 @@
 
 //! Message-list HTTP response projection regression tests.
 
+use mail_web_adapter::MessageListNetworkCapture;
 use mail_web_adapter::MessageListReconciliationError;
 use mail_web_adapter::ReconciledVisibleMessageMetadata;
 use mail_web_adapter::{MessageListResponseError, ObservedMessageListResponse};
@@ -153,6 +154,13 @@ fn oversized_page_is_rejected() {
         ObservedMessageListResponse::parse("GET", URL, &body),
         Err(MessageListResponseError::TooManyMessages)
     );
+}
+
+#[test]
+fn network_capture_equality_excludes_randomized_fingerprint_state() {
+    let left = MessageListNetworkCapture::new("session-1");
+    let right = MessageListNetworkCapture::new("session-1");
+    assert_eq!(left, right);
 }
 
 #[test]
