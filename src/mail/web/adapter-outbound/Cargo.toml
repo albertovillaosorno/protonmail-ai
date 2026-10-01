@@ -60,3 +60,7 @@ path = "../../../../tests/mail/web/adapter-outbound/message_pagination.rs"
 [[test]]
 name = "mail-web-mailbox-sort"
 path = "../../../../tests/mail/web/adapter-outbound/mailbox_sort.rs"
+
+[[test]]
+name = "mail-web-message-list-response"
+path = "../../../../tests/mail/web/adapter-outbound/message_list_response.rs"

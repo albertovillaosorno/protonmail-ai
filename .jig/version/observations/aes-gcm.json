@@ -1,0 +1,10 @@
+{
+  "authority": "aes-gcm",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "88e60d99e88c92a88c5f7dd49d272c2875be6f4cc747ba41ab4be25c197fe8e5",
+  "observed_on": "2026-10-01",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/aes-gcm",
+  "stable": "0.11.1"
+}

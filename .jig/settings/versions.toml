@@ -1,6 +1,103 @@
 domain = "versions"
 schema_version = 1
 
+[authority.aes-gcm]
+current = "0.11.1"
+stable = "0.11.1"
+
+[authority.aes-gcm.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/aes-gcm"
+
+[authority.aes-gcm.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.aes-gcm.version"
+template = "={version}"
+
+[authority.base64]
+current = "0.23.1"
+stable = "0.23.1"
+
+[authority.base64.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/base64"
+
+[authority.base64.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.base64"
+template = "={version}"
+
+[authority.clippy-nightly-validation]
+current = "0.1.100"
+stable = "0.1.100"
+
+[authority.clippy-nightly-validation.projection.tool]
+kind = "tool"
+target = "rust_nightly_cargo_clippy"
+template = "{version}"
+
+[authority.clippy-nightly-validation.projection.validation_toolchain]
+kind = "toml"
+path = ".jig/lang/rust/validation-toolchain.toml"
+selector = "clippy"
+template = "{version}"
+
+[authority.command-fds]
+current = "0.3.3"
+stable = "0.3.3"
+
+[authority.command-fds.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/command-fds"
+
+[authority.command-fds.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.command-fds"
+template = "={version}"
+
+[authority.getrandom]
+current = "0.4.3"
+stable = "0.4.3"
+
+[authority.getrandom.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/getrandom"
+
+[authority.getrandom.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.getrandom"
+template = "={version}"
+
+[authority.git]
+current = "2.55.0"
+stable = "2.55.0"
+
+[authority.git.projection.tool]
+kind = "tool"
+target = "git"
+template = "{version}"
+
+[authority.jig]
+current = "26.3.0"
+stable = "26.3.0"
+
+[authority.jig.projection.tool]
+kind = "tool"
+target = "jig"
+template = "{version}"
+
 [authority.protonmail-ai]
 current = "0.0.0"
 stable = "0.0.0"
@@ -9,6 +106,16 @@ stable = "0.0.0"
 kind = "toml"
 path = "Cargo.toml"
 selector = "workspace.package.version"
+template = "{version}"
+
+[authority.rust-nightly-validation]
+current = "nightly-2026-09-03"
+stable = "nightly-2026-09-03"
+
+[authority.rust-nightly-validation.projection.validation_toolchain]
+kind = "toml"
+path = ".jig/lang/rust/validation-toolchain.toml"
+selector = "channel"
 template = "{version}"
 
 [authority.rust-stable]
@@ -32,46 +139,6 @@ kind = "tool"
 target = "rust_stable_cargo"
 template = "{version}"
 
-[authority.rust-nightly-validation]
-current = "nightly-2026-09-03"
-stable = "nightly-2026-09-03"
-
-[authority.rust-nightly-validation.projection.validation_toolchain]
-kind = "toml"
-path = ".jig/lang/rust/validation-toolchain.toml"
-selector = "channel"
-template = "{version}"
-
-[authority.clippy-nightly-validation]
-current = "0.1.100"
-stable = "0.1.100"
-
-[authority.clippy-nightly-validation.projection.validation_toolchain]
-kind = "toml"
-path = ".jig/lang/rust/validation-toolchain.toml"
-selector = "clippy"
-template = "{version}"
-
-[authority.clippy-nightly-validation.projection.tool]
-kind = "tool"
-target = "rust_nightly_cargo_clippy"
-template = "{version}"
-
-[authority.rustfmt-nightly-validation]
-current = "1.10.0-nightly"
-stable = "1.10.0-nightly"
-
-[authority.rustfmt-nightly-validation.projection.validation_toolchain]
-kind = "toml"
-path = ".jig/lang/rust/validation-toolchain.toml"
-selector = "rustfmt"
-template = "{version}"
-
-[authority.rustfmt-nightly-validation.projection.tool]
-kind = "tool"
-target = "rust_nightly_cargo_fmt"
-template = "{version}"
-
 [authority.rustc-nightly-validation]
 current = "1.100.0-nightly"
 stable = "1.100.0-nightly"
@@ -82,36 +149,65 @@ path = ".jig/lang/rust/validation-toolchain.toml"
 selector = "rustc"
 template = "{version}"
 
-[authority.jig]
-current = "26.3.0"
-stable = "26.3.0"
+[authority.rustfmt-nightly-validation]
+current = "1.10.0-nightly"
+stable = "1.10.0-nightly"
 
-[authority.jig.projection.tool]
+[authority.rustfmt-nightly-validation.projection.tool]
 kind = "tool"
-target = "jig"
+target = "rust_nightly_cargo_fmt"
 template = "{version}"
 
-[authority.git]
-current = "2.55.0"
-stable = "2.55.0"
-
-[authority.git.projection.tool]
-kind = "tool"
-target = "git"
+[authority.rustfmt-nightly-validation.projection.validation_toolchain]
+kind = "toml"
+path = ".jig/lang/rust/validation-toolchain.toml"
+selector = "rustfmt"
 template = "{version}"
 
-[authority.command-fds]
-current = "0.3.3"
-stable = "0.3.3"
+[authority.serde]
+current = "1.0.229"
+stable = "1.0.229"
 
-[authority.command-fds.freshness]
+[authority.serde.freshness]
 integrity_kind = "provider-response-sha256"
 maximum_age_days = 30
 provider = "crates-io"
-source = "https://crates.io/api/v1/crates/command-fds"
+source = "https://crates.io/api/v1/crates/serde"
 
-[authority.command-fds.projection.cargo_workspace]
+[authority.serde.projection.cargo_workspace]
 kind = "toml"
 path = "Cargo.toml"
-selector = "workspace.dependencies.command-fds"
+selector = "workspace.dependencies.serde.version"
+template = "={version}"
+
+[authority.serde-json]
+current = "1.0.151"
+stable = "1.0.151"
+
+[authority.serde-json.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/serde_json"
+
+[authority.serde-json.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.serde_json"
+template = "={version}"
+
+[authority.zeroize]
+current = "1.9.0"
+stable = "1.9.0"
+
+[authority.zeroize.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/zeroize"
+
+[authority.zeroize.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.zeroize"
 template = "={version}"

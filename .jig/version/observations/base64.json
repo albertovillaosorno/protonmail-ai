@@ -1,0 +1,10 @@
+{
+  "authority": "base64",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "43ea02000dba1af9361d6b75d6b86627a6eeacf1bf333c899a3d96ea815a1683",
+  "observed_on": "2026-10-01",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/base64",
+  "stable": "0.23.1"
+}

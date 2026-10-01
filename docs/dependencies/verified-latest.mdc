@@ -15,7 +15,7 @@ and exact version syntax; this record carries the dated online freshness check.
 Internal workspace crates use root path declarations and therefore have no
 registry version to refresh.
 
-## Verified on 2026-09-30
+## Verified on 2026-10-01
 
 The pinned workspace toolchain is Rust 1.98.1.
 
@@ -35,7 +35,8 @@ The pinned workspace toolchain is Rust 1.98.1.
   latest stable release. `cargo info zeroize@1.9.0` reports Rust 1.85 minimum.
 
 All six direct external dependencies are current and compatible with the
-workspace toolchain at the verification date.
+workspace toolchain at the verification date. Jig release observations record
+the same crates.io results under `.jig/version/observations/`.
 
 ## Review command
 

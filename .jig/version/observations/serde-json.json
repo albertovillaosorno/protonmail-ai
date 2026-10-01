@@ -1,0 +1,10 @@
+{
+  "authority": "serde-json",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "45057b27f3e5e431bb17e86473402dae8947cc5489c9e3c0ed0912a6e0a14453",
+  "observed_on": "2026-10-01",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/serde_json",
+  "stable": "1.0.151"
+}

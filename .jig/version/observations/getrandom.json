@@ -1,0 +1,10 @@
+{
+  "authority": "getrandom",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "04e33831a2c3107052942f988697d37f77176783f9c6d53124d5ad7311fe3f9c",
+  "observed_on": "2026-10-01",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/getrandom",
+  "stable": "0.4.3"
+}

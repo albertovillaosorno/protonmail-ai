@@ -21,7 +21,6 @@ keywords = ["ai-agents", "email", "local-first", "mcp", "proton-mail"]
 [workspace.dependencies]
 # Member crates inherit every dependency from this table. External versions live
 # only here and track the newest stable release supported by the workspace.
-aes-gcm = { version = "=0.11.1", features = ["zeroize"] }
 base64 = "=0.23.1"
 command-fds = "=0.3.3"
 getrandom = "=0.4.3"
@@ -29,9 +28,16 @@ mail_auth_domain = { path = "src/mail/auth/domain" }
 mail_auth_fork_adapter = { path = "src/mail/auth/adapter-outbound" }
 mail_capability_domain = { path = "src/mail/capability/domain" }
 mail_web_adapter = { path = "src/mail/web/adapter-outbound" }
-serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 zeroize = "=1.9.0"
+
+[workspace.dependencies.aes-gcm]
+version = "=0.11.1"
+features = ["zeroize"]
+
+[workspace.dependencies.serde]
+version = "=1.0.229"
+features = ["derive"]
 
 [workspace.lints.rust]
 # Compiler warnings are binary failures. Unsafe Rust is categorically outside

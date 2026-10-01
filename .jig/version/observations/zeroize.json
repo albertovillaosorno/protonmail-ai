@@ -1,0 +1,10 @@
+{
+  "authority": "zeroize",
+  "integrity_kind": "provider-response-sha256",
+  "integrity_sha256": "51023d21e359eb13145a398b54ecc36dcf9a4a5c9fe162480975f122b6bb5bff",
+  "observed_on": "2026-10-01",
+  "provider": "crates-io",
+  "schema_version": 1,
+  "source": "https://crates.io/api/v1/crates/zeroize",
+  "stable": "1.9.0"
+}

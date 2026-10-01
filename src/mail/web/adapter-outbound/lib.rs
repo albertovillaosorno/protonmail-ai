@@ -43,6 +43,7 @@ mod mailbox_mode;
 mod mailbox_page;
 mod mailbox_pagination;
 mod mailbox_sort;
+mod message_list_response;
 mod policy;
 mod profile;
 mod shell;
@@ -59,6 +60,9 @@ pub use mailbox_page::VisibleMessagePageSnapshot;
 pub use mailbox_page::{MailboxPageSnapshot, VisibleMailboxRow};
 pub use mailbox_pagination::NextPageActivation;
 pub use mailbox_sort::MailboxSortOrder;
+pub use message_list_response::ObservedMessageMetadata;
+// jig-ignore-next-line: canonical rustfmt line.
+pub use message_list_response::{MessageListResponseError, ObservedMessageListResponse};
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};
 pub use policy::{UiEvidence, UiGateError, UiTarget, WebSurface};
