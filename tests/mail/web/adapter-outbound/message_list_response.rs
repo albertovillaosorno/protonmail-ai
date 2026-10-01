@@ -91,6 +91,7 @@ fn malformed_or_duplicate_metadata_fails_closed() {
         r#"{"Total":1,"Messages":[{"ID":"m-1","Time":"1","Order":1}]}"#,
         r#"{"Total":1,"Messages":[{"ID":"m-1","Time":1}]}"#,
         r#"{"Messages":[]}"#,
+        r#"{"Total":0,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
     ] {
         assert_eq!(
             ObservedMessageListResponse::parse("GET", URL, body),

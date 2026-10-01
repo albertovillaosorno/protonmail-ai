@@ -307,6 +307,12 @@ impl ObservedMessageListResponse {
         if messages.len() > MAX_MESSAGE_LIST_ITEMS {
             return Err(MessageListResponseError::TooManyMessages);
         }
+        let message_count =
+        // jig-ignore-next-line: canonical rustfmt line.
+            u64::try_from(messages.len()).map_err(|_error| MessageListResponseError::Malformed)?;
+        if total < message_count {
+            return Err(MessageListResponseError::Malformed);
+        }
 
         let mut ids = BTreeSet::new();
         let mut projected = Vec::with_capacity(messages.len());
