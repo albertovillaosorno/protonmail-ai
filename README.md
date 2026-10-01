@@ -181,15 +181,18 @@ extra prefetched provider IDs, and fails closed for duplicate visible IDs,
 overlapping provider batches, missing visible metadata, or an explicit-empty
 contradiction. `Debug` output exposes only the reconciled row count.
 
-The driver can now couple those pieces in one diagnostic call: after the exact
-Network response is projected and Network tracking is disabled, it takes a
-fresh stable visible message-page snapshot in the same target session and
-reconciles machine metadata only to those rendered IDs. This succeeds when one
-observed response covers the stable visible page and fails closed otherwise.
+The driver can now couple those pieces in one diagnostic call. Its Network
+observer recognizes WebClients-shaped initial requests (`Page`, `PageSize`, and
+`Limit`) and the one anchor continuation used by the current two-batch query
+loop. If batch 1 fills its sanitized `Limit`, `Network.getResponseBody` keeps
+classifying Network events inline while the continuation starts, then captures
+batch 2 before disabling Network. A fresh stable visible message-page snapshot
+in the same target session is reconciled against both projected batches.
 
-WebClients may still issue multiple list batches, equal `Time` values still fall
-back to internal `element.Order` rather than message ID, and visible page
-numbers provide no immutable snapshot boundary. The
+This removes the simple multi-batch coverage gap without changing the public
+contract. Equal `Time` values still fall back to internal `element.Order`
+rather than message ID, the continuation anchor is not an immutable snapshot
+boundary, and visible page numbers provide no snapshot token. The
 `inspect_list_messages_readiness` diagnostic therefore continues to report the
 contract blockers instead of emitting an approximate cursor.
 

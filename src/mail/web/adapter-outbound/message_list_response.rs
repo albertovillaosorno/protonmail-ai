@@ -48,11 +48,24 @@ enum NetworkRequestState {
     Finished,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MessageListRequestKind {
+    Initial,
+    Continuation,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct TrackedMessageListRequest {
+    state: NetworkRequestState,
+    kind: MessageListRequestKind,
+    limit: usize,
+}
+
 /// Bounded CDP Network event state for exact message-list GET requests.
 #[derive(Clone, Eq, PartialEq)]
 pub struct MessageListNetworkCapture {
     session_id: String,
-    requests: BTreeMap<String, NetworkRequestState>,
+    requests: BTreeMap<String, TrackedMessageListRequest>,
 }
 
 impl MessageListNetworkCapture {
@@ -93,14 +106,40 @@ impl MessageListNetworkCapture {
 
     /// Removes and returns request IDs whose safe response lifecycle completed.
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
+        self.take_finished_requests()
+            .into_iter()
+            .map(|(request_id, _continuation, _limit)| request_id)
+            .collect()
+    }
+
+    /// Returns the number of matching requests whose lifecycle is retained.
+    #[must_use]
+    pub(crate) fn tracked_request_count(&self) -> usize {
+        self.requests.len()
+    }
+
+    /// Removes completed batches as `(request_id, continuation, limit)` tuples.
+    ///
+    /// The tuple deliberately excludes the original URL and all request
+    /// headers. `continuation` is true only for the proven anchor-shaped batch.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, bool, usize)> {
         let finished = self
             .requests
             .iter()
-            .filter(|(_id, state)| **state == NetworkRequestState::Finished)
-            .map(|(id, _state)| id.clone())
+            // jig-ignore-next-line: canonical rustfmt line.
+            .filter(|(_id, request)| request.state == NetworkRequestState::Finished)
+            .map(|(id, request)| {
+                (
+                    id.clone(),
+                    request.kind == MessageListRequestKind::Continuation,
+                    request.limit,
+                )
+            })
             .collect::<Vec<_>>();
         self.requests
-            .retain(|_id, state| *state != NetworkRequestState::Finished);
+            // jig-ignore-next-line: canonical rustfmt line.
+            .retain(|_id, request| request.state != NetworkRequestState::Finished);
         finished
     }
 
@@ -135,11 +174,20 @@ impl MessageListNetworkCapture {
         if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
+        let Some((kind, limit)) = message_list_request_shape(url)? else {
+            return Ok(());
+        };
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
             return Err(MessageListNetworkError::CapacityExceeded);
         }
-        self.requests
-            .insert(String::from(request_id), NetworkRequestState::Requested);
+        self.requests.insert(
+            String::from(request_id),
+            TrackedMessageListRequest {
+                state: NetworkRequestState::Requested,
+                kind,
+                limit,
+            },
+        );
         Ok(())
     }
 
@@ -152,10 +200,10 @@ impl MessageListNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
-        let Some(state) = self.requests.get_mut(request_id) else {
+        let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
-        if *state != NetworkRequestState::Requested {
+        if request.state != NetworkRequestState::Requested {
             return Err(MessageListNetworkError::InvalidSequence);
         }
         let response = params
@@ -171,20 +219,20 @@ impl MessageListNetworkCapture {
         if !is_message_list_url(url) || status != Some(200) || mime != Some("application/json") {
             return Err(MessageListNetworkError::ResponseRejected);
         }
-        *state = NetworkRequestState::Responded;
+        request.state = NetworkRequestState::Responded;
         Ok(())
     }
 
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
         let request_id = network_request_id(event)?;
-        let Some(state) = self.requests.get_mut(request_id) else {
+        let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
-        if *state != NetworkRequestState::Responded {
+        if request.state != NetworkRequestState::Responded {
             return Err(MessageListNetworkError::InvalidSequence);
         }
-        *state = NetworkRequestState::Finished;
+        request.state = NetworkRequestState::Finished;
         Ok(())
     }
 
@@ -222,6 +270,71 @@ pub enum MessageListNetworkError {
     InvalidSequence,
     /// Too many unfinished exact message-list requests are already tracked.
     CapacityExceeded,
+}
+
+fn message_list_request_shape(
+    url: &str,
+) -> Result<Option<(MessageListRequestKind, usize)>, MessageListNetworkError> {
+    let Some(raw_limit) = numeric_query_parameter(url, "Limit")? else {
+        return Ok(None);
+    };
+    let maximum = u64::try_from(MAX_MESSAGE_LIST_ITEMS)
+        .map_err(|_error| MessageListNetworkError::MalformedEvent)?;
+    if raw_limit == 0 || raw_limit > maximum {
+        return Err(MessageListNetworkError::MalformedEvent);
+    }
+    let limit =
+        // jig-ignore-next-line: canonical rustfmt line.
+        usize::try_from(raw_limit).map_err(|_error| MessageListNetworkError::MalformedEvent)?;
+    let page = numeric_query_parameter(url, "Page")?;
+    let page_size = numeric_query_parameter(url, "PageSize")?;
+    let anchor = query_parameter_present(url, "Anchor")?;
+    let anchor_id = query_parameter_present(url, "AnchorID")?;
+    let kind = match (page, page_size, anchor, anchor_id) {
+        (Some(_page), Some(size), false, false) if size == raw_limit => {
+            MessageListRequestKind::Initial
+        }
+        (None, None, true, true) => MessageListRequestKind::Continuation,
+        _ => return Ok(None),
+    };
+    Ok(Some((kind, limit)))
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn numeric_query_parameter(url: &str, name: &str) -> Result<Option<u64>, MessageListNetworkError> {
+    let Some(value) = raw_query_parameter(url, name)? else {
+        return Ok(None);
+    };
+    value
+        .parse::<u64>()
+        .map(Some)
+        .map_err(|_error| MessageListNetworkError::MalformedEvent)
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn query_parameter_present(url: &str, name: &str) -> Result<bool, MessageListNetworkError> {
+    Ok(raw_query_parameter(url, name)?.is_some_and(|value| !value.is_empty()))
+}
+
+fn raw_query_parameter<'url>(
+    url: &'url str,
+    name: &str,
+) -> Result<Option<&'url str>, MessageListNetworkError> {
+    let Some((_path, query)) = url.split_once('?') else {
+        return Ok(None);
+    };
+    let query = query.split('#').next().unwrap_or(query);
+    let mut found = None;
+    for pair in query.split('&') {
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        if key != name {
+            continue;
+        }
+        if found.replace(value).is_some() {
+            return Err(MessageListNetworkError::MalformedEvent);
+        }
+    }
+    Ok(found)
 }
 
 fn network_request_id(event: &Value) -> Result<&str, MessageListNetworkError> {

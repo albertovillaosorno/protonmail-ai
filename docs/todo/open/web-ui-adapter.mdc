@@ -211,14 +211,17 @@ web application without requiring Bridge or a third-party direct API identity.
   prefetched provider IDs, and fails closed for duplicate visible IDs,
   overlapping batches, missing visible metadata, or an explicit-empty
   contradiction. Its debug output exposes only row count.
-- `observe_visible_message_metadata` now performs one exact Network capture,
-  disables Network tracking, takes a fresh stable visible message-page snapshot
-  in the same target session, and reconciles the captured machine metadata only
-  to those rendered IDs. Synthetic coverage proves the integrated success path.
-- Still required: extend that same-session diagnostic to collect WebClients
-  multi-batch list responses before reconciliation, then remove the remaining
-  provider-neutral `list_messages` ordering/snapshot blockers and implement a
-  durable cursor/snapshot chain,
+- `observe_visible_message_metadata` now follows the current WebClients
+  two-batch query loop. It recognizes only the initial `Page`/`PageSize`/`Limit`
+  shape and the anchored continuation shape, retains only request ID, batch
+  kind, and numeric limit, and keeps classifying Network events while fetching
+  batch 1's body so continuation events cannot be discarded. Batch 2 is
+  required only when batch 1 fills its limit; Network is disabled before a fresh
+  stable visible message-page snapshot is reconciled against all captured
+  batches. Synthetic coverage starts batch 2 during the first body fetch.
+- Still required: prove whether the provider anchor can support an immutable
+  snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
+  then implement a durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable
   locations, add composer/mutation workflows and remaining control-level drift
   fixtures, and capture the opted-in Free-account acceptance transcript.

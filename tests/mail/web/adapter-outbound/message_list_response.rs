@@ -36,7 +36,7 @@ use mail_web_adapter::{MessageListResponseError, ObservedMessageListResponse};
 
 const URL: &str = concat!(
     "https://mail.proton.me/api/mail/v4/messages",
-    "?Page=0&PageSize=50"
+    "?Page=0&PageSize=50&Limit=50"
 );
 
 #[test]
@@ -396,4 +396,95 @@ fn explicit_empty_reconciliation_rejects_observed_messages() {
     let empty = ReconciledVisibleMessageMetadata::reconcile(&[], &[])
         .expect("empty page without observations is consistent");
     assert!(empty.messages().is_empty());
+}
+
+#[test]
+fn network_capture_accepts_initial_and_continuation_batch_shapes() {
+    use mail_web_adapter::MessageListNetworkCapture;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    for (id, url) in [
+        (
+            "initial",
+            // jig-ignore-next-line: indivisible synthetic JSON fixture.
+            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50",
+        ),
+        (
+            "continuation",
+            // jig-ignore-next-line: indivisible synthetic JSON fixture.
+            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50",
+        ),
+    ] {
+        capture
+            .observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.requestWillBeSent",
+                "params":{"requestId":id,"request":{"method":"GET","url":url}}
+            }))
+            .expect("accept safe batch request shape");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.responseReceived",
+                "params":{"requestId":id,"response":{
+                    "url":url,"status":200u16,"mimeType":"application/json"
+                }}
+            }))
+            .expect("accept safe batch response");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.loadingFinished",
+                "params":{"requestId":id}
+            }))
+            .expect("finish safe batch");
+    }
+    assert_eq!(
+        capture.take_finished_request_ids(),
+        vec![String::from("continuation"), String::from("initial")]
+    );
+}
+
+#[test]
+fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
+    use mail_web_adapter::{MessageListNetworkCapture, MessageListNetworkError};
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    for url in [
+        "https://mail.proton.me/api/mail/v4/messages?ID=m-1",
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50",
+        "https://mail.proton.me/api/mail/v4/messages?Limit=50&AnchorID=m-50",
+    ] {
+        capture
+            .observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.requestWillBeSent",
+                // jig-ignore-next-line: indivisible synthetic JSON fixture.
+                "params":{"requestId":"ignored","request":{"method":"GET","url":url}}
+            }))
+            .expect("ignore list request outside WebClients batch shape");
+    }
+    assert!(capture.take_finished_request_ids().is_empty());
+
+    for url in [
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=0&Limit=0",
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=101&Limit=101",
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=nope",
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Limit=50",
+    ] {
+        assert_eq!(
+            capture.observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.requestWillBeSent",
+                // jig-ignore-next-line: indivisible synthetic JSON fixture.
+                "params":{"requestId":"bad","request":{"method":"GET","url":url}}
+            })),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+    }
 }

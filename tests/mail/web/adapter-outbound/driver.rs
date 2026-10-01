@@ -86,11 +86,36 @@ done
     clippy::too_many_lines,
     reason = "synthetic CDP script fixture is one coherent protocol transcript"
 )]
-// jig-ignore-next-line: canonical rustfmt line.
-fn fake_network_browser(root: &Path, base64_encoded: bool, visible_id: &str) -> PathBuf {
+fn fake_network_browser(
+    root: &Path,
+    base64_encoded: bool,
+    visible_id: &str,
+    multi_batch: bool,
+) -> PathBuf {
     let script = root.join("fake-network-browser");
     let log = root.join("network-log.txt");
     let encoded = if base64_encoded { "true" } else { "false" };
+    let limit = if multi_batch { "1" } else { "50" };
+    let row_ids = if multi_batch {
+        "[\"m-1\",\"m-2\"]"
+    } else {
+        "[\"__VISIBLE_ID__\"]"
+    };
+    let rows = if multi_batch {
+        concat!(
+            "[{\"id\":\"m-1\",\"subject\":\"Rendered one\",",
+            "\"addresses\":\"one@example.test\",\"unread\":false},",
+            "{\"id\":\"m-2\",\"subject\":\"Rendered two\",",
+            "\"addresses\":\"two@example.test\",\"unread\":false}]",
+        )
+    } else {
+        concat!(
+            "[{\"id\":\"__VISIBLE_ID__\",",
+            "\"subject\":\"Rendered subject\",",
+            "\"addresses\":\"synthetic@example.test\",",
+            "\"unread\":false}]",
+        )
+    };
     let template = r#"#!/usr/bin/env bash
 set -eu
 while IFS= read -r -d '' message <&3; do
@@ -113,15 +138,14 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
-      value='{"loading":false,"loaded":true,"rowIds":["__VISIBLE_ID__"],'
+      value='{"loading":false,"loaded":true,"rowIds":__ROW_IDS__,'
       value+='"skeletonCount":0,"emptyMarker":false,'
       value+='"nextPresent":false,"nextDisabled":null,'
       value+='"currentTestId":"pagination-row:go-to-page-1"}'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
-      value='[{"id":"__VISIBLE_ID__","subject":"Rendered subject",'
-      value+='"addresses":"synthetic@example.test","unread":false}]'
+      value='__ROWS__'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
@@ -163,13 +187,15 @@ while IFS= read -r -d '' message <&3; do
       request='{"sessionId":"session-1",'
       request+='"method":"Network.requestWillBeSent","params":{'
       request+='"requestId":"list-1","request":{"method":"GET",'
-      request+='"url":"https://mail.proton.me/api/mail/v4/messages?Page=0",'
+      request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
+      request+='Page=0&PageSize=__LIMIT__&Limit=__LIMIT__",'
       request+='"headers":{"Authorization":"Bearer secret"}}}}'
       printf '%s\0' "$request" >&4
       response='{"sessionId":"session-1",'
       response+='"method":"Network.responseReceived","params":{'
       response+='"requestId":"list-1","response":{'
-      response+='"url":"https://mail.proton.me/api/mail/v4/messages?Page=0",'
+      response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
+      response+='Page=0&PageSize=__LIMIT__&Limit=__LIMIT__",'
       response+='"status":200,"mimeType":"application/json",'
       response+='"headers":{"Set-Cookie":"secret-cookie"}}}}'
       printf '%s\0' "$response" >&4
@@ -178,13 +204,40 @@ while IFS= read -r -d '' message <&3; do
       finished+='"requestId":"list-1"}}'
       printf '%s\0' "$finished" >&4
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
-    *'Network.getResponseBody'*)
+    *'Network.getResponseBody'*'"requestId":"list-1"'*)
       printf 'body\n' >> '__LOG__'
-      body='{\"Code\":1000,\"Total\":1,\"Messages\":[{'
+      if [ '__MULTI_BATCH__' = 'true' ]; then
+        request='{"sessionId":"session-1",'
+        request+='"method":"Network.requestWillBeSent","params":{'
+        request+='"requestId":"list-2","request":{"method":"GET",'
+        request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
+        request+='Limit=1&Anchor=1790848000&AnchorID=m-1",'
+        request+='"headers":{"Authorization":"Bearer secret"}}}}'
+        printf '%s\0' "$request" >&4
+        response='{"sessionId":"session-1",'
+        response+='"method":"Network.responseReceived","params":{'
+        response+='"requestId":"list-2","response":{'
+        response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
+        response+='Limit=1&Anchor=1790848000&AnchorID=m-1",'
+        response+='"status":200,"mimeType":"application/json"}}}'
+        printf '%s\0' "$response" >&4
+        finished='{"sessionId":"session-1",'
+        finished+='"method":"Network.loadingFinished","params":{'
+        finished+='"requestId":"list-2"}}'
+        printf '%s\0' "$finished" >&4
+      fi
+      body='{\"Code\":1000,\"Total\":__TOTAL__,\"Messages\":[{'
       body+='\"ID\":\"m-1\",\"Time\":1790848000,\"Order\":9,'
       body+='\"Subject\":\"secret subject\"}]}'
       prefix='{"id":'"$id"',"result":{"body":"'
       suffix='","base64Encoded":__ENCODED__}}'
+      printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
+    *'Network.getResponseBody'*'"requestId":"list-2"'*)
+      printf 'body\n' >> '__LOG__'
+      body='{\"Code\":1000,\"Total\":2,\"Messages\":[{'
+      body+='\"ID\":\"m-2\",\"Time\":1790847999,\"Order\":8}]}'
+      prefix='{"id":'"$id"',"result":{"body":"'
+      suffix='","base64Encoded":false}}'
       printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
     *'Network.disable'*)
       printf 'disable\n' >> '__LOG__'
@@ -195,9 +248,18 @@ while IFS= read -r -d '' message <&3; do
   esac
 done
 "#;
+    let total = if multi_batch { "2" } else { "1" };
     let body = template
         .replace("__LOG__", &log.display().to_string())
         .replace("__ENCODED__", encoded)
+        .replace(
+            "__MULTI_BATCH__",
+            if multi_batch { "true" } else { "false" },
+        )
+        .replace("__LIMIT__", limit)
+        .replace("__TOTAL__", total)
+        .replace("__ROW_IDS__", row_ids)
+        .replace("__ROWS__", rows)
         .replace("__VISIBLE_ID__", visible_id);
     fs::write(&script, body).expect("write fake network browser");
     let permissions = fs::Permissions::from_mode(0o700);
@@ -210,11 +272,13 @@ fn with_network_browser<T>(
     label: &str,
     base64_encoded: bool,
     visible_id: &str,
+    multi_batch: bool,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
     let root = test_root(label);
     fs::create_dir_all(&root).expect("create synthetic network root");
-    let browser = fake_network_browser(&root, base64_encoded, visible_id);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let browser = fake_network_browser(&root, base64_encoded, visible_id, multi_batch);
     let browser_plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch network driver");
@@ -371,6 +435,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
         "network-list",
         false,
         "m-1",
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     let response = response.expect("observe exact message-list response");
@@ -390,6 +455,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
         "network-reconciled",
         false,
         "m-1",
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -401,11 +467,46 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
 }
 
 #[test]
+fn singular_network_observation_rejects_two_batch_page_after_disable() {
+    let (result, log) = with_network_browser(
+        "network-multi-singular",
+        false,
+        "m-1",
+        true,
+        ManagedBrowser::observe_message_list_response,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListResponseAmbiguous)
+    );
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+}
+
+#[test]
+fn continuation_events_during_first_body_fetch_are_reconciled() {
+    let (metadata, log) = with_network_browser(
+        "network-multi-batch",
+        false,
+        "m-1",
+        true,
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    let metadata = metadata.expect("reconcile two observed batches");
+    assert_eq!(metadata.messages().len(), 2);
+    assert_eq!(metadata.messages()[0].id(), "m-1");
+    assert_eq!(metadata.messages()[0].time(), 1_790_848_000);
+    assert_eq!(metadata.messages()[1].id(), "m-2");
+    assert_eq!(metadata.messages()[1].time(), 1_790_847_999);
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+}
+
+#[test]
 fn network_metadata_rejects_stable_row_without_machine_coverage() {
     let (result, log) = with_network_browser(
         "network-missing-visible",
         false,
         "visible-only",
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -423,6 +524,7 @@ fn encoded_message_list_body_fails_closed_after_network_disable() {
         "network-encoded",
         true,
         "m-1",
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(
