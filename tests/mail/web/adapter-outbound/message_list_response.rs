@@ -179,6 +179,17 @@ fn network_capture_tracks_only_exact_get_list_lifecycle() {
     capture
         .observe(&mutation)
         .expect("ignore mutation endpoint");
+    let untracked_response = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"untracked","response":{
+            // jig-ignore-next-line: indivisible synthetic URL fixture.
+            "url":"https://mail.proton.me/","status":200u16,"mimeType":"text/html"
+        }}
+    });
+    capture
+        .observe(&untracked_response)
+        .expect("ignore untracked response before URL inspection");
     let request = json!({
         "sessionId":"session-1",
         "method":"Network.requestWillBeSent",
@@ -468,7 +479,7 @@ fn network_capture_accepts_initial_and_continuation_batch_shapes() {
         (
             "continuation",
             // jig-ignore-next-line: indivisible synthetic JSON fixture.
-            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1&LabelID=sent",
+            "https://mail.proton.me/api/mail/v4/messages?LabelID=sent&Desc=1&Sort=Time&AnchorID=m-50&Anchor=7&Limit=50",
         ),
     ] {
         capture

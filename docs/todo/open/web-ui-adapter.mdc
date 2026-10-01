@@ -257,6 +257,12 @@ web application without requiring Bridge or a third-party direct API identity.
   lengths
   must agree with it while continuation totals are deliberately ignored because
   anchors change their meaning.
+- Current list-response consumers expose no `EventID`, revision, cursor, or
+  snapshot field that can bind a cursor chain. WebClients also labels
+  `dynamicPageLength` as not fully consistent and suitable only for
+  non-sensitive
+  behavior, so neither event-loop state nor optimistic page-length selectors are
+  promoted into snapshot evidence for this adapter.
 - Still required: prove whether the provider anchor can support an immutable
   snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
   then implement a durable cursor/snapshot chain,

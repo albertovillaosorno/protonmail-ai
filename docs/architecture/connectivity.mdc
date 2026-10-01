@@ -131,8 +131,10 @@ observer therefore supplies sanitized provider `Sort` and `Desc` evidence to
 readiness: exact `Sort=Time&Desc=1` removes `ProviderSortKeyUnproven`, while
 `SnoozeTime`, ascending `Time`, or another provider sort retains it and
 non-newest visible UI state additionally reports `SortNotNewestFirst`.
-`ProviderTieBreakDiffers` and `MissingSnapshotBoundary` remain unconditional, so
-public `list_messages` is still unavailable.
+`ProviderTieBreakDiffers` and `MissingSnapshotBoundary` remain unconditional:
+current list responses expose no event/revision/snapshot token, and WebClients
+marks its dynamic page-length calculation as unsuitable for sensitive behavior.
+Public `list_messages` therefore remains unavailable.
 
 
 The list/row source files and the mode-rule files were rechecked against
