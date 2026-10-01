@@ -143,3 +143,154 @@ fn oversized_event_body_is_rejected() {
         Err(MailboxEventWatermarkError::BodyTooLarge)
     );
 }
+
+#[test]
+fn network_capture_tracks_exact_event_get_lifecycle() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use serde_json::json;
+
+    let mut capture = MailboxEventNetworkCapture::new("session-1");
+    let url = URL;
+    capture
+        .observe(&json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"event-request-1","request":{
+                "method":"GET","url":url
+            }}
+        }))
+        .expect("track event request");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceived",
+            "params":{"requestId":"event-request-1","response":{
+                "url":url,"status":200u16,"mimeType":"application/json"
+            }}
+        }))
+        .expect("accept event response");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1",
+            "method":"Network.loadingFinished",
+            "params":{"requestId":"event-request-1"}
+        }))
+        .expect("finish event request");
+    assert_eq!(
+        capture.take_finished_request_ids(),
+        [String::from("event-request-1")]
+    );
+    let debug = format!("{capture:?}");
+    assert!(!debug.contains("session-1"));
+    assert!(!debug.contains("event-7"));
+}
+
+#[test]
+fn network_capture_ignores_other_sessions_and_non_event_traffic() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use serde_json::json;
+
+    let mut capture = MailboxEventNetworkCapture::new("session-1");
+    for event in [
+        json!({"sessionId":"session-2","method":"Network.requestWillBeSent"}),
+        json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"latest","request":{
+                "method":"GET",
+                "url":"https://mail.proton.me/api/core/v4/events/latest"
+            }}
+        }),
+        json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"post","request":{
+                "method":"POST","url":URL
+            }}
+        }),
+    ] {
+        capture.observe(&event).expect("ignore unrelated traffic");
+    }
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
+fn network_capture_rejects_redirect_failure_and_bad_response() {
+    // jig-ignore-next-line: indivisible synthetic JSON fixture.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    use serde_json::json;
+
+    let request = |id: &str| {
+        json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":URL}}
+        })
+    };
+
+    let mut bad = MailboxEventNetworkCapture::new("session-1");
+    bad.observe(&request("bad"))
+        .expect("track bad response request");
+    assert_eq!(
+        bad.observe(&json!({
+            "sessionId":"session-1","method":"Network.responseReceived",
+            "params":{"requestId":"bad","response":{
+                "url":URL,"status":500u16,"mimeType":"application/json"
+            }}
+        })),
+        Err(MailboxEventNetworkError::ResponseRejected)
+    );
+
+    let mut redirect = MailboxEventNetworkCapture::new("session-1");
+    redirect
+        .observe(&request("redirect"))
+        .expect("track redirect request");
+    assert_eq!(
+        redirect.observe(&json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"redirect","request":{
+                "method":"GET","url":"https://mail.proton.me/u/0/inbox"
+            }}
+        })),
+        Err(MailboxEventNetworkError::RedirectedAway)
+    );
+
+    let mut failed = MailboxEventNetworkCapture::new("session-1");
+    failed
+        .observe(&request("failed"))
+        .expect("track failed request");
+    assert_eq!(
+        failed.observe(&json!({
+            "sessionId":"session-1","method":"Network.loadingFailed",
+            "params":{"requestId":"failed"}
+        })),
+        Err(MailboxEventNetworkError::RequestFailed)
+    );
+}
+
+#[test]
+fn network_capture_bounds_unfinished_event_requests() {
+    // jig-ignore-next-line: indivisible synthetic JSON fixture.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    use serde_json::json;
+
+    let mut capture = MailboxEventNetworkCapture::new("session-1");
+    for index in 0u16..32u16 {
+        let id = format!("event-request-{index}");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1","method":"Network.requestWillBeSent",
+                "params":{"requestId":id,"request":{"method":"GET","url":URL}}
+            }))
+            .expect("track bounded event request");
+    }
+    assert_eq!(
+        capture.observe(&json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"overflow","request":{
+                "method":"GET","url":URL
+            }}
+        })),
+        Err(MailboxEventNetworkError::CapacityExceeded)
+    );
+}

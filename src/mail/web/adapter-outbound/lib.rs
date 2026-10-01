@@ -55,6 +55,8 @@ pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use list_messages_readiness::{ListMessagesBlocker, ListMessagesReadiness};
 pub use mailbox_event_watermark::MailboxEventWatermarkError;
 pub use mailbox_event_watermark::ObservedMailboxEventWatermark;
+// jig-ignore-next-line: canonical rustfmt line.
+pub use mailbox_event_watermark::{MailboxEventNetworkCapture, MailboxEventNetworkError};
 pub use mailbox_list::NextPageControl;
 pub use mailbox_list::{MailboxListEvidence, MailboxListState};
 pub use mailbox_mode::MailboxRenderMode;

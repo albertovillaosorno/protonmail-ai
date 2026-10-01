@@ -258,7 +258,11 @@ web application without requiring Bridge or a third-party direct API identity.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and mailbox-change-presence bits.
-  `Messages`, `Conversations`, and count payload contents are discarded. Mail's
+  `Messages`, `Conversations`, and count payload contents are discarded. A
+  bounded same-session CDP classifier now tracks only exact core-v5 GET request,
+  response, finish, and failure lifecycles; redirects, bad status/MIME,
+  malformed
+  URLs, reordering, and more than 32 unfinished requests fail closed; Mail's
   current bootstrap consumes that older core event stream for message and
   conversation updates; the Mail-specific v6 stream does not contain those
   collections. This is snapshot research evidence only: passive ordering of an

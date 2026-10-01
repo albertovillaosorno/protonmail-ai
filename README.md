@@ -225,9 +225,12 @@ Snapshot research now also has a separate bounded projection for Mail's legacy
 core event loop. Exact core-v5 event responses are reduced to opaque request and
 response watermarks plus settled/refresh and mailbox-change-presence state;
 event
-payload contents never escape that boundary. This is not wired into list
-readiness until passive before/after capture ordering and server guarantees are
-proven.
+payload contents never escape that boundary. Its same-session CDP classifier
+tracks only exact core-v5 GET lifecycles and fails closed on redirects, bad
+responses, request failure, lifecycle drift, or bounded-capacity exhaustion.
+This is not wired into list readiness until passive before/after capture
+ordering
+and server guarantees are proven.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@c51e81b3730a5e1084586b383d837947f7636c16` and the pinned research

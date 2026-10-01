@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail's legacy core event loop.
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 use serde_json::Value;
@@ -38,6 +39,215 @@ use serde_json::Value;
 const CORE_EVENT_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "core/v5/events/");
 const MAX_EVENT_BODY_BYTES: usize = 262_144;
 const MAX_EVENT_ID_BYTES: usize = 512;
+const MAX_TRACKED_EVENT_REQUESTS: usize = 32;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum EventRequestState {
+    Requested,
+    Responded,
+    Finished,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TrackedEventRequest {
+    state: EventRequestState,
+    event_id: String,
+}
+
+/// Bounded CDP lifecycle state for exact legacy Mail core-event GETs.
+#[derive(Clone, Eq, PartialEq)]
+pub struct MailboxEventNetworkCapture {
+    session_id: String,
+    requests: BTreeMap<String, TrackedEventRequest>,
+}
+
+impl MailboxEventNetworkCapture {
+    /// Creates an empty capture scoped to one flattened CDP target session.
+    #[must_use]
+    pub fn new(session_id: &str) -> Self {
+        Self {
+            session_id: String::from(session_id),
+            requests: BTreeMap::new(),
+        }
+    }
+
+    /// Consumes one unsolicited CDP event without retaining event payload data.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for redirects, request failures, invalid ordering, unsafe
+    /// responses, malformed exact-event URLs, and capture-capacity exhaustion.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn observe(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if event.get("sessionId").and_then(Value::as_str) != Some(self.session_id.as_str()) {
+            return Ok(());
+        }
+        match event.get("method").and_then(Value::as_str) {
+            Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.responseReceived") => self.observe_response(event),
+            Some("Network.loadingFinished") => self.observe_finished(event),
+            Some("Network.loadingFailed") => self.observe_failed(event),
+            _ => Ok(()),
+        }
+    }
+
+    /// Removes completed event requests and returns only their CDP request IDs.
+    pub fn take_finished_request_ids(&mut self) -> Vec<String> {
+        self.take_finished_requests()
+            .into_iter()
+            .map(|(request_id, _event_id)| request_id)
+            .collect()
+    }
+
+    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, String)> {
+        let finished = self
+            .requests
+            .iter()
+            // jig-ignore-next-line: canonical rustfmt line.
+            .filter(|(_id, request)| request.state == EventRequestState::Finished)
+            .map(|(id, request)| (id.clone(), request.event_id.clone()))
+            .collect::<Vec<_>>();
+        self.requests
+            // jig-ignore-next-line: canonical rustfmt line.
+            .retain(|_id, request| request.state != EventRequestState::Finished);
+        finished
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_request(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request = params
+            .get("request")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let method = request
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let url = request
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let tracked = self.requests.contains_key(request_id);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let candidate = method == "GET" && url.starts_with(CORE_EVENT_URL_PREFIX);
+        if tracked && !candidate {
+            return Err(MailboxEventNetworkError::RedirectedAway);
+        }
+        if !candidate {
+            return Ok(());
+        }
+        if tracked {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        let event_id =
+            // jig-ignore-next-line: canonical rustfmt line.
+            event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::MalformedEvent)?;
+        if self.requests.len() >= MAX_TRACKED_EVENT_REQUESTS {
+            return Err(MailboxEventNetworkError::CapacityExceeded);
+        }
+        self.requests.insert(
+            String::from(request_id),
+            TrackedEventRequest {
+                state: EventRequestState::Requested,
+                event_id: String::from(event_id),
+            },
+        );
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_response(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if !self.requests.contains_key(request_id) {
+            return Ok(());
+        }
+        let response = params
+            .get("response")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let url = response
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let event_id =
+            // jig-ignore-next-line: canonical rustfmt line.
+            event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::ResponseRejected)?;
+        let status = response.get("status").and_then(Value::as_u64);
+        let mime = response.get("mimeType").and_then(Value::as_str);
+        let Some(request) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if request.state != EventRequestState::Requested {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        // jig-ignore-next-line: canonical rustfmt line.
+        if status != Some(200) || mime != Some("application/json") || event_id != request.event_id {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
+        request.state = EventRequestState::Responded;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        let Some(request) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if request.state != EventRequestState::Responded {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        request.state = EventRequestState::Finished;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_failed(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.requests.contains_key(request_id) {
+            return Err(MailboxEventNetworkError::RequestFailed);
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for MailboxEventNetworkCapture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MailboxEventNetworkCapture")
+            .field("session_id", &"<redacted>")
+            .field("tracked_request_count", &self.requests.len())
+            .finish()
+    }
+}
+
+/// Fail-closed legacy Mail core-event Network lifecycle errors.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MailboxEventNetworkError {
+    /// Event shape did not contain required CDP lifecycle fields.
+    MalformedEvent,
+    /// A tracked request redirected away from the exact event endpoint.
+    RedirectedAway,
+    /// A tracked request failed at the Network layer.
+    RequestFailed,
+    /// Response status, MIME type, URL, or event watermark was unsafe.
+    ResponseRejected,
+    /// A lifecycle event was repeated or arrived out of order.
+    InvalidSequence,
+    /// Too many exact event requests were retained simultaneously.
+    CapacityExceeded,
+}
 
 /// Sanitized evidence from one completed Mail core-event poll.
 #[derive(Clone, Eq, PartialEq)]
@@ -150,6 +360,14 @@ pub enum MailboxEventWatermarkError {
     BodyTooLarge,
     /// Event metadata shape was missing or invalid.
     Malformed,
+}
+
+fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {
+    event
+        .get("params")
+        .and_then(|params| params.get("requestId"))
+        .and_then(Value::as_str)
+        .ok_or(MailboxEventNetworkError::MalformedEvent)
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
