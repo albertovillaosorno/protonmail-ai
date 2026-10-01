@@ -256,7 +256,7 @@ fn multiple_active_sort_options_fail_closed() {
 }
 
 #[test]
-fn newest_first_still_has_two_provider_neutral_blockers() {
+fn newest_first_still_has_three_provider_neutral_blockers() {
     let (result, _log) = with_browser(
         "readiness-newest",
         SortScenario::Newest,
@@ -268,6 +268,7 @@ fn newest_first_still_has_two_provider_neutral_blockers() {
     assert_eq!(
         readiness.blockers(),
         [
+            ListMessagesBlocker::ProviderSortKeyUnproven,
             ListMessagesBlocker::ProviderTieBreakDiffers,
             ListMessagesBlocker::MissingSnapshotBoundary,
         ]
@@ -276,7 +277,7 @@ fn newest_first_still_has_two_provider_neutral_blockers() {
 }
 
 #[test]
-fn non_newest_sort_adds_third_explicit_order_blocker() {
+fn non_newest_sort_adds_fourth_explicit_order_blocker() {
     let (result, _log) = with_browser(
         "readiness-oldest",
         SortScenario::Oldest,
@@ -288,6 +289,7 @@ fn non_newest_sort_adds_third_explicit_order_blocker() {
     assert_eq!(
         readiness.blockers(),
         [
+            ListMessagesBlocker::ProviderSortKeyUnproven,
             ListMessagesBlocker::ProviderTieBreakDiffers,
             ListMessagesBlocker::MissingSnapshotBoundary,
             ListMessagesBlocker::SortNotNewestFirst,

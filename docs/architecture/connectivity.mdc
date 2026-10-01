@@ -127,10 +127,12 @@ A semantic newest-first selection does not satisfy the frozen `list_messages`
 ordering/cursor contract by itself. The Network diagnostic now supplies numeric
 `Message.Time` and reconciles it to stable visible message IDs, removing the
 machine-readable receive-time blocker despite the localized DOM `datetime`.
-Current WebClients still sorts equal-Time rows by internal `element.Order`
-rather than ID, while visible pagination plus the continuation anchor expose no
-immutable snapshot token. The web adapter therefore reports
-`ProviderTieBreakDiffers` and `MissingSnapshotBoundary`, with non-newest UI sort
+Current WebClients also maps the visible time-sort controls to `SnoozeTime`
+for Inbox/Snoozed and can reverse the `Time` direction for Scheduled, so visible
+“Newest first” alone does not prove the required provider `Time` descending
+request. The web adapter therefore reports `ProviderSortKeyUnproven`,
+`ProviderTieBreakDiffers`, and `MissingSnapshotBoundary`, with non-newest UI
+sort
 adding `SortNotNewestFirst`; public `list_messages` remains unavailable until
 all blockers are removed rather than approximated.
 

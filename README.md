@@ -197,11 +197,12 @@ message-page snapshot in the same target session is then reconciled against the
 projected batches.
 
 This removes the machine-readable receive-time blocker without changing the
-public capability decision. Equal `Time` values still fall back to internal
-`element.Order` rather than message ID, the continuation anchor is not an
-immutable snapshot boundary, and visible page numbers provide no snapshot
-token. `inspect_list_messages_readiness` therefore reports the two remaining
-provider-neutral blockers instead of emitting an approximate cursor.
+public capability decision. Visible “Newest first” does not itself prove the
+provider request is `Sort=Time&Desc=1`: current WebClients maps Inbox/Snoozed to
+`SnoozeTime`, while Scheduled can reverse the `Time` direction. Readiness now
+keeps `ProviderSortKeyUnproven` alongside the equal-Time `element.Order`
+tie-break and missing immutable snapshot boundary; non-newest visible sort adds
+`SortNotNewestFirst` rather than emitting an approximate cursor.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research

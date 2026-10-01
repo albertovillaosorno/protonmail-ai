@@ -160,10 +160,12 @@ web application without requiring Bridge or a third-party direct API identity.
   as message receive time and reconciles it to stable visible IDs; the
   localized
   DOM `datetime` is no longer the adapter's only timestamp evidence. Two
-  provider-neutral blockers remain under newest-first sort: equal-Time rows use
-  internal `element.Order` rather than ID as tie-break, and visible pagination
-  plus its continuation anchor expose no immutable snapshot boundary. Other
-  active sort choices add an explicit third blocker.
+  provider-neutral blockers remain even when the visible UI says newest-first:
+  that label does not prove the provider request is `Sort=Time&Desc=1`;
+  equal-Time
+  rows use internal `element.Order` rather than ID as tie-break, and visible
+  pagination plus its continuation anchor expose no immutable snapshot boundary.
+  Other active sort choices add an explicit fourth blocker.
 - `FilterList.tsx`, `filterListHelpers.ts`, `ItemDateRender.tsx`, `date.ts`, and
   `elements.ts` were rechecked byte-identical on current
   `main@e89da53c8a07656184f703383f74250d66f82b1f` on 2026-10-01, so the blockers
