@@ -50,6 +50,10 @@ use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
 use crate::mailbox_page::{MailboxPageSnapshot, VisibleMessagePageSnapshot};
 use crate::mailbox_pagination::NextPageActivation;
 use crate::mailbox_sort::MailboxSortOrder;
+use crate::message_list_response::MessageListNetworkCapture;
+use crate::message_list_response::MessageListNetworkError;
+use crate::message_list_response::MessageListResponseError;
+use crate::message_list_response::ObservedMessageListResponse;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -70,6 +74,8 @@ const PAGE_ADVANCE_DELAY: Duration = Duration::from_millis(50);
 const SORT_MENU_DELAY: Duration = Duration::from_millis(20);
 const SORT_MENU_TIMEOUT: Duration = Duration::from_secs(2);
 const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
+const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
+const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 
 /// Immutable launch settings for one managed dedicated-profile browser.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -552,6 +558,117 @@ impl ManagedBrowser {
         Ok(ListMessagesReadiness::current(sort))
     }
 
+    /// Reloads a proven message-mode Mail page and projects one exact list
+    /// response through the bounded CDP Network observer.
+    ///
+    /// Network request/response headers, cookies, POST bodies, and unrelated
+    /// response bodies are never retained. The returned value contains only
+    /// provider message ID, numeric Time, Order, and the provider-reported
+    /// total. This diagnostic evidence does not establish public cursor or
+    /// snapshot semantics.
+    ///
+    /// # Errors
+    ///
+    /// Fails for non-Mail/message-mode pages, origin or mode drift, Network
+    /// lifecycle ambiguity, unsupported body encoding, malformed list data,
+    /// or any CDP transport/protocol failure.
+    pub fn observe_message_list_response(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<ObservedMessageListResponse, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_message_list_response_in_session(page, &session);
+        let detached = self.detach(&session);
+        let response = observed?;
+        detached?;
+        Ok(response)
+    }
+
+    fn observe_message_list_response_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<ObservedMessageListResponse, BrowserDriverError> {
+        let before_mode = self.inspect_mailbox_mode_in_session(page, session)?;
+        if before_mode.mode() != MailboxRenderMode::Messages {
+            return Err(BrowserDriverError::MailboxMessageModeRequired);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedMessageListResponse::MAX_BODY_BYTES,
+            "maxTotalBufferSize": MESSAGE_LIST_TOTAL_BUFFER_BYTES
+        });
+        self.call_in_session(session, "Network.enable", &network_params)?;
+        let observed = self.reload_and_capture_message_list(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let disabled = self.call_in_session(session, "Network.disable", &json!({}));
+        let response = observed?;
+        disabled?;
+        let after_mode = self.mailbox_mode_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        if after_mode != before_mode {
+            return Err(BrowserDriverError::MailboxModeChanged);
+        }
+        Ok(response)
+    }
+
+    fn reload_and_capture_message_list(
+        &mut self,
+        session: &str,
+    ) -> Result<ObservedMessageListResponse, BrowserDriverError> {
+        let mut capture = MessageListNetworkCapture::new(session);
+        self.call_in_session_observing(
+            session,
+            "Page.reload",
+            &json!({"ignoreCache": false}),
+            &mut capture,
+        )?;
+        let request_id = self.wait_for_message_list_request(&mut capture)?;
+        let body = self.call_in_session(
+            session,
+            "Network.getResponseBody",
+            &json!({"requestId": request_id}),
+        )?;
+        ObservedMessageListResponse::parse_cdp_body(&body)
+            .map_err(BrowserDriverError::MessageListResponse)
+    }
+
+    fn wait_for_message_list_request(
+        &mut self,
+        capture: &mut MessageListNetworkCapture,
+    ) -> Result<String, BrowserDriverError> {
+        if let Some(request_id) = take_one_finished_request(capture)? {
+            return Ok(request_id);
+        }
+        let deadline = Instant::now()
+            .checked_add(MESSAGE_LIST_CAPTURE_TIMEOUT)
+            .ok_or(BrowserDriverError::MessageListResponseUnavailable)?;
+        for _event in 0..MAX_UNSOLICITED {
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MessageListResponseUnavailable);
+            }
+            let frame = read_frame(&mut self.reader)?;
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture
+                .observe(&message)
+                .map_err(BrowserDriverError::MessageListNetwork)?;
+            if let Some(request_id) = take_one_finished_request(capture)? {
+                return Ok(request_id);
+            }
+        }
+        Err(BrowserDriverError::MessageListResponseUnavailable)
+    }
+
     fn inspect_mailbox_sort_in_session(
         &mut self,
         page: &ProviderPage,
@@ -891,6 +1008,27 @@ impl ManagedBrowser {
         method: &str,
         params: &Value,
     ) -> Result<Value, BrowserDriverError> {
+        self.call_with_session_observer(session, method, params, None)
+    }
+
+    fn call_in_session_observing(
+        &mut self,
+        session: &str,
+        method: &str,
+        params: &Value,
+        capture: &mut MessageListNetworkCapture,
+    ) -> Result<Value, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_with_session_observer(Some(session), method, params, Some(capture))
+    }
+
+    fn call_with_session_observer(
+        &mut self,
+        session: Option<&str>,
+        method: &str,
+        params: &Value,
+        mut capture: Option<&mut MessageListNetworkCapture>,
+    ) -> Result<Value, BrowserDriverError> {
         let id = self.allocate_id()?;
         self.send_request(id, session, method, params)?;
 
@@ -901,6 +1039,11 @@ impl ManagedBrowser {
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let Some(response_id) = message.get("id").and_then(Value::as_u64) else {
+                if let Some(observer) = capture.as_deref_mut() {
+                    observer
+                        .observe(&message)
+                        .map_err(BrowserDriverError::MessageListNetwork)?;
+                }
                 continue;
             };
             if response_id != id || message.get("error").is_some() {
@@ -1004,6 +1147,14 @@ pub enum BrowserDriverError {
     MailboxPageIncompatible,
     /// Mailbox list is loading or lacks explicit settled-empty evidence.
     MailboxPageNotSettled,
+    /// Exact message-list Network lifecycle failed closed.
+    MessageListNetwork(MessageListNetworkError),
+    /// Exact message-list response body failed bounded projection.
+    MessageListResponse(MessageListResponseError),
+    /// No single completed exact message-list request arrived within the bound.
+    MessageListResponseUnavailable,
+    /// More than one completed exact message-list request was observed at once.
+    MessageListResponseAmbiguous,
     /// Target metadata and live execution-context origin disagree.
     OriginDrift {
         /// Origin reported by browser target metadata.
@@ -1061,6 +1212,19 @@ impl fmt::Display for BrowserDriverError {
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxPageNotSettled => f.write_str("Proton Mail list is not settled"),
+            Self::MessageListNetwork(_error) => {
+                f.write_str("message-list Network observation failed")
+            }
+            Self::MessageListResponse(_error) => {
+                f.write_str("message-list response projection failed")
+            }
+            Self::MessageListResponseUnavailable => {
+                f.write_str("message-list response was not observed")
+            }
+            Self::MessageListResponseAmbiguous => {
+                // jig-ignore-next-line: canonical rustfmt line.
+                f.write_str("multiple message-list responses completed together")
+            }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::OriginDrift { .. } => f.write_str("provider page origin changed"),
             Self::PipeIo => f.write_str("`DevTools` pipe I/O failed"),
@@ -1070,6 +1234,17 @@ impl fmt::Display for BrowserDriverError {
             Self::ProcessControl => f.write_str("managed browser did not exit"),
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
+    }
+}
+
+fn take_one_finished_request(
+    capture: &mut MessageListNetworkCapture,
+) -> Result<Option<String>, BrowserDriverError> {
+    let mut finished = capture.take_finished_request_ids();
+    match finished.len() {
+        0 => Ok(None),
+        1 => Ok(finished.pop()),
+        _ => Err(BrowserDriverError::MessageListResponseAmbiguous),
     }
 }
 

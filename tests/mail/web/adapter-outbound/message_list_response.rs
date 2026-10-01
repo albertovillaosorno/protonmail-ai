@@ -277,3 +277,34 @@ fn network_capture_bounds_unfinished_list_requests() {
         Err(MessageListNetworkError::CapacityExceeded)
     );
 }
+
+#[test]
+fn cdp_body_projection_requires_decoded_bounded_json() {
+    use serde_json::json;
+
+    let body = r#"{"Total":1,"Messages":[{"ID":"m-1","Time":7,"Order":3}]}"#;
+    let response = ObservedMessageListResponse::parse_cdp_body(&json!({
+        "body":body,"base64Encoded":false
+    }))
+    .expect("project decoded CDP body");
+    assert_eq!(response.messages()[0].id(), "m-1");
+    assert_eq!(response.messages()[0].time(), 7);
+    assert_eq!(response.messages()[0].order(), 3);
+
+    assert_eq!(
+        ObservedMessageListResponse::parse_cdp_body(&json!({
+            "body":"e30=","base64Encoded":true
+        })),
+        Err(MessageListResponseError::UnsupportedEncoding)
+    );
+    assert_eq!(
+        ObservedMessageListResponse::parse_cdp_body(&json!({"body":body})),
+        Err(MessageListResponseError::Malformed)
+    );
+
+    let oversized = "x".repeat(262_145);
+    assert_eq!(
+        ObservedMessageListResponse::parse("GET", URL, &oversized),
+        Err(MessageListResponseError::BodyTooLarge)
+    );
+}

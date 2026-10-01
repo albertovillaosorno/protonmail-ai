@@ -190,17 +190,25 @@ web application without requiring Bridge or a third-party direct API identity.
   Redirects away, loading failures, and malformed or repeated lifecycle events
   fail closed. Other sessions, mutation traffic, URLs, query terms, request
   headers, cookies, and tokens are not retained.
-- The managed driver's current request loop discards unsolicited CDP events
-  inline rather than buffering them, while `read_frame` caps every CDP frame at
-  1 MiB. Future Network wiring must preserve both properties: classify matching
-  events as they arrive and never queue raw event frames that could retain
-  headers or unrelated response metadata.
-- The state machine is not yet wired into the managed driver's event loop and
-  does not call `Network.getResponseBody`; therefore no live response body is
-  captured and the machine-time blocker remains in force. Snapshot isolation
-  and provider-neutral ID tie-breaking also remain independently unresolved.
-- Still required: remove the three provider-neutral `list_messages` contract
-  blockers with observable evidence, implement a durable cursor/snapshot chain,
+- The managed driver now wires that state machine into one explicit diagnostic
+  observation. It first proves Mail message mode, enables Network with
+  `maxPostDataSize=0`, a 256 KiB per-resource buffer, and a 1 MiB total buffer,
+  then reloads the same target. Unsolicited CDP events are classified inline and
+  discarded rather than queued; the existing 1 MiB frame cap remains in force.
+- After an exact list GET reaches HTTP 200 JSON plus `loadingFinished`, the
+  driver calls `Network.getResponseBody` only for that request ID. Decoded JSON
+  is immediately reduced to message `ID`, numeric `Time`, provider `Order`, and
+  `Total`; base64, malformed, oversized, redirected, failed, or ambiguous
+  observations fail closed. Network tracking is disabled on both success and
+  projection failure before message mode and origin are revalidated.
+- Synthetic driver fixtures inject unrelated URLs plus fake Authorization,
+  Cookie, and Set-Cookie fields around the matching request. The returned model
+  and debug output contain none of them. The fixture proves `Network.disable`
+  follows both successful projection and encoded-body rejection.
+- Still required: reconcile captured response metadata against the stable
+  visible-row snapshot, account for WebClients multi-batch list requests, remove
+  the remaining provider-neutral `list_messages` ordering/snapshot blockers,
+  implement a durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable
   locations, add composer/mutation workflows and remaining control-level drift
   fixtures, and capture the opted-in Free-account acceptance transcript.

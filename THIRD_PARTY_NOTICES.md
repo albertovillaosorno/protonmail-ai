@@ -78,7 +78,8 @@ copyright notices, and substantive modifications here.
 - Upstream: <https://github.com/chromium/chromium>
 - Revision: `e972c575b9a075ab5dcadddf269d60bb23d4af35`
 - License: BSD-3-Clause
-- Initial use: DevTools pipe descriptor and framing research only
+- Initial use: DevTools pipe descriptor/framing and CDP Network behavior
+  research only
 - Verified files: `components/devtools/devtools_pipe/devtools_pipe.h` and
   `content/browser/devtools/devtools_pipe_handler.cc`
 

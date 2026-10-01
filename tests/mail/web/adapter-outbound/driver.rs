@@ -36,8 +36,9 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use mail_web_adapter::PageOrigin;
+use mail_web_adapter::MessageListResponseError;
 use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+use mail_web_adapter::{PageOrigin, ProviderPage};
 
 fn test_root(label: &str) -> PathBuf {
     let name = format!("protonmail-ai-driver-{label}-{}", process::id());
@@ -78,6 +79,136 @@ done
     let permissions = fs::Permissions::from_mode(0o700);
     fs::set_permissions(&script, permissions).expect("chmod fake browser");
     script
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "synthetic CDP script fixture is one coherent protocol transcript"
+)]
+fn fake_network_browser(root: &Path, base64_encoded: bool) -> PathBuf {
+    let script = root.join("fake-network-browser");
+    let log = root.join("network-log.txt");
+    let encoded = if base64_encoded { "true" } else { "false" };
+    let template = r#"#!/usr/bin/env bash
+set -eu
+while IFS= read -r -d '' message <&3; do
+  id=$(printf '%s' "$message" |
+    sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  case "$message" in
+    *'Browser.getVersion'*)
+      printf '{"id":%s,"result":{"product":"FakeChrome/1"}}\0' \
+        "$id" >&4;;
+    *'Target.getTargets'*)
+      target='[{"targetId":"page-1","type":"page",'
+      target+='"url":"https://mail.proton.me/u/0/sent"}]'
+      printf '{"id":%s,"result":{"targetInfos":%s}}\0' \
+        "$id" "$target" >&4;;
+    *'Target.attachToTarget'*)
+      printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' \
+        "$id" >&4;;
+    *'Runtime.evaluate'*'forcedMessageRoute'*)
+      value='{"forcedMessageRoute":true,"activeSearch":false}'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+        "$id" "$value" >&4;;
+    *'Runtime.evaluate'*)
+      value='{"protocol":"https:",'
+      value+='"hostname":"mail.proton.me","port":""}'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+        "$id" "$value" >&4;;
+    *'DOM.getDocument'*)
+      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' \
+        "$id" >&4;;
+    *'Accessibility.queryAXTree'*)
+      case "$message" in
+        *'"role":"navigation"'*|*'"role":"search"'*)
+          nodes='[{"ignored":false}]';;
+        *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
+        *) exit 91;;
+      esac
+      printf '{"id":%s,"result":{"nodes":%s}}\0' \
+        "$id" "$nodes" >&4;;
+    *'Network.enable'*)
+      case "$message" in
+        *'"maxPostDataSize":0'*'"maxResourceBufferSize":262144'*) ;;
+        *) exit 93;;
+      esac
+      printf 'enable\n' >> '__LOG__'
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Page.reload'*)
+      printf 'reload\n' >> '__LOG__'
+      extra='{"sessionId":"session-1",'
+      extra+='"method":"Network.requestWillBeSentExtraInfo","params":{'
+      extra+='"requestId":"other","headers":{"Cookie":"secret-cookie"}}}'
+      printf '%s\0' "$extra" >&4
+      other='{"sessionId":"session-1",'
+      other+='"method":"Network.requestWillBeSent","params":{'
+      other+='"requestId":"other","request":{"method":"GET",'
+      other+='"url":"https://mail.proton.me/api/core/v4/users?secret=query",'
+      other+='"headers":{"Authorization":"Bearer secret"}}}}'
+      printf '%s\0' "$other" >&4
+      request='{"sessionId":"session-1",'
+      request+='"method":"Network.requestWillBeSent","params":{'
+      request+='"requestId":"list-1","request":{"method":"GET",'
+      request+='"url":"https://mail.proton.me/api/mail/v4/messages?Page=0",'
+      request+='"headers":{"Authorization":"Bearer secret"}}}}'
+      printf '%s\0' "$request" >&4
+      response='{"sessionId":"session-1",'
+      response+='"method":"Network.responseReceived","params":{'
+      response+='"requestId":"list-1","response":{'
+      response+='"url":"https://mail.proton.me/api/mail/v4/messages?Page=0",'
+      response+='"status":200,"mimeType":"application/json",'
+      response+='"headers":{"Set-Cookie":"secret-cookie"}}}}'
+      printf '%s\0' "$response" >&4
+      finished='{"sessionId":"session-1",'
+      finished+='"method":"Network.loadingFinished","params":{'
+      finished+='"requestId":"list-1"}}'
+      printf '%s\0' "$finished" >&4
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Network.getResponseBody'*)
+      printf 'body\n' >> '__LOG__'
+      body='{\"Code\":1000,\"Total\":1,\"Messages\":[{'
+      body+='\"ID\":\"m-1\",\"Time\":1790848000,\"Order\":9,'
+      body+='\"Subject\":\"secret subject\"}]}'
+      prefix='{"id":'"$id"',"result":{"body":"'
+      suffix='","base64Encoded":__ENCODED__}}'
+      printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
+    *'Network.disable'*)
+      printf 'disable\n' >> '__LOG__'
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Target.detachFromTarget'*)
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *) exit 92;;
+  esac
+done
+"#;
+    let body = template
+        .replace("__LOG__", &log.display().to_string())
+        .replace("__ENCODED__", encoded);
+    fs::write(&script, body).expect("write fake network browser");
+    let permissions = fs::Permissions::from_mode(0o700);
+    let permission_result = fs::set_permissions(&script, permissions);
+    permission_result.expect("chmod fake network browser");
+    script
+}
+
+fn with_network_browser<T>(
+    label: &str,
+    base64_encoded: bool,
+    inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
+) -> (T, String) {
+    let root = test_root(label);
+    fs::create_dir_all(&root).expect("create synthetic network root");
+    let browser = fake_network_browser(&root, base64_encoded);
+    let browser_plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch network driver");
+    let page = managed.provider_page().expect("discover network Mail page");
+    let result = inspect(&mut managed, &page);
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("network-log.txt")).unwrap_or_default();
+    cleanup(&root);
+    (result, log)
 }
 
 fn plan(root: &Path, browser: &Path) -> ManagedBrowserPlan {
@@ -216,6 +347,40 @@ fn multiple_provider_pages_fail_closed() {
     assert_eq!(error, BrowserDriverError::AmbiguousProviderPages);
     drop(managed);
     cleanup(&root);
+}
+
+#[test]
+fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
+    let (response, log) = with_network_browser(
+        "network-list",
+        false,
+        ManagedBrowser::observe_message_list_response,
+    );
+    let response = response.expect("observe exact message-list response");
+    assert_eq!(response.total(), 1);
+    assert_eq!(response.messages().len(), 1);
+    assert_eq!(response.messages()[0].id(), "m-1");
+    assert_eq!(response.messages()[0].time(), 1_790_848_000);
+    assert_eq!(response.messages()[0].order(), 9);
+    let debug = format!("{response:?}");
+    assert!(!debug.contains("secret"));
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
+fn encoded_message_list_body_fails_closed_after_network_disable() {
+    let (result, log) = with_network_browser(
+        "network-encoded",
+        true,
+        ManagedBrowser::observe_message_list_response,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListResponse(
+            MessageListResponseError::UnsupportedEncoding
+        ))
+    );
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
 }
 
 #[test]

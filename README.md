@@ -159,13 +159,26 @@ therefore proves the provider's semantic newest-first selection.
 That still is not enough to advertise provider-neutral `list_messages`. The
 public contract requires `received_at` descending, ID ascending as the tie
 breaker, and a cursor-bound snapshot. Current WebClients renders the row date's
-`datetime` from localized `formatFullDate('PPPPp')`, so it is not a reliable UTC
-instant.
+`datetime` from localized `formatFullDate('PPPPp')`, so the visible DOM alone is
+not a reliable UTC source.
 
-When message times tie, WebClients falls back to internal `element.Order`, not
-message ID. Visible page numbers also provide no immutable snapshot boundary.
-`inspect_list_messages_readiness` returns those blockers explicitly instead of
-emitting an approximate cursor.
+The adapter now has an explicit diagnostic Network observation for proven
+message-mode pages. It enables CDP Network tracking with request POST-body
+capture disabled, caps each retained response body at 256 KiB, reloads the page,
+and classifies unsolicited events inline without queueing them. Only one exact
+`GET /api/mail/v4/messages` request that reaches HTTP 200 JSON and
+`loadingFinished` may be selected; `Network.getResponseBody` is then projected
+immediately to message ID, numeric `Time`, provider `Order`, and total. Encoded,
+malformed, oversized, redirected, or ambiguous observations fail closed, and
+Network tracking is disabled before mode and origin are revalidated.
+
+This proves a bounded machine-readable timestamp source exists, but it is not
+yet coupled to the stable visible-row snapshot or public readiness result.
+WebClients may issue multiple list batches, equal `Time` values still fall back
+to internal `element.Order` rather than message ID, and visible page numbers
+provide no immutable snapshot boundary. `inspect_list_messages_readiness`
+therefore continues to report the contract blockers instead of emitting an
+approximate cursor.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research

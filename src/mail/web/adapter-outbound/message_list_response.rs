@@ -37,7 +37,6 @@ use serde_json::Value;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
-const MAX_MESSAGE_LIST_BODY_BYTES: usize = 1_048_576;
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 
@@ -278,6 +277,8 @@ pub struct ObservedMessageListResponse {
 }
 
 impl ObservedMessageListResponse {
+    pub(crate) const MAX_BODY_BYTES: usize = 262_144;
+
     /// Validates a network response and projects only pagination metadata.
     ///
     /// # Errors
@@ -290,7 +291,7 @@ impl ObservedMessageListResponse {
         if method != "GET" || !is_message_list_url(url) {
             return Err(MessageListResponseError::UnexpectedEndpoint);
         }
-        if body.len() > MAX_MESSAGE_LIST_BODY_BYTES {
+        if body.len() > Self::MAX_BODY_BYTES {
             return Err(MessageListResponseError::BodyTooLarge);
         }
         let value: Value =
@@ -346,6 +347,32 @@ impl ObservedMessageListResponse {
         })
     }
 
+    /// Projects one `Network.getResponseBody` result after endpoint proof.
+    ///
+    /// The caller must first verify the request lifecycle with
+    /// [`MessageListNetworkCapture`]. This parser rejects base64 envelopes so
+    /// only Chromium's decoded JSON text can cross the projection boundary.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed CDP envelopes, base64 bodies, or any invalid list
+    /// response accepted by [`Self::parse`].
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn parse_cdp_body(result: &Value) -> Result<Self, MessageListResponseError> {
+        let encoded = result
+            .get("base64Encoded")
+            .and_then(Value::as_bool)
+            .ok_or(MessageListResponseError::Malformed)?;
+        if encoded {
+            return Err(MessageListResponseError::UnsupportedEncoding);
+        }
+        let body = result
+            .get("body")
+            .and_then(Value::as_str)
+            .ok_or(MessageListResponseError::Malformed)?;
+        Self::parse("GET", MESSAGE_LIST_URL_PREFIX, body)
+    }
+
     /// Returns the provider-reported total for the first list batch.
     #[must_use]
     pub const fn total(&self) -> u64 {
@@ -381,6 +408,8 @@ pub enum MessageListResponseError {
     TooManyMessages,
     /// Response repeats a provider message identifier.
     DuplicateMessageId,
+    /// CDP returned an encoded body instead of decoded JSON text.
+    UnsupportedEncoding,
 }
 
 fn is_message_list_url(url: &str) -> bool {
