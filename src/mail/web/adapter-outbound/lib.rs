@@ -62,6 +62,8 @@ pub use mailbox_pagination::NextPageActivation;
 pub use mailbox_sort::MailboxSortOrder;
 pub use message_list_response::ObservedMessageMetadata;
 // jig-ignore-next-line: canonical rustfmt line.
+pub use message_list_response::{MessageListNetworkCapture, MessageListNetworkError};
+// jig-ignore-next-line: canonical rustfmt line.
 pub use message_list_response::{MessageListResponseError, ObservedMessageListResponse};
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};

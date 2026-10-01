@@ -30,7 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail message-list responses.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use serde_json::Value;
@@ -39,6 +39,189 @@ use serde_json::Value;
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
 const MAX_MESSAGE_LIST_BODY_BYTES: usize = 1_048_576;
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NetworkRequestState {
+    Requested,
+    Responded,
+    Finished,
+}
+
+/// Bounded CDP Network event state for exact message-list GET requests.
+#[derive(Clone, Eq, PartialEq)]
+pub struct MessageListNetworkCapture {
+    session_id: String,
+    requests: BTreeMap<String, NetworkRequestState>,
+}
+
+impl MessageListNetworkCapture {
+    /// Creates an empty capture scoped to one flattened CDP target session.
+    #[must_use]
+    pub fn new(session_id: &str) -> Self {
+        Self {
+            session_id: String::from(session_id),
+            requests: BTreeMap::new(),
+        }
+    }
+
+    /// Consumes one unsolicited CDP event without retaining request content.
+    ///
+    /// Events from other target sessions are ignored before their request
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// fields are inspected. Only exact `GET` message-list requests are tracked.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a tracked request redirects, fails, has a non-200
+    /// JSON response, repeats a lifecycle event, or arrives out of sequence.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn observe(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if event.get("sessionId").and_then(Value::as_str) != Some(self.session_id.as_str()) {
+            return Ok(());
+        }
+        let method = event.get("method").and_then(Value::as_str);
+        match method {
+            Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.responseReceived") => self.observe_response(event),
+            Some("Network.loadingFinished") => self.observe_finished(event),
+            Some("Network.loadingFailed") => self.observe_failed(event),
+            _ => Ok(()),
+        }
+    }
+
+    /// Removes and returns request IDs whose safe response lifecycle completed.
+    pub fn take_finished_request_ids(&mut self) -> Vec<String> {
+        let finished = self
+            .requests
+            .iter()
+            .filter(|(_id, state)| **state == NetworkRequestState::Finished)
+            .map(|(id, _state)| id.clone())
+            .collect::<Vec<_>>();
+        self.requests
+            .retain(|_id, state| *state != NetworkRequestState::Finished);
+        finished
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_request(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let request = params
+            .get("request")
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let method = request
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let url = request
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let tracked = self.requests.contains_key(request_id);
+        let message_list_get = method == "GET" && is_message_list_url(url);
+        if tracked && !message_list_get {
+            return Err(MessageListNetworkError::RedirectedAway);
+        }
+        if !message_list_get {
+            return Ok(());
+        }
+        if self
+            .requests
+            .insert(String::from(request_id), NetworkRequestState::Requested)
+            .is_some()
+        {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_response(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let Some(state) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if *state != NetworkRequestState::Requested {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
+        let response = params
+            .get("response")
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let status = response.get("status").and_then(Value::as_u64);
+        let mime = response.get("mimeType").and_then(Value::as_str);
+        if status != Some(200) || mime != Some("application/json") {
+            return Err(MessageListNetworkError::ResponseRejected);
+        }
+        *state = NetworkRequestState::Responded;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_finished(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
+        let request_id = network_request_id(event)?;
+        let Some(state) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if *state != NetworkRequestState::Responded {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
+        *state = NetworkRequestState::Finished;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_failed(&self, event: &Value) -> Result<(), MessageListNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.requests.contains_key(request_id) {
+            return Err(MessageListNetworkError::RequestFailed);
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for MessageListNetworkCapture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MessageListNetworkCapture")
+            .field("session_id", &"<redacted>")
+            .field("tracked_request_count", &self.requests.len())
+            .finish()
+    }
+}
+
+/// Why exact message-list CDP Network evidence failed closed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageListNetworkError {
+    /// Required event structure is missing or malformed.
+    MalformedEvent,
+    /// A tracked request redirected away from the exact safe endpoint.
+    RedirectedAway,
+    /// A tracked response is not HTTP 200 JSON.
+    ResponseRejected,
+    /// A tracked request reported `Network.loadingFailed`.
+    RequestFailed,
+    /// A tracked lifecycle event repeated or arrived out of order.
+    InvalidSequence,
+}
+
+fn network_request_id(event: &Value) -> Result<&str, MessageListNetworkError> {
+    event
+        .get("params")
+        .and_then(|params| params.get("requestId"))
+        .and_then(Value::as_str)
+        .ok_or(MessageListNetworkError::MalformedEvent)
+}
 
 /// One metadata row projected from the provider's message-list response.
 #[derive(Clone, Eq, PartialEq)]

@@ -121,3 +121,114 @@ fn oversized_page_is_rejected() {
         Err(MessageListResponseError::TooManyMessages)
     );
 }
+
+#[test]
+fn network_capture_tracks_only_exact_get_list_lifecycle() {
+    use mail_web_adapter::MessageListNetworkCapture;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let unrelated = json!({
+        "sessionId":"session-2",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"secret-other","request":{
+            "method":"GET","url":URL
+        }}
+    });
+    capture.observe(&unrelated).expect("ignore other session");
+    let mutation = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"mutation","request":{
+            "method":"POST","url":URL
+        }}
+    });
+    capture
+        .observe(&mutation)
+        .expect("ignore mutation endpoint");
+    let request = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"list-1","request":{
+            "method":"GET","url":URL
+        }}
+    });
+    capture.observe(&request).expect("track list request");
+    let response = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"list-1","response":{
+            "status":200u16,"mimeType":"application/json"
+        }}
+    });
+    capture.observe(&response).expect("accept list response");
+    let finished = json!({
+        "sessionId":"session-1",
+        "method":"Network.loadingFinished",
+        "params":{"requestId":"list-1"}
+    });
+    capture.observe(&finished).expect("finish list request");
+    assert_eq!(capture.take_finished_request_ids(), ["list-1"]);
+    assert!(capture.take_finished_request_ids().is_empty());
+    let debug = format!("{capture:?}");
+    assert!(!debug.contains("session-1"));
+    assert!(!debug.contains(URL));
+}
+
+#[test]
+fn network_capture_fails_closed_on_redirect_failure_and_bad_response() {
+    use mail_web_adapter::{MessageListNetworkCapture, MessageListNetworkError};
+    use serde_json::json;
+
+    let request = |id: &str| {
+        json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":URL}}
+        })
+    };
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&request("redirect"))
+        .expect("track request");
+    let redirected = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"redirect","request":{
+            // jig-ignore-next-line: canonical rustfmt line.
+            "method":"GET","url":"https://mail.proton.me/api/mail/v4/messages/count"
+        }}
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(MessageListNetworkError::RedirectedAway)
+    );
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture.observe(&request("failed")).expect("track request");
+    let failed = json!({
+        "sessionId":"session-1",
+        "method":"Network.loadingFailed",
+        "params":{"requestId":"failed"}
+    });
+    assert_eq!(
+        capture.observe(&failed),
+        Err(MessageListNetworkError::RequestFailed)
+    );
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&request("bad-status"))
+        .expect("track request");
+    let bad_response = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"bad-status","response":{
+            "status":500u16,"mimeType":"application/json"
+        }}
+    });
+    assert_eq!(
+        capture.observe(&bad_response),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+}

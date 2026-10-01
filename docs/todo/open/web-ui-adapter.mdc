@@ -177,9 +177,23 @@ web application without requiring Bridge or a third-party direct API identity.
   byte-identical (blobs `d516591bc008328f25ea01f56a90b9ddf48bbf6e` and
   `9aa1852f264b734f8ab0479e39b32f5ea6df1287`). The ordinary web request is
   `mail/v4/messages`, and its metadata model includes numeric `Time` and
-  provider-private `Order`. Response-body observation is therefore a plausible
-  source for machine time, but it is not implemented here and must never capture
-  request headers, cookies, tokens, or unrelated response bodies.
+  provider-private `Order`.
+- Exact `GET https://mail.proton.me/api/mail/v4/messages` response projection is
+  now content-minimizing: it retains only message `ID`, numeric `Time`, and
+  provider `Order`, bounds bodies to 1 MiB and pages to 100 rows, rejects the
+  same endpoint's draft-creation `POST`, neighboring endpoints, malformed rows,
+  and duplicate IDs, and redacts projected metadata from `Debug` output.
+- A CDP Network event state machine now scopes itself to one flattened target
+  session and retains only request IDs for exact message-list GET requests. It
+  requires request, HTTP 200 JSON response, and loading-finished order.
+  Redirects away, loading failures, and malformed or repeated lifecycle events
+  fail
+  closed. Other sessions, mutation traffic, URLs, query terms, request headers,
+  cookies, and tokens are not retained.
+- The state machine is not yet wired into the managed driver's event loop and
+  does not call `Network.getResponseBody`; therefore no live response body is
+  captured and the machine-time blocker remains in force. Snapshot isolation
+  and provider-neutral ID tie-breaking also remain independently unresolved.
 - Still required: remove the three provider-neutral `list_messages` contract
   blockers with observable evidence, implement a durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable
