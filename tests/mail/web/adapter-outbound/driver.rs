@@ -83,8 +83,9 @@ done
 }
 
 #[expect(
+    clippy::fn_params_excessive_bools,
     clippy::too_many_lines,
-    reason = "synthetic CDP script fixture is one coherent protocol transcript"
+    reason = "synthetic CDP transcript toggles independent failure scenarios"
 )]
 fn fake_network_browser(
     root: &Path,
@@ -92,11 +93,17 @@ fn fake_network_browser(
     visible_id: &str,
     multi_batch: bool,
     mismatched_anchor: bool,
+    third_batch_on_disable: bool,
 ) -> PathBuf {
     let script = root.join("fake-network-browser");
     let log = root.join("network-log.txt");
     let encoded = if base64_encoded { "true" } else { "false" };
     let limit = if multi_batch { "1" } else { "50" };
+    let third_batch = if third_batch_on_disable {
+        "true"
+    } else {
+        "false"
+    };
     let anchor = if mismatched_anchor {
         "1790847000"
     } else {
@@ -247,6 +254,14 @@ while IFS= read -r -d '' message <&3; do
       printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
     *'Network.disable'*)
       printf 'disable\n' >> '__LOG__'
+      if [ '__THIRD_BATCH__' = 'true' ]; then
+        request='{"sessionId":"session-1",'
+        request+='"method":"Network.requestWillBeSent","params":{'
+        request+='"requestId":"list-3","request":{"method":"GET",'
+        request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
+        request+='Limit=1&Anchor=1790847999&AnchorID=m-2"}}}'
+        printf '%s\0' "$request" >&4
+      fi
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
@@ -262,6 +277,7 @@ done
             "__MULTI_BATCH__",
             if multi_batch { "true" } else { "false" },
         )
+        .replace("__THIRD_BATCH__", third_batch)
         .replace("__LIMIT__", limit)
         .replace("__ANCHOR__", anchor)
         .replace("__TOTAL__", total)
@@ -275,12 +291,17 @@ done
     script
 }
 
+#[expect(
+    clippy::fn_params_excessive_bools,
+    reason = "test helper forwards independent synthetic CDP scenarios"
+)]
 fn with_network_browser<T>(
     label: &str,
     base64_encoded: bool,
     visible_id: &str,
     multi_batch: bool,
     mismatched_anchor: bool,
+    third_batch_on_disable: bool,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
     let root = test_root(label);
@@ -291,6 +312,7 @@ fn with_network_browser<T>(
         visible_id,
         multi_batch,
         mismatched_anchor,
+        third_batch_on_disable,
     );
     let browser_plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
@@ -450,6 +472,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
         "m-1",
         false,
         false,
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     let response = response.expect("observe exact message-list response");
@@ -471,6 +494,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
         "m-1",
         false,
         false,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -489,6 +513,7 @@ fn singular_network_observation_rejects_two_batch_page_after_disable() {
         "m-1",
         true,
         false,
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(
@@ -506,6 +531,7 @@ fn mismatched_continuation_anchor_fails_before_second_body_fetch() {
         "m-1",
         true,
         true,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -516,12 +542,31 @@ fn mismatched_continuation_anchor_fails_before_second_body_fetch() {
 }
 
 #[test]
+fn third_batch_started_during_disable_fails_closed() {
+    let (result, log) = with_network_browser(
+        "network-third-batch",
+        false,
+        "m-1",
+        true,
+        false,
+        true,
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListResponseAmbiguous)
+    );
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+}
+
+#[test]
 fn continuation_events_during_first_body_fetch_are_reconciled() {
     let (metadata, log) = with_network_browser(
         "network-multi-batch",
         false,
         "m-1",
         true,
+        false,
         false,
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -542,6 +587,7 @@ fn network_metadata_rejects_stable_row_without_machine_coverage() {
         "visible-only",
         false,
         false,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -559,6 +605,7 @@ fn encoded_message_list_body_fails_closed_after_network_disable() {
         "network-encoded",
         true,
         "m-1",
+        false,
         false,
         false,
         ManagedBrowser::observe_message_list_response,

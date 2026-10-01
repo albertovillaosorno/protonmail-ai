@@ -665,11 +665,18 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MESSAGE_LIST_TOTAL_BUFFER_BYTES
         });
         self.call_in_session(session, "Network.enable", &network_params)?;
-        let observed = self.reload_and_capture_message_lists(session);
+        let mut capture = MessageListNetworkCapture::new(session);
         // jig-ignore-next-line: canonical rustfmt line.
-        let disabled = self.call_in_session(session, "Network.disable", &json!({}));
+        let observed = self.reload_and_capture_message_lists(session, &mut capture);
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual_requests = capture.tracked_request_count();
         let responses = observed?;
         disabled?;
+        if residual_requests != 0 {
+            return Err(BrowserDriverError::MessageListResponseAmbiguous);
+        }
         let after_mode = self.mailbox_mode_in_session(session)?;
         self.ensure_page_origin(page, session)?;
         if after_mode != before_mode {
@@ -681,20 +688,20 @@ impl ManagedBrowser {
     fn reload_and_capture_message_lists(
         &mut self,
         session: &str,
+        capture: &mut MessageListNetworkCapture,
     ) -> Result<Vec<ObservedMessageListResponse>, BrowserDriverError> {
-        let mut capture = MessageListNetworkCapture::new(session);
         self.call_in_session_observing(
             session,
             "Page.reload",
             &json!({"ignoreCache": false}),
-            &mut capture,
+            capture,
         )?;
-        let first_request = self.wait_for_message_list_request(&mut capture)?;
+        let first_request = self.wait_for_message_list_request(capture)?;
         if first_request.continuation {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let first = self.read_message_list_body(session, &first_request, &mut capture)?;
+        let first = self.read_message_list_body(session, &first_request, capture)?;
         if first.messages().len() > first_request.limit {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
@@ -705,7 +712,7 @@ impl ManagedBrowser {
             return Ok(vec![first]);
         }
 
-        let second_request = self.wait_for_message_list_request(&mut capture)?;
+        let second_request = self.wait_for_message_list_request(capture)?;
         let expected_anchor = first
             .messages()
             .last()
@@ -718,7 +725,7 @@ impl ManagedBrowser {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let second = self.read_message_list_body(session, &second_request, &mut capture)?;
+        let second = self.read_message_list_body(session, &second_request, capture)?;
         // jig-ignore-next-line: canonical rustfmt line.
         if second.messages().len() > second_request.limit || capture.tracked_request_count() != 0 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
