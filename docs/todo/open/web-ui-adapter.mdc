@@ -257,8 +257,10 @@ web application without requiring Bridge or a third-party direct API identity.
   continuation totals remain ignored because anchors change their meaning.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
-  response watermarks plus `More`, refresh, and mailbox-change-presence bits.
-  `Messages`, `Conversations`, and count payload contents are discarded. A
+  response watermarks plus `More`, refresh, and bounded normalized
+  message/conversation ID changes. Embedded message/conversation payloads,
+  labels, and counts are discarded; exact duplicate normalized changes are
+  coalesced while distinct actions survive. A
   bounded same-session CDP classifier now tracks only exact core-v5 GET request,
   response, finish, and failure lifecycles; redirects, bad status/MIME,
   malformed

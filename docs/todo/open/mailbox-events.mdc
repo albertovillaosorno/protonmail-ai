@@ -37,3 +37,29 @@ bounded resource use.
 
 - Deterministic event-stream fixture
 - Reconnect, duplicate, cursor-expiry, timeout, and cancellation tests
+
+## Current implementation
+
+- The web adapter now projects exact legacy core-v5 event responses into bounded
+  opaque message/conversation IDs plus provider-neutral `created`, `updated`,
+  and `deleted` classes. Provider actions `UPDATE`, `UPDATE_DRAFT`, and
+  `UPDATE_FLAGS` normalize to `updated`; embedded message/conversation content,
+  labels, and counts are not retained in the change envelope.
+- Exact duplicate `(entity, action, ID)` changes are coalesced in stable
+  response
+  order while distinct actions for one ID remain distinct. One provider page is
+  limited to 512 normalized changes; malformed IDs/actions fail closed and debug
+  output redacts opaque IDs and event watermarks.
+- `ObservedMailboxEventSequence` models the proven WebClients event-manager
+  chain: each continuation must request the previous response `EventID`,
+  `More=1` must advance the watermark, and `Refresh` invalidates resumable
+  state.
+  Sequences are capped at 32 provider pages and 4096 distinct normalized
+  changes,
+  preserve provider order across pages, and coalesce exact duplicates across the
+  chain.
+- Still required: wire the event Network classifier into a bounded browser wait,
+  define the public opaque cursor envelope bound to account/adapter generation,
+  map provider refresh/expiry into the frozen cursor errors, and prove timeout,
+  cancellation, reconnect/backoff, and no-gap resume behavior before advertising
+  `wait_for_changes`.

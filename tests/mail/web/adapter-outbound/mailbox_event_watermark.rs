@@ -30,9 +30,12 @@
 
 //! Mail core-event watermark projection regression tests.
 
+use std::fmt::Write as _;
+
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
 use mail_web_adapter::ObservedMailboxEventWatermark;
+use mail_web_adapter::{MailboxChangeEntity, MailboxChangeKind};
 
 const URL: &str = concat!(
     "https://mail.proton.me/api/core/v5/events/event-7",
@@ -82,7 +85,8 @@ fn bootstrap_watermark_matches_only_settled_no_change_poll() {
     let changed = ObservedMailboxEventWatermark::parse(
         "GET",
         URL,
-        r#"{"EventID":"event-8","More":0,"Messages":[{}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"EventID":"event-8","More":0,"Messages":[{"ID":"m-change","Action":2}]}"#,
     )
     .expect("project changed poll");
     assert!(!latest.matches_quiet_poll(&changed));
@@ -115,7 +119,10 @@ fn settled_same_watermark_projects_no_mailbox_change() {
 fn event_content_is_reduced_to_change_presence() {
     let body = r#"{
         "EventID":"event-8","More":0,
-        "Messages":[{"ID":"secret-message","Subject":"secret subject"}],
+        "Messages":[
+            {"ID":"secret-message","Action":2,
+             "Message":{"Subject":"secret subject"}}
+        ],
         "Conversations":null,"MessageCounts":[],"ConversationCounts":[]
     }"#;
     let event = ObservedMailboxEventWatermark::parse("GET", URL, body)
@@ -139,6 +146,103 @@ fn more_and_refresh_are_not_settled() {
             .expect("parse unsettled event poll");
         assert!(!event.settled());
     }
+}
+
+#[test]
+fn event_changes_preserve_order_and_normalize_actions() {
+    let body = r#"{
+        "EventID":"event-8","More":0,
+        "Messages":[
+            {"ID":"m-created","Action":1,"Message":{"Subject":"secret-a"}},
+            {"ID":"m-updated","Action":2,"Message":{"Subject":"secret-b"}},
+            {"ID":"m-flags","Action":3,"Message":{"Subject":"secret-c"}},
+            {"ID":"m-deleted","Action":0}
+        ],
+        "Conversations":[
+            {"ID":"c-created","Action":1,"Conversation":{"Subject":"secret-d"}}
+        ]
+    }"#;
+    let event = ObservedMailboxEventWatermark::parse("GET", URL, body)
+        .expect("project normalized mailbox changes");
+    let changes = event.changes();
+    assert_eq!(changes.len(), 5);
+    assert_eq!(changes[0].entity(), MailboxChangeEntity::Message);
+    assert_eq!(changes[0].kind(), MailboxChangeKind::Created);
+    assert_eq!(changes[0].id(), "m-created");
+    assert_eq!(changes[1].kind(), MailboxChangeKind::Updated);
+    assert_eq!(changes[2].kind(), MailboxChangeKind::Updated);
+    assert_eq!(changes[3].kind(), MailboxChangeKind::Deleted);
+    assert_eq!(changes[4].entity(), MailboxChangeEntity::Conversation);
+    assert_eq!(changes[4].kind(), MailboxChangeKind::Created);
+    let debug = format!("{event:?} {changes:?}");
+    for secret in [
+        "m-created",
+        "m-updated",
+        "m-flags",
+        "m-deleted",
+        "c-created",
+        "secret-a",
+        "secret-b",
+        "secret-c",
+        "secret-d",
+    ] {
+        assert!(!debug.contains(secret));
+    }
+}
+
+#[test]
+fn exact_duplicate_changes_coalesce_but_distinct_actions_survive() {
+    let body = r#"{
+        "EventID":"event-8","More":0,
+        "Messages":[
+            {"ID":"m-1","Action":1},
+            {"ID":"m-1","Action":1},
+            {"ID":"m-1","Action":2},
+            {"ID":"m-1","Action":3},
+            {"ID":"m-1","Action":0}
+        ]
+    }"#;
+    let event =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventWatermark::parse("GET", URL, body).expect("project duplicate changes");
+    assert_eq!(event.changes().len(), 3);
+    assert_eq!(event.changes()[0].kind(), MailboxChangeKind::Created);
+    assert_eq!(event.changes()[1].kind(), MailboxChangeKind::Updated);
+    assert_eq!(event.changes()[2].kind(), MailboxChangeKind::Deleted);
+}
+
+#[test]
+fn malformed_change_id_or_action_fails_closed() {
+    for body in [
+        r#"{"EventID":"event-8","More":0,"Messages":[{"ID":"","Action":1}]}"#,
+        r#"{"EventID":"event-8","More":0,"Messages":[{"ID":"m-1"}]}"#,
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        r#"{"EventID":"event-8","More":0,"Messages":[{"ID":"m-1","Action":4}]}"#,
+        r#"{"EventID":"event-8","More":0,"Conversations":[7]}"#,
+    ] {
+        assert_eq!(
+            ObservedMailboxEventWatermark::parse("GET", URL, body),
+            Err(MailboxEventWatermarkError::Malformed)
+        );
+    }
+}
+
+#[test]
+fn normalized_change_count_is_bounded() {
+    let mut changes = String::new();
+    for index in 0u16..513u16 {
+        if !changes.is_empty() {
+            changes.push(',');
+        }
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        write!(changes, r#"{{"ID":"m-{index}","Action":1}}"#).expect("append synthetic change");
+    }
+    // jig-ignore-next-line: indivisible synthetic JSON fixture.
+    let body = format!(r#"{{"EventID":"event-8","More":0,"Messages":[{changes}]}}"#);
+    assert_eq!(
+        ObservedMailboxEventWatermark::parse("GET", URL, &body),
+        Err(MailboxEventWatermarkError::TooManyChanges)
+    );
 }
 
 #[test]
@@ -372,5 +476,169 @@ fn network_capture_bounds_unfinished_event_requests() {
             }}
         })),
         Err(MailboxEventNetworkError::CapacityExceeded)
+    );
+}
+
+#[test]
+fn event_sequence_chains_watermarks_and_coalesces_exact_duplicates() {
+    use mail_web_adapter::MailboxEventSequenceError;
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let first = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-1",
+        r#"{
+            "EventID":"event-2","More":1,
+            "Messages":[
+                {"ID":"m-1","Action":1},
+                {"ID":"m-2","Action":2}
+            ]
+        }"#,
+    )
+    .expect("parse first event page");
+    let second = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-2",
+        r#"{
+            "EventID":"event-3","More":0,
+            "Messages":[
+                {"ID":"m-1","Action":1},
+                {"ID":"m-1","Action":3}
+            ],
+            "Conversations":[{"ID":"c-1","Action":0}],
+            "MessageCounts":[{"LabelID":"inbox","Total":2}]
+        }"#,
+    )
+    .expect("parse second event page");
+
+    let mut sequence =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventSequence::start(first).expect("start resumable event sequence");
+    sequence.push(second).expect("append exact continuation");
+    assert!(sequence.settled());
+    assert_eq!(sequence.start_event_id(), "event-1");
+    assert_eq!(sequence.next_event_id(), "event-3");
+    assert_eq!(sequence.page_count(), 2);
+    assert!(sequence.count_changes());
+    assert_eq!(sequence.changes().len(), 4);
+    assert_eq!(sequence.changes()[0].id(), "m-1");
+    assert_eq!(sequence.changes()[0].kind(), MailboxChangeKind::Created);
+    assert_eq!(sequence.changes()[1].id(), "m-2");
+    assert_eq!(sequence.changes()[1].kind(), MailboxChangeKind::Updated);
+    assert_eq!(sequence.changes()[2].id(), "m-1");
+    assert_eq!(sequence.changes()[2].kind(), MailboxChangeKind::Updated);
+    assert_eq!(
+        sequence.changes()[3].entity(),
+        MailboxChangeEntity::Conversation
+    );
+    assert_eq!(sequence.changes()[3].kind(), MailboxChangeKind::Deleted);
+    let debug = format!("{sequence:?}");
+    for secret in ["event-1", "event-3", "m-1", "m-2", "c-1"] {
+        assert!(!debug.contains(secret));
+    }
+
+    let settled_page = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-3",
+        r#"{"EventID":"event-3","More":0}"#,
+    )
+    .expect("parse post-settlement page");
+    assert_eq!(
+        sequence.push(settled_page),
+        Err(MailboxEventSequenceError::AlreadySettled)
+    );
+}
+
+#[test]
+fn event_sequence_rejects_cursor_gap_refresh_and_nonadvancing_more() {
+    use mail_web_adapter::MailboxEventSequenceError;
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let nonadvancing = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-1",
+        r#"{"EventID":"event-1","More":1}"#,
+    )
+    .expect("parse nonadvancing provider page");
+    assert_eq!(
+        ObservedMailboxEventSequence::start(nonadvancing),
+        Err(MailboxEventSequenceError::NonAdvancingContinuation)
+    );
+
+    let first = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-1",
+        r#"{"EventID":"event-2","More":1}"#,
+    )
+    .expect("parse first provider page");
+    let mut sequence =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventSequence::start(first).expect("start resumable sequence");
+
+    let gap = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-x",
+        r#"{"EventID":"event-y","More":0}"#,
+    )
+    .expect("parse gap page");
+    assert_eq!(
+        sequence.push(gap),
+        Err(MailboxEventSequenceError::CursorGap)
+    );
+
+    let refresh = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-2",
+        r#"{"EventID":"event-3","More":0,"Refresh":1}"#,
+    )
+    .expect("parse refresh page");
+    assert_eq!(
+        sequence.push(refresh),
+        Err(MailboxEventSequenceError::RefreshRequired)
+    );
+
+    let stuck = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-2",
+        r#"{"EventID":"event-2","More":1}"#,
+    )
+    .expect("parse stuck continuation");
+    assert_eq!(
+        sequence.push(stuck),
+        Err(MailboxEventSequenceError::NonAdvancingContinuation)
+    );
+}
+
+#[test]
+fn event_sequence_page_count_is_bounded() {
+    use mail_web_adapter::MailboxEventSequenceError;
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let first = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-0",
+        r#"{"EventID":"event-1","More":1}"#,
+    )
+    .expect("parse first bounded page");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut sequence = ObservedMailboxEventSequence::start(first).expect("start bounded sequence");
+    for index in 1u8..32u8 {
+        // jig-ignore-next-line: indivisible synthetic event URL.
+        let url = format!("https://mail.proton.me/api/core/v5/events/event-{index}");
+        let body = format!(r#"{{"EventID":"event-{}","More":1}}"#, index + 1);
+        let page = ObservedMailboxEventWatermark::parse("GET", &url, &body)
+            .expect("parse bounded continuation");
+        sequence.push(page).expect("append bounded continuation");
+    }
+    assert_eq!(sequence.page_count(), 32);
+    let overflow = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-32",
+        r#"{"EventID":"event-33","More":0}"#,
+    )
+    .expect("parse overflow continuation");
+    assert_eq!(
+        sequence.push(overflow),
+        Err(MailboxEventSequenceError::TooManyPages)
     );
 }
