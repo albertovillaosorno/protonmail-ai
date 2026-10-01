@@ -97,6 +97,7 @@ fn fake_network_browser(
     third_batch_on_disable: bool,
     continuation_anchor_id: &str,
     initial_page: &str,
+    initial_total: &str,
     second_time: &str,
 ) -> PathBuf {
     let script = root.join("fake-network-browser");
@@ -277,7 +278,6 @@ while IFS= read -r -d '' message <&3; do
   esac
 done
 "#;
-    let total = if multi_batch { "2" } else { "1" };
     let body = template
         .replace("__LOG__", &log.display().to_string())
         .replace("__ENCODED__", encoded)
@@ -291,7 +291,7 @@ done
         .replace("__ANCHOR_ID__", continuation_anchor_id)
         .replace("__INITIAL_PAGE__", initial_page)
         .replace("__SECOND_TIME__", second_time)
-        .replace("__TOTAL__", total)
+        .replace("__TOTAL__", initial_total)
         .replace("__ROW_IDS__", row_ids)
         .replace("__ROWS__", rows)
         .replace("__VISIBLE_ID__", visible_id);
@@ -316,6 +316,7 @@ fn with_network_browser<T>(
     third_batch_on_disable: bool,
     continuation_anchor_id: &str,
     initial_page: &str,
+    initial_total: &str,
     second_time: &str,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
@@ -330,6 +331,7 @@ fn with_network_browser<T>(
         third_batch_on_disable,
         continuation_anchor_id,
         initial_page,
+        initial_total,
         second_time,
     );
     let browser_plan = plan(&root, &browser);
@@ -493,6 +495,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
         false,
         "m-1",
         "0",
+        "1",
         "1790847999",
         ManagedBrowser::observe_message_list_response,
     );
@@ -508,6 +511,28 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
 }
 
 #[test]
+fn initial_total_rejects_silent_page_underfill() {
+    let (result, log) = with_network_browser(
+        "network-total-underfill",
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "2",
+        "1790847999",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListBatchIncompatible)
+    );
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
 fn network_metadata_reconciles_to_same_session_stable_rows() {
     let (metadata, log) = with_network_browser(
         "network-reconciled",
@@ -518,6 +543,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
         false,
         "m-1",
         "0",
+        "1",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -540,6 +566,7 @@ fn singular_network_observation_rejects_two_batch_page_after_disable() {
         false,
         "m-1",
         "0",
+        "2",
         "1790847999",
         ManagedBrowser::observe_message_list_response,
     );
@@ -561,6 +588,7 @@ fn mismatched_continuation_anchor_id_fails_before_second_body_fetch() {
         false,
         "wrong-id",
         "0",
+        "2",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -582,6 +610,7 @@ fn mismatched_continuation_anchor_fails_before_second_body_fetch() {
         false,
         "m-1",
         "0",
+        "2",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -603,6 +632,7 @@ fn third_batch_started_during_disable_fails_closed() {
         true,
         "m-1",
         "0",
+        "2",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -624,6 +654,7 @@ fn time_descending_response_rejects_cross_batch_order_drift() {
         false,
         "m-1",
         "0",
+        "2",
         "1790849000",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -645,6 +676,7 @@ fn continuation_events_during_first_body_fetch_are_reconciled() {
         false,
         "m-1",
         "0",
+        "2",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -668,10 +700,33 @@ fn network_metadata_rejects_request_page_mismatch() {
         false,
         "m-1",
         "1",
+        "51",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(result, Err(BrowserDriverError::MessageListPageMismatch));
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
+fn initial_total_rejects_page_beyond_result_set() {
+    let (result, log) = with_network_browser(
+        "network-total-page-range",
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "1",
+        "1",
+        "1790847999",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListBatchIncompatible)
+    );
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
 }
 
@@ -686,6 +741,7 @@ fn network_metadata_rejects_stable_row_without_machine_coverage() {
         false,
         "m-1",
         "0",
+        "1",
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
@@ -709,6 +765,7 @@ fn encoded_message_list_body_fails_closed_after_network_disable() {
         false,
         "m-1",
         "0",
+        "1",
         "1790847999",
         ManagedBrowser::observe_message_list_response,
     );

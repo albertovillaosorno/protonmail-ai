@@ -735,7 +735,10 @@ impl ManagedBrowser {
         let initial_descending = first_request.descending;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_message_list_body(session, &first_request, capture)?;
-        if first.messages().len() > first_request.limit
+        let (expected_first, expected_second) =
+            // jig-ignore-next-line: canonical rustfmt line.
+            expected_message_list_batch_lengths(initial_page, first_request.limit, first.total())?;
+        if first.messages().len() != expected_first
             || !response_matches_declared_time_order(&first_request, &first)
         {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
@@ -768,7 +771,7 @@ impl ManagedBrowser {
         }
         // jig-ignore-next-line: canonical rustfmt line.
         let second = self.read_message_list_body(session, &second_request, capture)?;
-        if second.messages().len() > second_request.limit
+        if second.messages().len() != expected_second
             || !response_matches_declared_time_order(&second_request, &second)
             // jig-ignore-next-line: canonical rustfmt line.
             || !batch_boundary_matches_time_order(&first_request, &first, &second)
@@ -1418,6 +1421,35 @@ impl fmt::Display for BrowserDriverError {
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
     }
+}
+
+fn expected_message_list_batch_lengths(
+    page: u32,
+    limit: usize,
+    total: u64,
+) -> Result<(usize, usize), BrowserDriverError> {
+    let limit_u64 =
+        // jig-ignore-next-line: canonical rustfmt line.
+        u64::try_from(limit).map_err(|_error| BrowserDriverError::MessageListBatchIncompatible)?;
+    let offset = u64::from(page)
+        .checked_mul(limit_u64)
+        .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
+    if total < offset {
+        return Err(BrowserDriverError::MessageListBatchIncompatible);
+    }
+    let remaining = total
+        .checked_sub(offset)
+        .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
+    let first = remaining.min(limit_u64);
+    let second = remaining.saturating_sub(first).min(limit_u64);
+    Ok((
+        usize::try_from(first)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|_error| BrowserDriverError::MessageListBatchIncompatible)?,
+        usize::try_from(second)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|_error| BrowserDriverError::MessageListBatchIncompatible)?,
+    ))
 }
 
 fn response_matches_declared_time_order(

@@ -208,7 +208,10 @@ consumes the sanitized Network ordering evidence: exact
 `SnoozeTime`, ascending `Time`, or any non-newest visible sort remains gated.
 For declared `Time` ordering, projected rows are also checked for monotonic
 `Time` and provider `Order` within and across captured batches, so a query/body
-ordering contradiction fails closed. Provider `Order` is validation evidence,
+ordering contradiction fails closed; the initial response `Total` must also
+cover the zero-based page offset and exact captured batch lengths, while
+continuation `Total` values remain ignored because WebClients treats them as
+anchor-affected. Provider `Order` is validation evidence,
 not the contract tie-break: equal-time ID ordering and immutable snapshots
 remain unconditional blockers.
 
