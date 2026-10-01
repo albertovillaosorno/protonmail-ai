@@ -110,6 +110,18 @@ while IFS= read -r -d '' message <&3; do
       value='{"forcedMessageRoute":true,"activeSearch":false}'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
+    *'Runtime.evaluate'*'message-list-loading'*)
+      value='{"loading":false,"loaded":true,"rowIds":["m-1"],'
+      value+='"skeletonCount":0,"emptyMarker":false,'
+      value+='"nextPresent":false,"nextDisabled":null,'
+      value+='"currentTestId":"pagination-row:go-to-page-1"}'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+        "$id" "$value" >&4;;
+    *'Runtime.evaluate'*'aria-labelledby'*)
+      value='[{"id":"m-1","subject":"Rendered subject",'
+      value+='"addresses":"synthetic@example.test","unread":false}]'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+        "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
       value='{"protocol":"https:",'
       value+='"hostname":"mail.proton.me","port":""}'
@@ -364,6 +376,21 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
     assert_eq!(response.messages()[0].order(), 9);
     let debug = format!("{response:?}");
     assert!(!debug.contains("secret"));
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
+fn network_metadata_reconciles_to_same_session_stable_rows() {
+    let (metadata, log) = with_network_browser(
+        "network-reconciled",
+        false,
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let metadata = metadata.expect("reconcile captured metadata to stable rows");
+    assert_eq!(metadata.messages().len(), 1);
+    assert_eq!(metadata.messages()[0].id(), "m-1");
+    assert_eq!(metadata.messages()[0].time(), 1_790_848_000);
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
 }
 

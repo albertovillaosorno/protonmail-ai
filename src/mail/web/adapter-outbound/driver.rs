@@ -52,8 +52,10 @@ use crate::mailbox_pagination::NextPageActivation;
 use crate::mailbox_sort::MailboxSortOrder;
 use crate::message_list_response::MessageListNetworkCapture;
 use crate::message_list_response::MessageListNetworkError;
+use crate::message_list_response::MessageListReconciliationError;
 use crate::message_list_response::MessageListResponseError;
 use crate::message_list_response::ObservedMessageListResponse;
+use crate::message_list_response::ReconciledVisibleMessageMetadata;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -586,6 +588,44 @@ impl ManagedBrowser {
         let response = observed?;
         detached?;
         Ok(response)
+    }
+
+    /// Captures one exact list response and reconciles it to stable visible
+    /// rows.
+    ///
+    /// This remains diagnostic evidence only. A single captured response may
+    /// fail coverage when `WebClients` splits the visible list across batches.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying Network, stable-page, or reconciliation error.
+    pub fn observe_visible_message_metadata(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<ReconciledVisibleMessageMetadata, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_visible_message_metadata_in_session(page, &session);
+        let detached = self.detach(&session);
+        let metadata = observed?;
+        detached?;
+        Ok(metadata)
+    }
+
+    fn observe_visible_message_metadata_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<ReconciledVisibleMessageMetadata, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let response = self.observe_message_list_response_in_session(page, session)?;
+        let snapshot = self.read_message_page_in_session(page, session)?;
+        snapshot
+            .reconcile_metadata(&[response])
+            .map_err(BrowserDriverError::MessageListReconciliation)
     }
 
     fn observe_message_list_response_in_session(
@@ -1151,6 +1191,9 @@ pub enum BrowserDriverError {
     MessageListNetwork(MessageListNetworkError),
     /// Exact message-list response body failed bounded projection.
     MessageListResponse(MessageListResponseError),
+    /// Stable visible rows could not be reconciled to captured machine
+    /// metadata.
+    MessageListReconciliation(MessageListReconciliationError),
     /// No single completed exact message-list request arrived within the bound.
     MessageListResponseUnavailable,
     /// More than one completed exact message-list request was observed at once.
@@ -1217,6 +1260,9 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::MessageListResponse(_error) => {
                 f.write_str("message-list response projection failed")
+            }
+            Self::MessageListReconciliation(_error) => {
+                f.write_str("message-list metadata reconciliation failed")
             }
             Self::MessageListResponseUnavailable => {
                 f.write_str("message-list response was not observed")

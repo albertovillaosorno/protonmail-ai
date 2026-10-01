@@ -212,10 +212,13 @@ web application without requiring Bridge or a third-party direct API identity.
   prefetched provider IDs, and fails closed for duplicate visible IDs,
   overlapping batches, missing visible metadata, or an explicit-empty
   contradiction. Its debug output exposes only row count.
-- Still required: drive that reconciliation from same-session multi-batch
-  Network capture rather than separately supplied responses, then remove the
-  remaining
-  provider-neutral `list_messages` ordering/snapshot blockers, and implement a
+- `observe_visible_message_metadata` now performs one exact Network capture,
+  disables Network tracking, takes a fresh stable visible message-page snapshot
+  in the same target session, and reconciles the captured machine metadata only
+  to those rendered IDs. Synthetic coverage proves the integrated success path.
+- Still required: extend that same-session diagnostic to collect WebClients
+  multi-batch list responses before reconciliation, then remove the remaining
+  provider-neutral `list_messages` ordering/snapshot blockers and implement a
   durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable
   locations, add composer/mutation workflows and remaining control-level drift
