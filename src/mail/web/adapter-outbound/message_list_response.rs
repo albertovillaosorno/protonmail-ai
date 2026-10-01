@@ -161,9 +161,14 @@ impl MessageListNetworkCapture {
         let response = params
             .get("response")
             .ok_or(MessageListNetworkError::MalformedEvent)?;
+        let url = response
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MessageListNetworkError::MalformedEvent)?;
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
-        if status != Some(200) || mime != Some("application/json") {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if !is_message_list_url(url) || status != Some(200) || mime != Some("application/json") {
             return Err(MessageListNetworkError::ResponseRejected);
         }
         *state = NetworkRequestState::Responded;

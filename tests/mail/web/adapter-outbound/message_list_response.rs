@@ -158,7 +158,7 @@ fn network_capture_tracks_only_exact_get_list_lifecycle() {
         "sessionId":"session-1",
         "method":"Network.responseReceived",
         "params":{"requestId":"list-1","response":{
-            "status":200u16,"mimeType":"application/json"
+            "url":URL,"status":200u16,"mimeType":"application/json"
         }}
     });
     capture.observe(&response).expect("accept list response");
@@ -217,6 +217,21 @@ fn network_capture_fails_closed_on_redirect_failure_and_bad_response() {
     );
 
     let mut capture = MessageListNetworkCapture::new("session-1");
+    capture.observe(&request("bad-url")).expect("track request");
+    let bad_url = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"bad-url","response":{
+            "url":"https://mail.proton.me/api/mail/v4/messages/count",
+            "status":200u16,"mimeType":"application/json"
+        }}
+    });
+    assert_eq!(
+        capture.observe(&bad_url),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
     capture
         .observe(&request("bad-status"))
         .expect("track request");
@@ -224,7 +239,7 @@ fn network_capture_fails_closed_on_redirect_failure_and_bad_response() {
         "sessionId":"session-1",
         "method":"Network.responseReceived",
         "params":{"requestId":"bad-status","response":{
-            "status":500u16,"mimeType":"application/json"
+            "url":URL,"status":500u16,"mimeType":"application/json"
         }}
     });
     assert_eq!(
