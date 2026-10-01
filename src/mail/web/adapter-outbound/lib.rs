@@ -54,6 +54,7 @@ pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use list_messages_readiness::{ListMessagesBlocker, ListMessagesReadiness};
 pub use mailbox_event_watermark::MailboxEventWatermarkError;
+pub use mailbox_event_watermark::ObservedLatestMailboxEventWatermark;
 pub use mailbox_event_watermark::ObservedMailboxEventWatermark;
 // jig-ignore-next-line: canonical rustfmt line.
 pub use mailbox_event_watermark::{MailboxEventNetworkCapture, MailboxEventNetworkError};

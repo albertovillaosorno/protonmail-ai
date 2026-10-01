@@ -37,6 +37,8 @@ use serde_json::Value;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const CORE_EVENT_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "core/v5/events/");
+// jig-ignore-next-line: canonical rustfmt line.
+const LATEST_EVENT_URL: &str = "https://mail.proton.me/api/core/v4/events/latest";
 const MAX_EVENT_BODY_BYTES: usize = 262_144;
 const MAX_EVENT_ID_BYTES: usize = 512;
 const MAX_TRACKED_EVENT_REQUESTS: usize = 32;
@@ -249,6 +251,55 @@ pub enum MailboxEventNetworkError {
     CapacityExceeded,
 }
 
+/// Sanitized bootstrap watermark from the legacy core latest-event endpoint.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ObservedLatestMailboxEventWatermark {
+    event_id: String,
+}
+
+impl ObservedLatestMailboxEventWatermark {
+    /// Projects one exact legacy latest-event response.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-GET traffic, any other endpoint, oversized or malformed
+    /// bodies, and invalid event watermarks.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn parse(method: &str, url: &str, body: &str) -> Result<Self, MailboxEventWatermarkError> {
+        if method != "GET" || !is_latest_event_url(url) {
+            return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
+        }
+        if body.len() > MAX_EVENT_BODY_BYTES {
+            return Err(MailboxEventWatermarkError::BodyTooLarge);
+        }
+        let value: Value =
+            // jig-ignore-next-line: canonical rustfmt line.
+            serde_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+        let event_id = value
+            .get("EventID")
+            .and_then(Value::as_str)
+            .filter(|id| valid_event_id(id))
+            .ok_or(MailboxEventWatermarkError::Malformed)?;
+        Ok(Self {
+            event_id: String::from(event_id),
+        })
+    }
+
+    /// Returns the bounded opaque bootstrap event watermark.
+    #[must_use]
+    pub fn event_id(&self) -> &str {
+        &self.event_id
+    }
+}
+
+impl fmt::Debug for ObservedLatestMailboxEventWatermark {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObservedLatestMailboxEventWatermark")
+            .field("event_id", &"<redacted>")
+            .finish()
+    }
+}
+
 /// Sanitized evidence from one completed Mail core-event poll.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ObservedMailboxEventWatermark {
@@ -405,6 +456,13 @@ fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {
         .and_then(|params| params.get("requestId"))
         .and_then(Value::as_str)
         .ok_or(MailboxEventNetworkError::MalformedEvent)
+}
+
+fn is_latest_event_url(url: &str) -> bool {
+    if url.contains('#') {
+        return false;
+    }
+    url.split_once('?').map_or(url, |(path, _query)| path) == LATEST_EVENT_URL
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {

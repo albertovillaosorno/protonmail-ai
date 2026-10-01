@@ -270,7 +270,10 @@ web application without requiring Bridge or a third-party direct API identity.
   that bracket, are not yet proven. The current `elementQuery.ts` tests confirm
   continuation requests carry the prior row's `Anchor`/`AnchorID`, but contain
   no insertion/deletion race fixture or immutable-membership guarantee, so
-  anchors are not promoted into snapshot evidence.
+  anchors are not promoted into snapshot evidence; account bootstrap constructs
+  the legacy event manager with an immediate `core/v4/events/latest` promise,
+  while `start()` only schedules the later core-v5 poll; a separate bounded
+  latest-watermark projection now models that first observation without content.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

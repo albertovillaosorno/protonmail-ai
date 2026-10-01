@@ -31,12 +31,37 @@
 //! Mail core-event watermark projection regression tests.
 
 use mail_web_adapter::MailboxEventWatermarkError;
+use mail_web_adapter::ObservedLatestMailboxEventWatermark;
 use mail_web_adapter::ObservedMailboxEventWatermark;
 
 const URL: &str = concat!(
     "https://mail.proton.me/api/core/v5/events/event-7",
     "?ConversationCounts=1&MessageCounts=1&CalledFrom=Foreground"
 );
+
+#[test]
+fn latest_event_projection_retains_only_bounded_watermark() {
+    let body = r#"{"EventID":"event-bootstrap","decoy":"secret"}"#;
+    let latest = ObservedLatestMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v4/events/latest",
+        body,
+    )
+    .expect("project latest event watermark");
+    assert_eq!(latest.event_id(), "event-bootstrap");
+    let debug = format!("{latest:?}");
+    assert!(!debug.contains("event-bootstrap"));
+    assert!(!debug.contains("secret"));
+
+    assert_eq!(
+        ObservedLatestMailboxEventWatermark::parse(
+            "GET",
+            "https://mail.proton.me/api/core/v6/events/latest",
+            body,
+        ),
+        Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+    );
+}
 
 #[test]
 fn settled_same_watermark_projects_no_mailbox_change() {
