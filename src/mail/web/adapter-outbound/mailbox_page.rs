@@ -37,6 +37,9 @@ use std::fmt;
 use serde_json::Value;
 
 use crate::driver::BrowserDriverError;
+use crate::message_list_response::MessageListReconciliationError;
+use crate::message_list_response::ObservedMessageListResponse;
+use crate::message_list_response::ReconciledVisibleMessageMetadata;
 // jig-ignore-next-line: canonical rustfmt line.
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState, NextPageControl};
 
@@ -160,6 +163,29 @@ impl VisibleMessagePageSnapshot {
     #[must_use]
     pub const fn explicitly_empty(&self) -> bool {
         self.inner.explicitly_empty()
+    }
+
+    /// Reconciles machine metadata against this stable visible message page.
+    ///
+    /// The stable snapshot owns which IDs are eligible. Extra provider IDs may
+    /// be ignored as prefetch, but every visible ID must have exactly one
+    /// observed metadata record across the supplied list-response batches.
+    ///
+    /// # Errors
+    ///
+    /// Returns the fail-closed reconciliation error for missing, duplicate, or
+    /// contradictory metadata coverage.
+    pub fn reconcile_metadata(
+        &self,
+        responses: &[ObservedMessageListResponse],
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<ReconciledVisibleMessageMetadata, MessageListReconciliationError> {
+        let visible_ids = self
+            .rows()
+            .iter()
+            .map(VisibleMailboxRow::id)
+            .collect::<Vec<_>>();
+        ReconciledVisibleMessageMetadata::reconcile(&visible_ids, responses)
     }
 }
 

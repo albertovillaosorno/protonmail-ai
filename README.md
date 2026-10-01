@@ -174,10 +174,12 @@ Network tracking is disabled before mode and origin are revalidated.
 
 The adapter also has a provider-neutral reconciliation model for combining
 non-overlapping observed list batches with a stable visible message-ID sequence.
-It preserves visible-row order, allows extra prefetched provider IDs, and fails
-closed for duplicate visible IDs, overlapping provider batches, missing visible
-metadata, or an explicit-empty contradiction. `Debug` output exposes only the
-reconciled row count.
+`VisibleMessagePageSnapshot::reconcile_metadata` now supplies that sequence
+straight from the already stable message-mode snapshot, so arbitrary caller IDs
+cannot substitute for rendered evidence. It preserves visible-row order, allows
+extra prefetched provider IDs, and fails closed for duplicate visible IDs,
+overlapping provider batches, missing visible metadata, or an explicit-empty
+contradiction. `Debug` output exposes only the reconciled row count.
 
 This proves both a bounded machine-readable timestamp source and a fail-closed
 coverage rule exist, but they are not yet coupled in the driver. WebClients may

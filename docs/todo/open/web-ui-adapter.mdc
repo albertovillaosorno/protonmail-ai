@@ -206,12 +206,15 @@ web application without requiring Bridge or a third-party direct API identity.
   and debug output contain none of them. The fixture proves `Network.disable`
   follows both successful projection and encoded-body rejection.
 - A provider-neutral reconciliation model can now combine non-overlapping
-  observed list batches against one stable visible message-ID sequence. It keeps
-  visible order, permits extra prefetched provider IDs, and fails closed for
-  duplicate visible IDs, overlapping batches, missing visible metadata, or an
-  explicit-empty contradiction. Its debug output exposes only row count.
-- Still required: wire that reconciliation model to a same-session stable
-  visible-row snapshot and multi-batch Network capture, remove the remaining
+  observed list batches against one stable visible message-ID sequence.
+  `VisibleMessagePageSnapshot::reconcile_metadata` supplies IDs only from the
+  already stable message-mode snapshot, keeps visible order, permits extra
+  prefetched provider IDs, and fails closed for duplicate visible IDs,
+  overlapping batches, missing visible metadata, or an explicit-empty
+  contradiction. Its debug output exposes only row count.
+- Still required: drive that reconciliation from same-session multi-batch
+  Network capture rather than separately supplied responses, then remove the
+  remaining
   provider-neutral `list_messages` ordering/snapshot blockers, and implement a
   durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable

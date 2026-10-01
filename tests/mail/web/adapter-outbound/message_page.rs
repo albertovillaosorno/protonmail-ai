@@ -36,6 +36,8 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use mail_web_adapter::MessageListReconciliationError;
+use mail_web_adapter::ObservedMessageListResponse;
 use mail_web_adapter::ProviderPage;
 use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 use mail_web_adapter::{MailboxRenderMode, NextPageControl};
@@ -243,5 +245,52 @@ fn location_only_inspection_exposes_no_mailbox_content() {
     assert_eq!(
         format!("{evidence:?}"),
         "MailboxModeEvidence { mode: Messages }"
+    );
+}
+
+#[test]
+fn stable_message_page_reconciles_only_its_visible_ids() {
+    let snapshot = with_browser(
+        "reconcile",
+        FORCED_MESSAGES,
+        FORCED_MESSAGES,
+        ManagedBrowser::read_visible_message_page,
+    )
+    .expect("read stable message page");
+    let response = ObservedMessageListResponse::parse(
+        "GET",
+        "https://mail.proton.me/api/mail/v4/messages?Page=0",
+        concat!(
+            r#"{"Total":2,"Messages":[{"ID":"prefetch","Time":2,"Order":2},"#,
+            r#"{"ID":"message-a","Time":1,"Order":1}]}"#,
+        ),
+    )
+    .expect("parse synthetic provider metadata");
+    let reconciled = snapshot
+        .reconcile_metadata(&[response])
+        .expect("reconcile stable visible message");
+    assert_eq!(reconciled.messages().len(), 1);
+    assert_eq!(reconciled.messages()[0].id(), "message-a");
+    assert_eq!(reconciled.messages()[0].time(), 1);
+}
+
+#[test]
+fn stable_message_page_rejects_missing_machine_metadata() {
+    let snapshot = with_browser(
+        "reconcile-missing",
+        FORCED_MESSAGES,
+        FORCED_MESSAGES,
+        ManagedBrowser::read_visible_message_page,
+    )
+    .expect("read stable message page");
+    let response = ObservedMessageListResponse::parse(
+        "GET",
+        "https://mail.proton.me/api/mail/v4/messages?Page=0",
+        r#"{"Total":1,"Messages":[{"ID":"other","Time":1,"Order":1}]}"#,
+    )
+    .expect("parse unrelated provider metadata");
+    assert_eq!(
+        snapshot.reconcile_metadata(&[response]),
+        Err(MessageListReconciliationError::MissingVisibleMessage)
     );
 }
