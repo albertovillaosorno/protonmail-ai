@@ -167,12 +167,11 @@ web application without requiring Bridge or a third-party direct API identity.
   reflect current WebClients behavior.
 - `elementQuery.ts` at that same current main commit is also byte-identical
   (blob `63821f797c5c6ba76cf330d82ee2f65ad41ea4e4`). WebClients internally
-  chains
-  batches with `Anchor` plus `AnchorID` after the first request, but that is a
-  continuation anchor, not evidence of snapshot isolation. A future CDP Network
-  observation path may evaluate whether provider responses expose enough stable
-  metadata to remove the timestamp/cursor blockers without exporting browser
-  credentials or reading private Redux state.
+  chains batches with `Anchor` plus `AnchorID` after the first request, but
+  that is a continuation anchor, not evidence of snapshot isolation. The CDP
+  Network diagnostic now observes provider list metadata without exporting
+  browser credentials or reading private Redux state; multi-batch collection
+  and snapshot semantics remain separate requirements.
 - `messages.ts` and `Message.ts` at the same current main commit are also
   byte-identical (blobs `d516591bc008328f25ea01f56a90b9ddf48bbf6e` and
   `9aa1852f264b734f8ab0479e39b32f5ea6df1287`). The ordinary web request is
@@ -180,7 +179,7 @@ web application without requiring Bridge or a third-party direct API identity.
   provider-private `Order`.
 - Exact `GET https://mail.proton.me/api/mail/v4/messages` response projection is
   now content-minimizing: it retains only message `ID`, numeric `Time`, and
-  provider `Order`, bounds bodies to 1 MiB and pages to 100 rows, rejects the
+  provider `Order`, bounds bodies to 256 KiB and pages to 100 rows, rejects the
   same endpoint's draft-creation `POST`, neighboring endpoints, malformed rows,
   and duplicate IDs, and redacts projected metadata from `Debug` output.
 - A CDP Network event state machine now scopes itself to one flattened target

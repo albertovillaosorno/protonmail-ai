@@ -189,10 +189,9 @@ observed response covers the stable visible page and fails closed otherwise.
 
 WebClients may still issue multiple list batches, equal `Time` values still fall
 back to internal `element.Order` rather than message ID, and visible page
-numbers provide no immutable snapshot boundary.
-`inspect_list_messages_readiness`
-therefore continues to report the contract blockers instead of emitting an
-approximate cursor.
+numbers provide no immutable snapshot boundary. The
+`inspect_list_messages_readiness` diagnostic therefore continues to report the
+contract blockers instead of emitting an approximate cursor.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research
