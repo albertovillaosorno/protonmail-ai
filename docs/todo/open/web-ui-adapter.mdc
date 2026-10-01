@@ -265,9 +265,12 @@ web application without requiring Bridge or a third-party direct API identity.
   URLs, reordering, and more than 32 unfinished requests fail closed; Mail's
   current bootstrap consumes that older core event stream for message and
   conversation updates; the Mail-specific v6 stream does not contain those
-  collections. This is snapshot research evidence only: passive ordering of an
-  event poll before and after a list capture, and server guarantees for that
-  bracket, are not yet proven.
+  collections; this is snapshot research evidence only because passive ordering
+  of an event poll before and after a list capture, and server guarantees for
+  that bracket, are not yet proven. The current `elementQuery.ts` tests confirm
+  continuation requests carry the prior row's `Anchor`/`AnchorID`, but contain
+  no insertion/deletion race fixture or immutable-membership guarantee, so
+  anchors are not promoted into snapshot evidence.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

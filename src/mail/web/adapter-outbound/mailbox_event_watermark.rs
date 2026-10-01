@@ -272,6 +272,41 @@ impl ObservedMailboxEventWatermark {
             return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
         }
         let requested_event_id = event_id_from_url(url)?;
+        Self::parse_body(requested_event_id, body)
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Projects one decoded `Network.getResponseBody` result for a proven event.
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid requested watermarks, malformed CDP envelopes, base64
+    /// bodies, oversized bodies, and invalid event metadata.
+    pub fn parse_cdp_body(
+        requested_event_id: &str,
+        result: &Value,
+    ) -> Result<Self, MailboxEventWatermarkError> {
+        if !valid_event_id(requested_event_id) {
+            return Err(MailboxEventWatermarkError::Malformed);
+        }
+        let encoded = result
+            .get("base64Encoded")
+            .and_then(Value::as_bool)
+            .ok_or(MailboxEventWatermarkError::Malformed)?;
+        if encoded {
+            return Err(MailboxEventWatermarkError::UnsupportedEncoding);
+        }
+        let body = result
+            .get("body")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventWatermarkError::Malformed)?;
+        Self::parse_body(requested_event_id, body)
+    }
+
+    fn parse_body(
+        requested_event_id: &str,
+        body: &str,
+    ) -> Result<Self, MailboxEventWatermarkError> {
         if body.len() > MAX_EVENT_BODY_BYTES {
             return Err(MailboxEventWatermarkError::BodyTooLarge);
         }
@@ -281,7 +316,7 @@ impl ObservedMailboxEventWatermark {
         let response_event_id = value
             .get("EventID")
             .and_then(Value::as_str)
-            .filter(|id| !id.is_empty() && id.len() <= MAX_EVENT_ID_BYTES)
+            .filter(|id| valid_event_id(id))
             .ok_or(MailboxEventWatermarkError::Malformed)?;
         let more = match value.get("More").and_then(Value::as_u64) {
             Some(0) => false,
@@ -360,6 +395,8 @@ pub enum MailboxEventWatermarkError {
     BodyTooLarge,
     /// Event metadata shape was missing or invalid.
     Malformed,
+    /// Chromium returned an encoded body instead of decoded JSON text.
+    UnsupportedEncoding,
 }
 
 fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {
@@ -378,11 +415,16 @@ fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
     let Some(event_id) = path.strip_prefix(CORE_EVENT_URL_PREFIX) else {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     };
-    // jig-ignore-next-line: canonical rustfmt line.
-    if event_id.is_empty() || event_id.len() > MAX_EVENT_ID_BYTES || event_id.contains('/') {
+    if !valid_event_id(event_id) {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     Ok(event_id)
+}
+
+fn valid_event_id(event_id: &str) -> bool {
+    !event_id.is_empty()
+        && event_id.len() <= MAX_EVENT_ID_BYTES
+        && !event_id.contains(['/', '?', '#'])
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

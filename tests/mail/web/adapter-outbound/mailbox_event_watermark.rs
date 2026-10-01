@@ -97,6 +97,30 @@ fn mailbox_count_changes_are_conservative_change_signals() {
 }
 
 #[test]
+fn cdp_body_projection_requires_decoded_json_and_bounded_request_id() {
+    use serde_json::json;
+
+    let decoded = json!({
+        "body":"{\"EventID\":\"event-7\",\"More\":0}",
+        "base64Encoded":false
+    });
+    // jig-ignore-next-line: indivisible synthetic JSON fixture.
+    let event = ObservedMailboxEventWatermark::parse_cdp_body("event-7", &decoded)
+        .expect("project decoded event body");
+    assert!(event.unchanged_watermark());
+
+    let encoded = json!({"body":"e30=","base64Encoded":true});
+    assert_eq!(
+        ObservedMailboxEventWatermark::parse_cdp_body("event-7", &encoded),
+        Err(MailboxEventWatermarkError::UnsupportedEncoding)
+    );
+    assert_eq!(
+        ObservedMailboxEventWatermark::parse_cdp_body("bad/id", &decoded),
+        Err(MailboxEventWatermarkError::Malformed)
+    );
+}
+
+#[test]
 fn wrong_endpoint_or_method_is_rejected() {
     let body = r#"{"EventID":"event-7","More":0}"#;
     for url in [
