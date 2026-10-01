@@ -64,6 +64,37 @@ fn latest_event_projection_retains_only_bounded_watermark() {
 }
 
 #[test]
+fn bootstrap_watermark_matches_only_settled_no_change_poll() {
+    let latest = ObservedLatestMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v4/events/latest",
+        r#"{"EventID":"event-7"}"#,
+    )
+    .expect("project latest event watermark");
+    let quiet = ObservedMailboxEventWatermark::parse(
+        "GET",
+        URL,
+        r#"{"EventID":"event-7","More":0,"Messages":[]}"#,
+    )
+    .expect("project quiet poll");
+    assert!(latest.matches_quiet_poll(&quiet));
+
+    let changed = ObservedMailboxEventWatermark::parse(
+        "GET",
+        URL,
+        r#"{"EventID":"event-8","More":0,"Messages":[{}]}"#,
+    )
+    .expect("project changed poll");
+    assert!(!latest.matches_quiet_poll(&changed));
+
+    let more =
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        ObservedMailboxEventWatermark::parse("GET", URL, r#"{"EventID":"event-7","More":1}"#)
+            .expect("project unsettled poll");
+    assert!(!latest.matches_quiet_poll(&more));
+}
+
+#[test]
 fn settled_same_watermark_projects_no_mailbox_change() {
     let body = r#"{
         "EventID":"event-7","More":0,"Refresh":0,

@@ -290,6 +290,19 @@ impl ObservedLatestMailboxEventWatermark {
     pub fn event_id(&self) -> &str {
         &self.event_id
     }
+
+    /// Checks local consistency with one later settled no-change event poll.
+    ///
+    /// This is only a necessary bracket shape for snapshot research. It does
+    /// not establish provider snapshot semantics or clear list readiness.
+    #[must_use]
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn matches_quiet_poll(&self, poll: &ObservedMailboxEventWatermark) -> bool {
+        poll.requested_event_id == self.event_id
+            && poll.response_event_id == self.event_id
+            && poll.settled()
+            && !poll.mailbox_changes()
+    }
 }
 
 impl fmt::Debug for ObservedLatestMailboxEventWatermark {
