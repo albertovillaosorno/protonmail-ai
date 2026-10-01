@@ -36,7 +36,7 @@ use crate::mailbox_sort::MailboxSortOrder;
 /// A proven reason public `list_messages` cannot yet be advertised.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ListMessagesBlocker {
-    /// Visible sort UI does not prove provider `Time` descending.
+    /// Provider request is not proven to use `Time` descending.
     ProviderSortKeyUnproven,
     /// `WebClients` falls back to element Order, not provider-neutral ID, on
     /// ties.

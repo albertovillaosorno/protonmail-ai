@@ -545,13 +545,14 @@ impl ManagedBrowser {
 
     /// Reports why the current web page is not yet public `list_messages`.
     ///
-    /// This preflight proves message mode and visible newest/other sort state,
-    /// but intentionally reports the remaining provider-neutral contract gaps.
+    /// This preflight proves message mode and visible sort state, then performs
+    /// the bounded Network list observation needed to verify provider ordering.
+    /// It still reports every remaining provider-neutral contract gap.
     ///
     /// # Errors
     ///
-    /// Fails closed if message mode, Mail-shell, sort, or origin evidence
-    /// drifts.
+    /// Fails closed if message mode, Mail-shell, visible/provider sort,
+    /// Network-list evidence, response projection, or origin evidence drifts.
     pub fn inspect_list_messages_readiness(
         &mut self,
         page: &ProviderPage,
