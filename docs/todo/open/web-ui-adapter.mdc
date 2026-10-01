@@ -174,14 +174,16 @@ web application without requiring Bridge or a third-party direct API identity.
   that is a continuation anchor, not evidence of snapshot isolation; `Stale=1`
   is likewise a freshness/refetch signal because `elementsActions.ts` schedules
   another load and `elementsTypes.ts` describes “awaiting fresh data”, with no
-  immutable boundary or resumable token exposed; the bounded response projection
-  now requires `Stale=0`, so evidence WebClients itself would refetch cannot
-  feed readiness. Non-empty/true `TasksRunning` is also rejected; the projection
-  keeps no task identifiers or payloads. The CDP Network diagnostic observes
-  provider list metadata without
-  exporting browser credentials or
-  reading private Redux state, so multi-batch collection and snapshot semantics
-  remain separate requirements.
+  immutable boundary or resumable token exposed. Encrypted Search does actively
+  resume metadata indexing with `End` plus `EndID`, but ordinary
+  `elementQuery.ts` leaves `BeginID`/`EndID` unused and the web adapter does not
+  inject private API calls; selector-bearing recovery requests are therefore
+  excluded from visible-list Network capture. The bounded response projection
+  now requires `Stale=0` and rejects non-empty/true `TasksRunning`, so evidence
+  WebClients itself would refetch cannot feed readiness and no task identifiers
+  or payloads are retained; the CDP Network diagnostic still observes provider
+  list metadata without exporting browser credentials or reading private Redux
+  state, leaving multi-batch collection and snapshot semantics separate.
 - `messages.ts` and `Message.ts` at the same current main commit are also
   byte-identical (blobs `d516591bc008328f25ea01f56a90b9ddf48bbf6e` and
   `9aa1852f264b734f8ab0479e39b32f5ea6df1287`). The ordinary web request is

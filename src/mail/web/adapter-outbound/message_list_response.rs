@@ -364,6 +364,9 @@ fn message_list_request_shape(
     )>,
     MessageListNetworkError,
 > {
+    if has_non_visible_list_selector(url)? {
+        return Ok(None);
+    }
     let Some(raw_limit) = numeric_query_parameter(url, "Limit")? else {
         return Ok(None);
     };
@@ -401,6 +404,16 @@ fn message_list_request_shape(
     Ok(Some((
         kind, limit, page, sort_key, descending, anchor, anchor_id,
     )))
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkError> {
+    for name in ["BeginID", "EndID", "ID"] {
+        if raw_query_parameter(url, name)?.is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

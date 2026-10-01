@@ -509,6 +509,13 @@ fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
     let mut capture = MessageListNetworkCapture::new("session-1");
     for url in [
         "https://mail.proton.me/api/mail/v4/messages?ID=m-1",
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&ID=m-1",
+        // Encrypted-search recovery traffic is not visible-list pagination.
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&End=7&EndID=m-7",
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&BeginID=m-1",
         "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50",
         "https://mail.proton.me/api/mail/v4/messages?Limit=50&AnchorID=m-50",
     ] {

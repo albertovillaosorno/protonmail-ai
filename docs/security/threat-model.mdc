@@ -174,14 +174,16 @@ rendered, multiply-active, or malformed sort controls fail closed.
 Verified visible pages are not promoted to public `list_messages` merely from
 localized DOM dates. The bounded Network diagnostic now projects numeric
 `Message.Time`, which current WebClients treats as the message receive time, and
-reconciles it to stable visible IDs without exporting browser credentials. The
+reconciles it to stable visible IDs without exporting browser credentials; the
 same bounded observation reduces provider `Sort`/`Desc` to fixed known values,
 rejects stale or active-task list responses, and rejects response-query or
 projected-Time ordering contradictions before readiness can use that evidence.
-Public listing still requires the
-provider-neutral ID tie-break and immutable
-snapshot boundary; provider-private `Order`, continuation anchors, and page
-numbers cannot be mistaken for those guarantees.
+Public listing still requires the provider-neutral ID tie-break and immutable
+snapshot boundary; Encrypted Search's internal `End`/`EndID` recovery queries
+are not promoted into the web adapter because it does not inject private API
+calls, and selector-bearing recovery traffic is excluded from visible-list
+capture. Provider-private `Order`, continuation anchors, and page numbers cannot
+be mistaken for those guarantees.
 
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
