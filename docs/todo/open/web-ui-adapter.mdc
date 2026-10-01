@@ -185,13 +185,16 @@ web application without requiring Bridge or a third-party direct API identity.
   and duplicate IDs, and redacts projected metadata from `Debug` output.
 - A CDP Network event state machine now scopes itself to one flattened target
   session and retains only request IDs for exact message-list GET requests. It
-  bounds unfinished matching requests to 128 entries and
-  requires an exact response URL, HTTP 200 JSON response, and loading-finished
-  order.
+  bounds unfinished matching requests to 128 entries, requires an exact
+  response URL plus HTTP 200 JSON, and accepts only loading-finished order.
   Redirects away, loading failures, and malformed or repeated lifecycle events
-  fail
-  closed. Other sessions, mutation traffic, URLs, query terms, request headers,
-  cookies, and tokens are not retained.
+  fail closed. Other sessions, mutation traffic, URLs, query terms, request
+  headers, cookies, and tokens are not retained.
+- The managed driver's current request loop discards unsolicited CDP events
+  inline rather than buffering them, while `read_frame` caps every CDP frame at
+  1 MiB. Future Network wiring must preserve both properties: classify matching
+  events as they arrive and never queue raw event frames that could retain
+  headers or unrelated response metadata.
 - The state machine is not yet wired into the managed driver's event loop and
   does not call `Network.getResponseBody`; therefore no live response body is
   captured and the machine-time blocker remains in force. Snapshot isolation
