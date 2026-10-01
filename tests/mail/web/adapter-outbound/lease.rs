@@ -165,8 +165,8 @@ fn stale_local_chromium_lock_does_not_block_managed_launch() {
 #[test]
 fn remote_or_malformed_chromium_lock_fails_closed() {
     for (label, target) in [
-        ("remote", "definitely-other-host-4294967295"),
-        ("malformed", "not-a-valid-chromium-lock"),
+        ("chromium-remote", "definitely-other-host-4294967295"),
+        ("chromium-malformed", "not-a-valid-chromium-lock"),
     ] {
         let root = test_root(label);
         let profile = profile(&root);
