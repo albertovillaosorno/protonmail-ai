@@ -150,8 +150,28 @@ drift, page jumps, or missing current-page evidence fail closed.
 This changes only the visible browser page; it does not target a mailbox
 mutation control.
 
-This is not yet the provider-neutral `list_messages` API or a durable reconnect
-cursor, and it does not claim `list_threads`; broader read/composer/mutation
+The adapter can now prove the visible Mail sort without changing it. It opens
+`filter-dropdown:show-filters` only when needed, reads `aria-pressed` from the
+four locale-independent sort test IDs, and restores the menu only when the
+adapter opened it. It never clicks a sort option. `toolbar:sort-new-to-old`
+therefore proves the provider's semantic newest-first selection.
+
+That still is not enough to advertise provider-neutral `list_messages`. The
+public contract requires `received_at` descending, ID ascending as the tie
+breaker, and a cursor-bound snapshot. Current WebClients renders the row date's
+`datetime` from localized `formatFullDate('PPPPp')`, so it is not a reliable UTC
+instant.
+
+When message times tie, WebClients falls back to internal `element.Order`, not
+message ID. Visible page numbers also provide no immutable snapshot boundary.
+`inspect_list_messages_readiness` returns those blockers explicitly instead of
+emitting an approximate cursor.
+
+The relevant sort/date/order files remain byte-identical in current WebClients
+`main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research
+snapshot,
+so this refusal is based on current provider behavior rather than stale source.
+The adapter still does not claim `list_threads`; broader read/composer/mutation
 workflows remain open.
 
 ## Available now: prefilled web composer

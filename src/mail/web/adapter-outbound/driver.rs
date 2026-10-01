@@ -43,11 +43,13 @@ use command_fds::{CommandFdExt as _, FdMapping};
 use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
+use crate::list_messages_readiness::ListMessagesReadiness;
 use crate::mailbox_list::NextPageControl;
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
 use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
 use crate::mailbox_page::{MailboxPageSnapshot, VisibleMessagePageSnapshot};
 use crate::mailbox_pagination::NextPageActivation;
+use crate::mailbox_sort::MailboxSortOrder;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -65,6 +67,8 @@ const PIPE_TIMEOUT: Duration = Duration::from_secs(5);
 const SHUTDOWN_DELAY: Duration = Duration::from_millis(20);
 const SHUTDOWN_POLLS: u16 = 100;
 const PAGE_ADVANCE_DELAY: Duration = Duration::from_millis(50);
+const SORT_MENU_DELAY: Duration = Duration::from_millis(20);
+const SORT_MENU_TIMEOUT: Duration = Duration::from_secs(2);
 const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Immutable launch settings for one managed dedicated-profile browser.
@@ -125,6 +129,24 @@ impl ProviderPage {
     #[must_use]
     pub const fn origin(&self) -> PageOrigin {
         self.origin
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SortMenuActivation {
+    AlreadyOpen,
+    Opened,
+}
+
+impl SortMenuActivation {
+    fn from_value(value: &Value) -> Result<Self, BrowserDriverError> {
+        let already_open = value.get("alreadyOpen").and_then(Value::as_bool);
+        let clicked = value.get("clicked").and_then(Value::as_bool);
+        match (already_open, clicked) {
+            (Some(true), Some(false)) => Ok(Self::AlreadyOpen),
+            (Some(false), Some(true)) => Ok(Self::Opened),
+            _ => Err(BrowserDriverError::MailboxSortIncompatible),
+        }
     }
 }
 
@@ -462,6 +484,150 @@ impl ManagedBrowser {
         let value = self.runtime_value(session, expression)?;
         MailboxModeEvidence::from_value(&value)
             .map_err(|_error| BrowserDriverError::MailboxModeIncompatible)
+    }
+
+    /// Inspects Mail's visible sort selection without changing it.
+    ///
+    /// If the filter/sort menu is closed, the adapter opens it only long enough
+    /// to read non-localized `aria-pressed` state and then closes it again.
+    ///
+    /// # Errors
+    ///
+    /// Fails for an unready Mail shell, missing/duplicated sort controls,
+    /// multiple active options, menu transition timeout, or origin drift.
+    pub fn inspect_mailbox_sort(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailboxSortOrder, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let inspected = self.inspect_mailbox_sort_in_session(page, &session);
+        let detached = self.detach(&session);
+        let sort = inspected?;
+        detached?;
+        Ok(sort)
+    }
+
+    /// Reports why the current web page is not yet public `list_messages`.
+    ///
+    /// This preflight proves message mode and visible newest/other sort state,
+    /// but intentionally reports the remaining provider-neutral contract gaps.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed if message mode, Mail-shell, sort, or origin evidence
+    /// drifts.
+    pub fn inspect_list_messages_readiness(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<ListMessagesReadiness, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let inspected = self.list_messages_readiness_in_session(page, &session);
+        let detached = self.detach(&session);
+        let readiness = inspected?;
+        detached?;
+        Ok(readiness)
+    }
+
+    fn list_messages_readiness_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<ListMessagesReadiness, BrowserDriverError> {
+        let before_mode = self.inspect_mailbox_mode_in_session(page, session)?;
+        if before_mode.mode() != MailboxRenderMode::Messages {
+            return Err(BrowserDriverError::MailboxMessageModeRequired);
+        }
+        let sort = self.inspect_mailbox_sort_in_session(page, session)?;
+        let after_mode = self.mailbox_mode_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        if after_mode != before_mode {
+            return Err(BrowserDriverError::MailboxModeChanged);
+        }
+        Ok(ListMessagesReadiness::current(sort))
+    }
+
+    fn inspect_mailbox_sort_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<MailboxSortOrder, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        self.ensure_page_origin(page, session)?;
+        let expression = MailboxSortOrder::open_expression();
+        let activation_value = self.runtime_value(session, expression)?;
+        let activation = SortMenuActivation::from_value(&activation_value)?;
+        let inspected = self.wait_for_mailbox_sort(session);
+        let cleanup = match activation {
+            SortMenuActivation::AlreadyOpen => Ok(()),
+            // jig-ignore-next-line: canonical rustfmt line.
+            SortMenuActivation::Opened => self.close_mailbox_sort_menu(page, session),
+        };
+        let sort = inspected?;
+        cleanup?;
+        self.ensure_page_origin(page, session)?;
+        Ok(sort)
+    }
+
+    fn wait_for_mailbox_sort(
+        &mut self,
+        session: &str,
+    ) -> Result<MailboxSortOrder, BrowserDriverError> {
+        let deadline = Instant::now()
+            .checked_add(SORT_MENU_TIMEOUT)
+            .ok_or(BrowserDriverError::MailboxSortTimeout)?;
+        loop {
+            let expression = MailboxSortOrder::expression();
+            let value = self.runtime_value(session, expression)?;
+            match MailboxSortOrder::from_value(&value) {
+                Ok(Some(sort)) => return Ok(sort),
+                Ok(None) => {}
+                Err(()) => {
+                    return Err(BrowserDriverError::MailboxSortIncompatible);
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxSortTimeout);
+            }
+            thread::sleep(SORT_MENU_DELAY);
+        }
+    }
+
+    fn close_mailbox_sort_menu(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<(), BrowserDriverError> {
+        self.ensure_page_origin(page, session)?;
+        let close = MailboxSortOrder::close_expression();
+        let clicked = self.runtime_value(session, close)?;
+        if clicked.as_bool() != Some(true) {
+            return Err(BrowserDriverError::MailboxSortIncompatible);
+        }
+        let deadline = Instant::now()
+            .checked_add(SORT_MENU_TIMEOUT)
+            .ok_or(BrowserDriverError::MailboxSortTimeout)?;
+        loop {
+            let closed_expression = MailboxSortOrder::closed_expression();
+            let closed = self.runtime_value(session, closed_expression)?;
+            match closed.as_bool() {
+                Some(true) => return Ok(()),
+                Some(false) => {}
+                None => return Err(BrowserDriverError::MailboxSortIncompatible),
+            }
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxSortTimeout);
+            }
+            thread::sleep(SORT_MENU_DELAY);
+        }
     }
 
     /// Reads a stable visible page only when message mode is externally proven.
@@ -828,6 +994,10 @@ pub enum BrowserDriverError {
     MailboxPaginationIncompatible,
     /// Mail did not settle on the expected following page within the bound.
     MailboxPaginationTimeout,
+    /// Visible sort menu state is missing, duplicated, or contradictory.
+    MailboxSortIncompatible,
+    /// Sort menu open/close transition did not settle before its deadline.
+    MailboxSortTimeout,
     /// Visible mailbox content changed while the snapshot was being read.
     MailboxPageChanged,
     /// Visible mailbox row content is malformed or contradicts list evidence.
@@ -881,6 +1051,10 @@ impl fmt::Display for BrowserDriverError {
                 f.write_str("Proton Mail pagination is incompatible")
             }
             Self::MailboxPaginationTimeout => f.write_str("pagination timeout"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxSortIncompatible => f.write_str("mailbox sort state is incompatible"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxSortTimeout => f.write_str("mailbox sort transition timed out"),
             Self::MailboxPageChanged => f.write_str("Proton Mail list changed"),
             Self::MailboxPageIncompatible => {
                 f.write_str("Proton Mail visible rows are incompatible")

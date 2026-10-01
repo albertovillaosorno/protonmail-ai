@@ -112,6 +112,28 @@ container always renders either `message-list-loading` or `message-list-loaded`,
 so a missing list root during the bounded transition is compatibility failure,
 not silently tolerated loading state.
 
+### Provider-neutral list-message readiness
+
+Visible sort state is inspected through `filter-dropdown:show-filters` and the
+four stable `toolbar:sort-*` test IDs. `aria-pressed` is reduced to one typed
+`MailboxSortOrder`; no translated label or private Redux/store state is read.
+If the adapter opens the menu solely to inspect it, it closes the menu before
+returning, including on contradictory sort evidence.
+
+Origin is revalidated immediately before both open and cleanup clicks, and drift
+blocks interaction on the new page. It never activates a sort option.
+
+A semantic newest-first selection does not satisfy the frozen `list_messages`
+ordering/cursor contract by itself. Current WebClients supplies three contrary
+facts: `ItemDateRender` receives localized `formatFullDate('PPPPp')` as its
+`datetime`, equal-Time sorting falls back to internal `element.Order` rather
+than ID, and visible pagination has no snapshot boundary token. The web adapter
+therefore reports `MissingMachineReadableReceivedAt`,
+`ProviderTieBreakDiffers`, and `MissingSnapshotBoundary`; non-newest UI sort
+adds `SortNotNewestFirst`. Public `list_messages` remains unavailable until all
+blockers are removed rather than approximated.
+
+
 The list/row source files and the mode-rule files were rechecked against
 WebClients `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-10-01.
 `mailSettings.ts`, `location.ts`, `elementSearch.ts`, `mailboxUrl.ts`,

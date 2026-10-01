@@ -161,6 +161,22 @@ mailbox workflows must revalidate origin and required page state after attaching
 the target used for that operation; they cannot rely on an earlier shell check
 after navigation or detach/reattach.
 
+Mailbox sort inspection is observational even though it may transiently open the
+filter/sort menu. The adapter activates only the fixed menu trigger and never a
+sort option. Origin is revalidated immediately before opening and before any
+cleanup
+click. If the adapter opened the menu, it attempts to close it before returning,
+including when sort evidence is contradictory; origin drift blocks that click.
+
+A menu that was already open is left open. Missing, duplicated, partially
+rendered, multiply-active, or malformed sort controls fail closed.
+
+Verified visible pages are not promoted to public `list_messages` while the
+provider cannot prove the frozen contract's machine-readable `received_at`, ID
+tie-break, and snapshot boundary. Page numbers, localized dates, and
+provider-private `Order` therefore cannot be mistaken for a durable opaque
+cursor or provider-neutral ordering guarantee.
+
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
 but MCP never receives an arbitrary local body-file path. Handoff bodies are

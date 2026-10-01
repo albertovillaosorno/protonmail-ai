@@ -150,7 +150,38 @@ web application without requiring Bridge or a third-party direct API identity.
   `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` (blob
   `4f8ffb454bb9769192e48ae0dcba72477f1d317d`), so the locale-independent Next
   contract is current evidence rather than a stale selector guess.
-- Still required: provider-neutral `list_messages` traversal/cursor semantics,
-  independently safe `list_threads` semantics for grouping-capable locations,
-  composer semantic extraction, mailbox mutation workflows, control-level drift
-  fixtures, and the separately opted-in Free-account acceptance transcript.
+- Visible sort inspection now uses only `filter-dropdown:show-filters`, the four
+  stable `toolbar:sort-*` test IDs, and `aria-pressed`; it never selects a sort
+  option and restores the menu only when the adapter opened it. Six synthetic
+  tests cover newest/oldest proof, pre-opened-menu preservation, contradictory
+  sort state, cleanup on failure, and list-message readiness blockers.
+- `list_messages` remains deliberately unavailable. Current provider evidence
+  proves three blockers even under newest-first sort: row `datetime` is the
+  localized `formatFullDate('PPPPp')` output rather than a machine UTC instant,
+  equal-Time rows use internal `element.Order` rather than ID as tie-break, and
+  visible pagination exposes no immutable snapshot boundary. Other active sort
+  choices add an explicit fourth blocker.
+- `FilterList.tsx`, `filterListHelpers.ts`, `ItemDateRender.tsx`, `date.ts`, and
+  `elements.ts` were rechecked byte-identical on current
+  `main@e89da53c8a07656184f703383f74250d66f82b1f` on 2026-10-01, so the blockers
+  reflect current WebClients behavior.
+- `elementQuery.ts` at that same current main commit is also byte-identical
+  (blob `63821f797c5c6ba76cf330d82ee2f65ad41ea4e4`). WebClients internally
+  chains
+  batches with `Anchor` plus `AnchorID` after the first request, but that is a
+  continuation anchor, not evidence of snapshot isolation. A future CDP Network
+  observation path may evaluate whether provider responses expose enough stable
+  metadata to remove the timestamp/cursor blockers without exporting browser
+  credentials or reading private Redux state.
+- `messages.ts` and `Message.ts` at the same current main commit are also
+  byte-identical (blobs `d516591bc008328f25ea01f56a90b9ddf48bbf6e` and
+  `9aa1852f264b734f8ab0479e39b32f5ea6df1287`). The ordinary web request is
+  `mail/v4/messages`, and its metadata model includes numeric `Time` and
+  provider-private `Order`. Response-body observation is therefore a plausible
+  source for machine time, but it is not implemented here and must never capture
+  request headers, cookies, tokens, or unrelated response bodies.
+- Still required: remove the three provider-neutral `list_messages` contract
+  blockers with observable evidence, implement a durable cursor/snapshot chain,
+  prove independently safe `list_threads` semantics for grouping-capable
+  locations, add composer/mutation workflows and remaining control-level drift
+  fixtures, and capture the opted-in Free-account acceptance transcript.
