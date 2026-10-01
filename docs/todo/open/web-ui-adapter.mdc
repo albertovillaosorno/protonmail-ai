@@ -255,6 +255,15 @@ web application without requiring Bridge or a third-party direct API identity.
   initial response `Total` is authoritative exactly as current WebClients uses
   it; page offset plus expected first/second batch lengths must agree while
   continuation totals remain ignored because anchors change their meaning.
+- A bounded legacy core-event projection now accepts only exact
+  `GET /api/core/v5/events/{EventID}` responses and retains the requested and
+  response watermarks plus `More`, refresh, and mailbox-change-presence bits.
+  `Messages`, `Conversations`, and count payload contents are discarded. Mail's
+  current bootstrap consumes that older core event stream for message and
+  conversation updates; the Mail-specific v6 stream does not contain those
+  collections. This is snapshot research evidence only: passive ordering of an
+  event poll before and after a list capture, and server guarantees for that
+  bracket, are not yet proven.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

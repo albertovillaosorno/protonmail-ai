@@ -221,6 +221,14 @@ when the result fits one batch or batch 2 starts at a different `Time`, while a
 same-time boundary keeps the tie-break blocker and immutable snapshot evidence
 remains required in every case.
 
+Snapshot research now also has a separate bounded projection for Mail's legacy
+core event loop. Exact core-v5 event responses are reduced to opaque request and
+response watermarks plus settled/refresh and mailbox-change-presence state;
+event
+payload contents never escape that boundary. This is not wired into list
+readiness until passive before/after capture ordering and server guarantees are
+proven.
+
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@c51e81b3730a5e1084586b383d837947f7636c16` and the pinned research
 snapshot,

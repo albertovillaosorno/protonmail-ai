@@ -190,6 +190,14 @@ calls, and selector-bearing recovery traffic is excluded from visible-list
 capture. Provider-private `Order`, continuation anchors, and page numbers cannot
 be mistaken for those guarantees.
 
+Legacy core-event observation is content-minimized separately from message-list
+capture. Only bounded opaque event watermarks, settled/refresh state, and
+whether
+message, conversation, or count collections are non-empty may cross that
+projection; individual event IDs, labels, counts, messages, and conversations
+remain provider payload and are discarded. This projection is not itself an
+immutable snapshot proof.
+
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
 but MCP never receives an arbitrary local body-file path. Handoff bodies are
