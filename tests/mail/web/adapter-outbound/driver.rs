@@ -36,6 +36,7 @@ use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use mail_web_adapter::MessageListReconciliationError;
 use mail_web_adapter::MessageListResponseError;
 use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 use mail_web_adapter::{PageOrigin, ProviderPage};
@@ -85,7 +86,8 @@ done
     clippy::too_many_lines,
     reason = "synthetic CDP script fixture is one coherent protocol transcript"
 )]
-fn fake_network_browser(root: &Path, base64_encoded: bool) -> PathBuf {
+// jig-ignore-next-line: canonical rustfmt line.
+fn fake_network_browser(root: &Path, base64_encoded: bool, visible_id: &str) -> PathBuf {
     let script = root.join("fake-network-browser");
     let log = root.join("network-log.txt");
     let encoded = if base64_encoded { "true" } else { "false" };
@@ -111,14 +113,14 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
-      value='{"loading":false,"loaded":true,"rowIds":["m-1"],'
+      value='{"loading":false,"loaded":true,"rowIds":["__VISIBLE_ID__"],'
       value+='"skeletonCount":0,"emptyMarker":false,'
       value+='"nextPresent":false,"nextDisabled":null,'
       value+='"currentTestId":"pagination-row:go-to-page-1"}'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
-      value='[{"id":"m-1","subject":"Rendered subject",'
+      value='[{"id":"__VISIBLE_ID__","subject":"Rendered subject",'
       value+='"addresses":"synthetic@example.test","unread":false}]'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
@@ -195,7 +197,8 @@ done
 "#;
     let body = template
         .replace("__LOG__", &log.display().to_string())
-        .replace("__ENCODED__", encoded);
+        .replace("__ENCODED__", encoded)
+        .replace("__VISIBLE_ID__", visible_id);
     fs::write(&script, body).expect("write fake network browser");
     let permissions = fs::Permissions::from_mode(0o700);
     let permission_result = fs::set_permissions(&script, permissions);
@@ -206,11 +209,12 @@ done
 fn with_network_browser<T>(
     label: &str,
     base64_encoded: bool,
+    visible_id: &str,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
     let root = test_root(label);
     fs::create_dir_all(&root).expect("create synthetic network root");
-    let browser = fake_network_browser(&root, base64_encoded);
+    let browser = fake_network_browser(&root, base64_encoded, visible_id);
     let browser_plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch network driver");
@@ -366,6 +370,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
     let (response, log) = with_network_browser(
         "network-list",
         false,
+        "m-1",
         ManagedBrowser::observe_message_list_response,
     );
     let response = response.expect("observe exact message-list response");
@@ -384,6 +389,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
     let (metadata, log) = with_network_browser(
         "network-reconciled",
         false,
+        "m-1",
         ManagedBrowser::observe_visible_message_metadata,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -395,10 +401,28 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
 }
 
 #[test]
+fn network_metadata_rejects_stable_row_without_machine_coverage() {
+    let (result, log) = with_network_browser(
+        "network-missing-visible",
+        false,
+        "visible-only",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListReconciliation(
+            MessageListReconciliationError::MissingVisibleMessage
+        ))
+    );
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
 fn encoded_message_list_body_fails_closed_after_network_disable() {
     let (result, log) = with_network_browser(
         "network-encoded",
         true,
+        "m-1",
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(
