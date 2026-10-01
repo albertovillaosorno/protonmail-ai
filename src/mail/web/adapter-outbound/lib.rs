@@ -60,7 +60,9 @@ pub use mailbox_page::VisibleMessagePageSnapshot;
 pub use mailbox_page::{MailboxPageSnapshot, VisibleMailboxRow};
 pub use mailbox_pagination::NextPageActivation;
 pub use mailbox_sort::MailboxSortOrder;
+pub use message_list_response::MessageListReconciliationError;
 pub use message_list_response::ObservedMessageMetadata;
+pub use message_list_response::ReconciledVisibleMessageMetadata;
 // jig-ignore-next-line: canonical rustfmt line.
 pub use message_list_response::{MessageListNetworkCapture, MessageListNetworkError};
 // jig-ignore-next-line: canonical rustfmt line.

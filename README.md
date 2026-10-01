@@ -172,13 +172,20 @@ immediately to message ID, numeric `Time`, provider `Order`, and total. Encoded,
 malformed, oversized, redirected, or ambiguous observations fail closed, and
 Network tracking is disabled before mode and origin are revalidated.
 
-This proves a bounded machine-readable timestamp source exists, but it is not
-yet coupled to the stable visible-row snapshot or public readiness result.
-WebClients may issue multiple list batches, equal `Time` values still fall back
-to internal `element.Order` rather than message ID, and visible page numbers
-provide no immutable snapshot boundary. `inspect_list_messages_readiness`
-therefore continues to report the contract blockers instead of emitting an
-approximate cursor.
+The adapter also has a provider-neutral reconciliation model for combining
+non-overlapping observed list batches with a stable visible message-ID sequence.
+It preserves visible-row order, allows extra prefetched provider IDs, and fails
+closed for duplicate visible IDs, overlapping provider batches, missing visible
+metadata, or an explicit-empty contradiction. `Debug` output exposes only the
+reconciled row count.
+
+This proves both a bounded machine-readable timestamp source and a fail-closed
+coverage rule exist, but they are not yet coupled in the driver. WebClients may
+issue multiple list batches, equal `Time` values still fall back to internal
+`element.Order` rather than message ID, and visible page numbers provide no
+immutable snapshot boundary. `inspect_list_messages_readiness` therefore
+continues to report the contract blockers instead of emitting an approximate
+cursor.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research

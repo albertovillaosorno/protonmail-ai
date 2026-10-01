@@ -39,6 +39,7 @@ use serde_json::Value;
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
+const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NetworkRequestState {
@@ -393,6 +394,96 @@ impl fmt::Debug for ObservedMessageListResponse {
             .field("message_count", &self.messages.len())
             .finish()
     }
+}
+
+/// Machine-readable metadata reconciled to stable visible message IDs.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ReconciledVisibleMessageMetadata {
+    messages: Vec<ObservedMessageMetadata>,
+}
+
+impl ReconciledVisibleMessageMetadata {
+    /// Reconciles one stable visible ID sequence against observed list batches.
+    ///
+    /// Extra observed IDs are allowed because `WebClients` may prefetch beyond
+    /// the rendered rows. Every visible ID must occur exactly once across all
+    /// batches, and observed batches themselves may not overlap by ID.
+    ///
+    /// # Errors
+    ///
+    /// Rejects too many visible IDs, duplicate visible IDs, duplicate observed
+    /// IDs across batches, missing visible metadata, or metadata returned for
+    /// an explicitly empty visible page.
+    pub fn reconcile(
+        visible_ids: &[&str],
+        responses: &[ObservedMessageListResponse],
+    ) -> Result<Self, MessageListReconciliationError> {
+        if visible_ids.len() > MAX_VISIBLE_MESSAGE_METADATA {
+            return Err(MessageListReconciliationError::TooManyVisibleMessages);
+        }
+        let mut observed = BTreeMap::new();
+        for response in responses {
+            for message in response.messages() {
+                if observed.insert(message.id(), message).is_some() {
+                    // jig-ignore-next-line: canonical rustfmt line.
+                    return Err(MessageListReconciliationError::DuplicateObservedId);
+                }
+            }
+        }
+        if visible_ids.is_empty() {
+            if observed.is_empty() {
+                return Ok(Self {
+                    messages: Vec::new(),
+                });
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            return Err(MessageListReconciliationError::UnexpectedObservedMessage);
+        }
+
+        let mut visible = BTreeSet::new();
+        for id in visible_ids {
+            if id.is_empty() || !visible.insert(*id) {
+                return Err(MessageListReconciliationError::DuplicateVisibleId);
+            }
+        }
+        let mut messages = Vec::with_capacity(visible_ids.len());
+        for id in visible_ids {
+            let message = observed
+                .get(id)
+                .ok_or(MessageListReconciliationError::MissingVisibleMessage)?;
+            messages.push((*message).clone());
+        }
+        Ok(Self { messages })
+    }
+
+    /// Returns reconciled metadata in the exact stable visible-row order.
+    #[must_use]
+    pub fn messages(&self) -> &[ObservedMessageMetadata] {
+        &self.messages
+    }
+}
+
+impl fmt::Debug for ReconciledVisibleMessageMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReconciledVisibleMessageMetadata")
+            .field("message_count", &self.messages.len())
+            .finish()
+    }
+}
+
+/// Why observed list batches cannot prove metadata for stable visible rows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MessageListReconciliationError {
+    /// Stable visible evidence contains too many message IDs.
+    TooManyVisibleMessages,
+    /// Stable visible evidence repeats or contains an empty message ID.
+    DuplicateVisibleId,
+    /// Two observed provider batches overlap on the same message ID.
+    DuplicateObservedId,
+    /// A stable visible message ID has no observed machine metadata.
+    MissingVisibleMessage,
+    /// An explicitly empty stable page conflicts with observed message data.
+    UnexpectedObservedMessage,
 }
 
 /// Why a captured response cannot be treated as message-list metadata.

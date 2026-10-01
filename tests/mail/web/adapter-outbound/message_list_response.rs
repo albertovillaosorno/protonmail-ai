@@ -30,6 +30,8 @@
 
 //! Message-list HTTP response projection regression tests.
 
+use mail_web_adapter::MessageListReconciliationError;
+use mail_web_adapter::ReconciledVisibleMessageMetadata;
 use mail_web_adapter::{MessageListResponseError, ObservedMessageListResponse};
 
 const URL: &str = concat!(
@@ -307,4 +309,91 @@ fn cdp_body_projection_requires_decoded_bounded_json() {
         ObservedMessageListResponse::parse("GET", URL, &oversized),
         Err(MessageListResponseError::BodyTooLarge)
     );
+}
+
+#[test]
+fn visible_ids_reconcile_across_non_overlapping_prefetch_batches() {
+    let first = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        concat!(
+            r#"{"Total":4,"Messages":[{"ID":"m-4","Time":40,"Order":4},"#,
+            r#"{"ID":"m-3","Time":30,"Order":3}]}"#,
+        ),
+    )
+    .expect("parse first batch");
+    let second = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        concat!(
+            r#"{"Total":4,"Messages":[{"ID":"m-2","Time":20,"Order":2},"#,
+            r#"{"ID":"m-1","Time":10,"Order":1}]}"#,
+        ),
+    )
+    .expect("parse second batch");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let reconciled = ReconciledVisibleMessageMetadata::reconcile(&["m-3", "m-2"], &[first, second])
+        .expect("reconcile visible IDs");
+    assert_eq!(reconciled.messages().len(), 2);
+    assert_eq!(reconciled.messages()[0].id(), "m-3");
+    assert_eq!(reconciled.messages()[0].time(), 30);
+    assert_eq!(reconciled.messages()[1].id(), "m-2");
+    assert_eq!(reconciled.messages()[1].time(), 20);
+    let debug = format!("{reconciled:?}");
+    assert!(!debug.contains("m-3"));
+    assert!(!debug.contains("30"));
+}
+
+#[test]
+fn visible_metadata_reconciliation_fails_closed_on_coverage_drift() {
+    let first = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+    )
+    .expect("parse first batch");
+    assert_eq!(
+        ReconciledVisibleMessageMetadata::reconcile(&["m-2", "m-1"], &[first]),
+        Err(MessageListReconciliationError::MissingVisibleMessage)
+    );
+
+    let overlap_a = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+    )
+    .expect("parse overlap a");
+    let overlap_b = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Total":2,"Messages":[{"ID":"m-2","Time":20,"Order":2}]}"#,
+    )
+    .expect("parse overlap b");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleMessageMetadata::reconcile(&["m-2"], &[overlap_a, overlap_b]),
+        Err(MessageListReconciliationError::DuplicateObservedId)
+    );
+
+    assert_eq!(
+        ReconciledVisibleMessageMetadata::reconcile(&["m-1", "m-1"], &[]),
+        Err(MessageListReconciliationError::DuplicateVisibleId)
+    );
+}
+
+#[test]
+fn explicit_empty_reconciliation_rejects_observed_messages() {
+    let nonempty = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Total":1,"Messages":[{"ID":"m-1","Time":10,"Order":1}]}"#,
+    )
+    .expect("parse nonempty response");
+    assert_eq!(
+        ReconciledVisibleMessageMetadata::reconcile(&[], &[nonempty]),
+        Err(MessageListReconciliationError::UnexpectedObservedMessage)
+    );
+    let empty = ReconciledVisibleMessageMetadata::reconcile(&[], &[])
+        .expect("empty page without observations is consistent");
+    assert!(empty.messages().is_empty());
 }
