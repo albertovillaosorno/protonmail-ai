@@ -220,7 +220,7 @@ not the contract tie-break: equal-time ID ordering and immutable snapshots
 remain unconditional blockers.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
-`main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research
+`main@c51e81b3730a5e1084586b383d837947f7636c16` and the pinned research
 snapshot,
 so this refusal is based on current provider behavior rather than stale source.
 The adapter still does not claim `list_threads`; broader read/composer/mutation

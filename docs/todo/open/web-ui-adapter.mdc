@@ -166,7 +166,7 @@ web application without requiring Bridge or a third-party direct API identity.
   `SortNotNewestFirst` as a separate blocker.
 - `FilterList.tsx`, `filterListHelpers.ts`, `ItemDateRender.tsx`, `date.ts`, and
   `elements.ts` were rechecked byte-identical on current
-  `main@e89da53c8a07656184f703383f74250d66f82b1f` on 2026-10-01, so the blockers
+  `main@c51e81b3730a5e1084586b383d837947f7636c16` on 2026-10-01, so the blockers
   reflect current WebClients behavior.
 - `elementQuery.ts` at that same current main commit is also byte-identical
   (blob `63821f797c5c6ba76cf330d82ee2f65ad41ea4e4`). WebClients internally
