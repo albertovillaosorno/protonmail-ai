@@ -43,7 +43,7 @@ const URL: &str = concat!(
 fn exact_get_list_response_projects_only_required_metadata() {
     let body = r#"{
         "Code":1000,
-        "Stale":0,"Total":2,
+        "Stale":0,"TasksRunning":[],"Total":2,
         "Messages":[
             {"ID":"m-2","Time":1790840002,"Order":22,
              "Subject":"secret two","Sender":{"Address":"two@example.test"}},
@@ -118,6 +118,26 @@ fn stale_response_is_rejected() {
         // jig-ignore-next-line: indivisible synthetic JSON fixture.
         ObservedMessageListResponse::parse("GET", URL, r#"{"Stale":1,"Total":0,"Messages":[]}"#,),
         Err(MessageListResponseError::StaleResponse)
+    );
+}
+
+#[test]
+fn active_or_malformed_task_state_is_rejected() {
+    for tasks in [r#"["label-1"]"#, r#"{"label-1":{}}"#, "true"] {
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        let body = format!(r#"{{"Stale":0,"TasksRunning":{tasks},"Total":0,"Messages":[]}}"#);
+        assert_eq!(
+            ObservedMessageListResponse::parse("GET", URL, &body),
+            Err(MessageListResponseError::TasksRunning)
+        );
+    }
+    assert_eq!(
+        ObservedMessageListResponse::parse(
+            "GET",
+            URL,
+            r#"{"Stale":0,"TasksRunning":"busy","Total":0,"Messages":[]}"#,
+        ),
+        Err(MessageListResponseError::Malformed)
     );
 }
 

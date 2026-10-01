@@ -482,6 +482,19 @@ fn network_request_id(event: &Value) -> Result<&str, MessageListNetworkError> {
         .ok_or(MessageListNetworkError::MalformedEvent)
 }
 
+// jig-ignore-next-line: canonical rustfmt line.
+fn validate_no_tasks_running(value: &Value) -> Result<(), MessageListResponseError> {
+    match value.get("TasksRunning") {
+        None | Some(Value::Null | Value::Bool(false)) => Ok(()),
+        Some(Value::Array(tasks)) if tasks.is_empty() => Ok(()),
+        Some(Value::Object(tasks)) if tasks.is_empty() => Ok(()),
+        Some(Value::Bool(true) | Value::Array(_) | Value::Object(_)) => {
+            Err(MessageListResponseError::TasksRunning)
+        }
+        Some(_) => Err(MessageListResponseError::Malformed),
+    }
+}
+
 /// One metadata row projected from the provider's message-list response.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ObservedMessageMetadata {
@@ -535,8 +548,8 @@ impl ObservedMessageListResponse {
     /// # Errors
     ///
     /// Rejects methods other than `GET`, non-list URLs, oversized bodies,
-    /// malformed JSON, more than 100 rows, missing numeric metadata, or
-    /// duplicate message IDs.
+    /// malformed JSON, stale/task-running state, more than 100 rows, missing
+    /// numeric metadata, or duplicate message IDs.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse(method: &str, url: &str, body: &str) -> Result<Self, MessageListResponseError> {
         if method != "GET" || !is_message_list_url(url) {
@@ -555,6 +568,7 @@ impl ObservedMessageListResponse {
         if stale != 0 {
             return Err(MessageListResponseError::StaleResponse);
         }
+        validate_no_tasks_running(&value)?;
         let total = value
             .get("Total")
             .and_then(Value::as_u64)
@@ -755,6 +769,8 @@ pub enum MessageListResponseError {
     Malformed,
     /// Provider marks the list stale and `WebClients` would refetch it.
     StaleResponse,
+    /// Provider reports active backend tasks for the list response.
+    TasksRunning,
     /// Response contains more rows than the adapter's maximum page size.
     TooManyMessages,
     /// Response repeats a provider message identifier.

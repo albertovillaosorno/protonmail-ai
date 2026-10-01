@@ -175,9 +175,10 @@ Verified visible pages are not promoted to public `list_messages` merely from
 localized DOM dates. The bounded Network diagnostic now projects numeric
 `Message.Time`, which current WebClients treats as the message receive time, and
 reconciles it to stable visible IDs without exporting browser credentials. The
-same bounded observation reduces provider `Sort`/`Desc` to fixed known values
-and rejects response-query or projected-Time ordering contradictions before
-readiness can use that evidence. Public listing still requires the
+same bounded observation reduces provider `Sort`/`Desc` to fixed known values,
+rejects stale or active-task list responses, and rejects response-query or
+projected-Time ordering contradictions before readiness can use that evidence.
+Public listing still requires the
 provider-neutral ID tie-break and immutable
 snapshot boundary; provider-private `Order`, continuation anchors, and page
 numbers cannot be mistaken for those guarantees.

@@ -174,10 +174,11 @@ web application without requiring Bridge or a third-party direct API identity.
   that is a continuation anchor, not evidence of snapshot isolation; `Stale=1`
   is likewise a freshness/refetch signal because `elementsActions.ts` schedules
   another load and `elementsTypes.ts` describes “awaiting fresh data”, with no
-  immutable boundary or resumable token exposed. The bounded response projection
+  immutable boundary or resumable token exposed; the bounded response projection
   now requires `Stale=0`, so evidence WebClients itself would refetch cannot
-  feed
-  readiness. The CDP Network diagnostic observes provider list metadata without
+  feed readiness. Non-empty/true `TasksRunning` is also rejected; the projection
+  keeps no task identifiers or payloads. The CDP Network diagnostic observes
+  provider list metadata without
   exporting browser credentials or
   reading private Redux state, so multi-batch collection and snapshot semantics
   remain separate requirements.
