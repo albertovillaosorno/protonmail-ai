@@ -186,8 +186,9 @@ The driver can now couple those pieces in one diagnostic call; its Network
 observer recognizes WebClients-shaped initial requests (`Page`, `PageSize`, and
 `Limit`) and the one anchor continuation used by the current two-batch query
 loop. If batch 1 fills its sanitized `Limit`, the continuation's numeric
-`Anchor` must equal batch 1's last projected message `Time` before its body is
-read. `Network.getResponseBody` keeps classifying Network events inline while
+`Anchor` and bounded `AnchorID` must equal batch 1's last projected message
+`Time` and ID before its body is read. `Network.getResponseBody` keeps
+classifying Network events inline while
 the continuation starts, then captures batch 2 before disabling Network. A
 fresh stable visible message-page snapshot in the same target session is
 reconciled against both projected batches.

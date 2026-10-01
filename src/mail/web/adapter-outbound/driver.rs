@@ -55,7 +55,6 @@ use crate::message_list_response::MessageListNetworkError;
 use crate::message_list_response::MessageListReconciliationError;
 use crate::message_list_response::MessageListResponseError;
 use crate::message_list_response::ObservedMessageListResponse;
-use crate::message_list_response::ObservedMessageMetadata;
 use crate::message_list_response::ReconciledVisibleMessageMetadata;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
@@ -85,6 +84,7 @@ struct CompletedMessageListRequest {
     continuation: bool,
     limit: usize,
     anchor: Option<u64>,
+    anchor_id: Option<String>,
 }
 
 /// Immutable launch settings for one managed dedicated-profile browser.
@@ -713,14 +713,14 @@ impl ManagedBrowser {
         }
 
         let second_request = self.wait_for_message_list_request(capture)?;
-        let expected_anchor = first
+        let last_message = first
             .messages()
             .last()
-            .map(ObservedMessageMetadata::time)
             .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
         if !second_request.continuation
             || second_request.limit != first_request.limit
-            || second_request.anchor != Some(expected_anchor)
+            || second_request.anchor != Some(last_message.time())
+            || second_request.anchor_id.as_deref() != Some(last_message.id())
         {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
@@ -1367,13 +1367,14 @@ fn take_one_finished_request(
     match finished.len() {
         0 => Ok(None),
         1 => {
-            let (request_id, continuation, limit, anchor) =
+            let (request_id, continuation, limit, anchor, anchor_id) =
                 finished.pop().ok_or(BrowserDriverError::Protocol)?;
             Ok(Some(CompletedMessageListRequest {
                 request_id,
                 continuation,
                 limit,
                 anchor,
+                anchor_id,
             }))
         }
         _ => Err(BrowserDriverError::MessageListResponseAmbiguous),

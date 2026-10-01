@@ -38,6 +38,7 @@ use serde_json::Value;
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
+const MAX_MESSAGE_LIST_ID_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
@@ -54,12 +55,13 @@ enum MessageListRequestKind {
     Continuation,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct TrackedMessageListRequest {
     state: NetworkRequestState,
     kind: MessageListRequestKind,
     limit: usize,
     anchor: Option<u64>,
+    anchor_id: Option<String>,
 }
 
 /// Bounded CDP Network event state for exact message-list GET requests.
@@ -109,7 +111,8 @@ impl MessageListNetworkCapture {
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
             .into_iter()
-            .map(|(request_id, _continuation, _limit, _anchor)| request_id)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map(|(request_id, _continuation, _limit, _anchor, _anchor_id)| request_id)
             .collect()
     }
 
@@ -121,10 +124,15 @@ impl MessageListNetworkCapture {
 
     /// Removes completed batches as sanitized request metadata tuples.
     ///
-    /// The tuple contains request ID, continuation flag, numeric limit, and the
-    /// optional numeric anchor. It excludes the original URL and all headers.
-    // jig-ignore-next-line: canonical rustfmt line.
-    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, bool, usize, Option<u64>)> {
+    /// The tuple contains request ID, continuation flag, numeric limit, numeric
+    /// anchor, and bounded anchor ID. It excludes the original URL and headers.
+    #[expect(
+        clippy::type_complexity,
+        reason = "internal tuple contains only sanitized request metadata"
+    )]
+    pub(crate) fn take_finished_requests(
+        &mut self,
+    ) -> Vec<(String, bool, usize, Option<u64>, Option<String>)> {
         let finished = self
             .requests
             .iter()
@@ -136,6 +144,7 @@ impl MessageListNetworkCapture {
                     request.kind == MessageListRequestKind::Continuation,
                     request.limit,
                     request.anchor,
+                    request.anchor_id.clone(),
                 )
             })
             .collect::<Vec<_>>();
@@ -177,7 +186,7 @@ impl MessageListNetworkCapture {
             return Err(MessageListNetworkError::InvalidSequence);
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let Some((kind, limit, anchor)) = message_list_request_shape(url)? else {
+        let Some((kind, limit, anchor, anchor_id)) = message_list_request_shape(url)? else {
             return Ok(());
         };
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
@@ -190,6 +199,7 @@ impl MessageListNetworkCapture {
                 kind,
                 limit,
                 anchor,
+                anchor_id,
             },
         );
         Ok(())
@@ -276,10 +286,16 @@ pub enum MessageListNetworkError {
     CapacityExceeded,
 }
 
+#[expect(
+    clippy::type_complexity,
+    reason = "internal tuple contains only sanitized request metadata"
+)]
 fn message_list_request_shape(
     url: &str,
-    // jig-ignore-next-line: canonical rustfmt line.
-) -> Result<Option<(MessageListRequestKind, usize, Option<u64>)>, MessageListNetworkError> {
+) -> Result<
+    Option<(MessageListRequestKind, usize, Option<u64>, Option<String>)>,
+    MessageListNetworkError,
+> {
     let Some(raw_limit) = numeric_query_parameter(url, "Limit")? else {
         return Ok(None);
     };
@@ -294,16 +310,17 @@ fn message_list_request_shape(
     let page = numeric_query_parameter(url, "Page")?;
     let page_size = numeric_query_parameter(url, "PageSize")?;
     let anchor = numeric_query_parameter(url, "Anchor")?;
-    let anchor_id = query_parameter_present(url, "AnchorID")?;
-    let kind = match (page, page_size, anchor, anchor_id) {
-        (Some(_page), Some(size), None, false) if size == raw_limit => {
+    // jig-ignore-next-line: canonical rustfmt line.
+    let anchor_id = bounded_query_parameter(url, "AnchorID", MAX_MESSAGE_LIST_ID_BYTES)?;
+    let kind = match (page, page_size, anchor, anchor_id.as_deref()) {
+        (Some(_page), Some(size), None, None) if size == raw_limit => {
             MessageListRequestKind::Initial
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        (None, None, Some(_anchor), true) => MessageListRequestKind::Continuation,
+        (None, None, Some(_anchor), Some(_anchor_id)) => MessageListRequestKind::Continuation,
         _ => return Ok(None),
     };
-    Ok(Some((kind, limit, anchor)))
+    Ok(Some((kind, limit, anchor, anchor_id)))
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -317,9 +334,18 @@ fn numeric_query_parameter(url: &str, name: &str) -> Result<Option<u64>, Message
         .map_err(|_error| MessageListNetworkError::MalformedEvent)
 }
 
-// jig-ignore-next-line: canonical rustfmt line.
-fn query_parameter_present(url: &str, name: &str) -> Result<bool, MessageListNetworkError> {
-    Ok(raw_query_parameter(url, name)?.is_some_and(|value| !value.is_empty()))
+fn bounded_query_parameter(
+    url: &str,
+    name: &str,
+    max_bytes: usize,
+) -> Result<Option<String>, MessageListNetworkError> {
+    let Some(value) = raw_query_parameter(url, name)? else {
+        return Ok(None);
+    };
+    if value.is_empty() || value.len() > max_bytes {
+        return Err(MessageListNetworkError::MalformedEvent);
+    }
+    Ok(Some(String::from(value)))
 }
 
 fn raw_query_parameter<'url>(
@@ -441,7 +467,8 @@ impl ObservedMessageListResponse {
             let id = message
                 .get("ID")
                 .and_then(Value::as_str)
-                .filter(|id| !id.is_empty())
+                // jig-ignore-next-line: canonical rustfmt line.
+                .filter(|id| !id.is_empty() && id.len() <= MAX_MESSAGE_LIST_ID_BYTES)
                 .ok_or(MessageListResponseError::Malformed)?;
             let time = message
                 .get("Time")
