@@ -36,3 +36,11 @@ path = "../../../../tests/mail/web/adapter-outbound/driver.rs"
 [[test]]
 name = "mail-web-shell"
 path = "../../../../tests/mail/web/adapter-outbound/shell.rs"
+
+[[test]]
+name = "mail-web-mailbox-list"
+path = "../../../../tests/mail/web/adapter-outbound/mailbox_list.rs"
+
+[[test]]
+name = "mail-web-mailbox-page"
+path = "../../../../tests/mail/web/adapter-outbound/mailbox_page.rs"

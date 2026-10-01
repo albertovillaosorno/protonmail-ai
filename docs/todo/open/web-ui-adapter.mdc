@@ -70,8 +70,8 @@ web application without requiring Bridge or a third-party direct API identity.
   launch, and no live browser/account is used by the deterministic suite.
 - `AutomationProfileLease` classifies Chromium `SingletonLock` ownership,
   refuses active/foreign/malformed owners without deleting Chromium state, and
-  serializes managed
-  drivers with a `0600` PID/start-time lease, safely reclaims dead owners, and
+  serializes managed drivers with a `0600` PID/start-time lease, safely reclaims
+  dead owners, and
   protects replacement files by inode/device identity. Ten synthetic lease
   tests cover active, stale, corrupt, symlink, local-live/local-stale Chromium,
   foreign/malformed Chromium, and replacement states.
@@ -99,19 +99,38 @@ web application without requiring Bridge or a third-party direct API identity.
   fallback; installed-Chrome/live acceptance must exercise this boundary.
 - Eight synthetic shell tests cover ready state, ignored landmarks, dialog and
   alert-dialog blockers, malformed AX output, Account rejection, origin drift
-  before and after AX queries,
-  and the typed `MailShellNotReady` workflow precondition.
+  before and after AX queries, and the typed `MailShellNotReady` workflow
+  precondition.
 - The pinned WebClients Lumo `open_folder`/`search` handlers are useful semantic
   evidence but are internal: `LumoMailProvider` assembles them from React hooks,
   Redux/store state, router history, and `MailToolDeps`. The web adapter will
   not inject against those private internals; read workflows must use an
-  externally
-  observable browser boundary and preserve the same settle/coverage semantics.
+  externally observable browser boundary and preserve the same settle/coverage
+  semantics.
 - The rendered list alone is not sufficient emptiness evidence: WebClients uses
   loading rows in the same list layout, while its internal navigation reads wait
   on loading/context-total state and Encrypted Search completion. External reads
   therefore must prove an observable settle/coverage signal; zero visible rows
   may never be reported as an empty mailbox by itself.
-- Still required: composer semantic extraction, mailbox read/mutation workflows,
-  control-level selector/page-shape drift fixtures, and the separately opted-in
-  Free-account acceptance transcript.
+- Content-free mailbox-list inspection now has eight synthetic tests covering
+  settled rows, explicit empty, loading, unproven empty, skeleton contradiction,
+  duplicate IDs, shell readiness, and post-observation origin drift.
+- The first content-bearing read returns a stable snapshot of the currently
+  visible page only. Eight synthetic tests cover stable subject/address/unread
+  projection, empty subject, explicit empty, loading/unproven state, list
+  change, row-order mismatch, and malformed row metadata. `Debug` redacts
+  mailbox content and opaque IDs.
+- The six WebClients files that define list loading, rows, skeletons, empty
+  state, and pagination were byte-identical between the pinned snapshot and
+  current `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-09-30.
+- Current WebClients research found no stable row-level DOM marker for
+  message-versus-conversation mode. `NumMessages` is rendered only in
+  conversation mode and only when the conversation has more than one message,
+  so absence cannot prove message mode. The adapter must not infer mode from
+  that badge or from row ID shape.
+- Still required: determine an externally observable mode signal or define a
+  provider-neutral read contract that does not require that distinction; then
+  expose the read through provider-neutral capabilities, composer semantic
+  extraction,
+  mailbox mutation workflows, control-level drift fixtures, and the separately
+  opted-in Free-account acceptance transcript.

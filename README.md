@@ -119,7 +119,22 @@ four roles: `navigation`, `search`, `dialog`, and `alertdialog`. It does not
 request the full accessibility tree or use accessible names. Navigation and
 search must both be visible, while either dialog role blocks readiness.
 
-Composer detection and real mailbox workflows remain unfinished in
+The first read-only mailbox slice now takes a stable snapshot of the currently
+visible Mail page. It requires a ready Mail shell, reads content-free list state
+before and after row projection, and returns data only when provider row IDs are
+unchanged in the same order. The snapshot contains only opaque row ID, visible
+subject, displayed correspondent addresses, unread state, and observable paging
+state; it does not read message bodies or hidden React/Redux state.
+
+Loading, skeleton rows, duplicate IDs, an unproven zero-row state, list changes,
+and origin drift all fail closed. Empty subject is valid. Snapshot `Debug`
+formatting redacts row IDs, subjects, and addresses so ordinary diagnostics do
+not accidentally disclose mailbox metadata.
+
+This is deliberately a visible-page read, not yet provider-neutral
+`list_messages`/`list_threads`: the adapter still does not infer whether the
+current Mail UI is rendering message mode or conversation mode. Composer
+semantic extraction and broader mailbox workflows remain unfinished in
 `web-ui-adapter`.
 
 ## Available now: prefilled web composer

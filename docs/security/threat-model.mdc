@@ -118,6 +118,17 @@ Origin revalidation evaluates only browser `location.protocol`, `hostname`, and
 read cookies, web storage, messages, or authentication fields. Metadata/context
 disagreement is a typed fail-closed origin-drift state.
 
+The visible-page read is intentionally content-bearing, but narrowly bounded.
+It extracts only visible row subject, displayed correspondent addresses, unread
+state, and an opaque provider row ID after a ready-shell check. Message bodies,
+hidden application state, cookies, storage, and authentication data are outside
+that expression.
+
+Mailbox metadata is treated as sensitive output. `Debug` for list evidence and
+page snapshots reports counts/state only and redacts row IDs, subjects, and
+addresses. The driver also rejects changing/reordered IDs and never treats zero
+visible rows alone as evidence of an empty mailbox.
+
 Shell readiness then reads only the DOM root identity and queries Chromium AX by
 four structural roles. The adapter never asks for the full accessibility tree
 and discards accessible names/values. Missing navigation/search, ignored role

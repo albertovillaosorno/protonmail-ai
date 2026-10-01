@@ -68,6 +68,24 @@ its origin/page-state validation in the execution path that reads content or
 creates a side effect, so navigation after inspection cannot authorize stale
 state.
 
+The first content-bearing read follows that rule in one attached target session:
+origin and Mail shell are checked, content-free list evidence is captured, only
+visible row metadata is projected, list evidence is captured again, and origin
+is rechecked. Before/after list evidence and opaque row IDs must match exactly
+in rendered order.
+
+Visible-row projection reads only the row's provider ID, subject title,
+displayed correspondent-address title, and unread class. It does not claim
+message-versus-conversation semantics and does not read body content. Loading,
+skeletons, duplicate IDs, explicit contradictions, unproven zero-row state, or
+a changing list invalidate the snapshot. An empty snapshot is returned only
+when Mail renders its explicit empty marker on both observations.
+
+The six list/row source files underlying this boundary were rechecked against
+WebClients `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-09-30;
+their Git blob IDs are identical to the pinned snapshot. This is compatibility
+evidence, not a promise that private DOM attributes are permanent.
+
 The pinned WebClients source supports those structural facts: Mail renders its
 sidebar with `SidebarNav`, whose shared component is a `nav` landmark, and its
 search wrapper declares `role="search"`. No localized label is part of the

@@ -36,6 +36,8 @@
 
 mod driver;
 mod lease;
+mod mailbox_list;
+mod mailbox_page;
 mod policy;
 mod profile;
 mod shell;
@@ -43,6 +45,9 @@ mod shell;
 pub use driver::ProviderPage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
+pub use mailbox_list::NextPageControl;
+pub use mailbox_list::{MailboxListEvidence, MailboxListState};
+pub use mailbox_page::{MailboxPageSnapshot, VisibleMailboxRow};
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};
 pub use policy::{UiEvidence, UiGateError, UiTarget, WebSurface};

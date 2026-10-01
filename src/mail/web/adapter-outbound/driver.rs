@@ -43,6 +43,8 @@ use command_fds::{CommandFdExt as _, FdMapping};
 use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
+use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
+use crate::mailbox_page::MailboxPageSnapshot;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -234,16 +236,7 @@ impl ManagedBrowser {
 
     // jig-ignore-next-line: canonical rustfmt line.
     fn runtime_origin(&mut self, session: &str) -> Result<PageOrigin, BrowserDriverError> {
-        let params = json!({
-            "expression": LOCATION_EXPRESSION,
-            "returnByValue": true
-        });
-        // jig-ignore-next-line: canonical rustfmt line.
-        let result = self.call_in_session(session, "Runtime.evaluate", &params)?;
-        let value = result
-            .get("result")
-            .and_then(|remote| remote.get("value"))
-            .ok_or(BrowserDriverError::Protocol)?;
+        let value = self.runtime_value(session, LOCATION_EXPRESSION)?;
         let protocol = value
             .get("protocol")
             .and_then(Value::as_str)
@@ -257,6 +250,24 @@ impl ManagedBrowser {
             .and_then(Value::as_str)
             .ok_or(BrowserDriverError::Protocol)?;
         Ok(location_origin(protocol, hostname, port))
+    }
+
+    fn runtime_value(
+        &mut self,
+        session: &str,
+        expression: &str,
+    ) -> Result<Value, BrowserDriverError> {
+        let params = json!({
+            "expression": expression,
+            "returnByValue": true
+        });
+        // jig-ignore-next-line: canonical rustfmt line.
+        let result = self.call_in_session(session, "Runtime.evaluate", &params)?;
+        result
+            .get("result")
+            .and_then(|remote| remote.get("value"))
+            .cloned()
+            .ok_or(BrowserDriverError::Protocol)
     }
 
     fn query_ax_role(
@@ -363,6 +374,106 @@ impl ManagedBrowser {
             });
         }
         Ok(())
+    }
+
+    /// Reads content-free evidence for the currently rendered mailbox list.
+    ///
+    /// Origin and Mail-shell readiness are revalidated in the same target
+    /// session before the list observation, and origin is checked again after.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for a non-Mail page, unready shell, malformed/contradictory
+    /// list evidence, or origin drift around the observation.
+    pub fn inspect_mailbox_list(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailboxListEvidence, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let inspected = self.inspect_mailbox_list_in_session(page, &session);
+        let detached = self.detach(&session);
+        let evidence = inspected?;
+        detached?;
+        Ok(evidence)
+    }
+
+    fn inspect_mailbox_list_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<MailboxListEvidence, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let evidence = self.mailbox_list_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        Ok(evidence)
+    }
+
+    /// Reads a stable snapshot of the currently visible mailbox page.
+    ///
+    /// The same target session revalidates origin and Mail-shell readiness,
+    /// captures list evidence before and after content projection, and requires
+    /// provider row IDs to remain identical in rendered order.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed while loading, for unproven empty state, list changes,
+    /// malformed visible rows, an unready shell, or origin drift.
+    pub fn read_visible_mailbox_page(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailboxPageSnapshot, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let read = self.read_mailbox_page_in_session(page, &session);
+        let detached = self.detach(&session);
+        let snapshot = read?;
+        detached?;
+        Ok(snapshot)
+    }
+
+    fn read_mailbox_page_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<MailboxPageSnapshot, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let before = self.mailbox_list_in_session(session)?;
+        let rows_value = match before.state() {
+            MailboxListState::SettledRows => {
+                // jig-ignore-next-line: canonical rustfmt line.
+                Some(self.runtime_value(session, MailboxPageSnapshot::expression())?)
+            }
+            MailboxListState::SettledExplicitEmpty => None,
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxListState::Loading | MailboxListState::SettledNoRowsUnproven => {
+                return Err(BrowserDriverError::MailboxPageNotSettled);
+            }
+        };
+        let after = self.mailbox_list_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        MailboxPageSnapshot::from_observations(&before, rows_value.as_ref(), &after)
+    }
+
+    fn mailbox_list_in_session(
+        &mut self,
+        session: &str,
+    ) -> Result<MailboxListEvidence, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let value = self.runtime_value(session, MailboxListEvidence::expression())?;
+        MailboxListEvidence::from_runtime_value(&value)
+            .map_err(|_error| BrowserDriverError::MailboxListIncompatible)
     }
 
     /// Requests a clean browser shutdown and waits for Chromium to exit.
@@ -501,6 +612,14 @@ pub enum BrowserDriverError {
     MailOriginRequired,
     /// Required Mail-shell landmarks are missing or blocked by a dialog.
     MailShellNotReady,
+    /// Mailbox-list DOM evidence is malformed or contradictory.
+    MailboxListIncompatible,
+    /// Visible mailbox content changed while the snapshot was being read.
+    MailboxPageChanged,
+    /// Visible mailbox row content is malformed or contradicts list evidence.
+    MailboxPageIncompatible,
+    /// Mailbox list is loading or lacks explicit settled-empty evidence.
+    MailboxPageNotSettled,
     /// Target metadata and live execution-context origin disagree.
     OriginDrift {
         /// Origin reported by browser target metadata.
@@ -532,6 +651,15 @@ impl fmt::Display for BrowserDriverError {
             Self::MailOriginRequired => f.write_str("Proton Mail origin is required"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailShellNotReady => f.write_str("Proton Mail shell is not ready"),
+            Self::MailboxListIncompatible => {
+                f.write_str("Proton Mail list evidence is incompatible")
+            }
+            Self::MailboxPageChanged => f.write_str("Proton Mail list changed"),
+            Self::MailboxPageIncompatible => {
+                f.write_str("Proton Mail visible rows are incompatible")
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxPageNotSettled => f.write_str("Proton Mail list is not settled"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::OriginDrift { .. } => f.write_str("provider page origin changed"),
             Self::PipeIo => f.write_str("`DevTools` pipe I/O failed"),
