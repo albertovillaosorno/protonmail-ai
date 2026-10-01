@@ -91,11 +91,17 @@ fn fake_network_browser(
     base64_encoded: bool,
     visible_id: &str,
     multi_batch: bool,
+    mismatched_anchor: bool,
 ) -> PathBuf {
     let script = root.join("fake-network-browser");
     let log = root.join("network-log.txt");
     let encoded = if base64_encoded { "true" } else { "false" };
     let limit = if multi_batch { "1" } else { "50" };
+    let anchor = if mismatched_anchor {
+        "1790847000"
+    } else {
+        "1790848000"
+    };
     let row_ids = if multi_batch {
         "[\"m-1\",\"m-2\"]"
     } else {
@@ -211,14 +217,14 @@ while IFS= read -r -d '' message <&3; do
         request+='"method":"Network.requestWillBeSent","params":{'
         request+='"requestId":"list-2","request":{"method":"GET",'
         request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-        request+='Limit=1&Anchor=1790848000&AnchorID=m-1",'
+        request+='Limit=1&Anchor=__ANCHOR__&AnchorID=m-1",'
         request+='"headers":{"Authorization":"Bearer secret"}}}}'
         printf '%s\0' "$request" >&4
         response='{"sessionId":"session-1",'
         response+='"method":"Network.responseReceived","params":{'
         response+='"requestId":"list-2","response":{'
         response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-        response+='Limit=1&Anchor=1790848000&AnchorID=m-1",'
+        response+='Limit=1&Anchor=__ANCHOR__&AnchorID=m-1",'
         response+='"status":200,"mimeType":"application/json"}}}'
         printf '%s\0' "$response" >&4
         finished='{"sessionId":"session-1",'
@@ -257,6 +263,7 @@ done
             if multi_batch { "true" } else { "false" },
         )
         .replace("__LIMIT__", limit)
+        .replace("__ANCHOR__", anchor)
         .replace("__TOTAL__", total)
         .replace("__ROW_IDS__", row_ids)
         .replace("__ROWS__", rows)
@@ -273,12 +280,18 @@ fn with_network_browser<T>(
     base64_encoded: bool,
     visible_id: &str,
     multi_batch: bool,
+    mismatched_anchor: bool,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
     let root = test_root(label);
     fs::create_dir_all(&root).expect("create synthetic network root");
-    // jig-ignore-next-line: canonical rustfmt line.
-    let browser = fake_network_browser(&root, base64_encoded, visible_id, multi_batch);
+    let browser = fake_network_browser(
+        &root,
+        base64_encoded,
+        visible_id,
+        multi_batch,
+        mismatched_anchor,
+    );
     let browser_plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch network driver");
@@ -436,6 +449,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
         false,
         "m-1",
         false,
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     let response = response.expect("observe exact message-list response");
@@ -456,6 +470,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
         false,
         "m-1",
         false,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -473,6 +488,7 @@ fn singular_network_observation_rejects_two_batch_page_after_disable() {
         false,
         "m-1",
         true,
+        false,
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(
@@ -483,12 +499,30 @@ fn singular_network_observation_rejects_two_batch_page_after_disable() {
 }
 
 #[test]
+fn mismatched_continuation_anchor_fails_before_second_body_fetch() {
+    let (result, log) = with_network_browser(
+        "network-anchor-mismatch",
+        false,
+        "m-1",
+        true,
+        true,
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListBatchIncompatible)
+    );
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
 fn continuation_events_during_first_body_fetch_are_reconciled() {
     let (metadata, log) = with_network_browser(
         "network-multi-batch",
         false,
         "m-1",
         true,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     let metadata = metadata.expect("reconcile two observed batches");
@@ -507,6 +541,7 @@ fn network_metadata_rejects_stable_row_without_machine_coverage() {
         false,
         "visible-only",
         false,
+        false,
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -524,6 +559,7 @@ fn encoded_message_list_body_fails_closed_after_network_disable() {
         "network-encoded",
         true,
         "m-1",
+        false,
         false,
         ManagedBrowser::observe_message_list_response,
     );

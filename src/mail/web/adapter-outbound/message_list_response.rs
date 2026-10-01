@@ -59,6 +59,7 @@ struct TrackedMessageListRequest {
     state: NetworkRequestState,
     kind: MessageListRequestKind,
     limit: usize,
+    anchor: Option<u64>,
 }
 
 /// Bounded CDP Network event state for exact message-list GET requests.
@@ -108,7 +109,7 @@ impl MessageListNetworkCapture {
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
             .into_iter()
-            .map(|(request_id, _continuation, _limit)| request_id)
+            .map(|(request_id, _continuation, _limit, _anchor)| request_id)
             .collect()
     }
 
@@ -118,12 +119,12 @@ impl MessageListNetworkCapture {
         self.requests.len()
     }
 
-    /// Removes completed batches as `(request_id, continuation, limit)` tuples.
+    /// Removes completed batches as sanitized request metadata tuples.
     ///
-    /// The tuple deliberately excludes the original URL and all request
-    /// headers. `continuation` is true only for the proven anchor-shaped batch.
+    /// The tuple contains request ID, continuation flag, numeric limit, and the
+    /// optional numeric anchor. It excludes the original URL and all headers.
     // jig-ignore-next-line: canonical rustfmt line.
-    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, bool, usize)> {
+    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, bool, usize, Option<u64>)> {
         let finished = self
             .requests
             .iter()
@@ -134,6 +135,7 @@ impl MessageListNetworkCapture {
                     id.clone(),
                     request.kind == MessageListRequestKind::Continuation,
                     request.limit,
+                    request.anchor,
                 )
             })
             .collect::<Vec<_>>();
@@ -174,7 +176,8 @@ impl MessageListNetworkCapture {
         if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
-        let Some((kind, limit)) = message_list_request_shape(url)? else {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let Some((kind, limit, anchor)) = message_list_request_shape(url)? else {
             return Ok(());
         };
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
@@ -186,6 +189,7 @@ impl MessageListNetworkCapture {
                 state: NetworkRequestState::Requested,
                 kind,
                 limit,
+                anchor,
             },
         );
         Ok(())
@@ -274,7 +278,8 @@ pub enum MessageListNetworkError {
 
 fn message_list_request_shape(
     url: &str,
-) -> Result<Option<(MessageListRequestKind, usize)>, MessageListNetworkError> {
+    // jig-ignore-next-line: canonical rustfmt line.
+) -> Result<Option<(MessageListRequestKind, usize, Option<u64>)>, MessageListNetworkError> {
     let Some(raw_limit) = numeric_query_parameter(url, "Limit")? else {
         return Ok(None);
     };
@@ -288,16 +293,17 @@ fn message_list_request_shape(
         usize::try_from(raw_limit).map_err(|_error| MessageListNetworkError::MalformedEvent)?;
     let page = numeric_query_parameter(url, "Page")?;
     let page_size = numeric_query_parameter(url, "PageSize")?;
-    let anchor = query_parameter_present(url, "Anchor")?;
+    let anchor = numeric_query_parameter(url, "Anchor")?;
     let anchor_id = query_parameter_present(url, "AnchorID")?;
     let kind = match (page, page_size, anchor, anchor_id) {
-        (Some(_page), Some(size), false, false) if size == raw_limit => {
+        (Some(_page), Some(size), None, false) if size == raw_limit => {
             MessageListRequestKind::Initial
         }
-        (None, None, true, true) => MessageListRequestKind::Continuation,
+        // jig-ignore-next-line: canonical rustfmt line.
+        (None, None, Some(_anchor), true) => MessageListRequestKind::Continuation,
         _ => return Ok(None),
     };
-    Ok(Some((kind, limit)))
+    Ok(Some((kind, limit, anchor)))
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
