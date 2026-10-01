@@ -276,7 +276,7 @@ fn newest_first_still_has_two_provider_neutral_blockers() {
 }
 
 #[test]
-fn non_newest_sort_adds_explicit_order_blocker() {
+fn non_newest_sort_adds_third_explicit_order_blocker() {
     let (result, _log) = with_browser(
         "readiness-oldest",
         SortScenario::Oldest,
@@ -285,10 +285,13 @@ fn non_newest_sort_adds_explicit_order_blocker() {
     );
     let readiness = result.expect("readiness must be inspectable");
     assert_eq!(readiness.observed_sort(), MailboxSortOrder::OldestFirst);
-    assert!(
-        readiness
-            .blockers()
-            .contains(&ListMessagesBlocker::SortNotNewestFirst)
+    assert_eq!(
+        readiness.blockers(),
+        [
+            ListMessagesBlocker::ProviderTieBreakDiffers,
+            ListMessagesBlocker::MissingSnapshotBoundary,
+            ListMessagesBlocker::SortNotNewestFirst,
+        ]
     );
     assert!(!readiness.ready());
 }
