@@ -22,7 +22,7 @@
 // - Summary:
 //   - Prevents visible-page reads from masquerading as list_messages support.
 // - Description:
-//   - Records ordering, timestamp, tie-break, and snapshot requirements.
+//   - Records tie-break and snapshot requirements after timestamp proof.
 // - Usage:
 //   - Web adapter preflight exposes diagnostic-only readiness to composition.
 // - Defaults:
@@ -36,8 +36,6 @@ use crate::mailbox_sort::MailboxSortOrder;
 /// A proven reason public `list_messages` cannot yet be advertised.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ListMessagesBlocker {
-    /// Visible row dates are localized strings, not machine-readable instants.
-    MissingMachineReadableReceivedAt,
     /// `WebClients` falls back to element Order, not provider-neutral ID, on
     /// ties.
     ProviderTieBreakDiffers,
@@ -57,7 +55,6 @@ pub struct ListMessagesReadiness {
 impl ListMessagesReadiness {
     pub(crate) fn current(observed_sort: MailboxSortOrder) -> Self {
         let mut blockers = vec![
-            ListMessagesBlocker::MissingMachineReadableReceivedAt,
             ListMessagesBlocker::ProviderTieBreakDiffers,
             ListMessagesBlocker::MissingSnapshotBoundary,
         ];

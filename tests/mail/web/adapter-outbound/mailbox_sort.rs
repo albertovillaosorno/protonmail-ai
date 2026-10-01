@@ -256,7 +256,7 @@ fn multiple_active_sort_options_fail_closed() {
 }
 
 #[test]
-fn newest_first_still_has_three_provider_neutral_blockers() {
+fn newest_first_still_has_two_provider_neutral_blockers() {
     let (result, _log) = with_browser(
         "readiness-newest",
         SortScenario::Newest,
@@ -268,7 +268,6 @@ fn newest_first_still_has_three_provider_neutral_blockers() {
     assert_eq!(
         readiness.blockers(),
         [
-            ListMessagesBlocker::MissingMachineReadableReceivedAt,
             ListMessagesBlocker::ProviderTieBreakDiffers,
             ListMessagesBlocker::MissingSnapshotBoundary,
         ]

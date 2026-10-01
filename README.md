@@ -158,9 +158,10 @@ therefore proves the provider's semantic newest-first selection.
 
 That still is not enough to advertise provider-neutral `list_messages`. The
 public contract requires `received_at` descending, ID ascending as the tie
-breaker, and a cursor-bound snapshot. Current WebClients renders the row date's
-`datetime` from localized `formatFullDate('PPPPp')`, so the visible DOM alone is
-not a reliable UTC source.
+breaker, and a cursor-bound snapshot. The visible DOM date remains localized,
+but the bounded Network projection now supplies numeric `Message.Time`, which
+WebClients itself treats as the message receive time, and reconciles it to the
+stable rendered IDs.
 
 The adapter now has an explicit diagnostic Network observation for proven
 message-mode pages. It enables CDP Network tracking with request POST-body
@@ -188,14 +189,15 @@ loop. If batch 1 fills its sanitized `Limit`, the continuation's numeric
 `Anchor` must equal batch 1's last projected message `Time` before its body is
 read. `Network.getResponseBody` keeps classifying Network events inline while
 the continuation starts, then captures batch 2 before disabling Network. A
-fresh stable visible message-page snapshot in the same target session is reconciled against both projected batches.
+fresh stable visible message-page snapshot in the same target session is
+reconciled against both projected batches.
 
-This removes the simple multi-batch coverage gap without changing the public
-contract. Equal `Time` values still fall back to internal `element.Order`
-rather than message ID, the continuation anchor is not an immutable snapshot
-boundary, and visible page numbers provide no snapshot token. The
-`inspect_list_messages_readiness` diagnostic therefore continues to report the
-contract blockers instead of emitting an approximate cursor.
+This removes the machine-readable receive-time blocker without changing the
+public capability decision. Equal `Time` values still fall back to internal
+`element.Order` rather than message ID, the continuation anchor is not an
+immutable snapshot boundary, and visible page numbers provide no snapshot
+token. `inspect_list_messages_readiness` therefore reports the two remaining
+provider-neutral blockers instead of emitting an approximate cursor.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research

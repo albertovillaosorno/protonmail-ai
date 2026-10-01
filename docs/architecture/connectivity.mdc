@@ -124,14 +124,15 @@ Origin is revalidated immediately before both open and cleanup clicks, and drift
 blocks interaction on the new page. It never activates a sort option.
 
 A semantic newest-first selection does not satisfy the frozen `list_messages`
-ordering/cursor contract by itself. Current WebClients supplies three contrary
-facts: `ItemDateRender` receives localized `formatFullDate('PPPPp')` as its
-`datetime`, equal-Time sorting falls back to internal `element.Order` rather
-than ID, and visible pagination has no snapshot boundary token. The web adapter
-therefore reports `MissingMachineReadableReceivedAt`,
-`ProviderTieBreakDiffers`, and `MissingSnapshotBoundary`; non-newest UI sort
-adds `SortNotNewestFirst`. Public `list_messages` remains unavailable until all
-blockers are removed rather than approximated.
+ordering/cursor contract by itself. The Network diagnostic now supplies numeric
+`Message.Time` and reconciles it to stable visible message IDs, removing the
+machine-readable receive-time blocker despite the localized DOM `datetime`.
+Current WebClients still sorts equal-Time rows by internal `element.Order`
+rather than ID, while visible pagination plus the continuation anchor expose no
+immutable snapshot token. The web adapter therefore reports
+`ProviderTieBreakDiffers` and `MissingSnapshotBoundary`, with non-newest UI sort
+adding `SortNotNewestFirst`; public `list_messages` remains unavailable until
+all blockers are removed rather than approximated.
 
 
 The list/row source files and the mode-rule files were rechecked against
