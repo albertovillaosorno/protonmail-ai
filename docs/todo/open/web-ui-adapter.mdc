@@ -171,10 +171,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - `elementQuery.ts` at that same current main commit is also byte-identical
   (blob `63821f797c5c6ba76cf330d82ee2f65ad41ea4e4`). WebClients internally
   chains batches with `Anchor` plus `AnchorID` after the first request, but
-  that is a continuation anchor, not evidence of snapshot isolation. The CDP
-  Network diagnostic now observes provider list metadata without exporting
-  browser credentials or reading private Redux state; multi-batch collection
-  and snapshot semantics remain separate requirements.
+  that is a continuation anchor, not evidence of snapshot isolation. `Stale=1`
+  is likewise a freshness/refetch signal: `elementsActions.ts` schedules another
+  load and `elementsTypes.ts` describes the state as “awaiting fresh data”; no
+  immutable boundary or resumable token is exposed. The CDP Network diagnostic
+  observes provider list metadata without exporting browser credentials or
+  reading private Redux state, so multi-batch collection and snapshot semantics
+  remain separate requirements.
 - `messages.ts` and `Message.ts` at the same current main commit are also
   byte-identical (blobs `d516591bc008328f25ea01f56a90b9ddf48bbf6e` and
   `9aa1852f264b734f8ab0479e39b32f5ea6df1287`). The ordinary web request is
