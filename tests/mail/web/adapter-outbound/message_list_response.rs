@@ -232,3 +232,32 @@ fn network_capture_fails_closed_on_redirect_failure_and_bad_response() {
         Err(MessageListNetworkError::ResponseRejected)
     );
 }
+
+#[test]
+fn network_capture_bounds_unfinished_list_requests() {
+    use mail_web_adapter::{MessageListNetworkCapture, MessageListNetworkError};
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    for index in 0u16..128u16 {
+        let request = json!({
+            "sessionId":"session-1",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":format!("list-{index}"),"request":{
+                "method":"GET","url":URL
+            }}
+        });
+        capture.observe(&request).expect("within request bound");
+    }
+    let overflow = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"list-overflow","request":{
+            "method":"GET","url":URL
+        }}
+    });
+    assert_eq!(
+        capture.observe(&overflow),
+        Err(MessageListNetworkError::CapacityExceeded)
+    );
+}

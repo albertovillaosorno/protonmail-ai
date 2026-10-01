@@ -185,6 +185,7 @@ web application without requiring Bridge or a third-party direct API identity.
   and duplicate IDs, and redacts projected metadata from `Debug` output.
 - A CDP Network event state machine now scopes itself to one flattened target
   session and retains only request IDs for exact message-list GET requests. It
+  bounds unfinished matching requests to 128 entries and
   requires request, HTTP 200 JSON response, and loading-finished order.
   Redirects away, loading failures, and malformed or repeated lifecycle events
   fail

@@ -39,6 +39,7 @@ use serde_json::Value;
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
 const MAX_MESSAGE_LIST_BODY_BYTES: usize = 1_048_576;
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
+const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NetworkRequestState {
@@ -131,13 +132,14 @@ impl MessageListNetworkCapture {
         if !message_list_get {
             return Ok(());
         }
-        if self
-            .requests
-            .insert(String::from(request_id), NetworkRequestState::Requested)
-            .is_some()
-        {
+        if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
+        if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
+            return Err(MessageListNetworkError::CapacityExceeded);
+        }
+        self.requests
+            .insert(String::from(request_id), NetworkRequestState::Requested);
         Ok(())
     }
 
@@ -213,6 +215,8 @@ pub enum MessageListNetworkError {
     RequestFailed,
     /// A tracked lifecycle event repeated or arrived out of order.
     InvalidSequence,
+    /// Too many unfinished exact message-list requests are already tracked.
+    CapacityExceeded,
 }
 
 fn network_request_id(event: &Value) -> Result<&str, MessageListNetworkError> {
