@@ -129,6 +129,18 @@ page snapshots reports counts/state only and redacts row IDs, subjects, and
 addresses. The driver also rejects changing/reordered IDs and never treats zero
 visible rows alone as evidence of an empty mailbox.
 
+Message-mode proof minimizes URL-derived data before the CDP boundary returns.
+The page itself evaluates whether its current route is one of WebClients'
+always-message locations or has an active search. Only two booleans cross CDP;
+search keywords/addresses, hash text, path text, and opened-element identifiers
+do not. A visible message snapshot requires the same proof before and after the
+content read, so navigation into an ambiguous grouped mailbox invalidates it.
+
+Unknown mode is not an error-to-message fallback. Inbox and other grouping-
+capable locations remain unclassified unless another independently reviewed
+signal proves their mode; localized screen-reader copy and row-ID shape are not
+accepted authority for that decision.
+
 Shell readiness then reads only the DOM root identity and queries Chromium AX by
 four structural roles. The adapter never asks for the full accessibility tree
 and discards accessible names/values. Missing navigation/search, ignored role

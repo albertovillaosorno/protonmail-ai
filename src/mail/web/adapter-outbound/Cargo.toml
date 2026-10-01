@@ -44,3 +44,11 @@ path = "../../../../tests/mail/web/adapter-outbound/mailbox_list.rs"
 [[test]]
 name = "mail-web-mailbox-page"
 path = "../../../../tests/mail/web/adapter-outbound/mailbox_page.rs"
+
+[[test]]
+name = "mail-web-mailbox-mode"
+path = "../../../../tests/mail/web/adapter-outbound/mailbox_mode.rs"
+
+[[test]]
+name = "mail-web-message-page"
+path = "../../../../tests/mail/web/adapter-outbound/message_page.rs"

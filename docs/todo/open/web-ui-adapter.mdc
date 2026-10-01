@@ -123,14 +123,23 @@ web application without requiring Bridge or a third-party direct API identity.
 - The six WebClients files that define list loading, rows, skeletons, empty
   state, and pagination were byte-identical between the pinned snapshot and
   current `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-09-30.
-- Current WebClients research found no stable row-level DOM marker for
-  message-versus-conversation mode. `NumMessages` is rendered only in
-  conversation mode and only when the conversation has more than one message,
-  so absence cannot prove message mode. The adapter must not infer mode from
-  that badge or from row ID shape.
-- Still required: determine an externally observable mode signal or define a
-  provider-neutral read contract that does not require that distinction; then
-  expose the read through provider-neutral capabilities, composer semantic
-  extraction,
-  mailbox mutation workflows, control-level drift fixtures, and the separately
-  opted-in Free-account acceptance transcript.
+- WebClients still exposes no locale-independent general conversation-mode
+  marker suitable for Inbox/Archive/etc.; the screen-reader heading reflects the
+  mode but is localized, and `NumMessages` is not present on one-message
+  conversations. Neither signal is used to guess general list semantics.
+- WebClients does, however, force message mode for Drafts, All drafts, Sent, All
+  sent, Deleted, and active searches. The relevant `mailSettings.ts`,
+  `location.ts`, `elementSearch.ts`, and `mailboxUrl.ts` blobs were rechecked
+  byte-identical on current
+  `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586`.
+  `MailboxModeEvidence` mirrors those rules
+  inside the browser and returns only two booleans, never pathname/hash/search
+  content. Three mode-unit tests and five message-page workflow tests prove
+  forced/search success, ordinary-Inbox refusal, and before/after mode drift.
+- `read_visible_message_page` now wraps stable visible rows only after message
+  mode is proven before and after the content snapshot, so its opaque row IDs
+  are valid message IDs for that bounded visible-page read.
+- Still required: provider-neutral `list_messages` pagination/navigation,
+  independently safe `list_threads` semantics for grouping-capable locations,
+  composer semantic extraction, mailbox mutation workflows, control-level drift
+  fixtures, and the separately opted-in Free-account acceptance transcript.

@@ -113,6 +113,56 @@ impl VisibleMailboxRow {
     }
 }
 
+/// Stable visible page whose row IDs are proven to be message identifiers.
+#[derive(Clone, Eq, PartialEq)]
+pub struct VisibleMessagePageSnapshot {
+    inner: MailboxPageSnapshot,
+}
+
+impl fmt::Debug for VisibleMessagePageSnapshot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VisibleMessagePageSnapshot")
+            .field("current_page", &self.inner.current_page())
+            .field("next_page", &self.inner.next_page())
+            .field("row_count", &self.inner.rows().len())
+            .field("explicitly_empty", &self.inner.explicitly_empty())
+            .finish()
+    }
+}
+
+impl VisibleMessagePageSnapshot {
+    pub(crate) const fn new(inner: MailboxPageSnapshot) -> Self {
+        Self { inner }
+    }
+
+    /// Returns the rendered page number when explicitly exposed by Mail.
+    #[must_use]
+    pub const fn current_page(&self) -> Option<u32> {
+        self.inner.current_page()
+    }
+
+    /// Returns the observed next-page control state.
+    #[must_use]
+    pub const fn next_page(&self) -> NextPageControl {
+        self.inner.next_page()
+    }
+
+    /// Returns visible message rows in provider-rendered order.
+    ///
+    /// Row IDs are message IDs because construction requires proven message
+    /// mode.
+    #[must_use]
+    pub fn rows(&self) -> &[VisibleMailboxRow] {
+        self.inner.rows()
+    }
+
+    /// Returns true only when Mail rendered an explicit empty marker.
+    #[must_use]
+    pub const fn explicitly_empty(&self) -> bool {
+        self.inner.explicitly_empty()
+    }
+}
+
 /// Stable snapshot of the currently visible Mail list page.
 #[derive(Clone, Eq, PartialEq)]
 pub struct MailboxPageSnapshot {

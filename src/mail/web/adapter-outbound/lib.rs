@@ -37,6 +37,7 @@
 mod driver;
 mod lease;
 mod mailbox_list;
+mod mailbox_mode;
 mod mailbox_page;
 mod policy;
 mod profile;
@@ -47,6 +48,9 @@ pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use mailbox_list::NextPageControl;
 pub use mailbox_list::{MailboxListEvidence, MailboxListState};
+pub use mailbox_mode::MailboxRenderMode;
+pub use mailbox_mode::{MailboxModeError, MailboxModeEvidence};
+pub use mailbox_page::VisibleMessagePageSnapshot;
 pub use mailbox_page::{MailboxPageSnapshot, VisibleMailboxRow};
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};

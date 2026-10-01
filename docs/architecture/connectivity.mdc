@@ -81,10 +81,27 @@ skeletons, duplicate IDs, explicit contradictions, unproven zero-row state, or
 a changing list invalidate the snapshot. An empty snapshot is returned only
 when Mail renders its explicit empty marker on both observations.
 
-The six list/row source files underlying this boundary were rechecked against
-WebClients `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-09-30;
-their Git blob IDs are identical to the pinned snapshot. This is compatibility
-evidence, not a promise that private DOM attributes are permanent.
+A separate mode proof handles only locations where WebClients forces message
+mode independent of the user's Conversation grouping setting. The pinned
+`isConversationMode` rule disables grouping for Drafts, All drafts, Sent, All
+sent, Deleted, and active searches. The adapter evaluates those same route/hash
+rules inside the page and returns only `forcedMessageRoute` and `activeSearch`
+booleans over CDP; raw pathname/hash/search text never crosses that boundary.
+
+`read_visible_message_page` requires `Messages` mode before row projection and
+re-checks it after the stable snapshot. A mode change invalidates the result.
+All other locations remain `Unknown`; in particular Inbox is never guessed to
+be messages or conversations. The localized screen-reader heading does reflect
+conversation mode upstream, but localized accessible text is deliberately not
+a production discriminator.
+
+The list/row source files and the mode-rule files were rechecked against
+WebClients `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-10-01.
+`mailSettings.ts`, `location.ts`, `elementSearch.ts`, `mailboxUrl.ts`,
+`MailboxListScreenReaderHeading.tsx`, and `MailboxListContainer.tsx` are
+byte-identical to the pinned snapshot, alongside the previously verified
+list/row evidence. This is compatibility evidence, not
+a promise that private UI contracts are permanent.
 
 The pinned WebClients source supports those structural facts: Mail renders its
 sidebar with `SidebarNav`, whose shared component is a `nav` landmark, and its

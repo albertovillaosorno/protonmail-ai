@@ -44,7 +44,8 @@ use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
-use crate::mailbox_page::MailboxPageSnapshot;
+use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
+use crate::mailbox_page::{MailboxPageSnapshot, VisibleMessagePageSnapshot};
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -414,6 +415,93 @@ impl ManagedBrowser {
         Ok(evidence)
     }
 
+    /// Reads location-only mailbox-mode evidence from the current Mail page.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for a non-Mail page, unready shell, malformed location, or
+    /// origin drift around the observation.
+    pub fn inspect_mailbox_mode(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<MailboxModeEvidence, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let inspected = self.inspect_mailbox_mode_in_session(page, &session);
+        let detached = self.detach(&session);
+        let evidence = inspected?;
+        detached?;
+        Ok(evidence)
+    }
+
+    fn inspect_mailbox_mode_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<MailboxModeEvidence, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let evidence = self.mailbox_mode_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        Ok(evidence)
+    }
+
+    fn mailbox_mode_in_session(
+        &mut self,
+        session: &str,
+    ) -> Result<MailboxModeEvidence, BrowserDriverError> {
+        let expression = MailboxModeEvidence::expression();
+        let value = self.runtime_value(session, expression)?;
+        MailboxModeEvidence::from_value(&value)
+            .map_err(|_error| BrowserDriverError::MailboxModeIncompatible)
+    }
+
+    /// Reads a stable visible page only when message mode is externally proven.
+    ///
+    /// Row identifiers in the returned snapshot are message identifiers because
+    /// `WebClients` forces individual-message rows for the proven location.
+    ///
+    /// # Errors
+    ///
+    /// Fails when message mode is not proven, changes during the read, or any
+    /// existing shell/list/origin snapshot invariant fails.
+    pub fn read_visible_message_page(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<VisibleMessagePageSnapshot, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let read = self.read_message_page_in_session(page, &session);
+        let detached = self.detach(&session);
+        let snapshot = read?;
+        detached?;
+        Ok(snapshot)
+    }
+
+    fn read_message_page_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<VisibleMessagePageSnapshot, BrowserDriverError> {
+        let before_mode = self.inspect_mailbox_mode_in_session(page, session)?;
+        if before_mode.mode() != MailboxRenderMode::Messages {
+            return Err(BrowserDriverError::MailboxMessageModeRequired);
+        }
+        let snapshot = self.read_mailbox_page_in_session(page, session)?;
+        let after_mode = self.mailbox_mode_in_session(session)?;
+        self.ensure_page_origin(page, session)?;
+        if after_mode != before_mode {
+            return Err(BrowserDriverError::MailboxModeChanged);
+        }
+        Ok(VisibleMessagePageSnapshot::new(snapshot))
+    }
+
     /// Reads a stable snapshot of the currently visible mailbox page.
     ///
     /// The same target session revalidates origin and Mail-shell readiness,
@@ -614,6 +702,12 @@ pub enum BrowserDriverError {
     MailShellNotReady,
     /// Mailbox-list DOM evidence is malformed or contradictory.
     MailboxListIncompatible,
+    /// Visible mailbox location evidence is malformed or contradictory.
+    MailboxModeIncompatible,
+    /// Message-mode proof changed during a content snapshot.
+    MailboxModeChanged,
+    /// Current visible location does not prove individual-message mode.
+    MailboxMessageModeRequired,
     /// Visible mailbox content changed while the snapshot was being read.
     MailboxPageChanged,
     /// Visible mailbox row content is malformed or contradicts list evidence.
@@ -653,6 +747,13 @@ impl fmt::Display for BrowserDriverError {
             Self::MailShellNotReady => f.write_str("Proton Mail shell is not ready"),
             Self::MailboxListIncompatible => {
                 f.write_str("Proton Mail list evidence is incompatible")
+            }
+            Self::MailboxModeIncompatible => {
+                f.write_str("Proton Mail mode evidence is incompatible")
+            }
+            Self::MailboxModeChanged => f.write_str("Proton Mail mode changed"),
+            Self::MailboxMessageModeRequired => {
+                f.write_str("Proton Mail message mode is not proven")
             }
             Self::MailboxPageChanged => f.write_str("Proton Mail list changed"),
             Self::MailboxPageIncompatible => {

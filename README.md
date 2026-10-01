@@ -131,11 +131,17 @@ and origin drift all fail closed. Empty subject is valid. Snapshot `Debug`
 formatting redacts row IDs, subjects, and addresses so ordinary diagnostics do
 not accidentally disclose mailbox metadata.
 
-This is deliberately a visible-page read, not yet provider-neutral
-`list_messages`/`list_threads`: the adapter still does not infer whether the
-current Mail UI is rendering message mode or conversation mode. Composer
-semantic extraction and broader mailbox workflows remain unfinished in
-`web-ui-adapter`.
+The adapter now has a narrower message-only proof for provider states where
+WebClients itself forces individual-message rendering: Drafts, All drafts, Sent,
+All sent, Deleted, and active searches. The browser execution context reduces
+its own route/search state to two booleans; pathname, hash, search terms, and
+opened-element IDs are never returned over CDP for this proof.
+
+`read_visible_message_page` requires that proof before the visible-row snapshot
+and again afterward. Ordinary Inbox/Archive/etc. remain `Unknown`, because the
+user's Conversation grouping preference can change their semantics. This does
+not yet implement provider-neutral `list_messages` pagination, and it does not
+claim `list_threads`; broader read/composer/mutation workflows remain open.
 
 ## Available now: prefilled web composer
 
