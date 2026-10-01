@@ -141,6 +141,14 @@ capable locations remain unclassified unless another independently reviewed
 signal proves their mode; localized screen-reader copy and row-ID shape are not
 accepted authority for that decision.
 
+Read-only pagination is permitted to change browser navigation state but not
+mailbox state. Before clicking, the adapter requires a stable message snapshot,
+an explicit current page, and an enabled Next control. The click expression
+targets exactly one fixed `data-testid`; it returns only
+present/disabled/clicked booleans and reads no mailbox content.
+After activation, the adapter rejects unexpected page jumps, mode changes,
+origin changes, or a list that cannot prove the expected following page.
+
 Shell readiness then reads only the DOM root identity and queries Chromium AX by
 four structural roles. The adapter never asks for the full accessibility tree
 and discards accessible names/values. Missing navigation/search, ignored role

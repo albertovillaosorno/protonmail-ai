@@ -95,6 +95,23 @@ be messages or conversations. The localized screen-reader heading does reflect
 conversation mode upstream, but localized accessible text is deliberately not
 a production discriminator.
 
+Read-only message pagination is a bounded UI-navigation action, not mailbox
+mutation. The adapter reads a stable proven-message snapshot first, requires an
+explicit current page and enabled Next state, then activates exactly one
+`pagination-row:go-to-next-page` button. It waits for the provider list to
+settle on exactly `N+1` while rechecking origin and message mode, then takes a
+fresh
+stable snapshot. Missing/disabled/replaced controls, page jumps, origin drift,
+and mode drift fail closed.
+
+`MailboxListPagination.tsx` at that same WebClients main commit is
+byte-identical to the pinned snapshot. Its blob is
+`4f8ffb454bb9769192e48ae0dcba72477f1d317d`.
+Its Next button is disabled while loading or on the final page. The surrounding
+container always renders either `message-list-loading` or `message-list-loaded`,
+so a missing list root during the bounded transition is compatibility failure,
+not silently tolerated loading state.
+
 The list/row source files and the mode-rule files were rechecked against
 WebClients `main@4ceca26f3fe59fbf8bcb1b97fe76b298b7c6a586` on 2026-10-01.
 `mailSettings.ts`, `location.ts`, `elementSearch.ts`, `mailboxUrl.ts`,
@@ -112,11 +129,9 @@ responses, and origin drift fail closed.
 Chromium currently marks the Accessibility CDP domain as experimental, so
 `queryAXTree` is a compatibility boundary rather than a permanent API promise.
 A missing or changed command must surface as protocol incompatibility and
-disable
-Mail readiness; the adapter never falls back silently to CSS selectors or a
-full-tree scrape. Installed-Chrome smoke and live acceptance therefore cover
-this
-boundary for supported releases.
+disable Mail readiness; the adapter never falls back silently to CSS selectors
+or a full-tree scrape. Installed-Chrome smoke and live acceptance therefore
+cover this boundary for supported releases.
 
 The pinned WebClients tree also contains internal Lumo Mail read handlers such
 as `open_folder` and `search`. Those handlers are built inside

@@ -37,15 +37,17 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use command_fds::{CommandFdExt as _, FdMapping};
 use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
+use crate::mailbox_list::NextPageControl;
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
 use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
 use crate::mailbox_page::{MailboxPageSnapshot, VisibleMessagePageSnapshot};
+use crate::mailbox_pagination::NextPageActivation;
 use crate::policy::PageOrigin;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -62,6 +64,8 @@ const MAX_UNSOLICITED: u16 = 128;
 const PIPE_TIMEOUT: Duration = Duration::from_secs(5);
 const SHUTDOWN_DELAY: Duration = Duration::from_millis(20);
 const SHUTDOWN_POLLS: u16 = 100;
+const PAGE_ADVANCE_DELAY: Duration = Duration::from_millis(50);
+const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Immutable launch settings for one managed dedicated-profile browser.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -502,6 +506,114 @@ impl ManagedBrowser {
         Ok(VisibleMessagePageSnapshot::new(snapshot))
     }
 
+    /// Advances exactly one visible message page and returns its stable rows.
+    ///
+    /// This is read-only mailbox navigation: it activates only Mail's verified
+    /// next-page control and does not target any mailbox mutation control.
+    ///
+    /// # Errors
+    ///
+    /// Fails unless message mode is proven and current page is explicit,
+    /// Next is enabled, the control remains valid at click time, and the list
+    /// settles on exactly the following page with unchanged provider semantics.
+    pub fn read_next_visible_message_page(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<VisibleMessagePageSnapshot, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let read = self.read_next_message_page_in_session(page, &session);
+        let detached = self.detach(&session);
+        let snapshot = read?;
+        detached?;
+        Ok(snapshot)
+    }
+
+    fn read_next_message_page_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<VisibleMessagePageSnapshot, BrowserDriverError> {
+        let before = self.read_message_page_in_session(page, session)?;
+        if before.next_page() != NextPageControl::Enabled {
+            return Err(BrowserDriverError::MailboxNextPageUnavailable);
+        }
+        let current = before
+            .current_page()
+            .ok_or(BrowserDriverError::MailboxPaginationIncompatible)?;
+        let expected = current
+            .checked_add(1)
+            .ok_or(BrowserDriverError::MailboxPaginationIncompatible)?;
+        let activation = self.activate_next_page(session)?;
+        if activation != NextPageActivation::Clicked {
+            return Err(BrowserDriverError::MailboxPaginationChanged);
+        }
+        self.wait_for_message_page(page, session, current, expected)?;
+        let after = self.read_message_page_in_session(page, session)?;
+        if after.current_page() != Some(expected) {
+            return Err(BrowserDriverError::MailboxPaginationChanged);
+        }
+        Ok(after)
+    }
+
+    fn activate_next_page(
+        &mut self,
+        session: &str,
+    ) -> Result<NextPageActivation, BrowserDriverError> {
+        let expression = NextPageActivation::expression();
+        let value = self.runtime_value(session, expression)?;
+        NextPageActivation::from_value(&value)
+            .map_err(|_error| BrowserDriverError::MailboxPaginationIncompatible)
+    }
+
+    fn wait_for_message_page(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+        previous: u32,
+        expected: u32,
+    ) -> Result<(), BrowserDriverError> {
+        let deadline = Instant::now()
+            .checked_add(PAGE_ADVANCE_TIMEOUT)
+            .ok_or(BrowserDriverError::MailboxPaginationTimeout)?;
+        loop {
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxPaginationTimeout);
+            }
+            self.ensure_page_origin(page, session)?;
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxPaginationTimeout);
+            }
+            let mode = self.mailbox_mode_in_session(session)?;
+            if mode.mode() != MailboxRenderMode::Messages {
+                return Err(BrowserDriverError::MailboxModeChanged);
+            }
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxPaginationTimeout);
+            }
+            let evidence = self.mailbox_list_in_session(session)?;
+            match evidence.state() {
+                // jig-ignore-next-line: Clippy-required or-pattern.
+                MailboxListState::Loading | MailboxListState::SettledNoRowsUnproven => {}
+                // jig-ignore-next-line: Clippy-required or-pattern.
+                MailboxListState::SettledRows | MailboxListState::SettledExplicitEmpty => {
+                    match evidence.current_page() {
+                        Some(number) if number == expected => return Ok(()),
+                        Some(number) if number == previous => {}
+                        _ => return Err(pagination_changed()),
+                    }
+                }
+            }
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(BrowserDriverError::MailboxPaginationTimeout);
+            }
+            thread::sleep(PAGE_ADVANCE_DELAY.min(remaining));
+        }
+    }
+
     /// Reads a stable snapshot of the currently visible mailbox page.
     ///
     /// The same target session revalidates origin and Mail-shell readiness,
@@ -708,6 +820,14 @@ pub enum BrowserDriverError {
     MailboxModeChanged,
     /// Current visible location does not prove individual-message mode.
     MailboxMessageModeRequired,
+    /// Current visible message page exposes no verifiable enabled Next action.
+    MailboxNextPageUnavailable,
+    /// Pagination control or observed page changed unexpectedly.
+    MailboxPaginationChanged,
+    /// Pagination evidence lacks an explicit usable current page.
+    MailboxPaginationIncompatible,
+    /// Mail did not settle on the expected following page within the bound.
+    MailboxPaginationTimeout,
     /// Visible mailbox content changed while the snapshot was being read.
     MailboxPageChanged,
     /// Visible mailbox row content is malformed or contradicts list evidence.
@@ -755,6 +875,12 @@ impl fmt::Display for BrowserDriverError {
             Self::MailboxMessageModeRequired => {
                 f.write_str("Proton Mail message mode is not proven")
             }
+            Self::MailboxNextPageUnavailable => f.write_str("next unavailable"),
+            Self::MailboxPaginationChanged => f.write_str("pagination changed"),
+            Self::MailboxPaginationIncompatible => {
+                f.write_str("Proton Mail pagination is incompatible")
+            }
+            Self::MailboxPaginationTimeout => f.write_str("pagination timeout"),
             Self::MailboxPageChanged => f.write_str("Proton Mail list changed"),
             Self::MailboxPageIncompatible => {
                 f.write_str("Proton Mail visible rows are incompatible")
@@ -771,6 +897,10 @@ impl fmt::Display for BrowserDriverError {
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
     }
+}
+
+const fn pagination_changed() -> BrowserDriverError {
+    BrowserDriverError::MailboxPaginationChanged
 }
 
 fn spawn_browser(

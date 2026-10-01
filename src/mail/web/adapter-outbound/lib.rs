@@ -11,8 +11,8 @@
 // - Owns:
 //   - Proton Mail web-profile custody and semantic UI safety policy.
 // - Must-Not:
-//   - Read personal browser profiles, automate login challenges, or expose
-//     browser session state outside the adapter.
+//   - Mutate mailbox state, automate login challenges, read personal browser
+//     profiles, or expose browser session state outside the adapter.
 // - Allows:
 //   - Launch a dedicated visible profile and gate mailbox UI targets.
 // - Split-When:
@@ -27,7 +27,8 @@
 // - Usage:
 //   - Runtime composition invokes the adapter after explicit human CLI actions.
 // - Defaults:
-//   - No mailbox read, mutation, send, or browser-debugging connection.
+//   - Bounded visible reads only; no mutation, send, challenge automation, or
+//     remote-debugging TCP listener.
 //
 
 //! User-controlled Proton Mail web adapter.
@@ -39,6 +40,7 @@ mod lease;
 mod mailbox_list;
 mod mailbox_mode;
 mod mailbox_page;
+mod mailbox_pagination;
 mod policy;
 mod profile;
 mod shell;
@@ -52,6 +54,7 @@ pub use mailbox_mode::MailboxRenderMode;
 pub use mailbox_mode::{MailboxModeError, MailboxModeEvidence};
 pub use mailbox_page::VisibleMessagePageSnapshot;
 pub use mailbox_page::{MailboxPageSnapshot, VisibleMailboxRow};
+pub use mailbox_pagination::NextPageActivation;
 pub use policy::authorize_ui_target;
 pub use policy::{AuthSurface, AuthenticatedMailSurface, PageOrigin};
 pub use policy::{UiEvidence, UiGateError, UiTarget, WebSurface};

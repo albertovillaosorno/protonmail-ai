@@ -139,9 +139,20 @@ opened-element IDs are never returned over CDP for this proof.
 
 `read_visible_message_page` requires that proof before the visible-row snapshot
 and again afterward. Ordinary Inbox/Archive/etc. remain `Unknown`, because the
-user's Conversation grouping preference can change their semantics. This does
-not yet implement provider-neutral `list_messages` pagination, and it does not
-claim `list_threads`; broader read/composer/mutation workflows remain open.
+user's Conversation grouping preference can change their semantics.
+
+For proven message-mode pages, `read_next_visible_message_page` can advance one
+page through Mail's locale-independent `pagination-row:go-to-next-page` button.
+It requires an explicit current page, an enabled Next control, a successful
+control recheck at click time, message mode throughout the transition, and a
+settled page number exactly one greater than before. Origin drift, control
+drift, page jumps, or missing current-page evidence fail closed.
+This changes only the visible browser page; it does not target a mailbox
+mutation control.
+
+This is not yet the provider-neutral `list_messages` API or a durable reconnect
+cursor, and it does not claim `list_threads`; broader read/composer/mutation
+workflows remain open.
 
 ## Available now: prefilled web composer
 
