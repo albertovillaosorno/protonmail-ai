@@ -196,8 +196,10 @@ batch 2 before disabling Network. The initial zero-based request `Page` is
 retained as numeric metadata and must match the stable visible page's one-based
 pagination evidence before reconciliation; an absent page number is accepted
 only for request page zero with no Next control; a fresh stable visible
-message-page snapshot in the same target session is then reconciled against the
-projected batches.
+message-page snapshot in the same target session is then reconciled only
+against the first serialized batch because WebClients assigns its continuation
+batch to page `N+1`; prefetched IDs can validate continuation integrity but
+cannot satisfy visible page `N` metadata coverage.
 
 This removes the machine-readable receive-time blocker without changing the
 public capability decision; visible “Newest first” does not itself prove the

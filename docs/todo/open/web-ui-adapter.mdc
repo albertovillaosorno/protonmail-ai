@@ -237,9 +237,11 @@ web application without requiring Bridge or a third-party direct API identity.
   metadata and must match the stable visible page's one-based pagination
   evidence before reconciliation; an absent page-number control is accepted
   only for request page zero with no Next control; Network is disabled before a
-  fresh stable visible message-page snapshot is reconciled against all captured
-  batches; synthetic coverage starts batch 2 during the first body fetch and
-  rejects request/visible-page mismatch.
+  fresh stable visible message-page snapshot is reconciled only against the
+  first captured batch. Current WebClients serializes batch 1 to page `N` and
+  continuation batch 2 to page `N+1`; synthetic coverage proves a prefetched
+  page-`N+1` ID cannot satisfy visible page `N` metadata coverage while batch 2
+  is still captured for continuation integrity.
 - `inspect_list_messages_readiness` now consumes that sanitized Network
   ordering evidence. Exact `Sort=Time&Desc=1` clears
   `ProviderSortKeyUnproven`; visible newest-first backed by `SnoozeTime` or

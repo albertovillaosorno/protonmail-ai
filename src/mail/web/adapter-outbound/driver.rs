@@ -36,6 +36,7 @@ use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::slice::from_ref;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -655,8 +656,12 @@ impl ManagedBrowser {
         let observed = self.observe_message_list_responses_in_session(page, session)?;
         let snapshot = self.read_message_page_in_session(page, session)?;
         ensure_message_list_page_matches(&snapshot, observed.initial_page)?;
+        let first = observed
+            .responses
+            .first()
+            .ok_or(BrowserDriverError::Protocol)?;
         snapshot
-            .reconcile_metadata(&observed.responses)
+            .reconcile_metadata(from_ref(first))
             .map_err(BrowserDriverError::MessageListReconciliation)
     }
 

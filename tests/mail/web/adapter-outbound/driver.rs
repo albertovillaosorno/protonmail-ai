@@ -114,26 +114,13 @@ fn fake_network_browser(
     } else {
         "1790848000"
     };
-    let row_ids = if multi_batch {
-        "[\"m-1\",\"m-2\"]"
-    } else {
-        "[\"__VISIBLE_ID__\"]"
-    };
-    let rows = if multi_batch {
-        concat!(
-            "[{\"id\":\"m-1\",\"subject\":\"Rendered one\",",
-            "\"addresses\":\"one@example.test\",\"unread\":false},",
-            "{\"id\":\"m-2\",\"subject\":\"Rendered two\",",
-            "\"addresses\":\"two@example.test\",\"unread\":false}]",
-        )
-    } else {
-        concat!(
-            "[{\"id\":\"__VISIBLE_ID__\",",
-            "\"subject\":\"Rendered subject\",",
-            "\"addresses\":\"synthetic@example.test\",",
-            "\"unread\":false}]",
-        )
-    };
+    let row_ids = "[\"__VISIBLE_ID__\"]";
+    let rows = concat!(
+        "[{\"id\":\"__VISIBLE_ID__\",",
+        "\"subject\":\"Rendered subject\",",
+        "\"addresses\":\"synthetic@example.test\",",
+        "\"unread\":false}]",
+    );
     let template = r#"#!/usr/bin/env bash
 set -eu
 while IFS= read -r -d '' message <&3; do
@@ -680,12 +667,34 @@ fn continuation_events_during_first_body_fetch_are_reconciled() {
         "1790847999",
         ManagedBrowser::observe_visible_message_metadata,
     );
-    let metadata = metadata.expect("reconcile two observed batches");
-    assert_eq!(metadata.messages().len(), 2);
+    let metadata = metadata.expect("reconcile current page from first batch");
+    assert_eq!(metadata.messages().len(), 1);
     assert_eq!(metadata.messages()[0].id(), "m-1");
     assert_eq!(metadata.messages()[0].time(), 1_790_848_000);
-    assert_eq!(metadata.messages()[1].id(), "m-2");
-    assert_eq!(metadata.messages()[1].time(), 1_790_847_999);
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+}
+
+#[test]
+fn prefetched_next_page_id_cannot_satisfy_visible_current_page() {
+    let (result, log) = with_network_browser(
+        "network-prefetch-not-visible",
+        false,
+        "m-2",
+        true,
+        false,
+        false,
+        "m-1",
+        "0",
+        "2",
+        "1790847999",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListReconciliation(
+            MessageListReconciliationError::MissingVisibleMessage
+        ))
+    );
     assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
 }
 
