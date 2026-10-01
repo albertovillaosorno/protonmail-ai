@@ -188,10 +188,13 @@ observer recognizes WebClients-shaped initial requests (`Page`, `PageSize`, and
 loop. If batch 1 fills its sanitized `Limit`, the continuation's numeric
 `Anchor` and bounded `AnchorID` must equal batch 1's last projected message
 `Time` and ID before its body is read. `Network.getResponseBody` keeps
-classifying Network events inline while
-the continuation starts, then captures batch 2 before disabling Network. A
-fresh stable visible message-page snapshot in the same target session is
-reconciled against both projected batches.
+classifying Network events inline while the continuation starts, then captures
+batch 2 before disabling Network. The initial zero-based request `Page` is
+retained as numeric metadata and must match the stable visible page's one-based
+pagination evidence before reconciliation; an absent page number is accepted
+only for request page zero with no Next control; a fresh stable visible
+message-page snapshot in the same target session is then reconciled against the
+projected batches.
 
 This removes the machine-readable receive-time blocker without changing the
 public capability decision. Equal `Time` values still fall back to internal

@@ -60,6 +60,7 @@ struct TrackedMessageListRequest {
     state: NetworkRequestState,
     kind: MessageListRequestKind,
     limit: usize,
+    page: Option<u32>,
     anchor: Option<u64>,
     anchor_id: Option<String>,
 }
@@ -112,7 +113,7 @@ impl MessageListNetworkCapture {
         self.take_finished_requests()
             .into_iter()
             // jig-ignore-next-line: canonical rustfmt line.
-            .map(|(request_id, _continuation, _limit, _anchor, _anchor_id)| request_id)
+            .map(|(request_id, _continuation, _limit, _page, _anchor, _anchor_id)| request_id)
             .collect()
     }
 
@@ -124,15 +125,23 @@ impl MessageListNetworkCapture {
 
     /// Removes completed batches as sanitized request metadata tuples.
     ///
-    /// The tuple contains request ID, continuation flag, numeric limit, numeric
-    /// anchor, and bounded anchor ID. It excludes the original URL and headers.
+    /// The tuple contains request ID, continuation flag, numeric limit, initial
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// page, numeric anchor, and bounded anchor ID. It excludes URL and headers.
     #[expect(
         clippy::type_complexity,
         reason = "internal tuple contains only sanitized request metadata"
     )]
     pub(crate) fn take_finished_requests(
         &mut self,
-    ) -> Vec<(String, bool, usize, Option<u64>, Option<String>)> {
+    ) -> Vec<(
+        String,
+        bool,
+        usize,
+        Option<u32>,
+        Option<u64>,
+        Option<String>,
+    )> {
         let finished = self
             .requests
             .iter()
@@ -143,6 +152,7 @@ impl MessageListNetworkCapture {
                     id.clone(),
                     request.kind == MessageListRequestKind::Continuation,
                     request.limit,
+                    request.page,
                     request.anchor,
                     request.anchor_id.clone(),
                 )
@@ -186,7 +196,7 @@ impl MessageListNetworkCapture {
             return Err(MessageListNetworkError::InvalidSequence);
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let Some((kind, limit, anchor, anchor_id)) = message_list_request_shape(url)? else {
+        let Some((kind, limit, page, anchor, anchor_id)) = message_list_request_shape(url)? else {
             return Ok(());
         };
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
@@ -198,6 +208,7 @@ impl MessageListNetworkCapture {
                 state: NetworkRequestState::Requested,
                 kind,
                 limit,
+                page,
                 anchor,
                 anchor_id,
             },
@@ -293,7 +304,13 @@ pub enum MessageListNetworkError {
 fn message_list_request_shape(
     url: &str,
 ) -> Result<
-    Option<(MessageListRequestKind, usize, Option<u64>, Option<String>)>,
+    Option<(
+        MessageListRequestKind,
+        usize,
+        Option<u32>,
+        Option<u64>,
+        Option<String>,
+    )>,
     MessageListNetworkError,
 > {
     let Some(raw_limit) = numeric_query_parameter(url, "Limit")? else {
@@ -307,7 +324,11 @@ fn message_list_request_shape(
     let limit =
         // jig-ignore-next-line: canonical rustfmt line.
         usize::try_from(raw_limit).map_err(|_error| MessageListNetworkError::MalformedEvent)?;
-    let page = numeric_query_parameter(url, "Page")?;
+    let raw_page = numeric_query_parameter(url, "Page")?;
+    let page = raw_page
+        .map(u32::try_from)
+        .transpose()
+        .map_err(|_error| MessageListNetworkError::MalformedEvent)?;
     let page_size = numeric_query_parameter(url, "PageSize")?;
     let anchor = numeric_query_parameter(url, "Anchor")?;
     // jig-ignore-next-line: canonical rustfmt line.
@@ -320,7 +341,7 @@ fn message_list_request_shape(
         (None, None, Some(_anchor), Some(_anchor_id)) => MessageListRequestKind::Continuation,
         _ => return Ok(None),
     };
-    Ok(Some((kind, limit, anchor, anchor_id)))
+    Ok(Some((kind, limit, page, anchor, anchor_id)))
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

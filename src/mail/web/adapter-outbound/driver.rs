@@ -83,8 +83,14 @@ struct CompletedMessageListRequest {
     request_id: String,
     continuation: bool,
     limit: usize,
+    page: Option<u32>,
     anchor: Option<u64>,
     anchor_id: Option<String>,
+}
+
+struct CapturedMessageListResponses {
+    responses: Vec<ObservedMessageListResponse>,
+    initial_page: u32,
 }
 
 /// Immutable launch settings for one managed dedicated-profile browser.
@@ -629,10 +635,11 @@ impl ManagedBrowser {
         session: &str,
     ) -> Result<ReconciledVisibleMessageMetadata, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
-        let responses = self.observe_message_list_responses_in_session(page, session)?;
+        let observed = self.observe_message_list_responses_in_session(page, session)?;
         let snapshot = self.read_message_page_in_session(page, session)?;
+        ensure_message_list_page_matches(&snapshot, observed.initial_page)?;
         snapshot
-            .reconcile_metadata(&responses)
+            .reconcile_metadata(&observed.responses)
             .map_err(BrowserDriverError::MessageListReconciliation)
     }
 
@@ -642,18 +649,22 @@ impl ManagedBrowser {
         session: &str,
     ) -> Result<ObservedMessageListResponse, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
-        let mut responses = self.observe_message_list_responses_in_session(page, session)?;
-        if responses.len() != 1 {
+        let observed = self.observe_message_list_responses_in_session(page, session)?;
+        if observed.responses.len() != 1 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
         }
-        responses.pop().ok_or(BrowserDriverError::Protocol)
+        observed
+            .responses
+            .into_iter()
+            .next()
+            .ok_or(BrowserDriverError::Protocol)
     }
 
     fn observe_message_list_responses_in_session(
         &mut self,
         page: &ProviderPage,
         session: &str,
-    ) -> Result<Vec<ObservedMessageListResponse>, BrowserDriverError> {
+    ) -> Result<CapturedMessageListResponses, BrowserDriverError> {
         let before_mode = self.inspect_mailbox_mode_in_session(page, session)?;
         if before_mode.mode() != MailboxRenderMode::Messages {
             return Err(BrowserDriverError::MailboxMessageModeRequired);
@@ -672,7 +683,7 @@ impl ManagedBrowser {
             // jig-ignore-next-line: canonical rustfmt line.
             self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
         let residual_requests = capture.tracked_request_count();
-        let responses = observed?;
+        let captured = observed?;
         disabled?;
         if residual_requests != 0 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
@@ -682,14 +693,14 @@ impl ManagedBrowser {
         if after_mode != before_mode {
             return Err(BrowserDriverError::MailboxModeChanged);
         }
-        Ok(responses)
+        Ok(captured)
     }
 
     fn reload_and_capture_message_lists(
         &mut self,
         session: &str,
         capture: &mut MessageListNetworkCapture,
-    ) -> Result<Vec<ObservedMessageListResponse>, BrowserDriverError> {
+    ) -> Result<CapturedMessageListResponses, BrowserDriverError> {
         self.call_in_session_observing(
             session,
             "Page.reload",
@@ -700,6 +711,9 @@ impl ManagedBrowser {
         if first_request.continuation {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
+        let initial_page = first_request
+            .page
+            .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_message_list_body(session, &first_request, capture)?;
         if first.messages().len() > first_request.limit {
@@ -709,7 +723,10 @@ impl ManagedBrowser {
             if capture.tracked_request_count() != 0 {
                 return Err(BrowserDriverError::MessageListResponseAmbiguous);
             }
-            return Ok(vec![first]);
+            return Ok(CapturedMessageListResponses {
+                responses: vec![first],
+                initial_page,
+            });
         }
 
         let second_request = self.wait_for_message_list_request(capture)?;
@@ -730,7 +747,10 @@ impl ManagedBrowser {
         if second.messages().len() > second_request.limit || capture.tracked_request_count() != 0 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
         }
-        Ok(vec![first, second])
+        Ok(CapturedMessageListResponses {
+            responses: vec![first, second],
+            initial_page,
+        })
     }
 
     fn read_message_list_body(
@@ -1272,6 +1292,9 @@ pub enum BrowserDriverError {
     // jig-ignore-next-line: canonical rustfmt line.
     /// Captured list batches do not match the proven `WebClients` batch sequence.
     MessageListBatchIncompatible,
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Captured zero-based request page disagrees with stable visible pagination.
+    MessageListPageMismatch,
     /// Target metadata and live execution-context origin disagree.
     OriginDrift {
         /// Origin reported by browser target metadata.
@@ -1348,6 +1371,10 @@ impl fmt::Display for BrowserDriverError {
             Self::MessageListBatchIncompatible => {
                 f.write_str("message-list batch sequence is incompatible")
             }
+            Self::MessageListPageMismatch => {
+                // jig-ignore-next-line: canonical rustfmt line.
+                f.write_str("message-list request page does not match visible page")
+            }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::OriginDrift { .. } => f.write_str("provider page origin changed"),
             Self::PipeIo => f.write_str("`DevTools` pipe I/O failed"),
@@ -1360,6 +1387,25 @@ impl fmt::Display for BrowserDriverError {
     }
 }
 
+fn ensure_message_list_page_matches(
+    snapshot: &VisibleMessagePageSnapshot,
+    initial_page: u32,
+) -> Result<(), BrowserDriverError> {
+    if let Some(visible_page) = snapshot.current_page() {
+        let expected = initial_page
+            .checked_add(1)
+            .ok_or(BrowserDriverError::MessageListPageMismatch)?;
+        if visible_page != expected {
+            return Err(BrowserDriverError::MessageListPageMismatch);
+        }
+        return Ok(());
+    }
+    if initial_page == 0 && snapshot.next_page() == NextPageControl::Absent {
+        return Ok(());
+    }
+    Err(BrowserDriverError::MessageListPageMismatch)
+}
+
 fn take_one_finished_request(
     capture: &mut MessageListNetworkCapture,
 ) -> Result<Option<CompletedMessageListRequest>, BrowserDriverError> {
@@ -1367,12 +1413,13 @@ fn take_one_finished_request(
     match finished.len() {
         0 => Ok(None),
         1 => {
-            let (request_id, continuation, limit, anchor, anchor_id) =
+            let (request_id, continuation, limit, page, anchor, anchor_id) =
                 finished.pop().ok_or(BrowserDriverError::Protocol)?;
             Ok(Some(CompletedMessageListRequest {
                 request_id,
                 continuation,
                 limit,
+                page,
                 anchor,
                 anchor_id,
             }))

@@ -475,6 +475,8 @@ fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
         // jig-ignore-next-line: indivisible synthetic JSON fixture.
         "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=nope",
         // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=4294967296&PageSize=50&Limit=50",
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
         "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=nope&AnchorID=m-50",
         // jig-ignore-next-line: indivisible synthetic JSON fixture.
         "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Limit=50",

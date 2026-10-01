@@ -84,6 +84,7 @@ done
 
 #[expect(
     clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
     clippy::too_many_lines,
     reason = "synthetic CDP transcript toggles independent failure scenarios"
 )]
@@ -95,6 +96,7 @@ fn fake_network_browser(
     mismatched_anchor: bool,
     third_batch_on_disable: bool,
     continuation_anchor_id: &str,
+    initial_page: &str,
 ) -> PathBuf {
     let script = root.join("fake-network-browser");
     let log = root.join("network-log.txt");
@@ -202,14 +204,14 @@ while IFS= read -r -d '' message <&3; do
       request+='"method":"Network.requestWillBeSent","params":{'
       request+='"requestId":"list-1","request":{"method":"GET",'
       request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-      request+='Page=0&PageSize=__LIMIT__&Limit=__LIMIT__",'
+      request+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__",'
       request+='"headers":{"Authorization":"Bearer secret"}}}}'
       printf '%s\0' "$request" >&4
       response='{"sessionId":"session-1",'
       response+='"method":"Network.responseReceived","params":{'
       response+='"requestId":"list-1","response":{'
       response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-      response+='Page=0&PageSize=__LIMIT__&Limit=__LIMIT__",'
+      response+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__",'
       response+='"status":200,"mimeType":"application/json",'
       response+='"headers":{"Set-Cookie":"secret-cookie"}}}}'
       printf '%s\0' "$response" >&4
@@ -282,6 +284,7 @@ done
         .replace("__LIMIT__", limit)
         .replace("__ANCHOR__", anchor)
         .replace("__ANCHOR_ID__", continuation_anchor_id)
+        .replace("__INITIAL_PAGE__", initial_page)
         .replace("__TOTAL__", total)
         .replace("__ROW_IDS__", row_ids)
         .replace("__ROWS__", rows)
@@ -306,6 +309,7 @@ fn with_network_browser<T>(
     mismatched_anchor: bool,
     third_batch_on_disable: bool,
     continuation_anchor_id: &str,
+    initial_page: &str,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
     let root = test_root(label);
@@ -318,6 +322,7 @@ fn with_network_browser<T>(
         mismatched_anchor,
         third_batch_on_disable,
         continuation_anchor_id,
+        initial_page,
     );
     let browser_plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
@@ -479,6 +484,7 @@ fn exact_message_list_network_body_is_projected_and_network_is_disabled() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_message_list_response,
     );
     let response = response.expect("observe exact message-list response");
@@ -502,6 +508,7 @@ fn network_metadata_reconciles_to_same_session_stable_rows() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -522,6 +529,7 @@ fn singular_network_observation_rejects_two_batch_page_after_disable() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(
@@ -541,6 +549,7 @@ fn mismatched_continuation_anchor_id_fails_before_second_body_fetch() {
         false,
         false,
         "wrong-id",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -560,6 +569,7 @@ fn mismatched_continuation_anchor_fails_before_second_body_fetch() {
         true,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -579,6 +589,7 @@ fn third_batch_started_during_disable_fails_closed() {
         false,
         true,
         "m-1",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -598,6 +609,7 @@ fn continuation_events_during_first_body_fetch_are_reconciled() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     let metadata = metadata.expect("reconcile two observed batches");
@@ -610,6 +622,23 @@ fn continuation_events_during_first_body_fetch_are_reconciled() {
 }
 
 #[test]
+fn network_metadata_rejects_request_page_mismatch() {
+    let (result, log) = with_network_browser(
+        "network-page-mismatch",
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "1",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(result, Err(BrowserDriverError::MessageListPageMismatch));
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+}
+
+#[test]
 fn network_metadata_rejects_stable_row_without_machine_coverage() {
     let (result, log) = with_network_browser(
         "network-missing-visible",
@@ -619,6 +648,7 @@ fn network_metadata_rejects_stable_row_without_machine_coverage() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_visible_message_metadata,
     );
     assert_eq!(
@@ -640,6 +670,7 @@ fn encoded_message_list_body_fails_closed_after_network_disable() {
         false,
         false,
         "m-1",
+        "0",
         ManagedBrowser::observe_message_list_response,
     );
     assert_eq!(

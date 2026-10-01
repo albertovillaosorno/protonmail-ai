@@ -215,15 +215,19 @@ web application without requiring Bridge or a third-party direct API identity.
   overlapping batches, missing visible metadata, or an explicit-empty
   contradiction. Its debug output exposes only row count.
 - `observe_visible_message_metadata` now follows the current WebClients
-  two-batch query loop. It recognizes only the initial `Page`/`PageSize`/`Limit`
+  two-batch query loop; it recognizes only the initial `Page`/`PageSize`/`Limit`
   shape and the anchored continuation shape, retains only request ID, batch
   kind, numeric limit, and numeric anchor, and keeps classifying Network events
   while fetching batch 1's body so continuation events cannot be discarded.
   Batch 2 is required only when batch 1 fills its limit, and its numeric
   anchor plus bounded anchor ID must equal batch 1's last projected `Time` and
-  message ID; Network is disabled before a fresh
-  stable visible message-page snapshot is reconciled against all captured
-  batches. Synthetic coverage starts batch 2 during the first body fetch.
+  message ID; the initial zero-based request `Page` is retained as numeric
+  metadata and must match the stable visible page's one-based pagination
+  evidence before reconciliation; an absent page-number control is accepted
+  only for request page zero with no Next control. Network is disabled before a
+  fresh stable visible message-page snapshot is reconciled against all captured
+  batches; synthetic coverage starts batch 2 during the first body fetch and
+  rejects request/visible-page mismatch.
 - Still required: prove whether the provider anchor can support an immutable
   snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
   then implement a durable cursor/snapshot chain,
