@@ -58,14 +58,16 @@ impl ListMessagesReadiness {
     pub(crate) fn current(
         observed_sort: MailboxSortOrder,
         provider_received_at_descending: bool,
+        provider_neutral_tie_break_proven: bool,
     ) -> Self {
-        let mut blockers = vec![
-            ListMessagesBlocker::ProviderTieBreakDiffers,
-            ListMessagesBlocker::MissingSnapshotBoundary,
-        ];
+        let mut blockers = Vec::new();
         if !provider_received_at_descending {
-            blockers.insert(0, ListMessagesBlocker::ProviderSortKeyUnproven);
+            blockers.push(ListMessagesBlocker::ProviderSortKeyUnproven);
         }
+        if !provider_neutral_tie_break_proven {
+            blockers.push(ListMessagesBlocker::ProviderTieBreakDiffers);
+        }
+        blockers.push(ListMessagesBlocker::MissingSnapshotBoundary);
         if !observed_sort.is_newest_first() {
             blockers.push(ListMessagesBlocker::SortNotNewestFirst);
         }

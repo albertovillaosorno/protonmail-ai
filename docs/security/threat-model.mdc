@@ -180,8 +180,11 @@ uses per-capture randomized fingerprints to detect non-pagination query-context
 drift without retaining raw query terms, rejects stale or active-task list
 responses, and rejects response-query or projected-Time ordering contradictions
 before readiness can use that evidence.
-Public listing still requires the provider-neutral ID tie-break and immutable
-snapshot boundary; Encrypted Search's internal `End`/`EndID` recovery queries
+
+Public listing still requires an immutable snapshot boundary. Provider-neutral
+ID normalization is accepted only when page-zero capture proves an equal-time
+group cannot cross the first provider page boundary; same-time lookahead remains
+blocked. Encrypted Search's internal `End`/`EndID` recovery queries
 are not promoted into the web adapter because it does not inject private API
 calls, and selector-bearing recovery traffic is excluded from visible-list
 capture. Provider-private `Order`, continuation anchors, and page numbers cannot

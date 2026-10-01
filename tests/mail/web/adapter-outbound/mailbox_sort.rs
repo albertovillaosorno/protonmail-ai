@@ -46,6 +46,8 @@ const ABSENT_AX: &str = "[]";
 #[derive(Clone, Copy)]
 enum SortScenario {
     Newest,
+    NewestBoundaryClear,
+    NewestBoundaryTie,
     NewestSnooze,
     Oldest,
     Multiple,
@@ -60,7 +62,10 @@ type PressedPair = (&'static str, &'static str);
 
 const fn pressed_values(scenario: SortScenario) -> PressedPair {
     match scenario {
-        SortScenario::Newest | SortScenario::NewestSnooze => ("true", "false"),
+        SortScenario::Newest
+        | SortScenario::NewestBoundaryClear
+        | SortScenario::NewestBoundaryTie
+        | SortScenario::NewestSnooze => ("true", "false"),
         SortScenario::Oldest => ("false", "true"),
         SortScenario::Multiple => ("true", "true"),
     }
@@ -69,7 +74,10 @@ const fn pressed_values(scenario: SortScenario) -> PressedPair {
 // jig-ignore-next-line: canonical rustfmt line.
 const fn provider_query_sort(scenario: SortScenario) -> (&'static str, &'static str) {
     match scenario {
-        SortScenario::Newest | SortScenario::Multiple => ("Time", "1"),
+        SortScenario::Newest
+        | SortScenario::NewestBoundaryClear
+        | SortScenario::NewestBoundaryTie
+        | SortScenario::Multiple => ("Time", "1"),
         SortScenario::NewestSnooze => ("SnoozeTime", "1"),
         SortScenario::Oldest => ("Time", "0"),
     }
@@ -84,6 +92,16 @@ fn fake(root: &Path, scenario: SortScenario, starts_open: bool) -> PathBuf {
     let log = root.join("menu-log.txt");
     let (newest, oldest) = pressed_values(scenario);
     let (provider_sort, provider_desc) = provider_query_sort(scenario);
+    let boundary_time = match scenario {
+        SortScenario::NewestBoundaryClear => Some(9u64),
+        SortScenario::NewestBoundaryTie => Some(10u64),
+        SortScenario::Newest
+        | SortScenario::NewestSnooze
+        | SortScenario::Oldest
+        | SortScenario::Multiple => None,
+    };
+    let multi_batch = i32::from(boundary_time.is_some());
+    let network_limit = if boundary_time.is_some() { 1i32 } else { 50i32 };
     let open = i32::from(starts_open);
     let body = format!(
         r#"#!/usr/bin/env bash
@@ -108,7 +126,7 @@ while IFS= read -r -d '' message <&3; do
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *'Page.reload'*)
       url='https://mail.proton.me/api/mail/v4/messages?'
-      url+='Page=0&PageSize=50&Limit=50'
+      url+='Page=0&PageSize={network_limit}&Limit={network_limit}'
       url+='&Sort={provider_sort}&Desc={provider_desc}'
       request='{{"sessionId":"session-1","method":"Network.requestWillBeSent",'
       request+='"params":{{"requestId":"list-1","request":{{"method":"GET",'
@@ -123,7 +141,32 @@ while IFS= read -r -d '' message <&3; do
       printf '%s\0' "$finished" >&4
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *'Network.getResponseBody'*)
-      body='{{\"Stale\":0,\"Total\":0,\"Messages\":[]}}'
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      if [ {multi_batch} -eq 1 ] && [[ "$message" == *'"requestId":"list-1"'* ]]; then
+        next_url='https://mail.proton.me/api/mail/v4/messages?'
+        next_url+='Limit=1&Anchor=10&AnchorID=m-1&Sort=Time&Desc=1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{{"sessionId":"session-1","method":"Network.requestWillBeSent",'
+        request+='"params":{{"requestId":"list-2","request":{{"method":"GET",'
+        request+='"url":"'"$next_url"'"}}}}}}'
+        printf '%s\0' "$request" >&4
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{{"sessionId":"session-1","method":"Network.responseReceived",'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response+='"params":{{"requestId":"list-2","response":{{"url":"'"$next_url"'",'
+        response+='"status":200,"mimeType":"application/json"}}}}}}'
+        printf '%s\0' "$response" >&4
+        finished='{{"sessionId":"session-1","method":"Network.loadingFinished",'
+        finished+='"params":{{"requestId":"list-2"}}}}'
+        printf '%s\0' "$finished" >&4
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{{\"Stale\":0,\"Total\":2,\"Messages\":[{{\"ID\":\"m-1\",\"Time\":10,\"Order\":9}}]}}'
+      elif [ {multi_batch} -eq 1 ]; then
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{{\"Stale\":0,\"Total\":1,\"Messages\":[{{\"ID\":\"m-2\",\"Time\":{boundary_time},\"Order\":8}}]}}'
+      else
+        body='{{\"Stale\":0,\"Total\":0,\"Messages\":[]}}'
+      fi
       printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' \
         "$id" "$body" >&4;;
     *'Network.disable'*)
@@ -177,6 +220,9 @@ done
         oldest = oldest,
         provider_sort = provider_sort,
         provider_desc = provider_desc,
+        network_limit = network_limit,
+        multi_batch = multi_batch,
+        boundary_time = boundary_time.unwrap_or(0),
         visible = VISIBLE_AX,
         absent = ABSENT_AX,
     );
@@ -297,7 +343,7 @@ fn multiple_active_sort_options_fail_closed() {
 }
 
 #[test]
-fn time_descending_newest_has_two_provider_neutral_blockers() {
+fn complete_time_descending_page_needs_only_snapshot_boundary() {
     let (result, _log) = with_browser(
         "readiness-newest",
         SortScenario::Newest,
@@ -306,6 +352,38 @@ fn time_descending_newest_has_two_provider_neutral_blockers() {
     );
     let readiness = result.expect("readiness must be inspectable");
     assert_eq!(readiness.observed_sort(), MailboxSortOrder::NewestFirst);
+    assert_eq!(
+        readiness.blockers(),
+        [ListMessagesBlocker::MissingSnapshotBoundary]
+    );
+    assert!(!readiness.ready());
+}
+
+#[test]
+fn different_time_lookahead_bounds_provider_neutral_tie_break() {
+    let (result, _log) = with_browser(
+        "readiness-boundary-clear",
+        SortScenario::NewestBoundaryClear,
+        false,
+        ManagedBrowser::inspect_list_messages_readiness,
+    );
+    let readiness = result.expect("readiness must be inspectable");
+    assert_eq!(
+        readiness.blockers(),
+        [ListMessagesBlocker::MissingSnapshotBoundary]
+    );
+    assert!(!readiness.ready());
+}
+
+#[test]
+fn equal_time_lookahead_keeps_provider_tie_break_blocker() {
+    let (result, _log) = with_browser(
+        "readiness-boundary-tie",
+        SortScenario::NewestBoundaryTie,
+        false,
+        ManagedBrowser::inspect_list_messages_readiness,
+    );
+    let readiness = result.expect("readiness must be inspectable");
     assert_eq!(
         readiness.blockers(),
         [

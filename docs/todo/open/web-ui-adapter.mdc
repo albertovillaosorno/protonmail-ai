@@ -244,28 +244,26 @@ web application without requiring Bridge or a third-party direct API identity.
   continuation batch 2 to page `N+1`; synthetic coverage proves a prefetched
   page-`N+1` ID cannot satisfy visible page `N` metadata coverage while batch 2
   is still captured for continuation integrity.
-- `inspect_list_messages_readiness` now consumes that sanitized Network
-  ordering evidence. Exact `Sort=Time&Desc=1` clears
-  `ProviderSortKeyUnproven`; visible newest-first backed by `SnoozeTime` or
-  ascending `Time` stays blocked. Synthetic readiness coverage proves both
-  `Time`-descending and `SnoozeTime`-descending newest-visible cases. Declared
-  `Time` ordering is also checked against projected `Time` plus provider `Order`
-  within each batch and at the batch boundary; contradictions fail closed, while
-  provider `Order` remains explicitly insufficient for the contract's ID
-  tie-break; the initial response `Total` is treated as authoritative exactly as
-  current WebClients does, so page offset plus expected first/second batch
-  lengths
-  must agree with it while continuation totals are deliberately ignored because
-  anchors change their meaning.
+- `inspect_list_messages_readiness` consumes sanitized Network ordering
+  evidence: exact `Sort=Time&Desc=1` clears `ProviderSortKeyUnproven`, while
+  visible newest-first backed by `SnoozeTime` or ascending `Time` stays blocked.
+  Declared `Time` ordering is checked against projected `Time` plus provider
+  `Order` within each batch and at the boundary; contradictions fail closed and
+  provider `Order` remains insufficient for the contract ID tie-break. For page
+  zero, the tie-break is bounded when the full result fits batch 1 or batch 2
+  starts at a different `Time`; a same-time lookahead retains the blocker. The
+  initial response `Total` is authoritative exactly as current WebClients uses
+  it; page offset plus expected first/second batch lengths must agree while
+  continuation totals remain ignored because anchors change their meaning.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for
   non-sensitive
   behavior, so neither event-loop state nor optimistic page-length selectors are
   promoted into snapshot evidence for this adapter.
-- Still required: prove whether the provider anchor can support an immutable
-  snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
-  then implement a durable cursor/snapshot chain,
+- Still required: prove an immutable snapshot boundary, extend bounded
+  equal-Time ID normalization into any future cursor chain, then implement a
+  durable cursor/snapshot chain,
   prove independently safe `list_threads` semantics for grouping-capable
   locations, add composer/mutation workflows and remaining control-level drift
   fixtures, and capture the opted-in Free-account acceptance transcript.

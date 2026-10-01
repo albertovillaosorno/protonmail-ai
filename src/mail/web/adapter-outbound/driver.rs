@@ -95,6 +95,7 @@ struct CompletedMessageListRequest {
 struct CapturedMessageListResponses {
     responses: Vec<ObservedMessageListResponse>,
     initial_page: u32,
+    initial_limit: usize,
     initial_sort_key: String,
     initial_descending: bool,
 }
@@ -102,6 +103,32 @@ struct CapturedMessageListResponses {
 impl CapturedMessageListResponses {
     fn received_at_descending(&self) -> bool {
         self.initial_sort_key == "Time" && self.initial_descending
+    }
+
+    fn provider_neutral_tie_break_proven(&self) -> bool {
+        if !self.received_at_descending() || self.initial_page != 0 {
+            return false;
+        }
+        let Some(first) = self.responses.first() else {
+            return false;
+        };
+        let Ok(limit) = u64::try_from(self.initial_limit) else {
+            return false;
+        };
+        if first.total() <= limit {
+            return true;
+        }
+        let Some(last) = first.messages().last() else {
+            return false;
+        };
+        let Some(next) = self
+            .responses
+            .get(1)
+            .and_then(|response| response.messages().first())
+        else {
+            return false;
+        };
+        last.time() != next.time()
     }
 }
 
@@ -589,6 +616,7 @@ impl ManagedBrowser {
         Ok(ListMessagesReadiness::current(
             sort,
             observed.received_at_descending(),
+            observed.provider_neutral_tie_break_proven(),
         ))
     }
 
@@ -755,6 +783,7 @@ impl ManagedBrowser {
             return Ok(CapturedMessageListResponses {
                 responses: vec![first],
                 initial_page,
+                initial_limit: first_request.limit,
                 initial_sort_key,
                 initial_descending,
             });
@@ -789,6 +818,7 @@ impl ManagedBrowser {
         Ok(CapturedMessageListResponses {
             responses: vec![first, second],
             initial_page,
+            initial_limit: first_request.limit,
             initial_sort_key,
             initial_descending,
         })
