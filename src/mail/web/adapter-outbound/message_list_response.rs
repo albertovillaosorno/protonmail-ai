@@ -55,12 +55,25 @@ enum MessageListRequestKind {
     Continuation,
 }
 
+/// Sanitized provider list sort key observed in the request query.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MessageListSortKey {
+    /// Provider message receive time.
+    Time,
+    /// Provider snooze ordering key.
+    SnoozeTime,
+    /// Provider message size.
+    Size,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct TrackedMessageListRequest {
     state: NetworkRequestState,
     kind: MessageListRequestKind,
     limit: usize,
     page: Option<u32>,
+    sort_key: MessageListSortKey,
+    descending: bool,
     anchor: Option<u64>,
     anchor_id: Option<String>,
 }
@@ -112,8 +125,18 @@ impl MessageListNetworkCapture {
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
             .into_iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .map(|(request_id, _continuation, _limit, _page, _anchor, _anchor_id)| request_id)
+            .map(
+                |(
+                    request_id,
+                    _continuation,
+                    _limit,
+                    _page,
+                    _sort_key,
+                    _descending,
+                    _anchor,
+                    _anchor_id,
+                )| request_id,
+            )
             .collect()
     }
 
@@ -125,9 +148,9 @@ impl MessageListNetworkCapture {
 
     /// Removes completed batches as sanitized request metadata tuples.
     ///
-    /// The tuple contains request ID, continuation flag, numeric limit, initial
-    // jig-ignore-next-line: canonical rustfmt line.
-    /// page, numeric anchor, and bounded anchor ID. It excludes URL and headers.
+    /// The tuple contains request ID, batch kind, limit, page, sanitized sort,
+    /// direction, numeric anchor, and bounded anchor ID. It excludes URL and
+    /// headers.
     #[expect(
         clippy::type_complexity,
         reason = "internal tuple contains only sanitized request metadata"
@@ -139,6 +162,8 @@ impl MessageListNetworkCapture {
         bool,
         usize,
         Option<u32>,
+        String,
+        bool,
         Option<u64>,
         Option<String>,
     )> {
@@ -153,6 +178,12 @@ impl MessageListNetworkCapture {
                     request.kind == MessageListRequestKind::Continuation,
                     request.limit,
                     request.page,
+                    String::from(match request.sort_key {
+                        MessageListSortKey::Time => "Time",
+                        MessageListSortKey::SnoozeTime => "SnoozeTime",
+                        MessageListSortKey::Size => "Size",
+                    }),
+                    request.descending,
                     request.anchor,
                     request.anchor_id.clone(),
                 )
@@ -195,8 +226,9 @@ impl MessageListNetworkCapture {
         if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        let Some((kind, limit, page, anchor, anchor_id)) = message_list_request_shape(url)? else {
+        let Some((kind, limit, page, sort_key, descending, anchor, anchor_id)) =
+            message_list_request_shape(url)?
+        else {
             return Ok(());
         };
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
@@ -209,6 +241,8 @@ impl MessageListNetworkCapture {
                 kind,
                 limit,
                 page,
+                sort_key,
+                descending,
                 anchor,
                 anchor_id,
             },
@@ -242,6 +276,21 @@ impl MessageListNetworkCapture {
         let mime = response.get("mimeType").and_then(Value::as_str);
         // jig-ignore-next-line: canonical rustfmt line.
         if !is_message_list_url(url) || status != Some(200) || mime != Some("application/json") {
+            return Err(MessageListNetworkError::ResponseRejected);
+        }
+        let shape = message_list_request_shape(url)
+            .map_err(|_error| MessageListNetworkError::ResponseRejected)?
+            .ok_or(MessageListNetworkError::ResponseRejected)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let (kind, limit, page, sort_key, descending, anchor, anchor_id) = shape;
+        if request.kind != kind
+            || request.limit != limit
+            || request.page != page
+            || request.sort_key != sort_key
+            || request.descending != descending
+            || request.anchor != anchor
+            || request.anchor_id != anchor_id
+        {
             return Err(MessageListNetworkError::ResponseRejected);
         }
         request.state = NetworkRequestState::Responded;
@@ -308,6 +357,8 @@ fn message_list_request_shape(
         MessageListRequestKind,
         usize,
         Option<u32>,
+        MessageListSortKey,
+        bool,
         Option<u64>,
         Option<String>,
     )>,
@@ -330,6 +381,12 @@ fn message_list_request_shape(
         .transpose()
         .map_err(|_error| MessageListNetworkError::MalformedEvent)?;
     let page_size = numeric_query_parameter(url, "PageSize")?;
+    let Some(sort_key) = sort_query_parameter(url)? else {
+        return Ok(None);
+    };
+    let Some(descending) = descending_query_parameter(url)? else {
+        return Ok(None);
+    };
     let anchor = numeric_query_parameter(url, "Anchor")?;
     // jig-ignore-next-line: canonical rustfmt line.
     let anchor_id = bounded_query_parameter(url, "AnchorID", MAX_MESSAGE_LIST_ID_BYTES)?;
@@ -341,7 +398,34 @@ fn message_list_request_shape(
         (None, None, Some(_anchor), Some(_anchor_id)) => MessageListRequestKind::Continuation,
         _ => return Ok(None),
     };
-    Ok(Some((kind, limit, page, anchor, anchor_id)))
+    Ok(Some((
+        kind, limit, page, sort_key, descending, anchor, anchor_id,
+    )))
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn sort_query_parameter(url: &str) -> Result<Option<MessageListSortKey>, MessageListNetworkError> {
+    let Some(value) = raw_query_parameter(url, "Sort")? else {
+        return Ok(None);
+    };
+    match value {
+        "Time" => Ok(Some(MessageListSortKey::Time)),
+        "SnoozeTime" => Ok(Some(MessageListSortKey::SnoozeTime)),
+        "Size" => Ok(Some(MessageListSortKey::Size)),
+        _ => Err(MessageListNetworkError::MalformedEvent),
+    }
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn descending_query_parameter(url: &str) -> Result<Option<bool>, MessageListNetworkError> {
+    let Some(value) = numeric_query_parameter(url, "Desc")? else {
+        return Ok(None);
+    };
+    match value {
+        0 => Ok(Some(false)),
+        1 => Ok(Some(true)),
+        _ => Err(MessageListNetworkError::MalformedEvent),
+    }
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

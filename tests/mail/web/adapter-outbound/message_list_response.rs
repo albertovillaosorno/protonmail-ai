@@ -36,7 +36,7 @@ use mail_web_adapter::{MessageListResponseError, ObservedMessageListResponse};
 
 const URL: &str = concat!(
     "https://mail.proton.me/api/mail/v4/messages",
-    "?Page=0&PageSize=50&Limit=50"
+    "?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1"
 );
 
 #[test]
@@ -236,6 +236,24 @@ fn network_capture_fails_closed_on_redirect_failure_and_bad_response() {
 
     let mut capture = MessageListNetworkCapture::new("session-1");
     capture
+        .observe(&request("query-drift"))
+        .expect("track request");
+    let query_drift = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"query-drift","response":{
+            // jig-ignore-next-line: indivisible synthetic URL fixture.
+            "url":"https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=0",
+            "status":200u16,"mimeType":"application/json"
+        }}
+    });
+    assert_eq!(
+        capture.observe(&query_drift),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
         .observe(&request("bad-status"))
         .expect("track request");
     let bad_response = json!({
@@ -408,12 +426,12 @@ fn network_capture_accepts_initial_and_continuation_batch_shapes() {
         (
             "initial",
             // jig-ignore-next-line: indivisible synthetic JSON fixture.
-            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50",
+            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1",
         ),
         (
             "continuation",
             // jig-ignore-next-line: indivisible synthetic JSON fixture.
-            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50",
+            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1",
         ),
     ] {
         capture
@@ -469,17 +487,18 @@ fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
     assert!(capture.take_finished_request_ids().is_empty());
 
     for url in [
-        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=0&Limit=0",
-        // jig-ignore-next-line: indivisible synthetic JSON fixture.
-        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=101&Limit=101",
-        // jig-ignore-next-line: indivisible synthetic JSON fixture.
-        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=nope",
         // jig-ignore-next-line: indivisible synthetic URL fixture.
-        "https://mail.proton.me/api/mail/v4/messages?Page=4294967296&PageSize=50&Limit=50",
-        // jig-ignore-next-line: indivisible synthetic URL fixture.
-        "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=nope&AnchorID=m-50",
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=0&Limit=0&Sort=Time&Desc=1",
         // jig-ignore-next-line: indivisible synthetic JSON fixture.
-        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Limit=50",
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=101&Limit=101&Sort=Time&Desc=1",
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=nope&Sort=Time&Desc=1",
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=4294967296&PageSize=50&Limit=50&Sort=Time&Desc=1",
+        // jig-ignore-next-line: indivisible synthetic URL fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=nope&AnchorID=m-50&Sort=Time&Desc=1",
+        // jig-ignore-next-line: indivisible synthetic JSON fixture.
+        "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&Limit=50",
     ] {
         assert_eq!(
             capture.observe(&json!({

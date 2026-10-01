@@ -204,14 +204,16 @@ while IFS= read -r -d '' message <&3; do
       request+='"method":"Network.requestWillBeSent","params":{'
       request+='"requestId":"list-1","request":{"method":"GET",'
       request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-      request+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__",'
+      request+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__'
+      request+='&Sort=Time&Desc=1",'
       request+='"headers":{"Authorization":"Bearer secret"}}}}'
       printf '%s\0' "$request" >&4
       response='{"sessionId":"session-1",'
       response+='"method":"Network.responseReceived","params":{'
       response+='"requestId":"list-1","response":{'
       response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-      response+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__",'
+      response+='Page=__INITIAL_PAGE__&PageSize=__LIMIT__&Limit=__LIMIT__'
+      response+='&Sort=Time&Desc=1",'
       response+='"status":200,"mimeType":"application/json",'
       response+='"headers":{"Set-Cookie":"secret-cookie"}}}}'
       printf '%s\0' "$response" >&4
@@ -227,14 +229,16 @@ while IFS= read -r -d '' message <&3; do
         request+='"method":"Network.requestWillBeSent","params":{'
         request+='"requestId":"list-2","request":{"method":"GET",'
         request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-        request+='Limit=1&Anchor=__ANCHOR__&AnchorID=__ANCHOR_ID__",'
+        request+='Limit=1&Anchor=__ANCHOR__&AnchorID=__ANCHOR_ID__'
+        request+='&Sort=Time&Desc=1",'
         request+='"headers":{"Authorization":"Bearer secret"}}}}'
         printf '%s\0' "$request" >&4
         response='{"sessionId":"session-1",'
         response+='"method":"Network.responseReceived","params":{'
         response+='"requestId":"list-2","response":{'
         response+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-        response+='Limit=1&Anchor=__ANCHOR__&AnchorID=__ANCHOR_ID__",'
+        response+='Limit=1&Anchor=__ANCHOR__&AnchorID=__ANCHOR_ID__'
+        response+='&Sort=Time&Desc=1",'
         response+='"status":200,"mimeType":"application/json"}}}'
         printf '%s\0' "$response" >&4
         finished='{"sessionId":"session-1",'
@@ -262,7 +266,7 @@ while IFS= read -r -d '' message <&3; do
         request+='"method":"Network.requestWillBeSent","params":{'
         request+='"requestId":"list-3","request":{"method":"GET",'
         request+='"url":"https://mail.proton.me/api/mail/v4/messages?'
-        request+='Limit=1&Anchor=1790847999&AnchorID=m-2"}}}'
+        request+='Limit=1&Anchor=1790847999&AnchorID=m-2&Sort=Time&Desc=1"}}}'
         printf '%s\0' "$request" >&4
       fi
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;

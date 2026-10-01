@@ -84,6 +84,8 @@ struct CompletedMessageListRequest {
     continuation: bool,
     limit: usize,
     page: Option<u32>,
+    sort_key: String,
+    descending: bool,
     anchor: Option<u64>,
     anchor_id: Option<String>,
 }
@@ -736,6 +738,8 @@ impl ManagedBrowser {
             .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
         if !second_request.continuation
             || second_request.limit != first_request.limit
+            || second_request.sort_key != first_request.sort_key
+            || second_request.descending != first_request.descending
             || second_request.anchor != Some(last_message.time())
             || second_request.anchor_id.as_deref() != Some(last_message.id())
         {
@@ -1413,13 +1417,16 @@ fn take_one_finished_request(
     match finished.len() {
         0 => Ok(None),
         1 => {
-            let (request_id, continuation, limit, page, anchor, anchor_id) =
+            // jig-ignore-next-line: canonical rustfmt line.
+            let (request_id, continuation, limit, page, sort_key, descending, anchor, anchor_id) =
                 finished.pop().ok_or(BrowserDriverError::Protocol)?;
             Ok(Some(CompletedMessageListRequest {
                 request_id,
                 continuation,
                 limit,
                 page,
+                sort_key,
+                descending,
                 anchor,
                 anchor_id,
             }))
