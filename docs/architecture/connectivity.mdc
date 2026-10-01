@@ -124,17 +124,15 @@ Origin is revalidated immediately before both open and cleanup clicks, and drift
 blocks interaction on the new page. It never activates a sort option.
 
 A semantic newest-first selection does not satisfy the frozen `list_messages`
-ordering/cursor contract by itself. The Network diagnostic now supplies numeric
-`Message.Time` and reconciles it to stable visible message IDs, removing the
-machine-readable receive-time blocker despite the localized DOM `datetime`.
-Current WebClients also maps the visible time-sort controls to `SnoozeTime`
-for Inbox/Snoozed and can reverse the `Time` direction for Scheduled, so visible
-“Newest first” alone does not prove the required provider `Time` descending
-request. The web adapter therefore reports `ProviderSortKeyUnproven`,
-`ProviderTieBreakDiffers`, and `MissingSnapshotBoundary`, with non-newest UI
-sort
-adding `SortNotNewestFirst`; public `list_messages` remains unavailable until
-all blockers are removed rather than approximated.
+ordering/cursor contract by itself; numeric `Message.Time` is now reconciled to
+stable visible IDs, but current WebClients can map the visible time controls to
+`SnoozeTime` or reverse `Time` direction by location. The bounded Network
+observer therefore supplies sanitized provider `Sort` and `Desc` evidence to
+readiness: exact `Sort=Time&Desc=1` removes `ProviderSortKeyUnproven`, while
+`SnoozeTime`, ascending `Time`, or another provider sort retains it and
+non-newest visible UI state additionally reports `SortNotNewestFirst`.
+`ProviderTieBreakDiffers` and `MissingSnapshotBoundary` remain unconditional, so
+public `list_messages` is still unavailable.
 
 
 The list/row source files and the mode-rule files were rechecked against

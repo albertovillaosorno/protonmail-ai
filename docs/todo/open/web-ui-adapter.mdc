@@ -233,9 +233,11 @@ web application without requiring Bridge or a third-party direct API identity.
   fresh stable visible message-page snapshot is reconciled against all captured
   batches; synthetic coverage starts batch 2 during the first body fetch and
   rejects request/visible-page mismatch.
-- The new sanitized `Sort`/`Desc` evidence is not yet consumed by
-  `inspect_list_messages_readiness`, so `ProviderSortKeyUnproven` remains
-  intentionally present even for a visible newest-first control.
+- `inspect_list_messages_readiness` now consumes that sanitized Network
+  ordering evidence. Exact `Sort=Time&Desc=1` clears
+  `ProviderSortKeyUnproven`; visible newest-first backed by `SnoozeTime` or
+  ascending `Time` stays blocked. Synthetic readiness coverage proves both
+  `Time`-descending and `SnoozeTime`-descending newest-visible cases.
 - Still required: prove whether the provider anchor can support an immutable
   snapshot boundary and resolve the provider-neutral equal-Time ID tie-break,
   then implement a durable cursor/snapshot chain,

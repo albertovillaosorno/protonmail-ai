@@ -46,6 +46,7 @@ const ABSENT_AX: &str = "[]";
 #[derive(Clone, Copy)]
 enum SortScenario {
     Newest,
+    NewestSnooze,
     Oldest,
     Multiple,
 }
@@ -59,16 +60,30 @@ type PressedPair = (&'static str, &'static str);
 
 const fn pressed_values(scenario: SortScenario) -> PressedPair {
     match scenario {
-        SortScenario::Newest => ("true", "false"),
+        SortScenario::Newest | SortScenario::NewestSnooze => ("true", "false"),
         SortScenario::Oldest => ("false", "true"),
         SortScenario::Multiple => ("true", "true"),
     }
 }
 
+// jig-ignore-next-line: canonical rustfmt line.
+const fn provider_query_sort(scenario: SortScenario) -> (&'static str, &'static str) {
+    match scenario {
+        SortScenario::Newest | SortScenario::Multiple => ("Time", "1"),
+        SortScenario::NewestSnooze => ("SnoozeTime", "1"),
+        SortScenario::Oldest => ("Time", "0"),
+    }
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "synthetic sort and Network transcript is one coherent fixture"
+)]
 fn fake(root: &Path, scenario: SortScenario, starts_open: bool) -> PathBuf {
     let script = root.join("fake-browser");
     let log = root.join("menu-log.txt");
     let (newest, oldest) = pressed_values(scenario);
+    let (provider_sort, provider_desc) = provider_query_sort(scenario);
     let open = i32::from(starts_open);
     let body = format!(
         r#"#!/usr/bin/env bash
@@ -89,6 +104,30 @@ while IFS= read -r -d '' message <&3; do
     *'Runtime.evaluate'*'forcedMessageRoute'*)
       value='{{"forcedMessageRoute":true,"activeSearch":false}}'
       printf "$value_reply" "$id" "$value" >&4;;
+    *'Network.enable'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+    *'Page.reload'*)
+      url='https://mail.proton.me/api/mail/v4/messages?'
+      url+='Page=0&PageSize=50&Limit=50'
+      url+='&Sort={provider_sort}&Desc={provider_desc}'
+      request='{{"sessionId":"session-1","method":"Network.requestWillBeSent",'
+      request+='"params":{{"requestId":"list-1","request":{{"method":"GET",'
+      request+='"url":"'"$url"'"}}}}}}'
+      printf '%s\0' "$request" >&4
+      response='{{"sessionId":"session-1","method":"Network.responseReceived",'
+      response+='"params":{{"requestId":"list-1","response":{{"url":"'"$url"'",'
+      response+='"status":200,"mimeType":"application/json"}}}}}}'
+      printf '%s\0' "$response" >&4
+      finished='{{"sessionId":"session-1","method":"Network.loadingFinished",'
+      finished+='"params":{{"requestId":"list-1"}}}}'
+      printf '%s\0' "$finished" >&4
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+    *'Network.getResponseBody'*)
+      body='{{\"Total\":0,\"Messages\":[]}}'
+      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' \
+        "$id" "$body" >&4;;
+    *'Network.disable'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *'Runtime.evaluate'*'alreadyOpen'*)
       if [ "$menu_open" -eq 1 ]; then
         value='{{"alreadyOpen":true,"clicked":false}}'
@@ -136,6 +175,8 @@ done
         log = log.display(),
         newest = newest,
         oldest = oldest,
+        provider_sort = provider_sort,
+        provider_desc = provider_desc,
         visible = VISIBLE_AX,
         absent = ABSENT_AX,
     );
@@ -256,10 +297,30 @@ fn multiple_active_sort_options_fail_closed() {
 }
 
 #[test]
-fn newest_first_still_has_three_provider_neutral_blockers() {
+fn time_descending_newest_has_two_provider_neutral_blockers() {
     let (result, _log) = with_browser(
         "readiness-newest",
         SortScenario::Newest,
+        false,
+        ManagedBrowser::inspect_list_messages_readiness,
+    );
+    let readiness = result.expect("readiness must be inspectable");
+    assert_eq!(readiness.observed_sort(), MailboxSortOrder::NewestFirst);
+    assert_eq!(
+        readiness.blockers(),
+        [
+            ListMessagesBlocker::ProviderTieBreakDiffers,
+            ListMessagesBlocker::MissingSnapshotBoundary,
+        ]
+    );
+    assert!(!readiness.ready());
+}
+
+#[test]
+fn visible_newest_with_snooze_sort_keeps_provider_sort_blocker() {
+    let (result, _log) = with_browser(
+        "readiness-snooze",
+        SortScenario::NewestSnooze,
         false,
         ManagedBrowser::inspect_list_messages_readiness,
     );

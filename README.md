@@ -203,9 +203,11 @@ This removes the machine-readable receive-time blocker without changing the
 public capability decision. Visible “Newest first” does not itself prove the
 provider request is `Sort=Time&Desc=1`: current WebClients maps Inbox/Snoozed to
 `SnoozeTime`, while Scheduled can reverse the `Time` direction. Readiness now
-keeps `ProviderSortKeyUnproven` alongside the equal-Time `element.Order`
-tie-break and missing immutable snapshot boundary; non-newest visible sort adds
-`SortNotNewestFirst` rather than emitting an approximate cursor.
+consumes the sanitized Network ordering evidence: exact
+`Sort=Time&Desc=1` clears the temporary provider-sort blocker, while
+`SnoozeTime`, ascending `Time`, or any non-newest visible sort remains gated.
+The equal-Time `element.Order` tie-break and missing immutable snapshot boundary
+remain unconditional blockers rather than being approximated.
 
 The relevant sort/date/order files remain byte-identical in current WebClients
 `main@e89da53c8a07656184f703383f74250d66f82b1f` and the pinned research

@@ -93,6 +93,14 @@ struct CompletedMessageListRequest {
 struct CapturedMessageListResponses {
     responses: Vec<ObservedMessageListResponse>,
     initial_page: u32,
+    initial_sort_key: String,
+    initial_descending: bool,
+}
+
+impl CapturedMessageListResponses {
+    fn received_at_descending(&self) -> bool {
+        self.initial_sort_key == "Time" && self.initial_descending
+    }
 }
 
 /// Immutable launch settings for one managed dedicated-profile browser.
@@ -568,12 +576,17 @@ impl ManagedBrowser {
             return Err(BrowserDriverError::MailboxMessageModeRequired);
         }
         let sort = self.inspect_mailbox_sort_in_session(page, session)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_message_list_responses_in_session(page, session)?;
         let after_mode = self.mailbox_mode_in_session(session)?;
         self.ensure_page_origin(page, session)?;
         if after_mode != before_mode {
             return Err(BrowserDriverError::MailboxModeChanged);
         }
-        Ok(ListMessagesReadiness::current(sort))
+        Ok(ListMessagesReadiness::current(
+            sort,
+            observed.received_at_descending(),
+        ))
     }
 
     /// Reloads a proven message-mode Mail page and projects one exact list
@@ -716,6 +729,8 @@ impl ManagedBrowser {
         let initial_page = first_request
             .page
             .ok_or(BrowserDriverError::MessageListBatchIncompatible)?;
+        let initial_sort_key = first_request.sort_key.clone();
+        let initial_descending = first_request.descending;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_message_list_body(session, &first_request, capture)?;
         if first.messages().len() > first_request.limit {
@@ -728,6 +743,8 @@ impl ManagedBrowser {
             return Ok(CapturedMessageListResponses {
                 responses: vec![first],
                 initial_page,
+                initial_sort_key,
+                initial_descending,
             });
         }
 
@@ -754,6 +771,8 @@ impl ManagedBrowser {
         Ok(CapturedMessageListResponses {
             responses: vec![first, second],
             initial_page,
+            initial_sort_key,
+            initial_descending,
         })
     }
 

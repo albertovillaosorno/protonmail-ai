@@ -55,12 +55,17 @@ pub struct ListMessagesReadiness {
 }
 
 impl ListMessagesReadiness {
-    pub(crate) fn current(observed_sort: MailboxSortOrder) -> Self {
+    pub(crate) fn current(
+        observed_sort: MailboxSortOrder,
+        provider_received_at_descending: bool,
+    ) -> Self {
         let mut blockers = vec![
-            ListMessagesBlocker::ProviderSortKeyUnproven,
             ListMessagesBlocker::ProviderTieBreakDiffers,
             ListMessagesBlocker::MissingSnapshotBoundary,
         ];
+        if !provider_received_at_descending {
+            blockers.insert(0, ListMessagesBlocker::ProviderSortKeyUnproven);
+        }
         if !observed_sort.is_newest_first() {
             blockers.push(ListMessagesBlocker::SortNotNewestFirst);
         }
