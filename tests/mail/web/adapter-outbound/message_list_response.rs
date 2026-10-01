@@ -463,12 +463,12 @@ fn network_capture_accepts_initial_and_continuation_batch_shapes() {
         (
             "initial",
             // jig-ignore-next-line: indivisible synthetic JSON fixture.
-            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1",
+            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&LabelID=sent",
         ),
         (
             "continuation",
             // jig-ignore-next-line: indivisible synthetic JSON fixture.
-            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1",
+            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1&LabelID=sent",
         ),
     ] {
         capture
@@ -499,6 +499,40 @@ fn network_capture_accepts_initial_and_continuation_batch_shapes() {
         capture.take_finished_request_ids(),
         vec![String::from("continuation"), String::from("initial")]
     );
+}
+
+#[test]
+fn network_capture_rejects_query_context_drift_without_retaining_terms() {
+    use mail_web_adapter::{MessageListNetworkCapture, MessageListNetworkError};
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    for (id, url, expected) in [
+        (
+            "initial",
+            // jig-ignore-next-line: indivisible synthetic URL fixture.
+            "https://mail.proton.me/api/mail/v4/messages?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&LabelID=sent&Unread=1",
+            Ok(()),
+        ),
+        (
+            "continuation",
+            // jig-ignore-next-line: indivisible synthetic URL fixture.
+            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1&LabelID=drafts&Unread=1",
+            Err(MessageListNetworkError::QueryContextChanged),
+        ),
+    ] {
+        assert_eq!(
+            capture.observe(&json!({
+                "sessionId":"session-1",
+                "method":"Network.requestWillBeSent",
+                "params":{"requestId":id,"request":{"method":"GET","url":url}}
+            })),
+            expected
+        );
+    }
+    let debug = format!("{capture:?}");
+    assert!(!debug.contains("sent"));
+    assert!(!debug.contains("drafts"));
 }
 
 #[test]

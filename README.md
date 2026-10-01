@@ -186,9 +186,11 @@ The driver can now couple those pieces in one diagnostic call; its Network
 observer recognizes WebClients-shaped initial requests (`Page`, `PageSize`,
 `Limit`, `Sort`, and `Desc`) and the one anchor continuation used by the current
 two-batch query loop. Recognized provider sort keys are reduced to `Time`,
-`SnoozeTime`, or `Size`; direction is reduced to one boolean, and both must
-remain identical across request, response URL, and continuation batch; if
-batch 1 fills its sanitized `Limit`, the continuation's numeric
+`SnoozeTime`, or `Size`; direction is reduced to one boolean, while all
+remaining non-pagination query pairs are compared through per-capture randomized
+fingerprints so label/search/filter drift fails closed without retaining query
+terms and request/response context must agree; if batch 1 fills its sanitized
+`Limit`, the continuation's numeric
 `Anchor` and bounded `AnchorID` must equal batch 1's last projected message
 `Time` and ID before its body is read. `Network.getResponseBody` keeps
 classifying Network events inline while the continuation starts, then captures

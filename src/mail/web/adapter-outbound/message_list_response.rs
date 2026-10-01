@@ -30,8 +30,10 @@
 
 //! Content-minimizing projection of Proton Mail message-list responses.
 
+use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::hash::BuildHasher as _;
 
 use serde_json::Value;
 
@@ -74,15 +76,18 @@ struct TrackedMessageListRequest {
     page: Option<u32>,
     sort_key: MessageListSortKey,
     descending: bool,
+    context_fingerprint: [u64; 2],
     anchor: Option<u64>,
     anchor_id: Option<String>,
 }
 
 /// Bounded CDP Network event state for exact message-list GET requests.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct MessageListNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedMessageListRequest>,
+    context_fingerprint: Option<[u64; 2]>,
+    fingerprint_hashers: [RandomState; 2],
 }
 
 impl MessageListNetworkCapture {
@@ -92,6 +97,8 @@ impl MessageListNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            context_fingerprint: None,
+            fingerprint_hashers: [RandomState::new(), RandomState::new()],
         }
     }
 
@@ -231,6 +238,15 @@ impl MessageListNetworkCapture {
         else {
             return Ok(());
         };
+        // jig-ignore-next-line: canonical rustfmt line.
+        let context_fingerprint = query_context_fingerprint(url, &self.fingerprint_hashers)?;
+        match self.context_fingerprint {
+            Some(expected) if expected != context_fingerprint => {
+                return Err(MessageListNetworkError::QueryContextChanged);
+            }
+            None => self.context_fingerprint = Some(context_fingerprint),
+            Some(_) => {}
+        }
         if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
             return Err(MessageListNetworkError::CapacityExceeded);
         }
@@ -243,6 +259,7 @@ impl MessageListNetworkCapture {
                 page,
                 sort_key,
                 descending,
+                context_fingerprint,
                 anchor,
                 anchor_id,
             },
@@ -259,11 +276,8 @@ impl MessageListNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
-        let Some(request) = self.requests.get_mut(request_id) else {
+        if !self.requests.contains_key(request_id) {
             return Ok(());
-        };
-        if request.state != NetworkRequestState::Requested {
-            return Err(MessageListNetworkError::InvalidSequence);
         }
         let response = params
             .get("response")
@@ -272,6 +286,15 @@ impl MessageListNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let context_fingerprint = query_context_fingerprint(url, &self.fingerprint_hashers)
+            .map_err(|_error| MessageListNetworkError::ResponseRejected)?;
+        let Some(request) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if request.state != NetworkRequestState::Requested {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         // jig-ignore-next-line: canonical rustfmt line.
@@ -288,6 +311,7 @@ impl MessageListNetworkCapture {
             || request.page != page
             || request.sort_key != sort_key
             || request.descending != descending
+            || request.context_fingerprint != context_fingerprint
             || request.anchor != anchor
             || request.anchor_id != anchor_id
         {
@@ -324,7 +348,9 @@ impl fmt::Debug for MessageListNetworkCapture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MessageListNetworkCapture")
             .field("session_id", &"<redacted>")
-            .field("tracked_request_count", &self.requests.len())
+            .field("requests", &self.requests.len())
+            .field("context_fingerprint", &"<redacted>")
+            .field("fingerprint_hashers", &"<redacted>")
             .finish()
     }
 }
@@ -344,6 +370,8 @@ pub enum MessageListNetworkError {
     InvalidSequence,
     /// Too many unfinished exact message-list requests are already tracked.
     CapacityExceeded,
+    /// Non-pagination query context changed during one capture.
+    QueryContextChanged,
 }
 
 #[expect(
@@ -404,6 +432,30 @@ fn message_list_request_shape(
     Ok(Some((
         kind, limit, page, sort_key, descending, anchor, anchor_id,
     )))
+}
+
+fn query_context_fingerprint(
+    url: &str,
+    hashers: &[RandomState; 2],
+) -> Result<[u64; 2], MessageListNetworkError> {
+    let Some((_path, query)) = url.split_once('?') else {
+        return Err(MessageListNetworkError::MalformedEvent);
+    };
+    let query = query.split('#').next().unwrap_or(query);
+    let mut pairs = query
+        .split('&')
+        .filter(|pair| {
+            let key = pair.split_once('=').map_or(*pair, |(key, _value)| key);
+            // jig-ignore-next-line: canonical rustfmt line.
+            !matches!(key, "Page" | "PageSize" | "Limit" | "Anchor" | "AnchorID")
+        })
+        .collect::<Vec<_>>();
+    pairs.sort_unstable();
+    let mut result = [0u64; 2];
+    for (slot, state) in result.iter_mut().zip(hashers) {
+        *slot = state.hash_one(&pairs);
+    }
+    Ok(result)
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

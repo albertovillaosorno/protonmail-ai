@@ -228,8 +228,10 @@ web application without requiring Bridge or a third-party direct API identity.
   `Page`/`PageSize`/`Limit` plus `Sort`/`Desc` shape and the anchored
   continuation shape. Provider sort is reduced to `Time`, `SnoozeTime`, or
   `Size`, direction to one boolean, and both must match the response URL and
-  continuation; the capture still retains no full URL and keeps classifying
-  Network events
+  continuation; all non-pagination query pairs are reduced to two per-capture
+  randomized fingerprints, so label/search/filter drift fails closed without
+  retaining raw query terms and response URLs must reproduce the same context;
+  the capture still retains no full URL and keeps classifying Network events
   while fetching batch 1's body so continuation events cannot be discarded.
   Batch 2 is required only when batch 1 fills its limit, and its numeric
   anchor plus bounded anchor ID must equal batch 1's last projected `Time` and
