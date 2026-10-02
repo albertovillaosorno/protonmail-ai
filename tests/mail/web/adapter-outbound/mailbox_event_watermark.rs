@@ -1172,6 +1172,54 @@ fn browser_serialized_change_wait_round_trips_timeout_cursor() {
 }
 
 #[test]
+fn browser_serialized_change_wait_honors_cancellation() {
+    use std::time::Duration;
+
+    let (initial_cancelled, resumed_cancelled) =
+        // jig-ignore-next-line: canonical rustfmt line.
+        with_event_browser("serialized-cancel", false, false, |browser, provider| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let cancellation = mail_web_adapter::MailboxEventCancellation::new();
+            cancellation.cancel();
+            // jig-ignore-next-line: canonical rustfmt line.
+            let initial_cancelled = browser.observe_initial_mailbox_changes_serialized_cancellable(
+                provider,
+                "account-a",
+                Duration::from_secs(1),
+                &cancellation,
+            );
+
+            let initial = browser
+                .observe_initial_mailbox_changes_serialized(
+                    provider,
+                    "account-a",
+                    Duration::from_millis(30),
+                )
+                .expect("create serialized cursor for resumed cancellation");
+            // jig-ignore-next-line: canonical rustfmt line.
+            let cancellation = mail_web_adapter::MailboxEventCancellation::new();
+            cancellation.cancel();
+            // jig-ignore-next-line: canonical rustfmt line.
+            let resumed_cancelled = browser.observe_mailbox_changes_from_token_cancellable(
+                provider,
+                initial.next_cursor(),
+                "account-a",
+                Duration::from_secs(1),
+                &cancellation,
+            );
+            (initial_cancelled, resumed_cancelled)
+        });
+    assert_eq!(
+        initial_cancelled,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventCancelled)
+    );
+    assert_eq!(
+        resumed_cancelled,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventCancelled)
+    );
+}
+
+#[test]
 fn browser_initial_change_timeout_returns_bootstrap_cursor() {
     use std::time::{Duration, Instant};
 

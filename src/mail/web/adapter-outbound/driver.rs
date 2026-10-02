@@ -823,6 +823,32 @@ impl ManagedBrowser {
         self.serialize_mailbox_change_page(observed, &scope)
     }
 
+    /// Initial serialized change wait with cooperative cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same failures as
+    /// [`Self::observe_initial_mailbox_changes_serialized`] plus cancellation.
+    pub fn observe_initial_mailbox_changes_serialized_cancellable(
+        &mut self,
+        page: &ProviderPage,
+        account: &str,
+        wait: Duration,
+        cancellation: &MailboxEventCancellation,
+    ) -> Result<SerializedMailboxChangePage, BrowserDriverError> {
+        let scope = self
+            .event_cursor_scope(account)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
+        let observed = self.observe_initial_mailbox_changes_cancellable(
+            page,
+            scope.clone(),
+            wait,
+            cancellation,
+        )?;
+        self.serialize_mailbox_change_page(observed, &scope)
+    }
+
     /// Resumes one bounded change wait from an authenticated opaque cursor.
     ///
     /// # Errors
@@ -845,6 +871,38 @@ impl ManagedBrowser {
             .map_err(map_event_cursor_codec_error)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let observed = self.observe_mailbox_changes_from_cursor(page, &cursor, &scope, wait)?;
+        self.serialize_mailbox_change_page(observed, &scope)
+    }
+
+    /// Resumed serialized change wait with cooperative cancellation.
+    ///
+    /// # Errors
+    ///
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Returns the same failures as [`Self::observe_mailbox_changes_from_token`]
+    /// plus cancellation after successful token authentication.
+    pub fn observe_mailbox_changes_from_token_cancellable(
+        &mut self,
+        page: &ProviderPage,
+        token: &str,
+        account: &str,
+        wait: Duration,
+        cancellation: &MailboxEventCancellation,
+    ) -> Result<SerializedMailboxChangePage, BrowserDriverError> {
+        let scope = self
+            .event_cursor_scope(account)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
+        let cursor = self
+            .decode_event_cursor(token, &scope)
+            .map_err(map_event_cursor_codec_error)?;
+        let observed = self.observe_mailbox_changes_from_cursor_cancellable(
+            page,
+            &cursor,
+            &scope,
+            wait,
+            cancellation,
+        )?;
         self.serialize_mailbox_change_page(observed, &scope)
     }
 
