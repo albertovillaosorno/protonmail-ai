@@ -72,7 +72,13 @@ bounded resource use.
   fails as a cursor gap, malformed watermarks fail before observation, and an
   empty timeout leaves the acknowledged watermark unchanged. The adapter still
   cannot seek an arbitrary older cursor after the browser event loop has moved.
-- Still required: define the public opaque cursor envelope bound to
-  account/adapter generation, map provider refresh/expiry and cursor gaps into
-  the frozen public errors, and prove cancellation, reconnect/backoff, and
-  restart behavior before advertising `wait_for_changes`.
+- Provider-neutral cursor scope now binds opaque resume state to non-empty,
+  bounded account, adapter, and adapter-generation identities with redacted
+  diagnostics. Settled web event sequences can mint a scoped next cursor, and
+  passive resume releases its provider watermark only for an exact current
+  scope; account/adapter/generation drift fails before provider observation.
+- Still required: choose and authenticate the public cursor serialization, map
+  provider refresh/expiry and cursor gaps into the frozen public errors, obtain
+  a safe initial cursor even when a short no-cursor wait times out before the
+  browser's next poll, and prove cancellation, reconnect/backoff, and restart
+  behavior before advertising `wait_for_changes`.

@@ -41,6 +41,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use command_fds::{CommandFdExt as _, FdMapping};
+use mail_capability_domain::EventCursorBindingError;
+use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
@@ -660,6 +662,25 @@ impl ManagedBrowser {
             ));
         }
         Ok(observed)
+    }
+
+    /// Passively resumes from one account/adapter/generation-bound cursor.
+    ///
+    /// # Errors
+    ///
+    /// Rejects scope drift before provider observation, then applies the exact
+    /// provider-watermark checks of `observe_mailbox_event_sequence_from`.
+    pub fn observe_mailbox_event_sequence_from_cursor(
+        &mut self,
+        page: &ProviderPage,
+        cursor: &ScopedEventCursor<String>,
+        current_scope: &EventCursorScope,
+        wait: Duration,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        let expected = cursor
+            .state_for(current_scope)
+            .map_err(BrowserDriverError::EventCursorBinding)?;
+        self.observe_mailbox_event_sequence_from(page, expected, wait)
     }
 
     fn observe_mailbox_event_sequence_in_session(
@@ -1576,6 +1597,8 @@ pub enum BrowserDriverError {
     MailboxEventWatermark(MailboxEventWatermarkError),
     /// Exact legacy Mail event sequence violated resumability rules.
     MailboxEventSequence(MailboxEventSequenceError),
+    /// Provider-neutral event cursor scope was malformed or no longer matches.
+    EventCursorBinding(EventCursorBindingError),
     /// Requested passive Mail event wait exceeds the frozen 30-second bound.
     MailboxEventWaitTooLong,
     /// No required continuation event response arrived before the deadline.
@@ -1666,6 +1689,9 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::MailboxEventSequence(_error) => {
                 f.write_str("mailbox-event sequence is not resumable")
+            }
+            Self::EventCursorBinding(_error) => {
+                f.write_str("mailbox-event cursor scope is invalid")
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxEventWaitTooLong => f.write_str("mailbox-event wait exceeds 30 seconds"),

@@ -36,6 +36,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Mutex;
 
+use mail_capability_domain::{EventCursorBindingError, EventCursorScope};
 use mail_web_adapter::MailboxEventSequenceError;
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
@@ -583,6 +584,37 @@ fn event_sequence_chains_watermarks_and_coalesces_exact_duplicates() {
 }
 
 #[test]
+fn event_sequence_binds_cursor_only_after_settlement() {
+    let first = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-1",
+        r#"{"EventID":"event-2","More":1}"#,
+    )
+    .expect("parse unsettled cursor page");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut sequence = mail_web_adapter::ObservedMailboxEventSequence::start(first)
+        .expect("start unsettled cursor sequence");
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid event cursor scope");
+    assert_eq!(
+        sequence.bind_next_cursor(scope.clone()),
+        Err(MailboxEventSequenceError::CursorBeforeSettlement)
+    );
+
+    let second = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-2",
+        r#"{"EventID":"event-3","More":0}"#,
+    )
+    .expect("parse settled cursor page");
+    sequence.push(second).expect("settle cursor sequence");
+    let cursor = sequence
+        .bind_next_cursor(scope.clone())
+        .expect("bind settled next cursor");
+    assert_eq!(cursor.state_for(&scope).map(String::as_str), Ok("event-3"));
+}
+
+#[test]
 fn event_sequence_rejects_cursor_gap_refresh_and_nonadvancing_more() {
     use mail_web_adapter::MailboxEventSequenceError;
     use mail_web_adapter::ObservedMailboxEventSequence;
@@ -888,6 +920,50 @@ fn browser_resume_requires_exact_acknowledged_event_watermark() {
         drifted,
         Err(mail_web_adapter::BrowserDriverError::MailboxEventSequence(
             MailboxEventSequenceError::CursorGap
+        ))
+    );
+}
+
+#[test]
+fn browser_scoped_cursor_resume_requires_current_scope() {
+    use std::time::Duration;
+
+    let scope =
+        // jig-ignore-next-line: canonical rustfmt line.
+        EventCursorScope::new("account-a", "web", "generation-7").expect("valid current scope");
+    let cursor = scope.clone().bind(String::from("event-7"));
+    // jig-ignore-next-line: canonical rustfmt line.
+    let matching = with_event_browser("scoped-resume", false, true, |browser, page| {
+        browser.observe_mailbox_event_sequence_from_cursor(
+            page,
+            &cursor,
+            &scope,
+            Duration::from_secs(1),
+        )
+    });
+    assert_eq!(
+        matching
+            .expect("matching scoped cursor must resume")
+            .map(|sequence| String::from(sequence.next_event_id())),
+        Some(String::from("event-8"))
+    );
+
+    let drifted_scope =
+        // jig-ignore-next-line: canonical rustfmt line.
+        EventCursorScope::new("account-a", "web", "generation-8").expect("valid drifted scope");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let rejected = with_event_browser("scoped-drift", false, false, |browser, page| {
+        browser.observe_mailbox_event_sequence_from_cursor(
+            page,
+            &cursor,
+            &drifted_scope,
+            Duration::from_millis(30),
+        )
+    });
+    assert_eq!(
+        rejected,
+        Err(mail_web_adapter::BrowserDriverError::EventCursorBinding(
+            EventCursorBindingError::ScopeMismatch
         ))
     );
 }

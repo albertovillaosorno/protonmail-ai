@@ -33,6 +33,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -633,6 +634,21 @@ impl ObservedMailboxEventSequence {
         &self.next_event_id
     }
 
+    /// Binds the settled next provider watermark to a public cursor scope.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a cursor request before the provider sequence reaches `More=0`.
+    pub fn bind_next_cursor(
+        &self,
+        scope: EventCursorScope,
+    ) -> Result<ScopedEventCursor<String>, MailboxEventSequenceError> {
+        if !self.settled {
+            return Err(MailboxEventSequenceError::CursorBeforeSettlement);
+        }
+        Ok(scope.bind(self.next_event_id.clone()))
+    }
+
     /// Returns normalized changes in stable provider sequence order.
     #[must_use]
     pub fn changes(&self) -> &[ObservedMailboxChange] {
@@ -681,6 +697,8 @@ pub enum MailboxEventSequenceError {
     TooManyPages,
     /// Too many distinct normalized changes were retained in one sequence.
     TooManyChanges,
+    /// A public next cursor was requested before `More=0` settlement.
+    CursorBeforeSettlement,
 }
 
 /// Fail-closed event-watermark projection errors.
