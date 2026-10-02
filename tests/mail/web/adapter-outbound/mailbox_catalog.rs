@@ -592,3 +592,119 @@ fn managed_browser_rejects_duplicate_catalog_kind_before_body_fetch() {
     assert_eq!(log, "enable\nreload\ndisable\n");
     fs::remove_dir_all(&root).expect("remove duplicate catalog browser root");
 }
+
+#[test]
+fn catalog_projection_enforces_body_field_and_item_bounds() {
+    let oversized_body = "x".repeat(262_145);
+    assert_eq!(
+        ObservedMailboxCatalogResponse::parse(
+            MailboxCatalogKind::Label,
+            "GET",
+            LABEL_URL,
+            &oversized_body,
+        ),
+        Err(MailboxCatalogResponseError::BodyTooLarge)
+    );
+
+    let oversized_id = "i".repeat(513);
+    let body = json!({
+        "Code": 1000u16,
+        // jig-ignore-next-line: canonical rustfmt line.
+        "Labels": [{"ID": oversized_id, "Name": "Safe", "Type": 1u8, "Order": 1i8}]
+    })
+    .to_string();
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Label, "GET", LABEL_URL, &body,),
+        Err(MailboxCatalogResponseError::Malformed)
+    );
+
+    let oversized_name = "n".repeat(1_025);
+    let body = json!({
+        "Code": 1000u16,
+        // jig-ignore-next-line: canonical rustfmt line.
+        "Labels": [{"ID": "label-1", "Name": oversized_name, "Type": 1u8, "Order": 1i8}]
+    })
+    .to_string();
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Label, "GET", LABEL_URL, &body,),
+        Err(MailboxCatalogResponseError::Malformed)
+    );
+
+    let labels = (0..2_049u16)
+        .map(|index| {
+            json!({
+                "ID": format!("label-{index}"),
+                "Name": "Safe",
+                "Type": 1u8,
+                "Order": i64::from(index),
+            })
+        })
+        .collect::<Vec<_>>();
+    let body = json!({"Code": 1000u16, "Labels": labels}).to_string();
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Label, "GET", LABEL_URL, &body,),
+        Err(MailboxCatalogResponseError::TooManyItems)
+    );
+}
+
+#[test]
+fn numeric_folder_parent_is_normalized_without_losing_identity() {
+    let response = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::Folder,
+        "GET",
+        FOLDER_URL,
+        // jig-ignore-next-line: canonical rustfmt line.
+        r#"{"Code":1000,"Labels":[{"ID":"folder-7","Name":"Nested","Type":3,"Order":1,"ParentID":42}]}"#,
+    )
+    .expect("project numeric folder parent");
+    assert_eq!(response.items()[0].parent_id(), Some("42"));
+}
+
+#[test]
+fn combined_catalog_rejects_missing_duplicate_kind_and_cross_kind_id() {
+    let system = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::SystemFolder,
+        "GET",
+        SYSTEM_URL,
+        // jig-ignore-next-line: canonical rustfmt line.
+        r#"{"Code":1000,"Labels":[{"ID":"shared","Name":"Inbox","Type":4,"Order":1}]}"#,
+    )
+    .expect("project system fixture");
+    let folders = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::Folder,
+        "GET",
+        FOLDER_URL,
+        r#"{"Code":1000,"Labels":[]}"#,
+    )
+    .expect("project empty folders fixture");
+    let labels = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::Label,
+        "GET",
+        LABEL_URL,
+        // jig-ignore-next-line: canonical rustfmt line.
+        r#"{"Code":1000,"Labels":[{"ID":"shared","Name":"Tag","Type":1,"Order":2}]}"#,
+    )
+    .expect("project label fixture");
+
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalog::from_responses(vec![system.clone(), folders.clone()]),
+        Err(MailboxCatalogResponseError::MissingKind)
+    );
+    assert_eq!(
+        ObservedMailboxCatalog::from_responses(vec![
+            system.clone(),
+            folders.clone(),
+            labels.clone(),
+            labels.clone(),
+        ]),
+        Err(MailboxCatalogResponseError::DuplicateKind)
+    );
+    assert_eq!(
+        ObservedMailboxCatalog::from_responses(vec![system, folders, labels]),
+        Err(MailboxCatalogResponseError::DuplicateId)
+    );
+}
