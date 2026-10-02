@@ -156,14 +156,14 @@ web application without requiring Bridge or a third-party direct API identity.
   tests cover newest/oldest proof, pre-opened-menu preservation, contradictory
   sort state, cleanup on failure, and list-message readiness blockers.
 - `list_messages` remains deliberately unavailable. The bounded Network
-  diagnostic now projects numeric `Message.Time`, which current WebClients uses
-  as message receive time, and reconciles it to stable visible IDs. Exact
-  provider `Sort=Time&Desc=1` plus visible newest-first still leaves two
-  unconditional blockers: equal-Time rows use internal `element.Order` rather
-  than ID as tie-break, and visible pagination plus its continuation anchor
-  expose no immutable snapshot boundary. A provider sort other than `Time`
-  descending adds `ProviderSortKeyUnproven`; non-newest visible state adds
-  `SortNotNewestFirst` as a separate blocker.
+  diagnostic projects numeric `Message.Time`, which current WebClients uses as
+  message receive time, and reconciles it to stable visible IDs. Exact provider
+  `Sort=Time&Desc=1` plus visible newest-first can prove the provider-neutral ID
+  tie-break for a complete first batch or a different-Time lookahead, while a
+  same-Time page boundary remains blocked because WebClients uses internal
+  `element.Order`. Immutable snapshot evidence remains unconditional; a provider
+  sort other than `Time` descending adds `ProviderSortKeyUnproven`, and
+  non-newest visible state adds `SortNotNewestFirst` separately.
 - `FilterList.tsx`, `filterListHelpers.ts`, `ItemDateRender.tsx`, `date.ts`, and
   `elements.ts` were rechecked byte-identical on current
   `main@c51e81b3730a5e1084586b383d837947f7636c16` on 2026-10-01, so the blockers
