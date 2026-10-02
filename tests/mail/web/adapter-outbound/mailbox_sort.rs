@@ -35,6 +35,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::sync::Mutex;
 
 use mail_web_adapter::ProviderPage;
 use mail_web_adapter::{BrowserDriverError, ListMessagesBlocker};
@@ -42,6 +43,7 @@ use mail_web_adapter::{MailboxSortOrder, ManagedBrowser, ManagedBrowserPlan};
 
 const VISIBLE_AX: &str = r#"[{"ignored":false}]"#;
 const ABSENT_AX: &str = "[]";
+static SORT_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SortScenario {
@@ -272,6 +274,9 @@ fn with_browser<T>(
     starts_open: bool,
     inspect: impl FnOnce(&mut ManagedBrowser, &ProviderPage) -> T,
 ) -> (T, String) {
+    let _guard = SORT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic sort browser tests");
     let root = test_root(label);
     fs::create_dir_all(&root).expect("create synthetic root");
     let fake = fake(&root, scenario, starts_open);
@@ -291,6 +296,9 @@ fn with_browser<T>(
 
 #[test]
 fn origin_drift_before_cleanup_prevents_close_click() {
+    let _guard = SORT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic sort browser tests");
     let root = test_root("cleanup-origin-drift");
     fs::create_dir_all(&root).expect("create synthetic root");
     let fake = fake_cleanup_drift(&root);
