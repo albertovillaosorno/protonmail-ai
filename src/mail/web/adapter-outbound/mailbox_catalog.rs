@@ -359,6 +359,9 @@ impl ObservedMailboxCatalogResponse {
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
             serde_json::from_str(body).map_err(|_error| MailboxCatalogResponseError::Malformed)?;
+        if value.get("Code").and_then(Value::as_u64) != Some(1000) {
+            return Err(MailboxCatalogResponseError::ProviderRejected);
+        }
         let labels = value
             .get("Labels")
             .and_then(Value::as_array)
@@ -521,6 +524,8 @@ pub enum MailboxCatalogResponseError {
     BodyTooLarge,
     /// JSON shape or a required bounded field is malformed.
     Malformed,
+    /// Provider response does not carry the normal success code.
+    ProviderRejected,
     /// Response contains more catalog rows than the projection bound.
     TooManyItems,
     /// Response or combined catalog repeats a provider identifier.

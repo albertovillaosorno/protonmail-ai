@@ -151,6 +151,7 @@ fn folder_projection_preserves_unicode_parent_and_provider_order() {
 )]
 fn typed_projection_rejects_wrong_type_duplicate_and_encoded_body() {
     let wrong_type = json!({
+        "Code": 1000,
         "Labels": [{"ID":"label-1","Name":"Label","Type":3,"Order":1}]
     })
     .to_string();
@@ -165,6 +166,7 @@ fn typed_projection_rejects_wrong_type_duplicate_and_encoded_body() {
     );
 
     let duplicate = json!({
+        "Code": 1000,
         "Labels": [
             {"ID":"folder-1","Name":"A","Type":3,"Order":1},
             {"ID":"folder-1","Name":"B","Type":3,"Order":2}
@@ -181,6 +183,16 @@ fn typed_projection_rejects_wrong_type_duplicate_and_encoded_body() {
         Err(MailboxCatalogResponseError::DuplicateId)
     );
 
+    assert_eq!(
+        ObservedMailboxCatalogResponse::parse(
+            MailboxCatalogKind::Label,
+            "GET",
+            LABEL_URL,
+            r#"{"Code":2000,"Labels":[]}"#,
+        ),
+        Err(MailboxCatalogResponseError::ProviderRejected)
+    );
+
     let encoded = json!({"body":"e30=","base64Encoded":true});
     assert_eq!(
         // jig-ignore-next-line: canonical rustfmt line.
@@ -195,7 +207,8 @@ fn combined_catalog_separates_mailboxes_from_labels() {
         MailboxCatalogKind::SystemFolder,
         "GET",
         SYSTEM_URL,
-        r#"{"Labels":[{"ID":"0","Name":"Inbox","Type":4,"Order":1}]}"#,
+        // jig-ignore-next-line: canonical rustfmt line.
+        r#"{"Code":1000,"Labels":[{"ID":"0","Name":"Inbox","Type":4,"Order":1}]}"#,
     )
     .expect("project system folder");
     let folders = ObservedMailboxCatalogResponse::parse(
@@ -203,7 +216,8 @@ fn combined_catalog_separates_mailboxes_from_labels() {
         "GET",
         FOLDER_URL,
         concat!(
-            "{\"Labels\":[{\"ID\":\"folder-1\",\"Name\":\"Projects\",",
+            // jig-ignore-next-line: canonical rustfmt line.
+            "{\"Code\":1000,\"Labels\":[{\"ID\":\"folder-1\",\"Name\":\"Projects\",",
             "\"Type\":3,\"Order\":4,\"ParentID\":null}]}"
         ),
     )
@@ -213,7 +227,7 @@ fn combined_catalog_separates_mailboxes_from_labels() {
         "GET",
         LABEL_URL,
         // jig-ignore-next-line: canonical rustfmt line.
-        r#"{"Labels":[{"ID":"label-1","Name":"Important","Type":1,"Order":3}]}"#,
+        r#"{"Code":1000,"Labels":[{"ID":"label-1","Name":"Important","Type":1,"Order":3}]}"#,
     )
     .expect("project label");
     // jig-ignore-next-line: canonical rustfmt line.
@@ -340,7 +354,8 @@ fn catalog_browser_root(label: &str) -> PathBuf {
 
 // jig-ignore-next-line: canonical rustfmt line.
 #[expect(clippy::too_many_lines, reason = "one synthetic CDP browser lifecycle")]
-fn fake_catalog_browser(root: &Path, encoded_label: bool) -> PathBuf {
+// jig-ignore-next-line: canonical rustfmt line.
+fn fake_catalog_browser(root: &Path, encoded_label: bool, duplicate_label: bool) -> PathBuf {
     use std::fs;
     use std::os::unix::fs::PermissionsExt as _;
 
@@ -397,6 +412,16 @@ while IFS= read -r -d '' message <&3; do
         finished+='"requestId":"'"$request_id"'"}}'
         printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
       done
+      if [ '__DUPLICATE_LABEL__' = 'true' ]; then
+        url='https://mail.proton.me/api/core/v4/labels?Type=1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{"requestId":"label-2","request":{"method":"GET","url":"'"$url"'"}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{"sessionId":"session-1","method":"Network.responseReceived","params":{"requestId":"label-2","response":{"url":"'"$url"'","status":200,"mimeType":"application/json"}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{"sessionId":"session-1","method":"Network.loadingFinished","params":{"requestId":"label-2"}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+      fi
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       other='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{'
       other+='"requestId":"other","request":{"method":"GET",'
@@ -439,6 +464,10 @@ done
         .replace(
             "__ENCODED_LABEL__",
             if encoded_label { "true" } else { "false" },
+        )
+        .replace(
+            "__DUPLICATE_LABEL__",
+            if duplicate_label { "true" } else { "false" },
         );
     fs::write(&script, body).expect("write fake catalog browser");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
@@ -454,7 +483,7 @@ fn managed_browser_passively_captures_complete_mail_catalog() {
 
     let root = catalog_browser_root("complete");
     fs::create_dir_all(&root).expect("create catalog browser root");
-    let browser = fake_catalog_browser(&root, false);
+    let browser = fake_catalog_browser(&root, false, false);
     let plan = ManagedBrowserPlan::under_data_home(
         browser.to_str().expect("catalog browser path UTF-8"),
         &root.join("data"),
@@ -502,7 +531,7 @@ fn managed_browser_disables_network_after_encoded_catalog_body() {
 
     let root = catalog_browser_root("encoded");
     fs::create_dir_all(&root).expect("create encoded catalog browser root");
-    let browser = fake_catalog_browser(&root, true);
+    let browser = fake_catalog_browser(&root, true, false);
     let plan = ManagedBrowserPlan::under_data_home(
         browser
             .to_str()
@@ -529,4 +558,37 @@ fn managed_browser_disables_network_after_encoded_catalog_body() {
     let log = fs::read_to_string(root.join("catalog-log.txt")).expect("read encoded catalog log");
     assert_eq!(log, "enable\nreload\nbody-folder\nbody-label\ndisable\n");
     fs::remove_dir_all(&root).expect("remove encoded catalog browser root");
+}
+
+#[test]
+fn managed_browser_rejects_duplicate_catalog_kind_before_body_fetch() {
+    use std::fs;
+
+    use mail_web_adapter::BrowserDriverError;
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+
+    let root = catalog_browser_root("duplicate-kind");
+    fs::create_dir_all(&root).expect("create duplicate catalog browser root");
+    let browser = fake_catalog_browser(&root, false, true);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser
+            .to_str()
+            .expect("duplicate catalog browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build duplicate catalog browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch duplicate catalog browser");
+    let page = managed
+        .provider_page()
+        .expect("discover duplicate catalog Mail page");
+    assert_eq!(
+        managed.observe_mailbox_catalog(&page),
+        Err(BrowserDriverError::MailboxCatalogAmbiguous)
+    );
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("catalog-log.txt")).expect("read duplicate catalog log");
+    assert_eq!(log, "enable\nreload\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove duplicate catalog browser root");
 }

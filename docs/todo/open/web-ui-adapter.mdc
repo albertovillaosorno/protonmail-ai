@@ -271,11 +271,14 @@ web application without requiring Bridge or a third-party direct API identity.
   and follows those browser-owned requests without injecting provider calls.
   It requires exactly one successful response for system folders, custom
   folders, and message labels, then disables Network and revalidates Mail
-  shell/origin. Synthetic coverage proves nested-folder parents, Unicode names,
+  shell/origin. Projected bodies must also carry provider success `Code=1000`.
+- Synthetic catalog coverage proves nested-folder parents, Unicode names,
   contact-group exclusion, app-owned retry after `loadingFailed`, response-type
-  drift rejection, redacted debug, and exactly three body reads. This is
-  complete adapter catalog evidence only; public `list_mailboxes`/`list_labels`
-  page/cursor composition remains downstream.
+  drift rejection, redacted debug, and exactly three body reads. Duplicate
+  completed category types are rejected before any body fetch, while unsafe
+  encoded bodies still trigger Network cleanup before the projection error
+  escapes. This is complete adapter catalog evidence only; public
+  `list_mailboxes`/`list_labels` page/cursor composition remains downstream.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized

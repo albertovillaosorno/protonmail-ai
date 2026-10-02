@@ -798,10 +798,17 @@ impl ManagedBrowser {
         let mut responses: Vec<ObservedMailboxCatalogResponse> = Vec::with_capacity(3);
         for _event in 0..MAX_UNSOLICITED {
             let finished = capture.take_finished_requests();
-            for (request_id, kind) in finished {
-                if responses.iter().any(|response| response.kind() == kind) {
+            for (index, (_request_id, kind)) in finished.iter().enumerate() {
+                // jig-ignore-next-line: canonical rustfmt line.
+                let already_projected = responses.iter().any(|response| response.kind() == *kind);
+                let repeated_here = finished[..index]
+                    .iter()
+                    .any(|(_prior_id, prior_kind)| prior_kind == kind);
+                if already_projected || repeated_here {
                     return Err(BrowserDriverError::MailboxCatalogAmbiguous);
                 }
+            }
+            for (request_id, kind) in finished {
                 let body = self.call_in_session_observing(
                     session,
                     "Network.getResponseBody",
