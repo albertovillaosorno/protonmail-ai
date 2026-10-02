@@ -343,6 +343,15 @@ web application without requiring Bridge or a third-party direct API identity.
   encrypted bytes separately, derives a session key from metadata/message keys,
   and runs `decryptAndVerify` in the browser, so HTTP metadata/binary capture
   alone is not advertised as plaintext `get_attachment`.
+- Header research confirms the same exact message-detail response carries both
+  raw `Message.Header` and structured `Message.ParsedHeaders`. WebClients uses
+  `ParsedHeaders` directly for mail behavior, including multi-value headers, but
+  its export path combines raw `Header` with MIME headers reconstructed from the
+  decrypted message. The frozen provider-neutral contract only states that
+  `message_v1` contains caller-requested headers and does not yet define a
+  transport header-selector/normalization shape. The current detail projector
+  therefore keeps discarding both representations instead of silently choosing
+  casing, duplicate ordering, or raw-versus-parsed semantics.
 - Rendered plaintext research found a useful identity binding but not a complete
   body contract. `MessageView.tsx` places the provider message ID on the visible
   `<article data-message-id=...>` and the decrypted renderer uses the

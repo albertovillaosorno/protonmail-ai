@@ -68,6 +68,17 @@ Ship useful read access before any mailbox mutation is enabled.
   and safe metadata only; it does not make encrypted HTTP bytes equivalent to
   the plaintext `attachment_v1` response.
 
+- Header research found two distinct fields on the exact message-detail
+  response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
+  maps names to either one string or an array of strings; WebClients reads the
+  parsed form for message semantics and combines raw `Header` with
+  MIME-generated
+  headers when exporting a message. The frozen contract has no standalone
+  `get_headers` capability and only says `message_v1` contains headers requested
+  by the caller. Its transport DTO/header-selection and normalization shape is
+  still undefined, so the adapter continues to discard both fields rather than
+  inventing casing, duplicate-value ordering, or raw-versus-parsed semantics.
+
 - Rendered-body research confirms the opened message article exposes the
   provider
   ID through `data-message-id` and its same-origin content iframe exposes
