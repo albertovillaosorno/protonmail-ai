@@ -381,6 +381,66 @@ fn managed_browser_uses_private_pipe_and_dedicated_profile() {
 }
 
 #[test]
+fn event_cursor_scope_rotates_across_managed_browser_restart() {
+    use mail_capability_domain::EventCursorBindingError;
+    use mail_capability_domain::EventCursorResumeFailure;
+
+    let root = test_root("event-generation");
+    fs::create_dir_all(&root).expect("create synthetic generation root");
+    let targets = concat!(
+        "[{\"targetId\":\"page-1\",\"type\":\"page\",",
+        "\"url\":\"https://mail.proton.me/u/0/inbox\"}]"
+    );
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let browser_plan = plan(&root, &browser);
+
+    let cursor = {
+        let managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&browser_plan).expect("launch first generation browser");
+        let scope = managed
+            .event_cursor_scope("account-a")
+            .expect("create first generation event scope");
+        let cursor = scope.clone().bind(String::from("event-7"));
+        assert_eq!(cursor.state_for(&scope).map(String::as_str), Ok("event-7"));
+        let account_drift = managed
+            .event_cursor_scope("account-b")
+            .expect("create alternate account scope");
+        assert_eq!(
+            cursor.state_for(&account_drift),
+            Err(EventCursorBindingError::AccountMismatch)
+        );
+        assert_eq!(
+            EventCursorBindingError::AccountMismatch.resume_failure(),
+            EventCursorResumeFailure::InvalidCursor
+        );
+        let debug = format!("{managed:?}");
+        assert!(debug.contains("<redacted-web-adapter-generation>"));
+        cursor
+    };
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let managed = ManagedBrowser::launch(&browser_plan).expect("launch second generation browser");
+    let restarted_scope = managed
+        .event_cursor_scope("account-a")
+        .expect("create restarted event scope");
+    assert_eq!(
+        cursor.state_for(&restarted_scope),
+        Err(EventCursorBindingError::GenerationMismatch)
+    );
+    assert_eq!(
+        EventCursorBindingError::GenerationMismatch.resume_failure(),
+        EventCursorResumeFailure::CursorExpired
+    );
+    assert_eq!(
+        managed.event_cursor_scope(""),
+        Err(EventCursorBindingError::MalformedScope)
+    );
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
 fn provider_account_origin_is_not_authenticated_mail() {
     let root = test_root("account");
     fs::create_dir_all(&root).expect("create synthetic root");

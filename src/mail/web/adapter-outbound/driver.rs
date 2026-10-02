@@ -43,6 +43,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use command_fds::{CommandFdExt as _, FdMapping};
+use mail_capability_domain::EventCursorBindingError;
 use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
@@ -96,6 +97,9 @@ const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MAILBOX_EVENT_MAX_WAIT: Duration = Duration::from_secs(30);
 const MAILBOX_EVENT_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(10);
 const MAILBOX_EVENT_CANCEL_POLL: Duration = Duration::from_millis(25);
+const WEB_ADAPTER_CURSOR_SCOPE_ID: &str = "proton-mail-web-v1";
+const WEB_ADAPTER_GENERATION_BYTES: usize = 16;
+const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 const MAILBOX_EVENT_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 
 struct CompletedMessageListRequest {
@@ -200,6 +204,37 @@ impl MailboxEventCancellation {
     }
 }
 
+/// Opaque generation identity for one managed web-adapter lifetime.
+#[derive(Clone, Eq, PartialEq)]
+struct WebAdapterGeneration(String);
+
+impl WebAdapterGeneration {
+    fn fresh() -> Result<Self, BrowserDriverError> {
+        let mut bytes = [0u8; WEB_ADAPTER_GENERATION_BYTES];
+        // jig-ignore-next-line: canonical rustfmt line.
+        getrandom::fill(&mut bytes).map_err(|_error| BrowserDriverError::GenerationEntropy)?;
+        let capacity = WEB_ADAPTER_GENERATION_BYTES
+            .checked_mul(2)
+            .ok_or(BrowserDriverError::GenerationEntropy)?;
+        let mut encoded = String::with_capacity(capacity);
+        for byte in bytes {
+            encoded.push(char::from(HEX_DIGITS[usize::from(byte >> 4u8)]));
+            encoded.push(char::from(HEX_DIGITS[usize::from(byte & 0x0fu8)]));
+        }
+        Ok(Self(encoded))
+    }
+
+    fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Debug for WebAdapterGeneration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<redacted-web-adapter-generation>")
+    }
+}
+
 /// Immutable launch settings for one managed dedicated-profile browser.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ManagedBrowserPlan {
@@ -283,6 +318,7 @@ impl SortMenuActivation {
 #[derive(Debug)]
 pub struct ManagedBrowser {
     child: Child,
+    generation: WebAdapterGeneration,
     next_id: u64,
     reader: BufReader<UnixStream>,
     writer: UnixStream,
@@ -328,6 +364,7 @@ impl ManagedBrowser {
     /// `Browser.getVersion` handshake cannot be verified.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn launch(plan: &ManagedBrowserPlan) -> Result<Self, BrowserDriverError> {
+        let generation = WebAdapterGeneration::fresh()?;
         let lease = AutomationProfileLease::acquire(&plan.profile)
             .map_err(BrowserDriverError::ProfileLease)?;
         let (writer, child_read) =
@@ -344,6 +381,7 @@ impl ManagedBrowser {
         let child = spawn_browser(plan, child_read, child_write)?;
         let mut browser = Self {
             child,
+            generation,
             next_id: 1,
             reader: BufReader::new(reader),
             writer,
@@ -351,6 +389,27 @@ impl ManagedBrowser {
         };
         browser.verify_handshake()?;
         Ok(browser)
+    }
+
+    /// Creates the event-cursor scope for this managed browser generation.
+    ///
+    /// The caller supplies the authenticated account identity. Adapter identity
+    /// is fixed to this web adapter and generation rotates on every browser
+    /// launch, so cursors cannot silently cross adapter/browser restarts.
+    ///
+    /// # Errors
+    ///
+    /// Returns the provider-neutral scope validation error for an invalid
+    /// authenticated account identifier.
+    pub fn event_cursor_scope(
+        &self,
+        account: &str,
+    ) -> Result<EventCursorScope, EventCursorBindingError> {
+        EventCursorScope::new(
+            account,
+            WEB_ADAPTER_CURSOR_SCOPE_ID,
+            self.generation.as_str(),
+        )
     }
 
     /// Returns the single Proton provider page currently exposed by Chromium.
@@ -2287,6 +2346,8 @@ pub enum BrowserDriverError {
     PipeIo,
     /// Private file-descriptor pipe setup failed.
     PipeSetup,
+    /// Secure entropy was unavailable for the web-adapter generation token.
+    GenerationEntropy,
     /// Dedicated profile ownership could not be acquired.
     ProfileLease(ProfileLeaseError),
     /// Managed browser process could not be controlled cleanly.
@@ -2390,6 +2451,8 @@ impl fmt::Display for BrowserDriverError {
             Self::OriginDrift { .. } => f.write_str("provider page origin changed"),
             Self::PipeIo => f.write_str("`DevTools` pipe I/O failed"),
             Self::PipeSetup => f.write_str("cannot create `DevTools` pipe"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::GenerationEntropy => f.write_str("cannot create web-adapter generation"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::ProfileLease(error) => write!(f, "profile unavailable: {error}"),
             Self::ProcessControl => f.write_str("managed browser did not exit"),

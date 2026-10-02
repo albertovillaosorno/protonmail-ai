@@ -13,6 +13,7 @@ categories = ["email", "web-programming"]
 
 [dependencies]
 command-fds = { workspace = true }
+getrandom = { workspace = true }
 mail_capability_domain = { workspace = true }
 serde_json = { workspace = true }
 

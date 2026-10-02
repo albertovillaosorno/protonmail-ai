@@ -113,6 +113,11 @@ bounded resource use.
   retries with its own increasing schedule. A tracked CDP `loadingFailed` now
   discards only that attempt and keeps the bounded observer alive for a later
   exact retry; the adapter never injects a retry or advances the cursor itself.
-- Still required: choose and authenticate the public cursor serialization and
-  prove adapter/browser restart generation behavior before advertising
-  `wait_for_changes`.
+- Managed-browser lifetime now owns the web adapter generation. Every launch
+  creates a fresh random 128-bit opaque generation token; event scopes bind the
+  authenticated account plus the stable web-adapter ID to that generation.
+  Synthetic process coverage proves same-generation use succeeds, account drift
+  is invalid, and a cursor from a prior managed-browser launch becomes
+  `CursorExpired` after restart. Generation diagnostics are redacted.
+- Still required: choose and authenticate the public cursor serialization before
+  advertising `wait_for_changes`.

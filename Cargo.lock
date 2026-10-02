@@ -232,6 +232,7 @@ name = "mail_web_adapter"
 version = "0.0.0"
 dependencies = [
  "command-fds",
+ "getrandom",
  "mail_capability_domain",
  "serde_json",
 ]
