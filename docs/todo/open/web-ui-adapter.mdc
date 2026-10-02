@@ -289,6 +289,12 @@ web application without requiring Bridge or a third-party direct API identity.
   only its bounded `EventID`, disables Network, and revalidates origin. Current
   WebClients uses that exact promise to seed the later v5 loop, so this supplies
   a deterministic initial cursor source without an injected provider request.
+- Initial mailbox-change observation now bridges that bootstrap to the first v5
+  sequence without disabling Network between them. It verifies the first v5
+  request starts from the captured latest watermark, drains bounded `More`
+  continuations, and returns a redaction-safe provider-neutral change page with
+  a scoped next cursor. A timeout before the first v5 response returns an empty
+  page carrying the bootstrap cursor rather than an ambiguous failure.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

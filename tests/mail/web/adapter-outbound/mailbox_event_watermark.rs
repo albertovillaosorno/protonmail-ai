@@ -722,6 +722,55 @@ fn event_sequence_binds_cursor_only_after_settlement() {
 }
 
 #[test]
+fn change_pages_preserve_timeout_cursor_and_project_settled_sequence() {
+    use mail_web_adapter::ObservedMailboxChangePage;
+
+    let scope =
+        // jig-ignore-next-line: canonical rustfmt line.
+        EventCursorScope::new("account-a", "web", "generation-7").expect("valid change-page scope");
+    let bootstrap = ObservedLatestMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v4/events/latest",
+        r#"{"EventID":"event-1"}"#,
+    )
+    .expect("parse bootstrap watermark");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let initial = ObservedMailboxChangePage::from_bootstrap(scope.clone(), &bootstrap);
+    assert!(initial.changes().is_empty());
+    assert_eq!(
+        initial.next_cursor().state_for(&scope).map(String::as_str),
+        Ok("event-1")
+    );
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let timed_out = ObservedMailboxChangePage::from_timeout(initial.next_cursor().clone());
+    assert!(timed_out.changes().is_empty());
+    assert_eq!(timed_out.next_cursor(), initial.next_cursor());
+
+    let event = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/event-1",
+        // jig-ignore-next-line: canonical rustfmt line.
+        r#"{"EventID":"event-2","More":0,"Messages":[{"ID":"m-1","Action":1}]}"#,
+    )
+    .expect("parse settled change page");
+    let sequence = mail_web_adapter::ObservedMailboxEventSequence::start(event)
+        .expect("settle one-page sequence");
+    let page = ObservedMailboxChangePage::from_sequence(scope.clone(), sequence)
+        .expect("project settled sequence");
+    assert_eq!(page.changes().len(), 1);
+    assert_eq!(page.changes()[0].id(), "m-1");
+    assert_eq!(
+        page.next_cursor().state_for(&scope).map(String::as_str),
+        Ok("event-2")
+    );
+    let debug = format!("{page:?}");
+    for secret in ["event-2", "m-1"] {
+        assert!(!debug.contains(secret));
+    }
+}
+
+#[test]
 fn event_sequence_rejects_cursor_gap_refresh_and_nonadvancing_more() {
     use mail_web_adapter::MailboxEventSequenceError;
     use mail_web_adapter::ObservedMailboxEventSequence;
@@ -889,7 +938,23 @@ while IFS= read -r -d '' message <&3; do
         printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
       ) &;;
     *'Network.getResponseBody'*'"requestId":"latest-1"'*)
+      if [ {multi} -eq 1 ] && [ {emit} -eq 0 ]; then
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        url='https://mail.proton.me/api/core/v5/events/event-bootstrap?MessageCounts=1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{{"requestId":"bootstrap-event-1","request":{{"method":"GET","url":"'"$url"'"}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{{"sessionId":"session-1","method":"Network.responseReceived","params":{{"requestId":"bootstrap-event-1","response":{{"url":"'"$url"'","status":200,"mimeType":"application/json"}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{{"sessionId":"session-1","method":"Network.loadingFinished","params":{{"requestId":"bootstrap-event-1"}}}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+      fi
       body='{{\"EventID\":\"event-bootstrap\",\"decoy\":\"secret-body\"}}'
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+    *'Network.getResponseBody'*'"requestId":"bootstrap-event-1"'*)
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      body='{{\"EventID\":\"event-bootstrap-next\",\"More\":0,\"Messages\":[{{\"ID\":\"m-bootstrap\",\"Action\":1}}]}}'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
     *'Network.getResponseBody'*'"requestId":"event-1"'*)
@@ -958,6 +1023,99 @@ fn with_event_browser<T>(
     drop(managed);
     fs::remove_dir_all(root).expect("remove event browser root");
     result
+}
+
+#[test]
+fn browser_initial_change_wait_bridges_bootstrap_without_network_gap() {
+    use std::time::Duration;
+
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid initial change scope");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let page = with_event_browser("initial-change", true, false, |browser, provider| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_initial_mailbox_changes(provider, scope.clone(), Duration::from_secs(1))
+    })
+    .expect("observe initial synthetic change page");
+    assert_eq!(page.changes().len(), 1);
+    assert_eq!(page.changes()[0].id(), "m-bootstrap");
+    assert_eq!(page.changes()[0].kind(), MailboxChangeKind::Created);
+    assert_eq!(
+        page.next_cursor().state_for(&scope).map(String::as_str),
+        Ok("event-bootstrap-next")
+    );
+    let debug = format!("{page:?}");
+    for secret in ["m-bootstrap", "event-bootstrap-next", "secret-body"] {
+        assert!(!debug.contains(secret));
+    }
+}
+
+#[test]
+fn browser_initial_change_timeout_returns_bootstrap_cursor() {
+    use std::time::{Duration, Instant};
+
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid initial timeout scope");
+    let (result, elapsed, page_after) =
+        // jig-ignore-next-line: canonical rustfmt line.
+        with_event_browser("initial-timeout", false, false, |browser, provider| {
+            let started = Instant::now();
+            let result = browser.observe_initial_mailbox_changes(
+                provider,
+                scope.clone(),
+                Duration::from_millis(30),
+            );
+            (result, started.elapsed(), browser.provider_page())
+        });
+    let page = result.expect("initial timeout is a successful change page");
+    assert!(page.changes().is_empty());
+    assert_eq!(
+        page.next_cursor().state_for(&scope).map(String::as_str),
+        Ok("event-bootstrap")
+    );
+    assert!(elapsed < Duration::from_secs(1));
+    assert_eq!(
+        page_after.expect("browser remains usable").origin(),
+        mail_web_adapter::PageOrigin::ProtonMail
+    );
+}
+
+#[test]
+fn browser_initial_change_cancellation_cleans_up() {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid initial cancellation scope");
+    let (result, elapsed, page_after) =
+        with_event_browser("initial-cancel", false, false, |browser, provider| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let cancellation = mail_web_adapter::MailboxEventCancellation::new();
+            let canceller = cancellation.clone();
+            let worker = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(50));
+                canceller.cancel();
+            });
+            let started = Instant::now();
+            let result = browser.observe_initial_mailbox_changes_cancellable(
+                provider,
+                scope.clone(),
+                Duration::from_secs(1),
+                &cancellation,
+            );
+            let elapsed = started.elapsed();
+            worker.join().expect("join initial cancellation worker");
+            (result, elapsed, browser.provider_page())
+        });
+    assert_eq!(
+        result,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventCancelled)
+    );
+    assert!(elapsed < Duration::from_secs(1));
+    assert_eq!(
+        page_after.expect("browser remains usable").origin(),
+        mail_web_adapter::PageOrigin::ProtonMail
+    );
 }
 
 #[test]

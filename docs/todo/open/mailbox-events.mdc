@@ -96,7 +96,12 @@ bounded resource use.
   classify as `InvalidCursor`; adapter-generation drift, an exact-start gap, or
   a provider Mail refresh classify as `CursorExpired`. The web resume entry
   points surface those classes instead of leaking provider sequence errors.
+- Initial no-cursor observation now keeps one Network capture active from the
+  app-owned latest-event bootstrap through the first bounded v5 sequence. The
+  provider-neutral `ObservedMailboxChangePage` returns ordered normalized
+  changes plus a scoped next cursor; a first-v5 timeout is a successful empty
+  page that carries the captured bootstrap cursor, while bootstrap/v5 start
+  drift fails closed. Cancellation uses the same cleanup path.
 - Still required: choose and authenticate the public cursor serialization,
-  couple bootstrap plus bounded v5 waiting into one no-gap public result that
-  always returns a next cursor even on timeout, and prove reconnect/backoff and
-  restart behavior before advertising `wait_for_changes`.
+  expose the same change-page semantics for resumed waits, and prove
+  reconnect/backoff and restart behavior before advertising `wait_for_changes`.

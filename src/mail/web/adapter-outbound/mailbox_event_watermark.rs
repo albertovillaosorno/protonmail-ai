@@ -874,6 +874,85 @@ impl fmt::Debug for ObservedMailboxEventSequence {
     }
 }
 
+/// Provider-neutral bounded change page plus its resumable next cursor.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ObservedMailboxChangePage {
+    changes: Vec<ObservedMailboxChange>,
+    count_changes: bool,
+    next_cursor: ScopedEventCursor<String>,
+}
+
+impl ObservedMailboxChangePage {
+    /// Creates an empty initial page from a captured bootstrap watermark.
+    #[must_use]
+    pub fn from_bootstrap(
+        scope: EventCursorScope,
+        bootstrap: &ObservedLatestMailboxEventWatermark,
+    ) -> Self {
+        Self {
+            changes: Vec::new(),
+            count_changes: false,
+            next_cursor: bootstrap.bind_cursor(scope),
+        }
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Creates an empty timed-out page while preserving its acknowledged cursor.
+    #[must_use]
+    pub const fn from_timeout(next_cursor: ScopedEventCursor<String>) -> Self {
+        Self {
+            changes: Vec::new(),
+            count_changes: false,
+            next_cursor,
+        }
+    }
+
+    /// Projects one settled provider sequence into a provider-neutral page.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a sequence that has not reached provider `More=0` settlement.
+    pub fn from_sequence(
+        scope: EventCursorScope,
+        sequence: ObservedMailboxEventSequence,
+    ) -> Result<Self, MailboxEventSequenceError> {
+        let next_cursor = sequence.bind_next_cursor(scope)?;
+        Ok(Self {
+            changes: sequence.changes,
+            count_changes: sequence.count_changes,
+            next_cursor,
+        })
+    }
+
+    /// Returns ordered normalized mailbox changes.
+    #[must_use]
+    pub fn changes(&self) -> &[ObservedMailboxChange] {
+        &self.changes
+    }
+
+    /// Returns whether count-only mailbox change signals were also observed.
+    #[must_use]
+    pub const fn count_changes(&self) -> bool {
+        self.count_changes
+    }
+
+    /// Returns the account/adapter/generation-bound next cursor.
+    #[must_use]
+    pub const fn next_cursor(&self) -> &ScopedEventCursor<String> {
+        &self.next_cursor
+    }
+}
+
+impl fmt::Debug for ObservedMailboxChangePage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ObservedMailboxChangePage")
+            .field("change_count", &self.changes.len())
+            .field("count_changes", &self.count_changes)
+            .field("next_cursor", &"<redacted>")
+            .finish()
+    }
+}
+
 /// Fail-closed errors for exact legacy Mail event sequence assembly.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MailboxEventSequenceError {

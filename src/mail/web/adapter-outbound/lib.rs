@@ -58,6 +58,7 @@ pub use mailbox_event_watermark::MailboxEventSequenceError;
 pub use mailbox_event_watermark::MailboxEventWatermarkError;
 pub use mailbox_event_watermark::ObservedLatestMailboxEventWatermark;
 pub use mailbox_event_watermark::ObservedMailboxChange;
+pub use mailbox_event_watermark::ObservedMailboxChangePage;
 pub use mailbox_event_watermark::ObservedMailboxEventSequence;
 pub use mailbox_event_watermark::ObservedMailboxEventWatermark;
 pub use mailbox_event_watermark::{MailboxChangeEntity, MailboxChangeKind};
