@@ -300,6 +300,28 @@ web application without requiring Bridge or a third-party direct API identity.
   their transport DTO fields, so this remains adapter-level paging evidence
   rather
   than a public `list_mailboxes`/`list_labels` transport claim.
+- Single-message response research now has a bounded content-minimizing
+  projection for exact `GET /api/mail/v4/messages/{messageID}`. Current pinned
+  WebClients `messagesReadActions.ts` uses that request only when the message
+  body is not already cached. The classifier is target-session scoped, accepts
+  only HTTP-200 JSON responses preserving the requested opaque message ID,
+  discards failed app-owned attempts for retry, rejects redirects/lifecycle
+  drift, and caps unfinished matching requests at 16.
+- The detail projector accepts at most 8 MiB of decoded JSON, requires provider
+  success `Code=1000`, binds body `Message.ID` to the requested ID, and retains
+  only message/conversation IDs, subject, sender and To/Cc/Bcc names/addresses,
+  numeric `Time`, exact numeric unread state, label IDs, MIME type, and bounded
+  optional attachment ID/name/size/MIME descriptors. It does not retain `Body`,
+  `Header`, `ParsedHeaders`, password/hint fields, key packets, signatures,
+  attachment bytes/data, cookies, tokens, or unrelated message fields.
+- Synthetic detail coverage proves Unicode metadata, redacted diagnostics,
+  endpoint/body identity binding, provider rejection, duplicate label/attachment
+  rejection, encoded-body refusal, optional attachment metadata, request
+  capacity
+  bounds, response status/MIME checks, redirect rejection, and app-owned retry.
+  This remains response-boundary evidence only: WebClients may use cached body
+  state without another detail GET, and plaintext body/header plus attachment
+  decryption are not yet projected, so `get_message` is not advertised.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized

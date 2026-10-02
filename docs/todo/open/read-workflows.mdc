@@ -23,6 +23,23 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Current evidence
+
+- Mailbox/label catalog metadata can be captured passively and retained as
+  immutable
+  in-memory snapshots, then paged with authenticated
+  account/generation/query-bound
+  cursors without rereading Proton during continuation. Public transport DTO
+  fields are still undefined by the frozen contract, so no wire shape is
+  invented.
+- Exact single-message `mail/v4/messages/{messageID}` responses can now be
+  reduced to bounded identity/envelope/read-state/label/MIME and attachment
+  descriptor
+  metadata while dropping body, headers, passwords, cryptographic packets, and
+  attachment bytes. This does not yet satisfy `get_message`: current WebClients
+  may use cached message body without a network fetch, and plaintext body/header
+  plus attachment-decryption evidence remains open.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.

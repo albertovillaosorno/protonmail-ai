@@ -170,6 +170,21 @@ This is adapter-level paging evidence, not yet a public `list_mailboxes` or
 metadata: current WebClients builds localized system-folder display text
 separately with `ttag`.
 
+Single-message reads now have a separate content-minimizing response boundary.
+Current WebClients loads an uncached message with exact
+`GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and
+project only bounded message/conversation identity, envelope recipients,
+subject,
+provider time/read state, label IDs, MIME type, and attachment descriptors.
+
+That projector deliberately drops message body, raw and parsed headers, password
+fields, key packets, signatures, attachment bytes, and unrelated provider
+fields.
+It is not yet a public `get_message` implementation: WebClients can satisfy an
+already-cached body without issuing the detail GET, and plaintext body/header
+and
+attachment-decryption paths still need independently bounded browser evidence.
+
 That still is not enough to advertise provider-neutral `list_messages`. The
 public contract requires `received_at` descending, ID ascending as the tie
 breaker, and a cursor-bound snapshot. The visible DOM date remains localized,
