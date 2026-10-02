@@ -22,6 +22,7 @@ path = "../../../../tests/mail/runtime/composition/provenance.rs"
 [dependencies]
 mail_capability_domain = { workspace = true }
 mail_web_adapter = { workspace = true }
+nix = { workspace = true }
 
 [lints]
 workspace = true

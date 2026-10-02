@@ -35,6 +35,10 @@ zeroize = "=1.9.0"
 version = "=0.11.1"
 features = ["zeroize"]
 
+[workspace.dependencies.nix]
+version = "=0.31.3"
+features = ["fs"]
+
 [workspace.dependencies.serde]
 version = "=1.0.229"
 features = ["derive"]

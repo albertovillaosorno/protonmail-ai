@@ -80,6 +80,22 @@ path = "Cargo.toml"
 selector = "workspace.dependencies.getrandom"
 template = "={version}"
 
+[authority.nix]
+current = "0.31.3"
+stable = "0.31.3"
+
+[authority.nix.freshness]
+integrity_kind = "provider-response-sha256"
+maximum_age_days = 30
+provider = "crates-io"
+source = "https://crates.io/api/v1/crates/nix"
+
+[authority.nix.projection.cargo_workspace]
+kind = "toml"
+path = "Cargo.toml"
+selector = "workspace.dependencies.nix.version"
+template = "={version}"
+
 [authority.git]
 current = "2.55.0"
 stable = "2.55.0"

@@ -101,6 +101,15 @@ copyright notices, and substantive modifications here.
 - Use: unchanged Cargo dependency for mapping the private Chromium DevTools
   pipe onto child file descriptors 3 and 4.
 
+### nix
+
+- Upstream: <https://github.com/nix-rust/nix>
+- Version: `0.31.3`
+- License: MIT
+- Use: unchanged Cargo dependency with the `fs` feature for safe
+  descriptor-relative attachment output operations such as `openat`, `linkat`,
+  and `unlinkat`.
+
 ## Reference verification
 
 On 2026-09-29 every retained upstream file was compared with the recursive

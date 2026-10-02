@@ -34,8 +34,13 @@ The pinned workspace toolchain is Rust 1.98.1.
 - `zeroize = =1.9.0`: `cargo search zeroize --limit 1` reported 1.9.0 as the
   latest stable release. `cargo info zeroize@1.9.0` reports Rust 1.85 minimum.
 
-All six direct external dependencies are current and compatible with the
-workspace toolchain at the verification date. Jig release observations record
+On 2026-10-02, `nix = =0.31.3` was added for descriptor-relative attachment
+filesystem operations. `cargo search nix --limit 1` reported 0.31.3 as the
+latest stable release, `cargo info nix@0.31.3` reports Rust 1.69 minimum, and
+its `fs` feature provides the required filesystem API surface.
+
+All seven direct external dependencies are current and compatible with the
+workspace toolchain at their verification dates. Jig release observations record
 the same crates.io results under `.jig/version/observations/`.
 
 ## Review command

@@ -225,6 +225,7 @@ version = "0.0.0"
 dependencies = [
  "mail_capability_domain",
  "mail_web_adapter",
+ "nix",
 ]
 
 [[package]]
