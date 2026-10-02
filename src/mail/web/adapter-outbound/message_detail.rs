@@ -37,6 +37,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -293,6 +294,7 @@ impl fmt::Debug for ObservedMessageRecipient {
 pub struct ObservedAttachmentDescriptor {
     id: Option<String>,
     name: Option<String>,
+    sanitized_name: Option<SanitizedAttachmentFilename>,
     size: Option<u64>,
     mime_type: Option<String>,
 }
@@ -308,6 +310,12 @@ impl ObservedAttachmentDescriptor {
     #[must_use]
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
+    }
+
+    /// Returns a portable sanitized filename when provider metadata names one.
+    #[must_use]
+    pub const fn sanitized_name(&self) -> Option<&SanitizedAttachmentFilename> {
+        self.sanitized_name.as_ref()
     }
 
     /// Returns the provider-declared byte size when present.
@@ -328,6 +336,10 @@ impl fmt::Debug for ObservedAttachmentDescriptor {
         f.debug_struct("ObservedAttachmentDescriptor")
             .field("id", &"<redacted>")
             .field("name", &self.name.as_ref().map(|_| "<redacted>"))
+            .field(
+                "sanitized_name",
+                &self.sanitized_name.as_ref().map(|_| "<redacted>"),
+            )
             .field("size", &self.size.map(|_| "<redacted>"))
             .field("mime_type", &self.mime_type.as_ref().map(|_| "<redacted>"))
             .finish()
@@ -669,6 +681,8 @@ fn parse_attachments(
         // jig-ignore-next-line: canonical rustfmt line.
         let name = bounded_optional_string(object, "Name", MAX_ATTACHMENT_NAME_BYTES)?;
         // jig-ignore-next-line: canonical rustfmt line.
+        let sanitized_name = name.as_deref().map(SanitizedAttachmentFilename::new);
+        // jig-ignore-next-line: canonical rustfmt line.
         let mime_type = bounded_optional_string(object, "MIMEType", MAX_MIME_TYPE_BYTES)?;
         let size = match object.get("Size") {
             None | Some(Value::Null) => None,
@@ -681,6 +695,7 @@ fn parse_attachments(
         attachments.push(ObservedAttachmentDescriptor {
             id,
             name,
+            sanitized_name,
             size,
             mime_type,
         });

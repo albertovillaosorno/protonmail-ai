@@ -32,6 +32,7 @@
 
 //! Synthetic evidence for bounded single-message metadata projection.
 
+use mail_capability_domain::SanitizedAttachmentFilename;
 use mail_web_adapter::MessageDetailNetworkCapture;
 use mail_web_adapter::MessageDetailNetworkError;
 use mail_web_adapter::MessageDetailResponseError;
@@ -149,6 +150,12 @@ fn exact_detail_projection_keeps_only_bounded_metadata() {
     let attachment = &message.attachments()[0];
     assert_eq!(attachment.id(), Some("attachment-1"));
     assert_eq!(attachment.name(), Some("r\u{e9}sum\u{e9}.pdf"));
+    assert_eq!(
+        attachment
+            .sanitized_name()
+            .map(SanitizedAttachmentFilename::as_str),
+        Some("r\u{e9}sum\u{e9}.pdf")
+    );
     assert_eq!(attachment.size(), Some(1234));
     assert_eq!(attachment.mime_type(), Some("application/pdf"));
 
@@ -339,6 +346,25 @@ fn detail_network_capture_rejects_redirect_and_allows_app_retry() {
 }
 
 #[test]
+fn detail_projection_sanitizes_provider_attachment_filename() {
+    let mut body = detail_body();
+    body["Message"]["Attachments"][0]["Name"] = json!("../../CON .txt");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let observed = ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &body.to_string())
+        .expect("project attachment filename safely");
+    let attachment = &observed.message().attachments()[0];
+    assert_eq!(attachment.name(), Some("../../CON .txt"));
+    assert_eq!(
+        attachment
+            .sanitized_name()
+            .map(SanitizedAttachmentFilename::as_str),
+        Some("___.._CON .txt")
+    );
+    let debug = format!("{attachment:?}");
+    assert!(!debug.contains("CON"));
+}
+
+#[test]
 fn attachment_descriptor_accepts_unaddressable_optional_metadata() {
     let mut body = detail_body();
     // jig-ignore-next-line: canonical rustfmt line.
@@ -349,6 +375,7 @@ fn attachment_descriptor_accepts_unaddressable_optional_metadata() {
     let attachment = &observed.message().attachments()[0];
     assert_eq!(attachment.id(), None);
     assert_eq!(attachment.name(), None);
+    assert_eq!(attachment.sanitized_name(), None);
     assert_eq!(attachment.size(), None);
     assert_eq!(attachment.mime_type(), None);
 }
