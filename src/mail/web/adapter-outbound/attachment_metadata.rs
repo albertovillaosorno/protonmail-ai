@@ -341,11 +341,7 @@ impl ObservedAttachmentMetadataResponse {
             None
         }
         .ok_or(AttachmentMetadataResponseError::UnexpectedEndpoint)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        if expected_message_id.is_empty() || expected_message_id.len() > MAX_MESSAGE_ID_BYTES {
-            // jig-ignore-next-line: canonical rustfmt line.
-            return Err(AttachmentMetadataResponseError::InvalidExpectedMessageId);
-        }
+        validate_expected_message_id(expected_message_id)?;
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(AttachmentMetadataResponseError::BodyTooLarge);
         }
@@ -457,6 +453,20 @@ pub enum AttachmentMetadataResponseError {
     ParentMessageMismatch,
     /// `Network.getResponseBody` returned an encoded envelope.
     UnsupportedEncoding,
+}
+
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "sibling driver module shares this private-module validator"
+)]
+pub(crate) const fn validate_expected_message_id(
+    expected_message_id: &str,
+) -> Result<(), AttachmentMetadataResponseError> {
+    // jig-ignore-next-line: canonical rustfmt line.
+    if expected_message_id.is_empty() || expected_message_id.len() > MAX_MESSAGE_ID_BYTES {
+        return Err(AttachmentMetadataResponseError::InvalidExpectedMessageId);
+    }
+    Ok(())
 }
 
 fn attachment_id_from_metadata_url(

@@ -48,6 +48,11 @@ use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
 
+use crate::attachment_metadata::AttachmentMetadataNetworkCapture;
+use crate::attachment_metadata::AttachmentMetadataNetworkError;
+use crate::attachment_metadata::AttachmentMetadataResponseError;
+use crate::attachment_metadata::ObservedAttachmentMetadataResponse;
+use crate::attachment_metadata::validate_expected_message_id;
 use crate::catalog_cursor_codec::validate_catalog_account;
 // jig-ignore-next-line: canonical rustfmt line.
 use crate::catalog_cursor_codec::{WebCatalogCursorCodec, WebCatalogCursorCodecError};
@@ -115,6 +120,8 @@ const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_DETAIL_MAX_WAIT: Duration = Duration::from_secs(30);
 const MESSAGE_DETAIL_TOTAL_BUFFER_BYTES: usize = 16_777_216;
+const ATTACHMENT_METADATA_MAX_WAIT: Duration = Duration::from_secs(30);
+const ATTACHMENT_METADATA_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MAILBOX_CATALOG_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MAILBOX_CATALOG_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
@@ -383,6 +390,14 @@ pub struct ManagedBrowser {
 trait CdpEventObserver {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError>;
+}
+
+impl CdpEventObserver for AttachmentMetadataNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::AttachmentMetadataNetwork)
+    }
 }
 
 impl CdpEventObserver for MailboxCatalogNetworkCapture {
@@ -2022,6 +2037,170 @@ impl ManagedBrowser {
         ))
     }
 
+    /// Passively observes the next browser-owned attachment metadata GET.
+    ///
+    /// This does not click, navigate, reload, or inject a provider API request.
+    /// The response must bind its attachment to `expected_message_id`. A clean
+    /// timeout is `Ok(None)`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects waits above 30 seconds, invalid parent IDs, non-Mail/unready
+    /// pages, ambiguous or unsafe metadata lifecycles, response projection
+    /// failure, parent-message mismatch, or origin drift.
+    pub fn observe_passive_attachment_metadata(
+        &mut self,
+        page: &ProviderPage,
+        expected_message_id: &str,
+        wait: Duration,
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<Option<ObservedAttachmentMetadataResponse>, BrowserDriverError> {
+        if wait > ATTACHMENT_METADATA_MAX_WAIT {
+            return Err(BrowserDriverError::AttachmentMetadataWaitTooLong);
+        }
+        validate_expected_message_id(expected_message_id)
+            .map_err(BrowserDriverError::AttachmentMetadataResponse)?;
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let observed = self.observe_passive_attachment_metadata_in_session(
+            page,
+            &session,
+            expected_message_id,
+            wait,
+        );
+        let detached = self.detach(&session);
+        let metadata = observed?;
+        detached?;
+        Ok(metadata)
+    }
+
+    fn observe_passive_attachment_metadata_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+        expected_message_id: &str,
+        wait: Duration,
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<Option<ObservedAttachmentMetadataResponse>, BrowserDriverError> {
+        let before = self.inspect_mail_shell_in_session(page, session)?;
+        if !before.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedAttachmentMetadataResponse::MAX_BODY_BYTES,
+            "maxTotalBufferSize": ATTACHMENT_METADATA_TOTAL_BUFFER_BYTES
+        });
+        let mut capture = AttachmentMetadataNetworkCapture::new(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let deadline = Instant::now()
+            .checked_add(wait)
+            .ok_or(BrowserDriverError::AttachmentMetadataWaitTooLong)?;
+        let observed = self.capture_passive_attachment_metadata(
+            session,
+            &mut capture,
+            expected_message_id,
+            deadline,
+        );
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual = capture.tracked_request_count();
+        let metadata = observed?;
+        disabled?;
+        if residual != 0 {
+            return Err(BrowserDriverError::AttachmentMetadataAmbiguous);
+        }
+        let after = self.inspect_mail_shell_in_session(page, session)?;
+        if !after.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        self.ensure_page_origin(page, session)?;
+        Ok(metadata)
+    }
+
+    fn capture_passive_attachment_metadata(
+        &mut self,
+        session: &str,
+        capture: &mut AttachmentMetadataNetworkCapture,
+        expected_message_id: &str,
+        deadline: Instant,
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<Option<ObservedAttachmentMetadataResponse>, BrowserDriverError> {
+        let Some((request_id, attachment_id)) =
+            self.wait_for_attachment_metadata_request(capture, deadline)?
+        else {
+            return Ok(None);
+        };
+        let body = self.call_in_session_observing(
+            session,
+            "Network.getResponseBody",
+            &json!({"requestId": request_id}),
+            capture,
+        )?;
+        ObservedAttachmentMetadataResponse::parse_cdp_body(
+            &attachment_id,
+            expected_message_id,
+            &body,
+        )
+        .map(Some)
+        .map_err(BrowserDriverError::AttachmentMetadataResponse)
+    }
+
+    fn wait_for_attachment_metadata_request(
+        &mut self,
+        capture: &mut AttachmentMetadataNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Option<(String, String)>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if let Some(request) = take_one_finished_attachment_metadata_request(capture)? {
+            return Ok(Some(request));
+        }
+        let mut unsolicited = 0u16;
+        while Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(remaining.min(PIPE_TIMEOUT)))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let frame = read_frame_waiting(&mut self.reader);
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(PIPE_TIMEOUT))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let Some(frame) = frame? else {
+                continue;
+            };
+            unsolicited = unsolicited
+                .checked_add(1)
+                .ok_or(BrowserDriverError::AttachmentMetadataAmbiguous)?;
+            if unsolicited > MAX_UNSOLICITED {
+                return Err(BrowserDriverError::AttachmentMetadataAmbiguous);
+            }
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture
+                .observe(&message)
+                .map_err(BrowserDriverError::AttachmentMetadataNetwork)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            if let Some(request) = take_one_finished_attachment_metadata_request(capture)? {
+                return Ok(Some(request));
+            }
+        }
+        Ok(None)
+    }
+
     /// Passively observes the next browser-owned single-message detail GET.
     ///
     /// This method does not click, navigate, reload, or inject a provider API
@@ -2906,6 +3085,15 @@ pub enum BrowserDriverError {
     MailboxCatalogUnavailable,
     /// Duplicate or residual exact catalog requests made capture ambiguous.
     MailboxCatalogAmbiguous,
+    /// Exact attachment-metadata Network lifecycle failed closed.
+    AttachmentMetadataNetwork(AttachmentMetadataNetworkError),
+    /// Attachment metadata response failed bounded parent-bound projection.
+    AttachmentMetadataResponse(AttachmentMetadataResponseError),
+    /// Requested passive attachment-metadata wait exceeds 30 seconds.
+    AttachmentMetadataWaitTooLong,
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Multiple or residual attachment-metadata requests made capture ambiguous.
+    AttachmentMetadataAmbiguous,
     /// Exact single-message detail Network lifecycle failed closed.
     MessageDetailNetwork(MessageDetailNetworkError),
     /// Single-message detail response failed bounded projection.
@@ -3031,6 +3219,18 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::MailboxCatalogAmbiguous => {
                 f.write_str("mailbox catalog observation was ambiguous")
+            }
+            Self::AttachmentMetadataNetwork(_error) => {
+                f.write_str("attachment-metadata Network observation failed")
+            }
+            Self::AttachmentMetadataResponse(_error) => {
+                f.write_str("attachment-metadata response projection failed")
+            }
+            Self::AttachmentMetadataWaitTooLong => {
+                f.write_str("attachment-metadata wait exceeds 30 seconds")
+            }
+            Self::AttachmentMetadataAmbiguous => {
+                f.write_str("attachment-metadata observation was ambiguous")
             }
             Self::MessageDetailNetwork(_error) => {
                 f.write_str("message-detail Network observation failed")
@@ -3268,6 +3468,17 @@ fn take_one_finished_mailbox_event_request(
         0 => Ok(None),
         1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
         _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
+    }
+}
+
+fn take_one_finished_attachment_metadata_request(
+    capture: &mut AttachmentMetadataNetworkCapture,
+) -> Result<Option<(String, String)>, BrowserDriverError> {
+    let mut finished = capture.take_finished_requests();
+    match finished.len() {
+        0 => Ok(None),
+        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
+        _ => Err(BrowserDriverError::AttachmentMetadataAmbiguous),
     }
 }
 

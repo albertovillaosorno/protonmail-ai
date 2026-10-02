@@ -70,6 +70,15 @@ Ship useful read access before any mailbox mutation is enabled.
   JSON with stable attachment identity, discards failed app retries, and caps
   unfinished matching requests at 16. Sender/address data, conversation
   identity, key packets, signatures, request headers, and cookies are discarded.
+- The managed browser can now wait passively for the next app-owned attachment
+  metadata GET without clicking, navigating, reloading, or injecting a provider
+  request. It bounds the wait to 30 seconds, enables Network with a 256 KiB
+  resource and 1 MiB total buffer, projects only the completed exact metadata
+  response, and always disables Network before returning success, timeout, or
+  projection failure. A response must still bind to the caller-expected parent
+  message, concurrent/residual matching requests fail as ambiguous, and a clean
+  timeout is `None`. Synthetic browser tests cover success, no-action timeout,
+  parent mismatch cleanup, and a request starting during Network teardown.
 - Current WebClients fetches encrypted attachment bytes and full metadata in
   parallel, derives the attachment session key, then calls `decryptAndVerify`
   client-side. Therefore the metadata projector proves message-scoped identity

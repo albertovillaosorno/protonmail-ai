@@ -186,6 +186,13 @@ link ever fails. This runtime boundary still does not expose `get_attachment`;
 plaintext attachment retrieval and workflow wiring remain unfinished, and
 release-platform claims remain gated by platform acceptance.
 
+Attachment metadata can also be observed passively when Proton Mail itself
+issues its exact metadata GET. The managed browser does not click, navigate,
+reload, or inject a provider call for this observation; it parent-binds the
+bounded metadata response, disables Network before returning, and treats clean
+timeout as no evidence. This does not retrieve or decrypt attachment bytes, so
+`get_attachment` remains unavailable.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and

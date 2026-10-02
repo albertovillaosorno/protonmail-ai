@@ -337,7 +337,11 @@ web application without requiring Bridge or a third-party direct API identity.
   and at most 16 unfinished requests; failures are discarded for app-owned
   retry, while redirects and lifecycle drift fail closed. The projected body
   must also preserve the caller-bound parent `Attachment.MessageID`; only
-  sanitized filename, declared size, and MIME type survive.
+  sanitized filename, declared size, and MIME type survive. Managed-browser
+  orchestration can passively wait up to 30 seconds for the next app-owned
+  metadata GET, with no click/navigation/reload/provider-call injection; Network
+  is disabled before every success, clean timeout, projection error, or parent
+  mismatch, while residual/late exact requests make the observation ambiguous.
 - Key packets, signatures, sender/address data, conversation identity, headers,
   cookies, and unrelated fields are dropped. Current WebClients obtains
   encrypted bytes separately, derives a session key from metadata/message keys,
