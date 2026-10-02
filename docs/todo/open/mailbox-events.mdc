@@ -46,20 +46,26 @@ bounded resource use.
   `UPDATE_FLAGS` normalize to `updated`; embedded message/conversation content,
   labels, and counts are not retained in the change envelope.
 - Exact duplicate `(entity, action, ID)` changes are coalesced in stable
-  response
-  order while distinct actions for one ID remain distinct. One provider page is
-  limited to 512 normalized changes; malformed IDs/actions fail closed and debug
+  response order while distinct actions for one ID remain distinct. One provider
+  page is limited to 512 normalized changes; malformed IDs/actions fail closed
+  and debug
   output redacts opaque IDs and event watermarks.
 - `ObservedMailboxEventSequence` models the proven WebClients event-manager
   chain: each continuation must request the previous response `EventID`,
   `More=1` must advance the watermark, and `Refresh` invalidates resumable
-  state.
-  Sequences are capped at 32 provider pages and 4096 distinct normalized
-  changes,
-  preserve provider order across pages, and coalesce exact duplicates across the
+  state. Sequences are capped at 32 provider pages and 4096 distinct normalized
+  changes, preserve provider order across pages, and coalesce exact duplicates
+  across the
   chain.
-- Still required: wire the event Network classifier into a bounded browser wait,
-  define the public opaque cursor envelope bound to account/adapter generation,
-  map provider refresh/expiry into the frozen cursor errors, and prove timeout,
-  cancellation, reconnect/backoff, and no-gap resume behavior before advertising
-  `wait_for_changes`.
+- The classifier is now wired into a passive managed-browser wait. It enables
+  CDP Network observation before listening, never injects a Proton event API
+  request, accepts waits up to 30 seconds, treats a first-event timeout as a
+  successful empty result, drains immediate `More=1` continuations, and disables
+  Network before returning. The transport also caps unsolicited frames at 128
+  and short waits temporarily lower the pipe read timeout so they do not
+  overshoot the requested bound.
+- Still required: define the public opaque cursor envelope bound to
+  account/adapter generation, resume from an arbitrary acknowledged cursor
+  without private API injection, map provider refresh/expiry into the frozen
+  cursor errors, and prove cancellation, reconnect/backoff, and no-gap resume
+  behavior before advertising `wait_for_changes`.

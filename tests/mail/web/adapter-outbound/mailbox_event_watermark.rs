@@ -25,12 +25,15 @@
 // - Usage:
 //   - Run through the mail_web_adapter integration-test target.
 // - Defaults:
-//   - No browser, network, account, or filesystem interaction.
+//   - Synthetic browser processes only; no network or account interaction.
 //
 
 //! Mail core-event watermark projection regression tests.
 
+use std::env;
 use std::fmt::Write as _;
+use std::path::{Path, PathBuf};
+use std::process;
 
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
@@ -640,5 +643,188 @@ fn event_sequence_page_count_is_bounded() {
     assert_eq!(
         sequence.push(overflow),
         Err(MailboxEventSequenceError::TooManyPages)
+    );
+}
+
+fn event_browser_root(label: &str) -> PathBuf {
+    env::temp_dir().join(format!(
+        "protonmail-ai-event-browser-{label}-{}",
+        process::id()
+    ))
+}
+
+fn fake_event_browser(root: &Path, multi: bool, emit_event: bool) -> PathBuf {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let script = root.join("fake-browser");
+    let emit = i32::from(emit_event);
+    let multi = i32::from(multi);
+    let body = format!(
+        r#"#!/usr/bin/env bash
+set -eu
+while IFS= read -r -d '' message <&3; do
+  id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  case "$message" in
+    *'Browser.getVersion'*)
+      printf '{{"id":%s,"result":{{"product":"FakeChrome/1"}}}}\0' "$id" >&4;;
+    *'Target.getTargets'*)
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      target='[{{"targetId":"page-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}}]'
+      printf '{{"id":%s,"result":{{"targetInfos":%s}}}}\0' "$id" "$target" >&4;;
+    *'Target.attachToTarget'*)
+      printf '{{"id":%s,"result":{{"sessionId":"session-1"}}}}\0' "$id" >&4;;
+    *'Runtime.evaluate'*)
+      value='{{"protocol":"https:","hostname":"mail.proton.me","port":""}}'
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      printf '{{"id":%s,"result":{{"result":{{"value":%s}}}}}}\0' "$id" "$value" >&4;;
+    *'DOM.getDocument'*)
+      printf '{{"id":%s,"result":{{"root":{{"nodeId":1}}}}}}\0' "$id" >&4;;
+    *'Accessibility.queryAXTree'*)
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      if [[ "$message" == *'"role":"navigation"'* || "$message" == *'"role":"search"'* ]]; then
+        nodes='[{{"ignored":false}}]'
+      else
+        nodes='[]'
+      fi
+      printf '{{"id":%s,"result":{{"nodes":%s}}}}\0' "$id" "$nodes" >&4;;
+    *'Network.enable'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4
+      if [ {emit} -eq 1 ]; then
+        (
+          sleep 0.02
+          # jig-ignore-next-line: indivisible synthetic shell fixture.
+          url='https://mail.proton.me/api/core/v5/events/event-7?MessageCounts=1'
+          # jig-ignore-next-line: indivisible synthetic shell fixture.
+          request='{{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{{"requestId":"event-1","request":{{"method":"GET","url":"'"$url"'"}}}}}}'
+          # jig-ignore-next-line: indivisible synthetic shell fixture.
+          response='{{"sessionId":"session-1","method":"Network.responseReceived","params":{{"requestId":"event-1","response":{{"url":"'"$url"'","status":200,"mimeType":"application/json"}}}}}}'
+          # jig-ignore-next-line: indivisible synthetic shell fixture.
+          finished='{{"sessionId":"session-1","method":"Network.loadingFinished","params":{{"requestId":"event-1"}}}}'
+          printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+        ) &
+      fi;;
+    *'Network.getResponseBody'*'"requestId":"event-1"'*)
+      if [ {multi} -eq 1 ]; then
+        url='https://mail.proton.me/api/core/v5/events/event-8?MessageCounts=1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{{"requestId":"event-2","request":{{"method":"GET","url":"'"$url"'"}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{{"sessionId":"session-1","method":"Network.responseReceived","params":{{"requestId":"event-2","response":{{"url":"'"$url"'","status":200,"mimeType":"application/json"}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{{"sessionId":"session-1","method":"Network.loadingFinished","params":{{"requestId":"event-2"}}}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{{\"EventID\":\"event-8\",\"More\":1,\"Messages\":[{{\"ID\":\"m-1\",\"Action\":1}}]}}'
+      else
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{{\"EventID\":\"event-8\",\"More\":0,\"Messages\":[{{\"ID\":\"m-1\",\"Action\":1}}]}}'
+      fi
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+    *'Network.getResponseBody'*'"requestId":"event-2"'*)
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      body='{{\"EventID\":\"event-9\",\"More\":0,\"Messages\":[{{\"ID\":\"m-1\",\"Action\":1}},{{\"ID\":\"m-1\",\"Action\":3}}]}}'
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+    *'Network.disable'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+    *'Target.detachFromTarget'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+    *) exit 92;;
+  esac
+done
+"#,
+    );
+    fs::write(&script, body).expect("write event fake browser");
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
+        .expect("chmod event fake browser");
+    script
+}
+
+fn with_event_browser<T>(
+    label: &str,
+    multi: bool,
+    emit_event: bool,
+    // jig-ignore-next-line: canonical rustfmt line.
+    test: impl FnOnce(&mut mail_web_adapter::ManagedBrowser, &mail_web_adapter::ProviderPage) -> T,
+) -> T {
+    use std::fs;
+
+    let root = event_browser_root(label);
+    fs::create_dir_all(&root).expect("create event browser root");
+    let browser = fake_event_browser(&root, multi, emit_event);
+    let plan = mail_web_adapter::ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("event browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build event browser plan");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        mail_web_adapter::ManagedBrowser::launch(&plan).expect("launch event fake browser");
+    let page = managed.provider_page().expect("discover event Mail page");
+    let result = test(&mut managed, &page);
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove event browser root");
+    result
+}
+
+#[test]
+fn browser_passively_projects_one_settled_event_poll() {
+    use std::time::Duration;
+
+    let result = with_event_browser("single", false, true, |browser, page| {
+        browser.observe_mailbox_event_sequence(page, Duration::from_secs(1))
+    });
+    let sequence = result
+        .expect("observe synthetic event sequence")
+        .expect("event must arrive");
+    assert!(sequence.settled());
+    assert_eq!(sequence.start_event_id(), "event-7");
+    assert_eq!(sequence.next_event_id(), "event-8");
+    assert_eq!(sequence.changes().len(), 1);
+    assert_eq!(sequence.changes()[0].id(), "m-1");
+}
+
+#[test]
+fn browser_drains_immediate_more_continuation_without_injecting_api_calls() {
+    use std::time::Duration;
+
+    let result = with_event_browser("multi", true, true, |browser, page| {
+        browser.observe_mailbox_event_sequence(page, Duration::from_secs(1))
+    });
+    let sequence = result
+        .expect("observe synthetic continued event sequence")
+        .expect("event must arrive");
+    assert!(sequence.settled());
+    assert_eq!(sequence.page_count(), 2);
+    assert_eq!(sequence.next_event_id(), "event-9");
+    assert_eq!(sequence.changes().len(), 2);
+    assert_eq!(sequence.changes()[0].kind(), MailboxChangeKind::Created);
+    assert_eq!(sequence.changes()[1].kind(), MailboxChangeKind::Updated);
+}
+
+#[test]
+fn browser_event_wait_timeout_is_successful_empty_and_respects_short_bound() {
+    use std::time::{Duration, Instant};
+
+    let started = Instant::now();
+    let result = with_event_browser("timeout", false, false, |browser, page| {
+        browser.observe_mailbox_event_sequence(page, Duration::from_millis(30))
+    });
+    assert_eq!(result, Ok(None));
+    assert!(started.elapsed() < Duration::from_secs(1));
+}
+
+#[test]
+fn browser_event_wait_rejects_more_than_thirty_seconds() {
+    use std::time::Duration;
+
+    let result = with_event_browser("too-long", false, false, |browser, page| {
+        browser.observe_mailbox_event_sequence(page, Duration::from_secs(31))
+    });
+    assert_eq!(
+        result,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventWaitTooLong)
     );
 }

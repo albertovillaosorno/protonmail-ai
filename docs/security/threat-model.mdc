@@ -198,6 +198,10 @@ content are discarded. Exact duplicate normalized changes are coalesced while
 distinct actions survive. This projection is not itself an immutable list
 snapshot proof.
 
+Passive event waiting enables CDP Network observation only and never injects
+Proton event API requests; first-event waits are capped at 30 seconds and raw
+unsolicited frames are discarded after inline classification.
+
 Web-composer handoff URLs contain message content and are not safe diagnostics.
 The human CLI may read an explicitly named `--body-file` to construct that URL,
 but MCP never receives an arbitrary local body-file path. Handoff bodies are

@@ -276,6 +276,10 @@ web application without requiring Bridge or a third-party direct API identity.
   the legacy event manager with an immediate `core/v4/events/latest` promise,
   while `start()` only schedules the later core-v5 poll; a separate bounded
   latest-watermark projection now models that first observation without content.
+- The core-v5 classifier is wired into a passive managed-browser wait of at most
+  30 seconds. First-event timeout returns empty, immediate `More=1` pages are
+  drained through exact `EventID` chaining, and Network is disabled before
+  return. Arbitrary client-cursor resume is not yet implemented.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

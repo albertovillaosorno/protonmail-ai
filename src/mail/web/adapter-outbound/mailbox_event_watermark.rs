@@ -97,6 +97,12 @@ impl MailboxEventNetworkCapture {
         }
     }
 
+    /// Returns the number of unfinished or completed tracked event requests.
+    #[must_use]
+    pub(crate) fn tracked_request_count(&self) -> usize {
+        self.requests.len()
+    }
+
     /// Removes completed event requests and returns only their CDP request IDs.
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
@@ -386,6 +392,9 @@ pub struct ObservedMailboxEventWatermark {
 }
 
 impl ObservedMailboxEventWatermark {
+    /// Maximum decoded event-response body retained for immediate projection.
+    pub const MAX_BODY_BYTES: usize = MAX_EVENT_BODY_BYTES;
+
     /// Validates one exact core-v5 event response and projects only safe state.
     ///
     /// # Errors

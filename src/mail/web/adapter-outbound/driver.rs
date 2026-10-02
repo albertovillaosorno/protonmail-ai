@@ -31,7 +31,7 @@
 //! Managed Chromium `DevTools` pipe for the dedicated Proton Mail profile.
 
 use std::fmt;
-use std::io::{BufRead as _, BufReader, Write as _};
+use std::io::{BufRead as _, BufReader, ErrorKind, Write as _};
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -47,6 +47,10 @@ use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
 use crate::mailbox_event_watermark::MailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkError;
+use crate::mailbox_event_watermark::MailboxEventSequenceError;
+use crate::mailbox_event_watermark::MailboxEventWatermarkError;
+use crate::mailbox_event_watermark::ObservedMailboxEventSequence;
+use crate::mailbox_event_watermark::ObservedMailboxEventWatermark;
 use crate::mailbox_list::NextPageControl;
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState};
 use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
@@ -82,6 +86,8 @@ const SORT_MENU_TIMEOUT: Duration = Duration::from_secs(2);
 const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
+const MAILBOX_EVENT_MAX_WAIT: Duration = Duration::from_secs(30);
+const MAILBOX_EVENT_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 
 struct CompletedMessageListRequest {
     request_id: String,
@@ -592,6 +598,168 @@ impl ManagedBrowser {
         let sort = inspected?;
         detached?;
         Ok(sort)
+    }
+
+    /// Passively observes the browser's own next legacy Mail event sequence.
+    ///
+    /// No provider API request is injected. Network events are classified
+    /// inline, response bodies are projected immediately, and raw headers,
+    /// cookies, message/conversation objects, and unrelated traffic are not
+    /// retained. A timeout before the first event is a successful `None`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects waits above 30 seconds, non-Mail/unready pages, event lifecycle
+    /// ambiguity, malformed response bodies, cursor gaps, refresh, or transport
+    /// failures.
+    pub fn observe_mailbox_event_sequence(
+        &mut self,
+        page: &ProviderPage,
+        wait: Duration,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        if wait > MAILBOX_EVENT_MAX_WAIT {
+            return Err(BrowserDriverError::MailboxEventWaitTooLong);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_mailbox_event_sequence_in_session(page, &session, wait);
+        let detached = self.detach(&session);
+        let sequence = observed?;
+        detached?;
+        Ok(sequence)
+    }
+
+    fn observe_mailbox_event_sequence_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+        wait: Duration,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedMailboxEventWatermark::MAX_BODY_BYTES,
+            "maxTotalBufferSize": MAILBOX_EVENT_TOTAL_BUFFER_BYTES
+        });
+        let mut capture = MailboxEventNetworkCapture::new(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let deadline = Instant::now()
+            .checked_add(wait)
+            .ok_or(BrowserDriverError::MailboxEventWaitTooLong)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.capture_mailbox_event_sequence(session, &mut capture, deadline);
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual_requests = capture.tracked_request_count();
+        let sequence = observed?;
+        disabled?;
+        if residual_requests != 0 {
+            return Err(BrowserDriverError::MailboxEventResponseAmbiguous);
+        }
+        self.ensure_page_origin(page, session)?;
+        Ok(sequence)
+    }
+
+    fn capture_mailbox_event_sequence(
+        &mut self,
+        session: &str,
+        capture: &mut MailboxEventNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let Some(first_request) = self.wait_for_mailbox_event_request(capture, deadline)? else {
+            return Ok(None);
+        };
+        // jig-ignore-next-line: canonical rustfmt line.
+        let first = self.read_mailbox_event_body(session, &first_request, capture)?;
+        let mut sequence = ObservedMailboxEventSequence::start(first)
+            .map_err(BrowserDriverError::MailboxEventSequence)?;
+        while !sequence.settled() {
+            let request = self
+                .wait_for_mailbox_event_request(capture, deadline)?
+                .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            let page = self.read_mailbox_event_body(session, &request, capture)?;
+            sequence
+                .push(page)
+                .map_err(BrowserDriverError::MailboxEventSequence)?;
+        }
+        Ok(Some(sequence))
+    }
+
+    fn read_mailbox_event_body(
+        &mut self,
+        session: &str,
+        request: &(String, String),
+        capture: &mut MailboxEventNetworkCapture,
+    ) -> Result<ObservedMailboxEventWatermark, BrowserDriverError> {
+        let body = self.call_in_session_observing(
+            session,
+            "Network.getResponseBody",
+            &json!({"requestId": request.0.as_str()}),
+            capture,
+        )?;
+        ObservedMailboxEventWatermark::parse_cdp_body(&request.1, &body)
+            .map_err(BrowserDriverError::MailboxEventWatermark)
+    }
+
+    fn wait_for_mailbox_event_request(
+        &mut self,
+        capture: &mut MailboxEventNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Option<(String, String)>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if let Some(request) = take_one_finished_mailbox_event_request(capture)? {
+            return Ok(Some(request));
+        }
+        let mut unsolicited = 0u16;
+        while Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(remaining.min(PIPE_TIMEOUT)))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let frame = read_frame_waiting(&mut self.reader);
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(PIPE_TIMEOUT))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let Some(frame) = frame? else {
+                continue;
+            };
+            unsolicited = unsolicited
+                .checked_add(1)
+                .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            if unsolicited > MAX_UNSOLICITED {
+                return Err(BrowserDriverError::MailboxEventResponseUnavailable);
+            }
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture
+                .observe(&message)
+                .map_err(BrowserDriverError::MailboxEventNetwork)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            if let Some(request) = take_one_finished_mailbox_event_request(capture)? {
+                return Ok(Some(request));
+            }
+        }
+        Ok(None)
     }
 
     /// Reports why the current web page is not yet public `list_messages`.
@@ -1374,6 +1542,17 @@ pub enum BrowserDriverError {
     MessageListNetwork(MessageListNetworkError),
     /// Exact legacy Mail event Network lifecycle failed closed.
     MailboxEventNetwork(MailboxEventNetworkError),
+    /// Projected legacy Mail event response body failed validation.
+    MailboxEventWatermark(MailboxEventWatermarkError),
+    /// Exact legacy Mail event sequence violated resumability rules.
+    MailboxEventSequence(MailboxEventSequenceError),
+    /// Requested passive Mail event wait exceeds the frozen 30-second bound.
+    MailboxEventWaitTooLong,
+    /// No required continuation event response arrived before the deadline.
+    MailboxEventResponseUnavailable,
+    /// More than one completed or residual event request made capture
+    /// ambiguous.
+    MailboxEventResponseAmbiguous,
     /// Exact message-list response body failed bounded projection.
     MessageListResponse(MessageListResponseError),
     /// Stable visible rows could not be reconciled to captured machine
@@ -1451,6 +1630,20 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::MailboxEventNetwork(_error) => {
                 f.write_str("mailbox-event Network observation failed")
+            }
+            Self::MailboxEventWatermark(_error) => {
+                f.write_str("mailbox-event response projection failed")
+            }
+            Self::MailboxEventSequence(_error) => {
+                f.write_str("mailbox-event sequence is not resumable")
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxEventWaitTooLong => f.write_str("mailbox-event wait exceeds 30 seconds"),
+            Self::MailboxEventResponseUnavailable => {
+                f.write_str("mailbox-event continuation was unavailable")
+            }
+            Self::MailboxEventResponseAmbiguous => {
+                f.write_str("mailbox-event observation was ambiguous")
             }
             Self::MessageListResponse(_error) => {
                 f.write_str("message-list response projection failed")
@@ -1576,6 +1769,17 @@ fn ensure_message_list_page_matches(
     Err(BrowserDriverError::MessageListPageMismatch)
 }
 
+fn take_one_finished_mailbox_event_request(
+    capture: &mut MailboxEventNetworkCapture,
+) -> Result<Option<(String, String)>, BrowserDriverError> {
+    let mut finished = capture.take_finished_requests();
+    match finished.len() {
+        0 => Ok(None),
+        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
+        _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
+    }
+}
+
 fn take_one_finished_request(
     capture: &mut MessageListNetworkCapture,
 ) -> Result<Option<CompletedMessageListRequest>, BrowserDriverError> {
@@ -1639,6 +1843,47 @@ fn spawn_browser(
     command
         .spawn()
         .map_err(|_error| BrowserDriverError::BrowserLaunch)
+}
+
+fn read_frame_waiting(
+    reader: &mut BufReader<UnixStream>,
+) -> Result<Option<Vec<u8>>, BrowserDriverError> {
+    let mut frame = Vec::new();
+    loop {
+        let available = match reader.fill_buf() {
+            Ok(available) => available,
+            Err(error)
+                if frame.is_empty()
+                    // jig-ignore-next-line: canonical rustfmt line.
+                    && matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
+            {
+                return Ok(None);
+            }
+            Err(_error) => return Err(BrowserDriverError::PipeIo),
+        };
+        if available.is_empty() {
+            return Err(BrowserDriverError::PipeIo);
+        }
+        let terminator = available.iter().position(|byte| *byte == 0);
+        let payload = terminator.unwrap_or(available.len());
+        let total = frame
+            .len()
+            .checked_add(payload)
+            .ok_or(BrowserDriverError::Protocol)?;
+        if total > MAX_FRAME_BYTES {
+            return Err(BrowserDriverError::Protocol);
+        }
+        frame.extend_from_slice(&available[..payload]);
+        let consumed = if terminator.is_some() {
+            payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
+        } else {
+            payload
+        };
+        reader.consume(consumed);
+        if terminator.is_some() {
+            return Ok(Some(frame));
+        }
+    }
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
