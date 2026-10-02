@@ -53,6 +53,7 @@ pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use driver::{MailboxEventCancellation, ProviderPage};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use list_messages_readiness::{ListMessagesBlocker, ListMessagesReadiness};
+pub use mailbox_event_watermark::LatestMailboxEventNetworkCapture;
 pub use mailbox_event_watermark::MailboxEventSequenceError;
 pub use mailbox_event_watermark::MailboxEventWatermarkError;
 pub use mailbox_event_watermark::ObservedLatestMailboxEventWatermark;

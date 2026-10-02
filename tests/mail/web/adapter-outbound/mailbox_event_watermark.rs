@@ -37,6 +37,7 @@ use std::process;
 use std::sync::Mutex;
 
 use mail_capability_domain::{EventCursorBindingError, EventCursorScope};
+use mail_web_adapter::LatestMailboxEventNetworkCapture;
 use mail_web_adapter::MailboxEventSequenceError;
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
@@ -88,6 +89,30 @@ fn latest_event_watermark_binds_provider_neutral_cursor_scope() {
     assert_eq!(
         cursor.state_for(&scope).map(String::as_str),
         Ok("event-bootstrap")
+    );
+}
+
+#[test]
+fn latest_event_cdp_projection_requires_decoded_bounded_json() {
+    use serde_json::json;
+
+    let latest = ObservedLatestMailboxEventWatermark::parse_cdp_body(&json!({
+        "body":"{\"EventID\":\"event-bootstrap\"}",
+        "base64Encoded":false
+    }))
+    .expect("project decoded latest-event CDP body");
+    assert_eq!(latest.event_id(), "event-bootstrap");
+    assert_eq!(
+        ObservedLatestMailboxEventWatermark::parse_cdp_body(&json!({
+            "body":"e30=","base64Encoded":true
+        })),
+        Err(MailboxEventWatermarkError::UnsupportedEncoding)
+    );
+    assert_eq!(
+        ObservedLatestMailboxEventWatermark::parse_cdp_body(&json!({
+            "body":"{}"
+        })),
+        Err(MailboxEventWatermarkError::Malformed)
     );
 }
 
@@ -377,6 +402,70 @@ fn oversized_event_body_is_rejected() {
         ObservedMailboxEventWatermark::parse("GET", URL, &body),
         Err(MailboxEventWatermarkError::BodyTooLarge)
     );
+}
+
+#[test]
+fn latest_network_capture_tracks_only_exact_bootstrap_get() {
+    use serde_json::json;
+
+    let url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+    for ignored in [
+        json!({
+            "sessionId":"session-2","method":"Network.requestWillBeSent",
+            "params":{"requestId":"other-session","request":{
+                "method":"GET","url":url
+            }}
+        }),
+        json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"v5","request":{
+                "method":"GET","url":URL
+            }}
+        }),
+        json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"post","request":{
+                "method":"POST","url":url
+            }}
+        }),
+    ] {
+        capture
+            .observe(&ignored)
+            .expect("ignore non-bootstrap traffic");
+    }
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"latest","request":{
+                "method":"GET","url":url,
+                "headers":{"Authorization":"Bearer secret"}
+            }}
+        }))
+        .expect("track exact latest request");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.responseReceived",
+            "params":{"requestId":"latest","response":{
+                "url":url,"status":200u16,"mimeType":"application/json",
+                "headers":{"Set-Cookie":"secret-cookie"}
+            }}
+        }))
+        .expect("accept exact latest response");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.loadingFinished",
+            "params":{"requestId":"latest"}
+        }))
+        .expect("finish exact latest request");
+    assert_eq!(
+        capture.take_finished_request_ids(),
+        [String::from("latest")]
+    );
+    let debug = format!("{capture:?}");
+    for secret in ["session-1", "Bearer secret", "secret-cookie"] {
+        assert!(!debug.contains(secret));
+    }
 }
 
 #[test]
@@ -732,6 +821,8 @@ fn event_browser_root(label: &str) -> PathBuf {
     ))
 }
 
+// jig-ignore-next-line: canonical rustfmt line.
+#[expect(clippy::too_many_lines, reason = "one synthetic CDP browser lifecycle")]
 fn fake_event_browser(root: &Path, multi: bool, emit_event: bool) -> PathBuf {
     use std::fs;
     use std::os::unix::fs::PermissionsExt as _;
@@ -783,6 +874,23 @@ while IFS= read -r -d '' message <&3; do
           printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
         ) &
       fi;;
+    *'Page.reload'*)
+      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4
+      (
+        sleep 0.02
+        latest='https://mail.proton.me/api/core/v4/events/latest'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{{"requestId":"latest-1","request":{{"method":"GET","url":"'"$latest"'","headers":{{"Authorization":"Bearer secret"}}}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{{"sessionId":"session-1","method":"Network.responseReceived","params":{{"requestId":"latest-1","response":{{"url":"'"$latest"'","status":200,"mimeType":"application/json","headers":{{"Set-Cookie":"secret-cookie"}}}}}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{{"sessionId":"session-1","method":"Network.loadingFinished","params":{{"requestId":"latest-1"}}}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+      ) &;;
+    *'Network.getResponseBody'*'"requestId":"latest-1"'*)
+      body='{{\"EventID\":\"event-bootstrap\",\"decoy\":\"secret-body\"}}'
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
     *'Network.getResponseBody'*'"requestId":"event-1"'*)
       if [ {multi} -eq 1 ]; then
         url='https://mail.proton.me/api/core/v5/events/event-8?MessageCounts=1'
@@ -849,6 +957,31 @@ fn with_event_browser<T>(
     drop(managed);
     fs::remove_dir_all(root).expect("remove event browser root");
     result
+}
+
+#[test]
+fn browser_reload_passively_captures_latest_event_bootstrap() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    let (watermark, page_after) = with_event_browser("bootstrap", false, false, |browser, page| {
+        let watermark = browser.observe_mailbox_event_bootstrap(page);
+        let page_after = browser.provider_page();
+        (watermark, page_after)
+    });
+    let watermark = watermark.expect("capture synthetic bootstrap watermark");
+    assert_eq!(watermark.event_id(), "event-bootstrap");
+    let debug = format!("{watermark:?}");
+    for secret in [
+        "event-bootstrap",
+        "secret-body",
+        "Bearer secret",
+        "secret-cookie",
+    ] {
+        assert!(!debug.contains(secret));
+    }
+    assert_eq!(
+        page_after.expect("browser remains usable").origin(),
+        mail_web_adapter::PageOrigin::ProtonMail
+    );
 }
 
 #[test]

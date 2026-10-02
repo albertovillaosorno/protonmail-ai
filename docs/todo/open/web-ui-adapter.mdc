@@ -283,6 +283,12 @@ web application without requiring Bridge or a third-party direct API identity.
   browser-owned next event request starts at that exact watermark; drift fails
   as a cursor gap, but arbitrary seek after the browser loop moves remains
   unavailable.
+- The legacy bootstrap watermark can now be captured passively as well: after a
+  ready-shell check the driver enables Network, reloads the same Mail target,
+  observes exactly one successful `core/v4/events/latest` lifecycle, projects
+  only its bounded `EventID`, disables Network, and revalidates origin. Current
+  WebClients uses that exact promise to seed the later v5 loop, so this supplies
+  a deterministic initial cursor source without an injected provider request.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

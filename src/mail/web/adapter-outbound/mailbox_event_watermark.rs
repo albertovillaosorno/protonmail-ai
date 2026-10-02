@@ -61,6 +61,169 @@ struct TrackedEventRequest {
     event_id: String,
 }
 
+/// Bounded CDP lifecycle state for the exact legacy latest-event GET.
+#[derive(Clone, Eq, PartialEq)]
+pub struct LatestMailboxEventNetworkCapture {
+    session_id: String,
+    requests: BTreeMap<String, EventRequestState>,
+}
+
+impl LatestMailboxEventNetworkCapture {
+    /// Creates an empty capture scoped to one flattened CDP target session.
+    #[must_use]
+    pub fn new(session_id: &str) -> Self {
+        Self {
+            session_id: String::from(session_id),
+            requests: BTreeMap::new(),
+        }
+    }
+
+    /// Consumes one unsolicited CDP event without retaining payload content.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for redirects, request failures, invalid ordering, unsafe
+    /// responses, and capture-capacity exhaustion.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn observe(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if event.get("sessionId").and_then(Value::as_str) != Some(self.session_id.as_str()) {
+            return Ok(());
+        }
+        match event.get("method").and_then(Value::as_str) {
+            Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.responseReceived") => self.observe_response(event),
+            Some("Network.loadingFinished") => self.observe_finished(event),
+            Some("Network.loadingFailed") => self.observe_failed(event),
+            _ => Ok(()),
+        }
+    }
+
+    /// Returns the number of tracked latest-event requests.
+    #[must_use]
+    pub(crate) fn tracked_request_count(&self) -> usize {
+        self.requests.len()
+    }
+
+    /// Removes completed exact latest-event requests and returns request IDs.
+    pub fn take_finished_request_ids(&mut self) -> Vec<String> {
+        let finished = self
+            .requests
+            .iter()
+            .filter(|(_id, state)| **state == EventRequestState::Finished)
+            .map(|(id, _state)| id.clone())
+            .collect::<Vec<_>>();
+        self.requests
+            .retain(|_id, state| *state != EventRequestState::Finished);
+        finished
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_request(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request = params
+            .get("request")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let method = request
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let url = request
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let tracked = self.requests.contains_key(request_id);
+        let candidate = method == "GET" && is_latest_event_url(url);
+        if tracked && !candidate {
+            return Err(MailboxEventNetworkError::RedirectedAway);
+        }
+        if !candidate {
+            return Ok(());
+        }
+        if tracked {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if self.requests.len() >= MAX_TRACKED_EVENT_REQUESTS {
+            return Err(MailboxEventNetworkError::CapacityExceeded);
+        }
+        self.requests
+            .insert(String::from(request_id), EventRequestState::Requested);
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_response(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if !self.requests.contains_key(request_id) {
+            return Ok(());
+        }
+        let response = params
+            .get("response")
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let url = response
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        let status = response.get("status").and_then(Value::as_u64);
+        let mime = response.get("mimeType").and_then(Value::as_str);
+        let Some(state) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if *state != EventRequestState::Requested {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        // jig-ignore-next-line: canonical rustfmt line.
+        if status != Some(200) || mime != Some("application/json") || !is_latest_event_url(url) {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
+        *state = EventRequestState::Responded;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        let Some(state) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if *state != EventRequestState::Responded {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        *state = EventRequestState::Finished;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_failed(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.requests.contains_key(request_id) {
+            return Err(MailboxEventNetworkError::RequestFailed);
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for LatestMailboxEventNetworkCapture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LatestMailboxEventNetworkCapture")
+            .field("session_id", &"<redacted>")
+            .field("tracked_request_count", &self.requests.len())
+            .finish()
+    }
+}
+
 /// Bounded CDP lifecycle state for exact legacy Mail core-event GETs.
 #[derive(Clone, Eq, PartialEq)]
 pub struct MailboxEventNetworkCapture {
@@ -294,6 +457,28 @@ impl ObservedLatestMailboxEventWatermark {
         Ok(Self {
             event_id: String::from(event_id),
         })
+    }
+
+    /// Projects one decoded `Network.getResponseBody` latest-event result.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed CDP envelopes, encoded bodies, oversized bodies, and
+    /// invalid bootstrap event watermarks.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn parse_cdp_body(result: &Value) -> Result<Self, MailboxEventWatermarkError> {
+        let encoded = result
+            .get("base64Encoded")
+            .and_then(Value::as_bool)
+            .ok_or(MailboxEventWatermarkError::Malformed)?;
+        if encoded {
+            return Err(MailboxEventWatermarkError::UnsupportedEncoding);
+        }
+        let body = result
+            .get("body")
+            .and_then(Value::as_str)
+            .ok_or(MailboxEventWatermarkError::Malformed)?;
+        Self::parse("GET", LATEST_EVENT_URL, body)
     }
 
     /// Returns the bounded opaque bootstrap event watermark.

@@ -49,10 +49,12 @@ use serde_json::{Value, json};
 
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
+use crate::mailbox_event_watermark::LatestMailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkError;
 use crate::mailbox_event_watermark::MailboxEventSequenceError;
 use crate::mailbox_event_watermark::MailboxEventWatermarkError;
+use crate::mailbox_event_watermark::ObservedLatestMailboxEventWatermark;
 use crate::mailbox_event_watermark::ObservedMailboxEventSequence;
 use crate::mailbox_event_watermark::ObservedMailboxEventWatermark;
 use crate::mailbox_list::NextPageControl;
@@ -91,6 +93,7 @@ const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MAILBOX_EVENT_MAX_WAIT: Duration = Duration::from_secs(30);
+const MAILBOX_EVENT_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(10);
 const MAILBOX_EVENT_CANCEL_POLL: Duration = Duration::from_millis(25);
 const MAILBOX_EVENT_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 
@@ -269,6 +272,14 @@ impl CdpEventObserver for MessageListNetworkCapture {
     fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
         self.observe(event)
             .map_err(BrowserDriverError::MessageListNetwork)
+    }
+}
+
+impl CdpEventObserver for LatestMailboxEventNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::MailboxEventNetwork)
     }
 }
 
@@ -630,6 +641,81 @@ impl ManagedBrowser {
         Ok(sort)
     }
 
+    /// Reloads Mail and captures its own legacy bootstrap event watermark.
+    ///
+    /// This enables bounded Network observation before `Page.reload`, accepts
+    /// only one exact `GET /api/core/v4/events/latest` lifecycle, projects the
+    /// decoded body immediately, disables Network, and revalidates page origin.
+    /// No Proton API request is injected by the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Rejects non-Mail or unready pages, bootstrap lifecycle ambiguity, body
+    /// projection failure, timeout, origin drift, or transport failures.
+    pub fn observe_mailbox_event_bootstrap(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<ObservedLatestMailboxEventWatermark, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_mailbox_event_bootstrap_in_session(page, &session);
+        let detached = self.detach(&session);
+        let watermark = observed?;
+        detached?;
+        Ok(watermark)
+    }
+
+    fn observe_mailbox_event_bootstrap_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<ObservedLatestMailboxEventWatermark, BrowserDriverError> {
+        let shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedMailboxEventWatermark::MAX_BODY_BYTES,
+            "maxTotalBufferSize": MAILBOX_EVENT_TOTAL_BUFFER_BYTES
+        });
+        let mut capture = LatestMailboxEventNetworkCapture::new(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let deadline = Instant::now()
+            .checked_add(MAILBOX_EVENT_BOOTSTRAP_TIMEOUT)
+            .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+        let observed = (|| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Page.reload", &json!({}), &mut capture)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            let request_id = self.wait_for_latest_mailbox_event_request(&mut capture, deadline)?;
+            let body = self.call_in_session_observing(
+                session,
+                "Network.getResponseBody",
+                &json!({"requestId": request_id}),
+                &mut capture,
+            )?;
+            ObservedLatestMailboxEventWatermark::parse_cdp_body(&body)
+                .map_err(BrowserDriverError::MailboxEventWatermark)
+        })();
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual_requests = capture.tracked_request_count();
+        let watermark = observed?;
+        disabled?;
+        if residual_requests != 0 {
+            return Err(BrowserDriverError::MailboxEventResponseAmbiguous);
+        }
+        self.ensure_page_origin(page, session)?;
+        Ok(watermark)
+    }
+
     /// Passively observes the browser's own next legacy Mail event sequence.
     ///
     /// No provider API request is injected. Network events are classified
@@ -824,6 +910,56 @@ impl ManagedBrowser {
         )?;
         ObservedMailboxEventWatermark::parse_cdp_body(&request.1, &body)
             .map_err(BrowserDriverError::MailboxEventWatermark)
+    }
+
+    fn wait_for_latest_mailbox_event_request(
+        &mut self,
+        capture: &mut LatestMailboxEventNetworkCapture,
+        deadline: Instant,
+    ) -> Result<String, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if let Some(request_id) = take_one_finished_latest_mailbox_event_request(capture)? {
+            return Ok(request_id);
+        }
+        let mut unsolicited = 0u16;
+        while Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(remaining.min(PIPE_TIMEOUT)))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let frame = read_frame_waiting(&mut self.reader);
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(PIPE_TIMEOUT))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let Some(frame) = frame? else {
+                continue;
+            };
+            unsolicited = unsolicited
+                .checked_add(1)
+                .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            if unsolicited > MAX_UNSOLICITED {
+                return Err(BrowserDriverError::MailboxEventResponseUnavailable);
+            }
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture
+                .observe(&message)
+                .map_err(BrowserDriverError::MailboxEventNetwork)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            if let Some(request_id) = take_one_finished_latest_mailbox_event_request(capture)? {
+                return Ok(request_id);
+            }
+        }
+        Err(BrowserDriverError::MailboxEventResponseUnavailable)
     }
 
     fn wait_for_mailbox_event_request(
@@ -1907,6 +2043,17 @@ fn ensure_message_list_page_matches(
         return Ok(());
     }
     Err(BrowserDriverError::MessageListPageMismatch)
+}
+
+fn take_one_finished_latest_mailbox_event_request(
+    capture: &mut LatestMailboxEventNetworkCapture,
+) -> Result<Option<String>, BrowserDriverError> {
+    let mut finished = capture.take_finished_request_ids();
+    match finished.len() {
+        0 => Ok(None),
+        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
+        _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
+    }
 }
 
 fn take_one_finished_mailbox_event_request(

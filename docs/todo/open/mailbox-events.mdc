@@ -82,12 +82,17 @@ bounded resource use.
   disable Network and detach before surfacing cancellation, and synthetic
   coverage proves the same managed browser remains usable immediately after a
   cancelled wait.
-- A captured bootstrap `core/v4/events/latest` watermark can now bind directly
-  into the same account/adapter/generation-scoped cursor type as a settled v5
-  sequence. The missing piece is deterministic passive capture of that bootstrap
-  request when starting a no-cursor wait; the adapter does not inject the API.
+- Bootstrap capture is now deterministic at the browser boundary. After proving
+  the ready Mail shell, the driver enables bounded Network observation, reloads
+  the same target, accepts exactly one completed
+  `GET /api/core/v4/events/latest` lifecycle, projects only its bounded
+  `EventID`, disables Network, and revalidates target origin. This is the exact
+  initial promise current WebClients stores before its later v5 event poll; the
+  adapter still never injects the provider API request itself.
+- The captured bootstrap watermark binds directly into the same
+  account/adapter/generation-scoped cursor type as a settled v5 sequence.
 - Still required: choose and authenticate the public cursor serialization, map
-  provider refresh/expiry and cursor gaps into the frozen public errors, obtain
-  a safe initial cursor even when a short no-cursor wait times out before the
-  browser's next poll, and prove reconnect/backoff and restart behavior before
-  advertising `wait_for_changes`.
+  provider refresh/expiry and cursor gaps into the frozen public errors, couple
+  bootstrap plus bounded v5 waiting into one no-gap public result that always
+  returns a next cursor even on timeout, and prove reconnect/backoff and restart
+  behavior before advertising `wait_for_changes`.
