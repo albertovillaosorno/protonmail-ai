@@ -37,7 +37,7 @@
 
 mod event_cursor;
 
-pub use event_cursor::EventCursorBindingError;
+pub use event_cursor::{EventCursorBindingError, EventCursorResumeFailure};
 pub use event_cursor::{EventCursorScope, ScopedEventCursor};
 
 /// Frozen version-one public tool contract.

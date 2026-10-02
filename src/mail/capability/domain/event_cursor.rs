@@ -98,11 +98,17 @@ impl<State> ScopedEventCursor<State> {
     ///
     /// # Errors
     ///
-    /// Returns `ScopeMismatch` for account, adapter, or generation drift.
+    /// Returns a typed mismatch for account, adapter, or generation drift.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn state_for(&self, current: &EventCursorScope) -> Result<&State, EventCursorBindingError> {
-        if !self.scope.matches(current) {
-            return Err(EventCursorBindingError::ScopeMismatch);
+        if self.scope.account != current.account {
+            return Err(EventCursorBindingError::AccountMismatch);
+        }
+        if self.scope.adapter != current.adapter {
+            return Err(EventCursorBindingError::AdapterMismatch);
+        }
+        if self.scope.generation != current.generation {
+            return Err(EventCursorBindingError::GenerationMismatch);
         }
         Ok(&self.state)
     }
@@ -123,13 +129,40 @@ impl<State> Debug for ScopedEventCursor<State> {
     }
 }
 
+/// Stable provider-neutral event-cursor resume failure class.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EventCursorResumeFailure {
+    /// Cursor is malformed or belongs to another account/adapter scope.
+    InvalidCursor,
+    /// Cursor was valid for an older adapter generation or lost exact resume.
+    CursorExpired,
+}
+
 /// Fail-closed provider-neutral event-cursor binding failures.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum EventCursorBindingError {
     /// One required scope component was empty or exceeded the fixed bound.
     MalformedScope,
-    /// Cursor belongs to another account, adapter, or adapter generation.
-    ScopeMismatch,
+    /// Cursor belongs to another authenticated account.
+    AccountMismatch,
+    /// Cursor belongs to another selected adapter.
+    AdapterMismatch,
+    /// Cursor belongs to an older or otherwise different adapter generation.
+    GenerationMismatch,
+}
+
+impl EventCursorBindingError {
+    /// Maps scope validation/binding failure into the frozen cursor semantics.
+    #[must_use]
+    pub const fn resume_failure(self) -> EventCursorResumeFailure {
+        match self {
+            Self::GenerationMismatch => EventCursorResumeFailure::CursorExpired,
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MalformedScope | Self::AccountMismatch | Self::AdapterMismatch => {
+                EventCursorResumeFailure::InvalidCursor
+            }
+        }
+    }
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

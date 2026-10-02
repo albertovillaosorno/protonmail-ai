@@ -30,6 +30,7 @@
 
 //! Provider-neutral event-cursor binding regression tests.
 
+use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorBindingError, EventCursorScope};
 
 #[test]
@@ -44,25 +45,43 @@ fn exact_scope_releases_opaque_adapter_state() {
 }
 
 #[test]
-fn account_adapter_or_generation_drift_rejects_resume() {
+fn account_adapter_or_generation_drift_has_stable_resume_class() {
     let original =
         // jig-ignore-next-line: canonical rustfmt line.
         EventCursorScope::new("account-a", "web", "generation-7").expect("valid original scope");
     let cursor = original.bind(String::from("provider-event-9"));
-    for current in [
-        EventCursorScope::new("account-b", "web", "generation-7"),
-        EventCursorScope::new("account-a", "direct", "generation-7"),
-        EventCursorScope::new("account-a", "web", "generation-8"),
-    ] {
-        assert_eq!(
-            cursor.state_for(&current.expect("valid drifted scope")),
-            Err(EventCursorBindingError::ScopeMismatch)
-        );
+    let cases = [
+        (
+            EventCursorScope::new("account-b", "web", "generation-7"),
+            EventCursorBindingError::AccountMismatch,
+            EventCursorResumeFailure::InvalidCursor,
+        ),
+        (
+            EventCursorScope::new("account-a", "direct", "generation-7"),
+            EventCursorBindingError::AdapterMismatch,
+            EventCursorResumeFailure::InvalidCursor,
+        ),
+        (
+            EventCursorScope::new("account-a", "web", "generation-8"),
+            EventCursorBindingError::GenerationMismatch,
+            EventCursorResumeFailure::CursorExpired,
+        ),
+    ];
+    for (current, expected_binding, expected_resume) in cases {
+        let error = cursor
+            .state_for(&current.expect("valid drifted scope"))
+            .expect_err("drifted scope must reject cursor");
+        assert_eq!(error, expected_binding);
+        assert_eq!(error.resume_failure(), expected_resume);
     }
 }
 
 #[test]
 fn malformed_scope_components_fail_closed() {
+    assert_eq!(
+        EventCursorBindingError::MalformedScope.resume_failure(),
+        EventCursorResumeFailure::InvalidCursor
+    );
     for result in [
         EventCursorScope::new("", "web", "generation-7"),
         EventCursorScope::new("account-a", "", "generation-7"),

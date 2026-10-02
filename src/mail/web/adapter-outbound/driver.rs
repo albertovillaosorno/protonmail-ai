@@ -43,7 +43,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use command_fds::{CommandFdExt as _, FdMapping};
-use mail_capability_domain::EventCursorBindingError;
+use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
 
@@ -792,14 +792,28 @@ impl ManagedBrowser {
         expected_event_id: &str,
         wait: Duration,
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
-        ObservedMailboxEventWatermark::validate_event_id(expected_event_id)
-            .map_err(BrowserDriverError::MailboxEventWatermark)?;
-        let observed = self.observe_mailbox_event_sequence(page, wait)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        if ObservedMailboxEventWatermark::validate_event_id(expected_event_id).is_err() {
+            return Err(BrowserDriverError::EventCursorResume(
+                EventCursorResumeFailure::InvalidCursor,
+            ));
+        }
+        let observed = match self.observe_mailbox_event_sequence(page, wait) {
+            Err(BrowserDriverError::MailboxEventSequence(
+                // jig-ignore-next-line: canonical rustfmt line.
+                MailboxEventSequenceError::CursorGap | MailboxEventSequenceError::RefreshRequired,
+            )) => {
+                return Err(BrowserDriverError::EventCursorResume(
+                    EventCursorResumeFailure::CursorExpired,
+                ));
+            }
+            result => result?,
+        };
         if let Some(sequence) = observed.as_ref()
             && sequence.start_event_id() != expected_event_id
         {
-            return Err(BrowserDriverError::MailboxEventSequence(
-                MailboxEventSequenceError::CursorGap,
+            return Err(BrowserDriverError::EventCursorResume(
+                EventCursorResumeFailure::CursorExpired,
             ));
         }
         Ok(observed)
@@ -820,7 +834,8 @@ impl ManagedBrowser {
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
         let expected = cursor
             .state_for(current_scope)
-            .map_err(BrowserDriverError::EventCursorBinding)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
         self.observe_mailbox_event_sequence_from(page, expected, wait)
     }
 
@@ -1804,8 +1819,8 @@ pub enum BrowserDriverError {
     MailboxEventWatermark(MailboxEventWatermarkError),
     /// Exact legacy Mail event sequence violated resumability rules.
     MailboxEventSequence(MailboxEventSequenceError),
-    /// Provider-neutral event cursor scope was malformed or no longer matches.
-    EventCursorBinding(EventCursorBindingError),
+    /// Event cursor is invalid or can no longer resume exactly.
+    EventCursorResume(EventCursorResumeFailure),
     /// Requested passive Mail event wait exceeds the frozen 30-second bound.
     MailboxEventWaitTooLong,
     /// Cooperative cancellation interrupted a passive Mail event wait.
@@ -1899,9 +1914,14 @@ impl fmt::Display for BrowserDriverError {
             Self::MailboxEventSequence(_error) => {
                 f.write_str("mailbox-event sequence is not resumable")
             }
-            Self::EventCursorBinding(_error) => {
-                f.write_str("mailbox-event cursor scope is invalid")
-            }
+            Self::EventCursorResume(error) => match error {
+                EventCursorResumeFailure::InvalidCursor => {
+                    f.write_str("mailbox-event cursor is invalid")
+                }
+                EventCursorResumeFailure::CursorExpired => {
+                    f.write_str("mailbox-event cursor expired")
+                }
+            },
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxEventWaitTooLong => f.write_str("mailbox-event wait exceeds 30 seconds"),
             // jig-ignore-next-line: canonical rustfmt line.

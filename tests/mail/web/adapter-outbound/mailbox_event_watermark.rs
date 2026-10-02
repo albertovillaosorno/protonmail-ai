@@ -36,7 +36,8 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::sync::Mutex;
 
-use mail_capability_domain::{EventCursorBindingError, EventCursorScope};
+use mail_capability_domain::EventCursorResumeFailure;
+use mail_capability_domain::EventCursorScope;
 use mail_web_adapter::LatestMailboxEventNetworkCapture;
 use mail_web_adapter::MailboxEventSequenceError;
 use mail_web_adapter::MailboxEventWatermarkError;
@@ -1104,8 +1105,8 @@ fn browser_resume_requires_exact_acknowledged_event_watermark() {
     });
     assert_eq!(
         drifted,
-        Err(mail_web_adapter::BrowserDriverError::MailboxEventSequence(
-            MailboxEventSequenceError::CursorGap
+        Err(mail_web_adapter::BrowserDriverError::EventCursorResume(
+            EventCursorResumeFailure::CursorExpired
         ))
     );
 }
@@ -1148,10 +1149,32 @@ fn browser_scoped_cursor_resume_requires_current_scope() {
     });
     assert_eq!(
         rejected,
-        Err(mail_web_adapter::BrowserDriverError::EventCursorBinding(
-            EventCursorBindingError::ScopeMismatch
+        Err(mail_web_adapter::BrowserDriverError::EventCursorResume(
+            EventCursorResumeFailure::CursorExpired
         ))
     );
+
+    for invalid_scope in [
+        EventCursorScope::new("account-b", "web", "generation-7"),
+        EventCursorScope::new("account-a", "direct", "generation-7"),
+    ] {
+        let invalid_scope = invalid_scope.expect("valid mismatched scope");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let rejected = with_event_browser("scoped-invalid", false, false, |browser, page| {
+            browser.observe_mailbox_event_sequence_from_cursor(
+                page,
+                &cursor,
+                &invalid_scope,
+                Duration::from_millis(30),
+            )
+        });
+        assert_eq!(
+            rejected,
+            Err(mail_web_adapter::BrowserDriverError::EventCursorResume(
+                EventCursorResumeFailure::InvalidCursor
+            ))
+        );
+    }
 }
 
 #[test]
@@ -1177,8 +1200,8 @@ fn browser_resume_rejects_malformed_provider_watermark() {
     });
     assert_eq!(
         result,
-        Err(mail_web_adapter::BrowserDriverError::MailboxEventWatermark(
-            MailboxEventWatermarkError::Malformed
+        Err(mail_web_adapter::BrowserDriverError::EventCursorResume(
+            EventCursorResumeFailure::InvalidCursor
         ))
     );
 }
