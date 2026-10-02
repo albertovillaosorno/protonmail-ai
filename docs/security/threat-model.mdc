@@ -556,14 +556,22 @@ Filesystem writes follow all of these rules:
 - partial files are removed or left with an unmistakable incomplete state after
   cancellation or failure.
 
-The provider-neutral domain now enforces the first half of this policy before
-filesystem access: provider filenames become one sanitized portable leaf,
-caller destinations must normalize to a strict relative path with no parent or
-cross-platform drive/alternate-stream syntax, and inline eligibility is capped
-at the frozen 32 KiB limit. These checks intentionally do not claim filesystem
-containment; the write boundary must still enforce the configured root,
-symlink/indirection defense, overwrite choice, byte ceiling, and failure
-cleanup.
+The provider-neutral domain enforces filename/path normalization and the frozen
+32 KiB inline ceiling before filesystem access. The current local runtime adds a
+descriptor-relative file boundary: an explicit absolute root is opened one
+component at a time with no-follow directory semantics, relative destination
+directories are walked from held directory descriptors, and output bytes are
+checked against a caller-supplied file ceiling before any file is created.
+
+The runtime intentionally implements one overwrite policy: refuse every
+existing final directory entry, including symlinks. It writes to a create-new
+`0600` `.partial` inode, synchronizes the bytes, atomically hard-links that
+inode
+to the final name, and then removes the partial link. Pre-commit failures clean
+the partial entry; a rare post-commit cleanup failure is reported distinctly and
+leaves the `.partial` name unmistakable rather than claiming rollback. Holding
+the root directory descriptor also prevents a later pathname replacement from
+redirecting output outside the originally opened root.
 
 The default test suite uses synthetic attachment bytes only.
 

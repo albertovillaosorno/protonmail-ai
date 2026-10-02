@@ -49,9 +49,17 @@ Ship useful read access before any mailbox mutation is enabled.
 - Caller attachment destinations normalize only when strictly relative and
   reject parent traversal, absolute roots, backslashes, control characters, and
   drive/alternate-stream colon syntax. Inline eligibility uses the frozen
-  `32 KiB` contract ceiling exactly. This is pre-write validation only; root
-  containment, symlink defense, overwrite policy, write-time byte ceilings, and
-  partial-file cleanup remain runtime work.
+  `32 KiB` contract ceiling exactly.
+- The local runtime now owns bounded file output under an explicit absolute
+  root. It opens every root/destination directory component through held file
+  descriptors with no-follow semantics, enforces the configured byte ceiling
+  before creating output, writes a private `0600` `.partial` inode, and commits
+  with an atomic hard link that never overwrites an existing entry. Synthetic
+  tests cover nested output, root and destination symlinks, later root-path
+  replacement, existing file/symlink refusal, missing parents, oversized bytes,
+  private mode, single-link cleanup, and redacted diagnostics. This boundary is
+  not yet wired to a public attachment tool because plaintext browser retrieval
+  remains unresolved.
 
 - Exact attachment metadata responses now have a separate bounded projector for
   `GET /api/mail/v4/attachments/{attachment_id}/metadata`. It requires provider

@@ -11,6 +11,9 @@ readme.workspace = true
 keywords.workspace = true
 categories = ["command-line-utilities", "email"]
 
+[lib]
+path = "lib.rs"
+
 [[bin]]
 name = "protonmail-ai"
 path = "main.rs"
@@ -33,3 +36,7 @@ path = "../../../../tests/mail/runtime/composition/web_handoff.rs"
 [[test]]
 name = "web-profile-login"
 path = "../../../../tests/mail/web/adapter-outbound/profile.rs"
+
+[[test]]
+name = "attachment-file-output"
+path = "../../../../tests/mail/runtime/composition/attachment_output.rs"
