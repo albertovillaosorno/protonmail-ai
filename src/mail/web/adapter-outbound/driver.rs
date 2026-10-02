@@ -48,6 +48,9 @@ use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
 
+use crate::catalog_cursor_codec::validate_catalog_account;
+// jig-ignore-next-line: canonical rustfmt line.
+use crate::catalog_cursor_codec::{WebCatalogCursorCodec, WebCatalogCursorCodecError};
 use crate::event_cursor_codec::{WebEventCursorCodec, WebEventCursorCodecError};
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
@@ -56,6 +59,12 @@ use crate::mailbox_catalog::MailboxCatalogNetworkError;
 use crate::mailbox_catalog::MailboxCatalogResponseError;
 use crate::mailbox_catalog::ObservedMailboxCatalog;
 use crate::mailbox_catalog::ObservedMailboxCatalogResponse;
+use crate::mailbox_catalog_page::MailboxCatalogPageError;
+use crate::mailbox_catalog_page::MailboxCatalogPageKind;
+use crate::mailbox_catalog_page::MailboxCatalogSnapshot;
+use crate::mailbox_catalog_page::MailboxCatalogSnapshotPage;
+use crate::mailbox_catalog_page::SerializedMailboxCatalogPage;
+use crate::mailbox_catalog_page::validate_page_size;
 use crate::mailbox_event_watermark::LatestMailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkError;
@@ -219,18 +228,7 @@ struct WebAdapterGeneration(String);
 
 impl WebAdapterGeneration {
     fn fresh() -> Result<Self, BrowserDriverError> {
-        let mut bytes = [0u8; WEB_ADAPTER_GENERATION_BYTES];
-        // jig-ignore-next-line: canonical rustfmt line.
-        getrandom::fill(&mut bytes).map_err(|_error| BrowserDriverError::GenerationEntropy)?;
-        let capacity = WEB_ADAPTER_GENERATION_BYTES
-            .checked_mul(2)
-            .ok_or(BrowserDriverError::GenerationEntropy)?;
-        let mut encoded = String::with_capacity(capacity);
-        for byte in bytes {
-            encoded.push(char::from(HEX_DIGITS[usize::from(byte >> 4u8)]));
-            encoded.push(char::from(HEX_DIGITS[usize::from(byte & 0x0fu8)]));
-        }
-        Ok(Self(encoded))
+        fresh_web_adapter_tag().map(Self)
     }
 
     fn as_str(&self) -> &str {
@@ -365,8 +363,11 @@ impl SortMenuActivation {
 #[derive(Debug)]
 pub struct ManagedBrowser {
     child: Child,
+    catalog_cursor_codec: WebCatalogCursorCodec,
     cursor_codec: WebEventCursorCodec,
     generation: WebAdapterGeneration,
+    label_catalog_snapshot: Option<MailboxCatalogSnapshot>,
+    mailbox_catalog_snapshot: Option<MailboxCatalogSnapshot>,
     next_id: u64,
     reader: BufReader<UnixStream>,
     writer: UnixStream,
@@ -424,6 +425,8 @@ impl ManagedBrowser {
         let cursor_codec =
             // jig-ignore-next-line: canonical rustfmt line.
             WebEventCursorCodec::fresh().map_err(|_error| BrowserDriverError::GenerationEntropy)?;
+        let catalog_cursor_codec = WebCatalogCursorCodec::fresh()
+            .map_err(|_error| BrowserDriverError::GenerationEntropy)?;
         let lease = AutomationProfileLease::acquire(&plan.profile)
             .map_err(BrowserDriverError::ProfileLease)?;
         let (writer, child_read) =
@@ -440,8 +443,11 @@ impl ManagedBrowser {
         let child = spawn_browser(plan, child_read, child_write)?;
         let mut browser = Self {
             child,
+            catalog_cursor_codec,
             cursor_codec,
             generation,
+            label_catalog_snapshot: None,
+            mailbox_catalog_snapshot: None,
             next_id: 1,
             reader: BufReader::new(reader),
             writer,
@@ -735,6 +741,98 @@ impl ManagedBrowser {
         let catalog = observed?;
         detached?;
         Ok(catalog)
+    }
+
+    /// Captures one complete catalog snapshot and returns its first local page.
+    ///
+    /// The snapshot remains immutable in memory for exact continuation without
+    /// another provider read. Starting another chain of the same kind replaces
+    /// that retained snapshot and expires its older cursors; the other catalog
+    /// kind remains independently resumable.
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid page size/account binding before provider observation,
+    /// plus every fail-closed catalog capture, cursor, or entropy error.
+    pub fn observe_mailbox_catalog_page(
+        &mut self,
+        page: &ProviderPage,
+        account: &str,
+        kind: MailboxCatalogPageKind,
+        requested_page_size: Option<u16>,
+    ) -> Result<SerializedMailboxCatalogPage, BrowserDriverError> {
+        let page_size = validate_page_size(requested_page_size)
+            .map_err(BrowserDriverError::MailboxCatalogPage)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        validate_catalog_account(account).map_err(BrowserDriverError::MailboxCatalogCursor)?;
+        let catalog = self.observe_mailbox_catalog(page)?;
+        let boundary = fresh_web_adapter_tag()?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let snapshot = MailboxCatalogSnapshot::from_catalog(&boundary, kind, &catalog)
+            .map_err(BrowserDriverError::MailboxCatalogPage)?;
+        let page = snapshot
+            .first_page(Some(page_size))
+            .map_err(BrowserDriverError::MailboxCatalogPage)?;
+        let serialized = self.serialize_mailbox_catalog_page(account, page)?;
+        match kind {
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxCatalogPageKind::Mailboxes => self.mailbox_catalog_snapshot = Some(snapshot),
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxCatalogPageKind::Labels => self.label_catalog_snapshot = Some(snapshot),
+        }
+        Ok(serialized)
+    }
+
+    /// Resumes one retained immutable catalog snapshot without provider I/O.
+    ///
+    /// # Errors
+    ///
+    /// Wrong account, kind, page size, malformed, or tampered tokens are
+    /// invalid.
+    /// Prior browser generations and replaced/missing snapshots are expired.
+    pub fn resume_mailbox_catalog_page(
+        &self,
+        account: &str,
+        kind: MailboxCatalogPageKind,
+        requested_page_size: Option<u16>,
+        token: &str,
+    ) -> Result<SerializedMailboxCatalogPage, BrowserDriverError> {
+        let page_size = validate_page_size(requested_page_size)
+            .map_err(BrowserDriverError::MailboxCatalogPage)?;
+        let state = self
+            .catalog_cursor_codec
+            .decode(self.generation.as_str(), account, kind, page_size, token)
+            .map_err(BrowserDriverError::MailboxCatalogCursor)?;
+        let snapshot = match kind {
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxCatalogPageKind::Mailboxes => self.mailbox_catalog_snapshot.as_ref(),
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxCatalogPageKind::Labels => self.label_catalog_snapshot.as_ref(),
+        }
+        .ok_or(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::CursorExpired,
+        ))?;
+        let page = snapshot
+            .resume_page(&state)
+            .map_err(map_catalog_page_error)?;
+        self.serialize_mailbox_catalog_page(account, page)
+    }
+
+    fn serialize_mailbox_catalog_page(
+        &self,
+        account: &str,
+        page: MailboxCatalogSnapshotPage,
+    ) -> Result<SerializedMailboxCatalogPage, BrowserDriverError> {
+        let (items, next_state) = page.into_parts();
+        let next_cursor = next_state
+            .as_ref()
+            .map(|state| {
+                self.catalog_cursor_codec
+                    .encode(self.generation.as_str(), account, state)
+                    .map_err(BrowserDriverError::MailboxCatalogCursor)
+            })
+            .transpose()?;
+        Ok(SerializedMailboxCatalogPage::new(items, next_cursor))
     }
 
     fn observe_mailbox_catalog_in_session(
@@ -2637,6 +2735,10 @@ pub enum BrowserDriverError {
     MailboxPageIncompatible,
     /// Mailbox list is loading or lacks explicit settled-empty evidence.
     MailboxPageNotSettled,
+    /// Immutable mailbox/label catalog paging failed closed.
+    MailboxCatalogPage(MailboxCatalogPageError),
+    /// Authenticated mailbox/label cursor framing or resume failed closed.
+    MailboxCatalogCursor(WebCatalogCursorCodecError),
     /// Exact folder/label catalog Network lifecycle failed closed.
     MailboxCatalogNetwork(MailboxCatalogNetworkError),
     /// Folder/label catalog response failed bounded projection.
@@ -2705,6 +2807,10 @@ pub enum BrowserDriverError {
 }
 
 impl fmt::Display for BrowserDriverError {
+    #[expect(
+        clippy::too_many_lines,
+        reason = "central redacted formatting for the typed driver error enum"
+    )]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             // jig-ignore-next-line: canonical rustfmt line.
@@ -2742,6 +2848,10 @@ impl fmt::Display for BrowserDriverError {
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxPageNotSettled => f.write_str("Proton Mail list is not settled"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxCatalogPage(_error) => f.write_str("mailbox catalog pagination failed"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxCatalogCursor(_error) => f.write_str("mailbox catalog cursor failed"),
             Self::MailboxCatalogNetwork(_error) => {
                 f.write_str("mailbox catalog Network observation failed")
             }
@@ -2819,6 +2929,35 @@ impl fmt::Display for BrowserDriverError {
             Self::ProfileLease(error) => write!(f, "profile unavailable: {error}"),
             Self::ProcessControl => f.write_str("managed browser did not exit"),
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
+        }
+    }
+}
+
+fn fresh_web_adapter_tag() -> Result<String, BrowserDriverError> {
+    let mut bytes = [0u8; WEB_ADAPTER_GENERATION_BYTES];
+    // jig-ignore-next-line: canonical rustfmt line.
+    getrandom::fill(&mut bytes).map_err(|_error| BrowserDriverError::GenerationEntropy)?;
+    let capacity = WEB_ADAPTER_GENERATION_BYTES
+        .checked_mul(2)
+        .ok_or(BrowserDriverError::GenerationEntropy)?;
+    let mut encoded = String::with_capacity(capacity);
+    for byte in bytes {
+        encoded.push(char::from(HEX_DIGITS[usize::from(byte >> 4u8)]));
+        encoded.push(char::from(HEX_DIGITS[usize::from(byte & 0x0fu8)]));
+    }
+    Ok(encoded)
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+const fn map_catalog_page_error(error: MailboxCatalogPageError) -> BrowserDriverError {
+    match error {
+        MailboxCatalogPageError::CursorExpired => {
+            // jig-ignore-next-line: canonical rustfmt line.
+            BrowserDriverError::MailboxCatalogCursor(WebCatalogCursorCodecError::CursorExpired)
+        }
+        error @ (MailboxCatalogPageError::InvalidPageSize
+        | MailboxCatalogPageError::InvalidCursorState) => {
+            BrowserDriverError::MailboxCatalogPage(error)
         }
     }
 }

@@ -30,8 +30,10 @@
 
 //! Synthetic mailbox/label catalog projection and Network capture tests.
 
+use mail_web_adapter::WebCatalogCursorCodecError;
 use mail_web_adapter::{MailboxCatalogKind, MailboxCatalogNetworkCapture};
 use mail_web_adapter::{MailboxCatalogNetworkError, MailboxCatalogResponseError};
+use mail_web_adapter::{MailboxCatalogPageError, MailboxCatalogPageKind};
 use mail_web_adapter::{ObservedMailboxCatalog, ObservedMailboxCatalogResponse};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -707,4 +709,367 @@ fn combined_catalog_rejects_missing_duplicate_kind_and_cross_kind_id() {
         ObservedMailboxCatalog::from_responses(vec![system, folders, labels]),
         Err(MailboxCatalogResponseError::DuplicateId)
     );
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one authenticated catalog cursor transcript"
+)]
+fn managed_browser_pages_catalog_snapshot_without_provider_reread() {
+    use std::fs;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let root = catalog_browser_root("paged");
+    fs::create_dir_all(&root).expect("create paged catalog root");
+    let browser = fake_catalog_browser(&root, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("paged catalog browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build paged catalog plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch paged catalog browser");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let provider_page = managed.provider_page().expect("discover paged Mail page");
+    let first = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+        )
+        .expect("capture first immutable mailbox page");
+    assert_eq!(first.items().len(), 2);
+    assert_eq!(first.items()[0].id(), "0");
+    assert_eq!(first.items()[1].id(), "folder-parent");
+    let cursor = first
+        .next_cursor()
+        .expect("three mailboxes require continuation")
+        .to_owned();
+    assert!(cursor.starts_with("cat1."));
+    for secret in [
+        "synthetic-account-secret",
+        "folder-parent",
+        "Projects",
+        "mailboxes",
+    ] {
+        assert!(!cursor.contains(secret));
+    }
+    let page_debug = format!("{first:?}");
+    assert!(!page_debug.contains("folder-parent"));
+    assert!(!page_debug.contains(&cursor));
+
+    let second = managed
+        .resume_mailbox_catalog_page(
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &cursor,
+        )
+        .expect("resume immutable mailbox snapshot locally");
+    assert_eq!(second.items().len(), 1);
+    assert_eq!(second.items()[0].id(), "folder-child");
+    assert_eq!(second.next_cursor(), None);
+
+    let replay = managed
+        .resume_mailbox_catalog_page(
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &cursor,
+        )
+        .expect("replaying exact cursor returns exact page");
+    assert_eq!(replay.items(), second.items());
+    assert_eq!(replay.next_cursor(), second.next_cursor());
+
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "other-account",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &cursor,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Labels,
+            Some(2),
+            &cursor,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(3),
+            &cursor,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
+
+    let mut tampered = cursor.into_bytes();
+    let body_start = tampered
+        .iter()
+        .rposition(|byte| *byte == b'.')
+        .expect("opaque cursor has body separator")
+        + 1;
+    tampered[body_start] = if tampered[body_start] == b'A' {
+        b'B'
+    } else {
+        b'A'
+    };
+    // jig-ignore-next-line: canonical rustfmt line.
+    let tampered = String::from_utf8(tampered).expect("tampered cursor stays ASCII");
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "synthetic-account-secret",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &tampered,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
+
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("catalog-log.txt")).expect("read paged catalog log");
+    assert_eq!(
+        log,
+        "enable\nreload\nbody-folder\nbody-label\nbody-system\ndisable\n"
+    );
+    fs::remove_dir_all(&root).expect("remove paged catalog root");
+}
+
+#[test]
+fn catalog_page_size_and_account_fail_before_network_capture() {
+    use std::fs;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let root = catalog_browser_root("page-input");
+    fs::create_dir_all(&root).expect("create page-input catalog root");
+    let browser = fake_catalog_browser(&root, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("page-input browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build page-input catalog plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch page-input browser");
+    let provider_page = managed
+        .provider_page()
+        .expect("discover page-input Mail page");
+    for page_size in [Some(0), Some(101)] {
+        assert_eq!(
+            managed.observe_mailbox_catalog_page(
+                &provider_page,
+                "account-a",
+                MailboxCatalogPageKind::Labels,
+                page_size,
+            ),
+            Err(BrowserDriverError::MailboxCatalogPage(
+                MailboxCatalogPageError::InvalidPageSize
+            ))
+        );
+    }
+    assert_eq!(
+        managed.observe_mailbox_catalog_page(
+            &provider_page,
+            "",
+            MailboxCatalogPageKind::Labels,
+            None,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("catalog-log.txt")).unwrap_or_default();
+    assert!(log.is_empty());
+    fs::remove_dir_all(&root).expect("remove page-input catalog root");
+}
+
+#[test]
+fn replacing_same_kind_expires_old_cursor_but_other_kind_stays_resumable() {
+    use std::fs;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let root = catalog_browser_root("snapshot-replace");
+    fs::create_dir_all(&root).expect("create snapshot-replace root");
+    let browser = fake_catalog_browser(&root, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser
+            .to_str()
+            .expect("snapshot-replace browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build snapshot-replace plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch snapshot-replace browser");
+    let provider_page = managed
+        .provider_page()
+        .expect("discover snapshot-replace Mail page");
+    let first = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+        )
+        .expect("capture first mailbox snapshot");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let old_cursor = first.next_cursor().expect("old mailbox cursor").to_owned();
+
+    let labels = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Labels,
+            Some(1),
+        )
+        .expect("capture independent label snapshot");
+    assert_eq!(labels.items().len(), 1);
+    assert_eq!(labels.next_cursor(), None);
+    let still_valid = managed
+        .resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &old_cursor,
+        )
+        .expect("label snapshot must not evict mailbox snapshot");
+    assert_eq!(still_valid.items()[0].id(), "folder-child");
+
+    let replacement = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+        )
+        .expect("replace mailbox snapshot");
+    let replacement_cursor = replacement
+        .next_cursor()
+        .expect("replacement mailbox cursor")
+        .to_owned();
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &old_cursor,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::CursorExpired
+        ))
+    );
+    assert_eq!(
+        managed
+            .resume_mailbox_catalog_page(
+                "account-a",
+                MailboxCatalogPageKind::Mailboxes,
+                Some(2),
+                &replacement_cursor,
+            )
+            .expect("replacement cursor resumes")
+            .items()[0]
+            .id(),
+        "folder-child"
+    );
+    drop(managed);
+    let log = fs::read_to_string(root.join("catalog-log.txt"))
+        .expect("read snapshot-replace catalog log");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let one_capture = "enable\nreload\nbody-folder\nbody-label\nbody-system\ndisable\n";
+    assert_eq!(log, one_capture.repeat(3));
+    fs::remove_dir_all(&root).expect("remove snapshot-replace root");
+}
+
+#[test]
+fn catalog_cursor_expires_across_managed_browser_generation() {
+    use std::fs;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let first_root = catalog_browser_root("cursor-generation-first");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(&first_root).expect("create first cursor-generation root");
+    let first_browser = fake_catalog_browser(&first_root, false, false);
+    let first_plan = ManagedBrowserPlan::under_data_home(
+        first_browser
+            .to_str()
+            .expect("first cursor-generation browser path UTF-8"),
+        &first_root.join("data"),
+    )
+    .expect("build first cursor-generation plan");
+    let cursor = {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&first_plan).expect("launch first generation");
+        let provider_page = managed
+            .provider_page()
+            .expect("discover first generation page");
+        managed
+            .observe_mailbox_catalog_page(
+                &provider_page,
+                "account-a",
+                MailboxCatalogPageKind::Mailboxes,
+                Some(2),
+            )
+            .expect("capture first generation catalog")
+            .next_cursor()
+            .expect("first generation cursor")
+            .to_owned()
+    };
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::remove_dir_all(&first_root).expect("remove first cursor-generation root");
+
+    let second_root = catalog_browser_root("cursor-generation-second");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(&second_root).expect("create second cursor-generation root");
+    let second_browser = fake_catalog_browser(&second_root, false, false);
+    let second_plan = ManagedBrowserPlan::under_data_home(
+        second_browser
+            .to_str()
+            .expect("second cursor-generation browser path UTF-8"),
+        &second_root.join("data"),
+    )
+    .expect("build second cursor-generation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let managed = ManagedBrowser::launch(&second_plan).expect("launch second generation");
+    assert_eq!(
+        managed.resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &cursor,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::CursorExpired
+        ))
+    );
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(second_root.join("catalog-log.txt")).unwrap_or_default();
+    assert!(log.is_empty());
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::remove_dir_all(&second_root).expect("remove second cursor-generation root");
 }

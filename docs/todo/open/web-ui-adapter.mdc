@@ -277,8 +277,29 @@ web application without requiring Bridge or a third-party direct API identity.
   drift rejection, redacted debug, and exactly three body reads. Duplicate
   completed category types are rejected before any body fetch, while unsafe
   encoded bodies still trigger Network cleanup before the projection error
-  escapes. This is complete adapter catalog evidence only; public
-  `list_mailboxes`/`list_labels` page/cursor composition remains downstream.
+  escapes. Current WebClients constructs system-folder visible text separately
+  with localized `ttag` strings and uses `LABEL_IDS_TO_HUMAN` for system routes,
+  so captured Type-4 `Name` remains provider metadata rather than a claimed
+  UI-localized display name.
+- Catalog pagination can now continue entirely from one retained immutable
+  adapter snapshot. The first page validates normalized page size and account
+  binding before any Network observation, captures the complete catalog once,
+  and retains one snapshot independently for mailboxes and labels. Continuation
+  performs no provider or browser I/O; it slices only that immutable vector.
+- Catalog cursor tokens use per-generation AES-256-GCM framing and bind account,
+  adapter identity/generation, catalog kind, normalized page size, a fresh
+  128-bit snapshot boundary, and exact next offset. Wrong
+  account/kind/page size, malformed framing, or tampering is invalid; a
+  snapshot, or same-kind snapshot replacement is expired. A newer label chain
+  does not evict the mailbox snapshot, or vice versa.
+- Synthetic paging coverage proves a two-page mailbox chain, exact replay, zero
+  provider reads during resume, request binding, tamper rejection, same-kind
+  replacement expiry, cross-kind independence, generation expiry, and invalid
+  page-size/account rejection before Network capture. The frozen contract names
+  `page_v1`, `mailbox_page_v1`, and `label_page_v1` but does not yet define
+  their transport DTO fields, so this remains adapter-level paging evidence
+  rather
+  than a public `list_mailboxes`/`list_labels` transport claim.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized

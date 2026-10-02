@@ -156,6 +156,20 @@ four locale-independent sort test IDs, and restores the menu only when the
 adapter opened it. It never clicks a sort option. `toolbar:sort-new-to-old`
 therefore proves the provider's semantic newest-first selection.
 
+Mailbox and label inventory now has a separate passive path. The driver captures
+Mail's complete browser-owned system-folder, custom-folder, and message-label
+catalog once, reduces it to bounded provider metadata, and can page the retained
+immutable snapshot locally without another provider read. Continuation cursors
+are authenticated and confidential, and bind account, browser generation,
+catalog kind, page size, snapshot boundary, and next offset. Starting a newer
+chain of the same kind expires the older snapshot; mailbox and label snapshots
+remain independent.
+
+This is adapter-level paging evidence, not yet a public `list_mailboxes` or
+`list_labels` wire implementation. Raw system-folder `Name` is provider
+metadata: current WebClients builds localized system-folder display text
+separately with `ttag`.
+
 That still is not enough to advertise provider-neutral `list_messages`. The
 public contract requires `received_at` descending, ID ascending as the tie
 breaker, and a cursor-bound snapshot. The visible DOM date remains localized,

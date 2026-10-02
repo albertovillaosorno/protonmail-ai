@@ -35,11 +35,13 @@
 
 #![forbid(unsafe_code)]
 
+mod catalog_cursor_codec;
 mod driver;
 mod event_cursor_codec;
 mod lease;
 mod list_messages_readiness;
 mod mailbox_catalog;
+mod mailbox_catalog_page;
 mod mailbox_event_watermark;
 mod mailbox_list;
 mod mailbox_mode;
@@ -51,6 +53,7 @@ mod policy;
 mod profile;
 mod shell;
 
+pub use catalog_cursor_codec::WebCatalogCursorCodecError;
 pub use driver::SerializedMailboxChangePage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use driver::{MailboxEventCancellation, ProviderPage};
@@ -64,6 +67,9 @@ pub use mailbox_catalog::MailboxCatalogResponseError;
 pub use mailbox_catalog::ObservedMailboxCatalog;
 pub use mailbox_catalog::ObservedMailboxCatalogItem;
 pub use mailbox_catalog::ObservedMailboxCatalogResponse;
+pub use mailbox_catalog_page::MailboxCatalogPageError;
+pub use mailbox_catalog_page::MailboxCatalogPageKind;
+pub use mailbox_catalog_page::SerializedMailboxCatalogPage;
 pub use mailbox_event_watermark::LatestMailboxEventNetworkCapture;
 pub use mailbox_event_watermark::MailboxEventSequenceError;
 pub use mailbox_event_watermark::MailboxEventWatermarkError;
