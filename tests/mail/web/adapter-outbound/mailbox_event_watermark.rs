@@ -1097,6 +1097,81 @@ fn browser_initial_change_wait_bridges_bootstrap_without_network_gap() {
 }
 
 #[test]
+fn browser_serialized_change_wait_round_trips_timeout_cursor() {
+    use std::time::Duration;
+
+    let (initial, resumed, wrong_account, logical_state) = with_event_browser(
+        "serialized-change-timeout",
+        false,
+        false,
+        |browser, provider| {
+            let initial = browser
+                .observe_initial_mailbox_changes_serialized(
+                    provider,
+                    "synthetic-account-secret",
+                    Duration::from_millis(30),
+                )
+                .expect("observe serialized initial timeout");
+            let initial_token = String::from(initial.next_cursor());
+            let resumed = browser
+                .observe_mailbox_changes_from_token(
+                    provider,
+                    &initial_token,
+                    "synthetic-account-secret",
+                    Duration::from_millis(30),
+                )
+                .expect("resume serialized timeout cursor");
+            let wrong_account = browser.observe_mailbox_changes_from_token(
+                provider,
+                &initial_token,
+                "synthetic-account-other",
+                Duration::from_millis(30),
+            );
+            let scope = browser
+                .event_cursor_scope("synthetic-account-secret")
+                .expect("recreate current serialized scope");
+            let first = browser
+                .decode_event_cursor(&initial_token, &scope)
+                .expect("decode first serialized cursor");
+            let second = browser
+                .decode_event_cursor(resumed.next_cursor(), &scope)
+                .expect("decode resumed serialized cursor");
+            let logical_state = (
+                String::from(
+                    first
+                        .state_for(&scope)
+                        .expect("read first logical cursor state"),
+                ),
+                String::from(
+                    second
+                        .state_for(&scope)
+                        .expect("read resumed logical cursor state"),
+                ),
+            );
+            (initial, resumed, wrong_account, logical_state)
+        },
+    );
+    assert!(initial.changes().is_empty());
+    assert!(resumed.changes().is_empty());
+    assert_ne!(initial.next_cursor(), resumed.next_cursor());
+    assert_eq!(logical_state.0, logical_state.1);
+    assert_eq!(logical_state.0, "event-bootstrap");
+    assert_eq!(
+        wrong_account,
+        Err(mail_web_adapter::BrowserDriverError::EventCursorResume(
+            EventCursorResumeFailure::InvalidCursor
+        ))
+    );
+    for secret in ["synthetic-account-secret", "event-bootstrap"] {
+        assert!(!initial.next_cursor().contains(secret));
+        assert!(!resumed.next_cursor().contains(secret));
+    }
+    let debug = format!("{initial:?} {resumed:?}");
+    assert!(!debug.contains("event-bootstrap"));
+    assert!(!debug.contains("synthetic-account-secret"));
+}
+
+#[test]
 fn browser_initial_change_timeout_returns_bootstrap_cursor() {
     use std::time::{Duration, Instant};
 

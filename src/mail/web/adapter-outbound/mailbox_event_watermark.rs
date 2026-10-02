@@ -935,6 +935,12 @@ impl ObservedMailboxChangePage {
     pub const fn next_cursor(&self) -> &ScopedEventCursor<String> {
         &self.next_cursor
     }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (Vec<ObservedMailboxChange>, bool, ScopedEventCursor<String>) {
+        (self.changes, self.count_changes, self.next_cursor)
+    }
 }
 
 impl fmt::Debug for ObservedMailboxChangePage {

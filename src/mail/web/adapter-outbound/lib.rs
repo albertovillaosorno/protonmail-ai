@@ -50,6 +50,7 @@ mod policy;
 mod profile;
 mod shell;
 
+pub use driver::SerializedMailboxChangePage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use driver::{MailboxEventCancellation, ProviderPage};
 pub use event_cursor_codec::WebEventCursorCodecError;

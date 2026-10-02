@@ -127,6 +127,11 @@ bounded resource use.
   generation and key material. Re-encoding the same cursor yields different
   tokens, ciphertext tampering/account-or-adapter drift is `InvalidCursor`, and
   a well-formed token from a prior browser generation is `CursorExpired`.
+- Transport-ready change-page entry points now derive scope from the managed
+  browser, decode authenticated incoming tokens before provider observation,
+  and re-encode every returned next cursor. Synthetic timeout coverage proves
+  logical provider state is preserved across nonce re-encryption while account
+  drift fails as `InvalidCursor` before the event wait begins.
 - The provider-neutral event behavior is now implemented at the web-adapter
   boundary; advertising `wait_for_changes` still waits on the dependent read
   workflow/transport composition and opt-in live-account acceptance rather than

@@ -57,6 +57,7 @@ use crate::mailbox_event_watermark::MailboxEventNetworkError;
 use crate::mailbox_event_watermark::MailboxEventSequenceError;
 use crate::mailbox_event_watermark::MailboxEventWatermarkError;
 use crate::mailbox_event_watermark::ObservedLatestMailboxEventWatermark;
+use crate::mailbox_event_watermark::ObservedMailboxChange;
 use crate::mailbox_event_watermark::ObservedMailboxChangePage;
 use crate::mailbox_event_watermark::ObservedMailboxEventSequence;
 use crate::mailbox_event_watermark::ObservedMailboxEventWatermark;
@@ -294,6 +295,44 @@ impl ProviderPage {
     #[must_use]
     pub const fn origin(&self) -> PageOrigin {
         self.origin
+    }
+}
+
+/// Provider-neutral mailbox changes with one authenticated opaque next cursor.
+#[derive(Clone, Eq, PartialEq)]
+pub struct SerializedMailboxChangePage {
+    changes: Vec<ObservedMailboxChange>,
+    count_changes: bool,
+    next_cursor: String,
+}
+
+impl SerializedMailboxChangePage {
+    /// Returns ordered normalized mailbox changes.
+    #[must_use]
+    pub fn changes(&self) -> &[ObservedMailboxChange] {
+        &self.changes
+    }
+
+    /// Returns whether count-only mailbox change signals were also observed.
+    #[must_use]
+    pub const fn count_changes(&self) -> bool {
+        self.count_changes
+    }
+
+    /// Returns the authenticated opaque cursor for the next bounded wait.
+    #[must_use]
+    pub fn next_cursor(&self) -> &str {
+        &self.next_cursor
+    }
+}
+
+impl fmt::Debug for SerializedMailboxChangePage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SerializedMailboxChangePage")
+            .field("change_count", &self.changes.len())
+            .field("count_changes", &self.count_changes)
+            .field("next_cursor", &"<redacted>")
+            .finish()
     }
 }
 
@@ -761,6 +800,68 @@ impl ManagedBrowser {
         let sort = inspected?;
         detached?;
         Ok(sort)
+    }
+
+    /// Returns an initial bounded change page with an authenticated cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns the underlying bounded observation failures, invalid account
+    /// scope, or a cursor encoding failure.
+    pub fn observe_initial_mailbox_changes_serialized(
+        &mut self,
+        page: &ProviderPage,
+        account: &str,
+        wait: Duration,
+    ) -> Result<SerializedMailboxChangePage, BrowserDriverError> {
+        let scope = self
+            .event_cursor_scope(account)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_initial_mailbox_changes(page, scope.clone(), wait)?;
+        self.serialize_mailbox_change_page(observed, &scope)
+    }
+
+    /// Resumes one bounded change wait from an authenticated opaque cursor.
+    ///
+    /// # Errors
+    ///
+    /// Malformed/account-drifted tokens are invalid, prior browser generations
+    /// are expired, and all exact passive-resume errors remain fail-closed.
+    pub fn observe_mailbox_changes_from_token(
+        &mut self,
+        page: &ProviderPage,
+        token: &str,
+        account: &str,
+        wait: Duration,
+    ) -> Result<SerializedMailboxChangePage, BrowserDriverError> {
+        let scope = self
+            .event_cursor_scope(account)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
+        let cursor = self
+            .decode_event_cursor(token, &scope)
+            .map_err(map_event_cursor_codec_error)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_mailbox_changes_from_cursor(page, &cursor, &scope, wait)?;
+        self.serialize_mailbox_change_page(observed, &scope)
+    }
+
+    fn serialize_mailbox_change_page(
+        &self,
+        page: ObservedMailboxChangePage,
+        scope: &EventCursorScope,
+    ) -> Result<SerializedMailboxChangePage, BrowserDriverError> {
+        let (changes, count_changes, next_cursor) = page.into_parts();
+        let next_cursor = self
+            .encode_event_cursor(&next_cursor, scope)
+            .map_err(map_event_cursor_codec_error)?;
+        Ok(SerializedMailboxChangePage {
+            changes,
+            count_changes,
+            next_cursor,
+        })
     }
 
     /// Observes an initial bounded mailbox-change page without a prior cursor.
@@ -2345,6 +2446,8 @@ pub enum BrowserDriverError {
     MailboxEventSequence(MailboxEventSequenceError),
     /// Event cursor is invalid or can no longer resume exactly.
     EventCursorResume(EventCursorResumeFailure),
+    /// Authenticated cursor encoding failed for a non-resume reason.
+    EventCursorCodec(WebEventCursorCodecError),
     /// Requested passive Mail event wait exceeds the frozen 30-second bound.
     MailboxEventWaitTooLong,
     /// Cooperative cancellation interrupted a passive Mail event wait.
@@ -2451,6 +2554,8 @@ impl fmt::Display for BrowserDriverError {
                 }
             },
             // jig-ignore-next-line: canonical rustfmt line.
+            Self::EventCursorCodec(_error) => f.write_str("mailbox-event cursor encoding failed"),
+            // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxEventWaitTooLong => f.write_str("mailbox-event wait exceeds 30 seconds"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxEventCancelled => f.write_str("mailbox-event wait was cancelled"),
@@ -2495,6 +2600,14 @@ impl fmt::Display for BrowserDriverError {
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
     }
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn map_event_cursor_codec_error(error: WebEventCursorCodecError) -> BrowserDriverError {
+    error.resume_failure().map_or(
+        BrowserDriverError::EventCursorCodec(error),
+        BrowserDriverError::EventCursorResume,
+    )
 }
 
 fn ensure_event_wait_not_cancelled(
