@@ -48,6 +48,7 @@ use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
 
+use crate::event_cursor_codec::{WebEventCursorCodec, WebEventCursorCodecError};
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
 use crate::mailbox_event_watermark::LatestMailboxEventNetworkCapture;
@@ -318,6 +319,7 @@ impl SortMenuActivation {
 #[derive(Debug)]
 pub struct ManagedBrowser {
     child: Child,
+    cursor_codec: WebEventCursorCodec,
     generation: WebAdapterGeneration,
     next_id: u64,
     reader: BufReader<UnixStream>,
@@ -365,6 +367,9 @@ impl ManagedBrowser {
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn launch(plan: &ManagedBrowserPlan) -> Result<Self, BrowserDriverError> {
         let generation = WebAdapterGeneration::fresh()?;
+        let cursor_codec =
+            // jig-ignore-next-line: canonical rustfmt line.
+            WebEventCursorCodec::fresh().map_err(|_error| BrowserDriverError::GenerationEntropy)?;
         let lease = AutomationProfileLease::acquire(&plan.profile)
             .map_err(BrowserDriverError::ProfileLease)?;
         let (writer, child_read) =
@@ -381,6 +386,7 @@ impl ManagedBrowser {
         let child = spawn_browser(plan, child_read, child_write)?;
         let mut browser = Self {
             child,
+            cursor_codec,
             generation,
             next_id: 1,
             reader: BufReader::new(reader),
@@ -410,6 +416,36 @@ impl ManagedBrowser {
             WEB_ADAPTER_CURSOR_SCOPE_ID,
             self.generation.as_str(),
         )
+    }
+
+    /// Serializes one exact scoped event cursor into an opaque public token.
+    ///
+    /// # Errors
+    ///
+    /// Fails for scope drift, invalid provider state, entropy failure, or an
+    /// unexpected authenticated-encryption failure.
+    pub fn encode_event_cursor(
+        &self,
+        cursor: &ScopedEventCursor<String>,
+        current_scope: &EventCursorScope,
+    ) -> Result<String, WebEventCursorCodecError> {
+        self.cursor_codec
+            .encode(self.generation.as_str(), cursor, current_scope)
+    }
+
+    /// Authenticates one public event cursor for this managed browser.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidCursor` for malformed, tampered, account, or adapter
+    /// drift and `CursorExpired` for an older web-adapter generation.
+    pub fn decode_event_cursor(
+        &self,
+        token: &str,
+        current_scope: &EventCursorScope,
+    ) -> Result<ScopedEventCursor<String>, WebEventCursorCodecError> {
+        self.cursor_codec
+            .decode(self.generation.as_str(), token, current_scope)
     }
 
     /// Returns the single Proton provider page currently exposed by Chromium.

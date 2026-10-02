@@ -119,5 +119,15 @@ bounded resource use.
   Synthetic process coverage proves same-generation use succeeds, account drift
   is invalid, and a cursor from a prior managed-browser launch becomes
   `CursorExpired` after restart. Generation diagnostics are redacted.
-- Still required: choose and authenticate the public cursor serialization before
-  advertising `wait_for_changes`.
+- Public web-event cursor serialization is now versioned and authenticated in
+  the outbound web adapter. `ev1` tokens use AES-256-GCM with a fresh random
+  96-bit nonce, URL-safe base64 framing, and a zeroizing in-memory key owned by
+  the managed-browser generation. Account, adapter, generation, and provider
+  watermark live only inside authenticated ciphertext; diagnostics redact both
+  generation and key material. Re-encoding the same cursor yields different
+  tokens, ciphertext tampering/account-or-adapter drift is `InvalidCursor`, and
+  a well-formed token from a prior browser generation is `CursorExpired`.
+- The provider-neutral event behavior is now implemented at the web-adapter
+  boundary; advertising `wait_for_changes` still waits on the dependent read
+  workflow/transport composition and opt-in live-account acceptance rather than
+  additional provider event semantics.

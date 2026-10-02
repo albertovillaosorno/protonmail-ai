@@ -231,10 +231,13 @@ dependencies = [
 name = "mail_web_adapter"
 version = "0.0.0"
 dependencies = [
+ "aes-gcm",
+ "base64",
  "command-fds",
  "getrandom",
  "mail_capability_domain",
  "serde_json",
+ "zeroize",
 ]
 
 [[package]]

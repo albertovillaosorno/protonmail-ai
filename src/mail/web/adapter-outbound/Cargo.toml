@@ -12,10 +12,13 @@ keywords.workspace = true
 categories = ["email", "web-programming"]
 
 [dependencies]
+aes-gcm = { workspace = true }
+base64 = { workspace = true }
 command-fds = { workspace = true }
 getrandom = { workspace = true }
 mail_capability_domain = { workspace = true }
 serde_json = { workspace = true }
+zeroize = { workspace = true }
 
 [lib]
 path = "lib.rs"

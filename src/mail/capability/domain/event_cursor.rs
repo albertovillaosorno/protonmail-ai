@@ -69,6 +69,14 @@ impl EventCursorScope {
         ScopedEventCursor { scope: self, state }
     }
 
+    /// Returns scope components for authenticated adapter cursor codecs.
+    ///
+    /// These values are internal binding material, not diagnostic fields.
+    #[must_use]
+    pub fn binding_components(&self) -> (&str, &str, &str) {
+        (&self.account, &self.adapter, &self.generation)
+    }
+
     /// Reports whether two scope values identify the same cursor domain.
     #[must_use]
     pub fn matches(&self, other: &Self) -> bool {

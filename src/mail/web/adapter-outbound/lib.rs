@@ -36,6 +36,7 @@
 #![forbid(unsafe_code)]
 
 mod driver;
+mod event_cursor_codec;
 mod lease;
 mod list_messages_readiness;
 mod mailbox_event_watermark;
@@ -51,6 +52,7 @@ mod shell;
 
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use driver::{MailboxEventCancellation, ProviderPage};
+pub use event_cursor_codec::WebEventCursorCodecError;
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use list_messages_readiness::{ListMessagesBlocker, ListMessagesReadiness};
 pub use mailbox_event_watermark::LatestMailboxEventNetworkCapture;

@@ -384,6 +384,7 @@ fn managed_browser_uses_private_pipe_and_dedicated_profile() {
 fn event_cursor_scope_rotates_across_managed_browser_restart() {
     use mail_capability_domain::EventCursorBindingError;
     use mail_capability_domain::EventCursorResumeFailure;
+    use mail_web_adapter::WebEventCursorCodecError;
 
     let root = test_root("event-generation");
     fs::create_dir_all(&root).expect("create synthetic generation root");
@@ -394,7 +395,7 @@ fn event_cursor_scope_rotates_across_managed_browser_restart() {
     let browser = fake_browser(&root, targets, "mail.proton.me");
     let browser_plan = plan(&root, &browser);
 
-    let cursor = {
+    let (cursor, token) = {
         let managed =
             // jig-ignore-next-line: canonical rustfmt line.
             ManagedBrowser::launch(&browser_plan).expect("launch first generation browser");
@@ -403,6 +404,9 @@ fn event_cursor_scope_rotates_across_managed_browser_restart() {
             .expect("create first generation event scope");
         let cursor = scope.clone().bind(String::from("event-7"));
         assert_eq!(cursor.state_for(&scope).map(String::as_str), Ok("event-7"));
+        let token = managed
+            .encode_event_cursor(&cursor, &scope)
+            .expect("encode first generation cursor");
         let account_drift = managed
             .event_cursor_scope("account-b")
             .expect("create alternate account scope");
@@ -416,7 +420,8 @@ fn event_cursor_scope_rotates_across_managed_browser_restart() {
         );
         let debug = format!("{managed:?}");
         assert!(debug.contains("<redacted-web-adapter-generation>"));
-        cursor
+        assert!(debug.contains("WebEventCursorCodec([REDACTED])"));
+        (cursor, token)
     };
 
     // jig-ignore-next-line: canonical rustfmt line.
@@ -433,9 +438,95 @@ fn event_cursor_scope_rotates_across_managed_browser_restart() {
         EventCursorResumeFailure::CursorExpired
     );
     assert_eq!(
+        managed.decode_event_cursor(&token, &restarted_scope),
+        Err(WebEventCursorCodecError::CursorExpired)
+    );
+    assert_eq!(
         managed.event_cursor_scope(""),
         Err(EventCursorBindingError::MalformedScope)
     );
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
+fn event_cursor_tokens_are_confidential_authenticated_and_scoped() {
+    use mail_capability_domain::EventCursorScope;
+    use mail_web_adapter::WebEventCursorCodecError;
+
+    let root = test_root("event-cursor-codec");
+    fs::create_dir_all(&root).expect("create synthetic cursor-codec root");
+    let targets = concat!(
+        "[{\"targetId\":\"page-1\",\"type\":\"page\",",
+        "\"url\":\"https://mail.proton.me/u/0/inbox\"}]"
+    );
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let browser_plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let managed = ManagedBrowser::launch(&browser_plan).expect("launch cursor-codec browser");
+    let scope = managed
+        .event_cursor_scope("synthetic-account-secret")
+        .expect("create cursor-codec scope");
+    let cursor = scope
+        .clone()
+        .bind(String::from("synthetic-provider-event-secret"));
+
+    let token_one = managed
+        .encode_event_cursor(&cursor, &scope)
+        .expect("encode first opaque cursor");
+    let token_two = managed
+        .encode_event_cursor(&cursor, &scope)
+        .expect("encode second opaque cursor");
+    assert_ne!(token_one, token_two);
+    assert!(token_one.starts_with("ev1."));
+    for secret in [
+        "synthetic-account-secret",
+        "synthetic-provider-event-secret",
+    ] {
+        assert!(!token_one.contains(secret));
+    }
+    let decoded = managed
+        .decode_event_cursor(&token_one, &scope)
+        .expect("decode exact current cursor");
+    assert_eq!(
+        decoded.state_for(&scope).map(String::as_str),
+        Ok("synthetic-provider-event-secret")
+    );
+
+    let account_drift = managed
+        .event_cursor_scope("synthetic-account-other")
+        .expect("create account-drift scope");
+    assert_eq!(
+        managed.decode_event_cursor(&token_one, &account_drift),
+        Err(WebEventCursorCodecError::InvalidCursor)
+    );
+    let (account, _adapter, generation) = scope.binding_components();
+    // jig-ignore-next-line: canonical rustfmt line.
+    let adapter_drift = EventCursorScope::new(account, "other-adapter", generation)
+        .expect("create adapter-drift scope");
+    assert_eq!(
+        managed.decode_event_cursor(&token_one, &adapter_drift),
+        Err(WebEventCursorCodecError::InvalidCursor)
+    );
+
+    let mut tampered = token_one.into_bytes();
+    let last = tampered.last_mut().expect("opaque cursor is non-empty");
+    *last = if *last == b'A' { b'B' } else { b'A' };
+    // jig-ignore-next-line: canonical rustfmt line.
+    let tampered = String::from_utf8(tampered).expect("opaque cursor remains ASCII");
+    assert_eq!(
+        managed.decode_event_cursor(&tampered, &scope),
+        Err(WebEventCursorCodecError::InvalidCursor)
+    );
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    for malformed in ["", "ev0.deadbeef.payload", "ev1.not-hex.payload", "ev1.."] {
+        assert_eq!(
+            managed.decode_event_cursor(malformed, &scope),
+            Err(WebEventCursorCodecError::InvalidCursor)
+        );
+    }
+
     drop(managed);
     cleanup(&root);
 }
