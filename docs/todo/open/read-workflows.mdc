@@ -41,6 +41,18 @@ Ship useful read access before any mailbox mutation is enabled.
   body without a network fetch, and plaintext body/header plus attachment
   decryption evidence remains open.
 
+- Provider-neutral attachment output now has pure safety primitives before any
+  filesystem access. Untrusted provider filenames are reduced to one portable
+  UTF-8 leaf capped at 255 bytes, path separators/control characters are
+  neutralized, leading-dot and Windows device-name hazards are removed, and
+  diagnostics redact the resulting filename.
+- Caller attachment destinations normalize only when strictly relative and
+  reject parent traversal, absolute roots, backslashes, control characters, and
+  drive/alternate-stream colon syntax. Inline eligibility uses the frozen
+  `32 KiB` contract ceiling exactly. This is pre-write validation only; root
+  containment, symlink defense, overwrite policy, write-time byte ceilings, and
+  partial-file cleanup remain runtime work.
+
 - Rendered-body research confirms the opened message article exposes the
   provider
   ID through `data-message-id` and its same-origin content iframe exposes

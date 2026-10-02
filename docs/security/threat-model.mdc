@@ -556,6 +556,15 @@ Filesystem writes follow all of these rules:
 - partial files are removed or left with an unmistakable incomplete state after
   cancellation or failure.
 
+The provider-neutral domain now enforces the first half of this policy before
+filesystem access: provider filenames become one sanitized portable leaf,
+caller destinations must normalize to a strict relative path with no parent or
+cross-platform drive/alternate-stream syntax, and inline eligibility is capped
+at the frozen 32 KiB limit. These checks intentionally do not claim filesystem
+containment; the write boundary must still enforce the configured root,
+symlink/indirection defense, overwrite choice, byte ceiling, and failure
+cleanup.
+
 The default test suite uses synthetic attachment bytes only.
 
 ## Structural diagnostic policy

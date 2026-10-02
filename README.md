@@ -170,6 +170,14 @@ This is adapter-level paging evidence, not yet a public `list_mailboxes` or
 metadata: current WebClients builds localized system-folder display text
 separately with `ttag`.
 
+Attachment output safety now also has a provider-neutral pre-filesystem
+boundary. Provider filenames are sanitized into one portable leaf, caller file
+destinations must normalize to a strict relative path, and inline attachment
+eligibility is fixed to the frozen 32 KiB ceiling. This does not yet write files
+or expose `get_attachment`; root containment, symlink/overwrite handling,
+write-time size enforcement, partial-file cleanup, and plaintext attachment
+retrieval remain unfinished.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and

@@ -35,8 +35,13 @@
 
 #![forbid(unsafe_code)]
 
+mod attachment_safety;
 mod event_cursor;
 
+pub use attachment_safety::MAX_ATTACHMENT_FILENAME_BYTES;
+pub use attachment_safety::SanitizedAttachmentFilename;
+pub use attachment_safety::attachment_fits_inline;
+pub use attachment_safety::{AttachmentPathError, AttachmentRelativePath};
 pub use event_cursor::{EventCursorBindingError, EventCursorResumeFailure};
 pub use event_cursor::{EventCursorScope, ScopedEventCursor};
 
