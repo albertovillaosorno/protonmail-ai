@@ -75,6 +75,23 @@ fn latest_event_projection_retains_only_bounded_watermark() {
 }
 
 #[test]
+fn latest_event_watermark_binds_provider_neutral_cursor_scope() {
+    let latest = ObservedLatestMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v4/events/latest",
+        r#"{"EventID":"event-bootstrap"}"#,
+    )
+    .expect("project latest event watermark");
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid bootstrap cursor scope");
+    let cursor = latest.bind_cursor(scope.clone());
+    assert_eq!(
+        cursor.state_for(&scope).map(String::as_str),
+        Ok("event-bootstrap")
+    );
+}
+
+#[test]
 fn bootstrap_watermark_matches_only_settled_no_change_poll() {
     let latest = ObservedLatestMailboxEventWatermark::parse(
         "GET",

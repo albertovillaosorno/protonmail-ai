@@ -82,6 +82,10 @@ bounded resource use.
   disable Network and detach before surfacing cancellation, and synthetic
   coverage proves the same managed browser remains usable immediately after a
   cancelled wait.
+- A captured bootstrap `core/v4/events/latest` watermark can now bind directly
+  into the same account/adapter/generation-scoped cursor type as a settled v5
+  sequence. The missing piece is deterministic passive capture of that bootstrap
+  request when starting a no-cursor wait; the adapter does not inject the API.
 - Still required: choose and authenticate the public cursor serialization, map
   provider refresh/expiry and cursor gaps into the frozen public errors, obtain
   a safe initial cursor even when a short no-cursor wait times out before the

@@ -302,6 +302,13 @@ impl ObservedLatestMailboxEventWatermark {
         &self.event_id
     }
 
+    /// Binds this bootstrap watermark to one provider-neutral cursor scope.
+    #[must_use]
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn bind_cursor(&self, scope: EventCursorScope) -> ScopedEventCursor<String> {
+        scope.bind(self.event_id.clone())
+    }
+
     /// Checks local consistency with one later settled no-change event poll.
     ///
     /// This is only a necessary bracket shape for snapshot research. It does
