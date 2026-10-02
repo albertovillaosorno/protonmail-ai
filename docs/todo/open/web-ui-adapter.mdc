@@ -330,6 +330,23 @@ web application without requiring Bridge or a third-party direct API identity.
   is still not a targeted `get_message`: WebClients may use cached body state
   without another detail GET, and plaintext body/header plus attachment
   decryption are not yet projected.
+- Rendered plaintext research found a useful identity binding but not a complete
+  body contract. `MessageView.tsx` places the provider message ID on the visible
+  `<article data-message-id=...>` and the decrypted renderer uses the
+  same-origin
+  `data-testid="content-iframe"` with `#proton-root`, so visible content can be
+  tied to an opaque message ID without Redux/storage access. However, expanding
+  an unread message invokes the mark-as-read path once its body is loaded, so
+  the
+  adapter must not expand a message merely to read it.
+- The iframe is also not an exact complete-body representation by default.
+  `locateBlockquote` splits HTML into content/blockquote/after-blockquote
+  pieces,
+  and `useIframeShowBlockquote` empties the blockquote container while quoted
+  content is collapsed; search highlighting and renderer transforms can further
+  change DOM markup. Therefore a passive visible-DOM extractor could safely
+  describe what is rendered, but it cannot yet satisfy the provider-neutral full
+  message body semantics without a completeness/normalization rule.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized

@@ -41,6 +41,15 @@ Ship useful read access before any mailbox mutation is enabled.
   body without a network fetch, and plaintext body/header plus attachment
   decryption evidence remains open.
 
+- Rendered-body research confirms the opened message article exposes the
+  provider
+  ID through `data-message-id` and its same-origin content iframe exposes
+  `#proton-root`. That is not yet a complete message-body source: WebClients can
+  remove collapsed quoted content from the iframe DOM, applies renderer/search
+  transforms, and marks unread messages read after expansion/body load. A future
+  body projection must remain passive and prove completeness before mapping this
+  surface to provider-neutral message body semantics.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.
