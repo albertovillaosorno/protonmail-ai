@@ -80,3 +80,7 @@ path = "../../../../tests/mail/web/adapter-outbound/mailbox_catalog.rs"
 [[test]]
 name = "mail-web-message-detail"
 path = "../../../../tests/mail/web/adapter-outbound/message_detail.rs"
+
+[[test]]
+name = "mail-web-attachment-metadata"
+path = "../../../../tests/mail/web/adapter-outbound/attachment_metadata.rs"

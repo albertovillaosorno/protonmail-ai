@@ -35,6 +35,7 @@
 
 #![forbid(unsafe_code)]
 
+mod attachment_metadata;
 mod catalog_cursor_codec;
 mod driver;
 mod event_cursor_codec;
@@ -54,6 +55,9 @@ mod policy;
 mod profile;
 mod shell;
 
+pub use attachment_metadata::AttachmentMetadataResponseError;
+pub use attachment_metadata::ObservedAttachmentMetadata;
+pub use attachment_metadata::ObservedAttachmentMetadataResponse;
 pub use catalog_cursor_codec::WebCatalogCursorCodecError;
 pub use driver::SerializedMailboxChangePage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};

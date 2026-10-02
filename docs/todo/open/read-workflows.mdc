@@ -53,6 +53,19 @@ Ship useful read access before any mailbox mutation is enabled.
   containment, symlink defense, overwrite policy, write-time byte ceilings, and
   partial-file cleanup remain runtime work.
 
+- Exact attachment metadata responses now have a separate bounded projector for
+  `GET /api/mail/v4/attachments/{attachment_id}/metadata`. It requires provider
+  success, binds body `Attachment.ID` to the requested attachment, and binds
+  `Attachment.MessageID` to the caller-expected parent message before retaining
+  only sanitized filename, declared size, and MIME type. Sender/address data,
+  conversation identity, key packets, and signatures are discarded and redacted
+  diagnostics expose none of those values.
+- Current WebClients fetches encrypted attachment bytes and full metadata in
+  parallel, derives the attachment session key, then calls `decryptAndVerify`
+  client-side. Therefore the metadata projector proves message-scoped identity
+  and safe metadata only; it does not make encrypted HTTP bytes equivalent to
+  the plaintext `attachment_v1` response.
+
 - Rendered-body research confirms the opened message article exposes the
   provider
   ID through `data-message-id` and its same-origin content iframe exposes
