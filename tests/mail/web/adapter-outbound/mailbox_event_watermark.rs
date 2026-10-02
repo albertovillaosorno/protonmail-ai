@@ -1270,6 +1270,40 @@ fn browser_resume_requires_exact_acknowledged_event_watermark() {
 }
 
 #[test]
+fn browser_resumed_change_page_advances_or_preserves_cursor() {
+    use std::time::Duration;
+
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid resumed change scope");
+    let cursor = scope.clone().bind(String::from("event-7"));
+    // jig-ignore-next-line: canonical rustfmt line.
+    let changed = with_event_browser("change-page-resume", false, true, |browser, page| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_mailbox_changes_from_cursor(page, &cursor, &scope, Duration::from_secs(1))
+    })
+    .expect("resume change page from matching event cursor");
+    assert_eq!(changed.changes().len(), 1);
+    assert_eq!(changed.changes()[0].id(), "m-1");
+    assert_eq!(
+        changed.next_cursor().state_for(&scope).map(String::as_str),
+        Ok("event-8")
+    );
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let timed_out = with_event_browser("change-page-timeout", false, false, |browser, page| {
+        browser.observe_mailbox_changes_from_cursor(
+            page,
+            &cursor,
+            &scope,
+            Duration::from_millis(30),
+        )
+    })
+    .expect("resumed timeout is a successful empty page");
+    assert!(timed_out.changes().is_empty());
+    assert_eq!(timed_out.next_cursor(), &cursor);
+}
+
+#[test]
 fn browser_scoped_cursor_resume_requires_current_scope() {
     use std::time::Duration;
 

@@ -1005,6 +1005,37 @@ impl ManagedBrowser {
         Ok(observed)
     }
 
+    /// Returns one bounded provider-neutral change page from a scoped cursor.
+    ///
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// A successful event sequence advances the page cursor. If no event arrives
+    /// before the requested bound, the result is an empty page carrying the
+    /// unchanged acknowledged cursor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidCursor` or `CursorExpired` through `EventCursorResume`
+    /// when exact resume is impossible, plus the bounded passive-wait failures.
+    pub fn observe_mailbox_changes_from_cursor(
+        &mut self,
+        page: &ProviderPage,
+        cursor: &ScopedEventCursor<String>,
+        current_scope: &EventCursorScope,
+        wait: Duration,
+    ) -> Result<ObservedMailboxChangePage, BrowserDriverError> {
+        let sequence =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.observe_mailbox_event_sequence_from_cursor(page, cursor, current_scope, wait)?;
+        sequence.map_or_else(
+            || Ok(ObservedMailboxChangePage::from_timeout(cursor.clone())),
+            |sequence| {
+                // jig-ignore-next-line: canonical rustfmt line.
+                ObservedMailboxChangePage::from_sequence(current_scope.clone(), sequence)
+                    .map_err(BrowserDriverError::MailboxEventSequence)
+            },
+        )
+    }
+
     /// Passively resumes from one account/adapter/generation-bound cursor.
     ///
     /// # Errors

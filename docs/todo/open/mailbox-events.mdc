@@ -102,6 +102,10 @@ bounded resource use.
   changes plus a scoped next cursor; a first-v5 timeout is a successful empty
   page that carries the captured bootstrap cursor, while bootstrap/v5 start
   drift fails closed. Cancellation uses the same cleanup path.
-- Still required: choose and authenticate the public cursor serialization,
-  expose the same change-page semantics for resumed waits, and prove
-  reconnect/backoff and restart behavior before advertising `wait_for_changes`.
+- Resumed waits now expose the same change-page semantics. Exact scoped-cursor
+  resume yields a settled sequence page with an advanced next cursor; a bounded
+  timeout is a successful empty page carrying the exact acknowledged cursor.
+  Invalid/expired cursor classification remains unchanged.
+- Still required: choose and authenticate the public cursor serialization and
+  prove reconnect/backoff and restart behavior before advertising
+  `wait_for_changes`.
