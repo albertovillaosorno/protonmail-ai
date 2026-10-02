@@ -36,6 +36,7 @@
 //! Bounded Proton attachment metadata projection with parent-message binding.
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
+use std::collections::BTreeMap;
 
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
@@ -47,6 +48,213 @@ const MAX_ATTACHMENT_ID_BYTES: usize = 512;
 const MAX_MESSAGE_ID_BYTES: usize = 512;
 const MAX_ATTACHMENT_NAME_BYTES: usize = 4_096;
 const MAX_MIME_TYPE_BYTES: usize = 512;
+const MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS: usize = 16;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AttachmentMetadataRequestState {
+    Requested,
+    Responded,
+    Finished,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TrackedAttachmentMetadataRequest {
+    state: AttachmentMetadataRequestState,
+    attachment_id: String,
+}
+
+/// Bounded CDP Network lifecycle state for exact attachment-metadata GETs.
+#[derive(Clone, Eq, PartialEq)]
+pub struct AttachmentMetadataNetworkCapture {
+    session_id: String,
+    requests: BTreeMap<String, TrackedAttachmentMetadataRequest>,
+}
+
+impl AttachmentMetadataNetworkCapture {
+    /// Creates an empty capture scoped to one flattened CDP target session.
+    #[must_use]
+    pub fn new(session_id: &str) -> Self {
+        Self {
+            session_id: String::from(session_id),
+            requests: BTreeMap::new(),
+        }
+    }
+
+    /// Consumes one unsolicited CDP event without retaining headers or bodies.
+    ///
+    /// # Errors
+    ///
+    /// Exact matching requests fail closed on redirects, malformed lifecycle,
+    /// unsafe response metadata, or capacity exhaustion. Failed app-owned
+    /// attempts are discarded so an app-owned retry may be observed.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub fn observe(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if event.get("sessionId").and_then(Value::as_str) != Some(self.session_id.as_str()) {
+            return Ok(());
+        }
+        match event.get("method").and_then(Value::as_str) {
+            Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.responseReceived") => self.observe_response(event),
+            Some("Network.loadingFinished") => self.observe_finished(event),
+            Some("Network.loadingFailed") => self.observe_failed(event),
+            _ => Ok(()),
+        }
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Removes completed exact metadata requests as request ID plus attachment ID.
+    pub fn take_finished_requests(&mut self) -> Vec<(String, String)> {
+        let finished = self
+            .requests
+            .iter()
+            // jig-ignore-next-line: canonical rustfmt line.
+            .filter(|(_id, request)| request.state == AttachmentMetadataRequestState::Finished)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map(|(request_id, request)| (request_id.clone(), request.attachment_id.clone()))
+            .collect::<Vec<_>>();
+        self.requests
+            // jig-ignore-next-line: canonical rustfmt line.
+            .retain(|_id, request| request.state != AttachmentMetadataRequestState::Finished);
+        finished
+    }
+
+    /// Returns the number of matching request lifecycles still retained.
+    #[must_use]
+    pub fn tracked_request_count(&self) -> usize {
+        self.requests.len()
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_request(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let request = params
+            .get("request")
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let method = request
+            .get("method")
+            .and_then(Value::as_str)
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let url = request
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let attachment_id = if method == "GET" {
+            attachment_id_from_metadata_url(url)
+                // jig-ignore-next-line: canonical rustfmt line.
+                .map_err(|_error| AttachmentMetadataNetworkError::MalformedEvent)?
+        } else {
+            None
+        };
+        if let Some(existing) = self.requests.get(request_id) {
+            if attachment_id != Some(existing.attachment_id.as_str()) {
+                return Err(AttachmentMetadataNetworkError::RedirectedAway);
+            }
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
+        let Some(attachment_id) = attachment_id else {
+            return Ok(());
+        };
+        if self.requests.len() >= MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS {
+            return Err(AttachmentMetadataNetworkError::CapacityExceeded);
+        }
+        self.requests.insert(
+            String::from(request_id),
+            TrackedAttachmentMetadataRequest {
+                state: AttachmentMetadataRequestState::Requested,
+                attachment_id: String::from(attachment_id),
+            },
+        );
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_response(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        let params = event
+            .get("params")
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let request_id = params
+            .get("requestId")
+            .and_then(Value::as_str)
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let Some(request) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if request.state != AttachmentMetadataRequestState::Requested {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
+        let response = params
+            .get("response")
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let url = response
+            .get("url")
+            .and_then(Value::as_str)
+            .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        let response_attachment_id = attachment_id_from_metadata_url(url)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|_error| AttachmentMetadataNetworkError::ResponseRejected)?;
+        let status = response.get("status").and_then(Value::as_u64);
+        let mime = response.get("mimeType").and_then(Value::as_str);
+        if response_attachment_id != Some(request.attachment_id.as_str())
+            || status != Some(200)
+            || mime != Some("application/json")
+        {
+            return Err(AttachmentMetadataNetworkError::ResponseRejected);
+        }
+        request.state = AttachmentMetadataRequestState::Responded;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_finished(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        let request_id = network_request_id(event)?;
+        let Some(request) = self.requests.get_mut(request_id) else {
+            return Ok(());
+        };
+        if request.state != AttachmentMetadataRequestState::Responded {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
+        request.state = AttachmentMetadataRequestState::Finished;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_failed(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        let request_id = network_request_id(event)?;
+        self.requests.remove(request_id);
+        Ok(())
+    }
+}
+
+impl Debug for AttachmentMetadataNetworkCapture {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("AttachmentMetadataNetworkCapture")
+            .field("session_id", &"<redacted>")
+            .field("tracked_request_count", &self.requests.len())
+            .finish()
+    }
+}
+
+/// Why exact attachment-metadata Network evidence failed closed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AttachmentMetadataNetworkError {
+    /// Required CDP event structure or exact endpoint shape was malformed.
+    MalformedEvent,
+    /// A tracked request redirected away from its exact metadata endpoint.
+    RedirectedAway,
+    /// A tracked response changed identity or was not HTTP 200 JSON.
+    ResponseRejected,
+    /// A lifecycle event repeated or arrived out of sequence.
+    InvalidSequence,
+    /// Too many unfinished exact attachment-metadata requests are retained.
+    CapacityExceeded,
+}
 
 /// Content-minimized attachment metadata bound to one parent message.
 #[derive(Clone, Eq, PartialEq)]
@@ -269,6 +477,15 @@ fn attachment_id_from_metadata_url(
         return Err(AttachmentMetadataResponseError::UnexpectedEndpoint);
     }
     Ok(Some(attachment_id))
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn network_request_id(event: &Value) -> Result<&str, AttachmentMetadataNetworkError> {
+    event
+        .get("params")
+        .and_then(|params| params.get("requestId"))
+        .and_then(Value::as_str)
+        .ok_or(AttachmentMetadataNetworkError::MalformedEvent)
 }
 
 fn bounded_required_string(

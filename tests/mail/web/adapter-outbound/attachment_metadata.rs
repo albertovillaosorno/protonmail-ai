@@ -32,14 +32,51 @@
 
 use mail_capability_domain::SanitizedAttachmentFilename;
 // jig-ignore-next-line: canonical rustfmt line.
+use mail_web_adapter::{AttachmentMetadataNetworkCapture, AttachmentMetadataNetworkError};
+// jig-ignore-next-line: canonical rustfmt line.
 use mail_web_adapter::{AttachmentMetadataResponseError, ObservedAttachmentMetadataResponse};
-use serde_json::json;
+use serde_json::{Value, json};
 
 // jig-ignore-next-line: canonical rustfmt line.
 const URL: &str = "https://mail.proton.me/api/mail/v4/attachments/attachment-1/metadata";
 const MESSAGE_ID: &str = "message-1";
 
-fn metadata_body() -> serde_json::Value {
+// jig-ignore-next-line: canonical rustfmt line.
+fn request_event(session: &str, request_id: &str, method: &str, url: &str) -> Value {
+    json!({
+        "sessionId": session,
+        "method": "Network.requestWillBeSent",
+        "params": {
+            "requestId": request_id,
+            "request": {"method": method, "url": url,
+                // jig-ignore-next-line: canonical rustfmt line.
+                "headers": {"Authorization": "Bearer SECRET", "Cookie": "SECRET"}}
+        }
+    })
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn response_event(session: &str, request_id: &str, url: &str, status: u64, mime: &str) -> Value {
+    json!({
+        "sessionId": session,
+        "method": "Network.responseReceived",
+        "params": {"requestId": request_id,
+            "response": {"url": url, "status": status, "mimeType": mime,
+                "headers": {"Set-Cookie": "SECRET"}}}
+    })
+}
+
+fn finished_event(session: &str, request_id: &str) -> Value {
+    json!({"sessionId": session, "method": "Network.loadingFinished",
+        "params": {"requestId": request_id}})
+}
+
+fn failed_event(session: &str, request_id: &str) -> Value {
+    json!({"sessionId": session, "method": "Network.loadingFailed",
+        "params": {"requestId": request_id}})
+}
+
+fn metadata_body() -> Value {
     json!({
         "Code": 1000,
         "Attachment": {
@@ -179,5 +216,117 @@ fn metadata_projection_bounds_body_and_required_fields() {
         // jig-ignore-next-line: canonical rustfmt line.
         ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &malformed.to_string()),
         Err(AttachmentMetadataResponseError::Malformed)
+    );
+}
+
+#[test]
+fn metadata_network_capture_tracks_only_exact_get_lifecycle() {
+    let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("other", "foreign", "GET", URL))
+        .expect("ignore foreign target session");
+    capture
+        .observe(&request_event(
+            "session-a",
+            "binary",
+            "GET",
+            "https://mail.proton.me/api/mail/v4/attachments/attachment-1",
+        ))
+        .expect("ignore encrypted binary endpoint");
+    capture
+        .observe(&request_event("session-a", "metadata", "GET", URL))
+        .expect("track exact metadata request");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "metadata",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("accept exact metadata response");
+    capture
+        .observe(&finished_event("session-a", "metadata"))
+        .expect("finish exact metadata response");
+    assert_eq!(
+        capture.take_finished_requests(),
+        vec![(String::from("metadata"), String::from("attachment-1"))]
+    );
+    assert_eq!(capture.tracked_request_count(), 0);
+    let debug = format!("{capture:?}");
+    for secret in ["session-a", "attachment-1", "SECRET"] {
+        assert!(!debug.contains(secret));
+    }
+}
+
+#[test]
+fn metadata_network_capture_rejects_redirect_and_allows_app_retry() {
+    let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "first", "GET", URL))
+        .expect("track first metadata attempt");
+    capture
+        .observe(&failed_event("session-a", "first"))
+        .expect("discard failed app attempt");
+    assert_eq!(capture.tracked_request_count(), 0);
+    capture
+        .observe(&request_event("session-a", "retry", "GET", URL))
+        .expect("track retry");
+    assert_eq!(
+        capture.observe(&request_event(
+            "session-a",
+            "retry",
+            "GET",
+            "https://mail.proton.me/inbox",
+        )),
+        Err(AttachmentMetadataNetworkError::RedirectedAway)
+    );
+}
+
+#[test]
+fn metadata_network_response_requires_same_identity_and_json_status() {
+    for (url, status, mime) in [
+        (
+            // jig-ignore-next-line: canonical rustfmt line.
+            "https://mail.proton.me/api/mail/v4/attachments/attachment-2/metadata",
+            200,
+            "application/json",
+        ),
+        (URL, 204, "application/json"),
+        (URL, 200, "text/html"),
+    ] {
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "metadata", "GET", URL))
+            .expect("track exact metadata request");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            capture.observe(&response_event("session-a", "metadata", url, status, mime,)),
+            Err(AttachmentMetadataNetworkError::ResponseRejected)
+        );
+    }
+}
+
+#[test]
+fn metadata_network_capture_bounds_unfinished_requests() {
+    let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+    for index in 0..16u8 {
+        let request_id = format!("metadata-{index}");
+        let url =
+            // jig-ignore-next-line: canonical rustfmt line.
+            format!("https://mail.proton.me/api/mail/v4/attachments/attachment-{index}/metadata");
+        capture
+            .observe(&request_event("session-a", &request_id, "GET", &url))
+            .expect("within metadata request capacity");
+    }
+    assert_eq!(capture.tracked_request_count(), 16);
+    assert_eq!(
+        capture.observe(&request_event(
+            "session-a",
+            "overflow",
+            "GET",
+            "https://mail.proton.me/api/mail/v4/attachments/overflow/metadata",
+        )),
+        Err(AttachmentMetadataNetworkError::CapacityExceeded)
     );
 }

@@ -57,9 +57,11 @@ Ship useful read access before any mailbox mutation is enabled.
   `GET /api/mail/v4/attachments/{attachment_id}/metadata`. It requires provider
   success, binds body `Attachment.ID` to the requested attachment, and binds
   `Attachment.MessageID` to the caller-expected parent message before retaining
-  only sanitized filename, declared size, and MIME type. Sender/address data,
-  conversation identity, key packets, and signatures are discarded and redacted
-  diagnostics expose none of those values.
+  only sanitized filename, declared size, and MIME type. A target-session CDP
+  classifier tracks only exact metadata GET lifecycles, accepts only HTTP-200
+  JSON with stable attachment identity, discards failed app retries, and caps
+  unfinished matching requests at 16. Sender/address data, conversation
+  identity, key packets, signatures, request headers, and cookies are discarded.
 - Current WebClients fetches encrypted attachment bytes and full metadata in
   parallel, derives the attachment session key, then calls `decryptAndVerify`
   client-side. Therefore the metadata projector proves message-scoped identity

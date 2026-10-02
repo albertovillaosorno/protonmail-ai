@@ -55,6 +55,8 @@ mod policy;
 mod profile;
 mod shell;
 
+pub use attachment_metadata::AttachmentMetadataNetworkCapture;
+pub use attachment_metadata::AttachmentMetadataNetworkError;
 pub use attachment_metadata::AttachmentMetadataResponseError;
 pub use attachment_metadata::ObservedAttachmentMetadata;
 pub use attachment_metadata::ObservedAttachmentMetadataResponse;
