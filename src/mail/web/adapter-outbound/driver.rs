@@ -51,6 +51,11 @@ use serde_json::{Value, json};
 use crate::event_cursor_codec::{WebEventCursorCodec, WebEventCursorCodecError};
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
+use crate::mailbox_catalog::MailboxCatalogNetworkCapture;
+use crate::mailbox_catalog::MailboxCatalogNetworkError;
+use crate::mailbox_catalog::MailboxCatalogResponseError;
+use crate::mailbox_catalog::ObservedMailboxCatalog;
+use crate::mailbox_catalog::ObservedMailboxCatalogResponse;
 use crate::mailbox_event_watermark::LatestMailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkCapture;
 use crate::mailbox_event_watermark::MailboxEventNetworkError;
@@ -95,6 +100,8 @@ const SORT_MENU_DELAY: Duration = Duration::from_millis(20);
 const SORT_MENU_TIMEOUT: Duration = Duration::from_secs(2);
 const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
+const MAILBOX_CATALOG_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
+const MAILBOX_CATALOG_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MAILBOX_EVENT_MAX_WAIT: Duration = Duration::from_secs(30);
 const MAILBOX_EVENT_BOOTSTRAP_TIMEOUT: Duration = Duration::from_secs(10);
@@ -369,6 +376,14 @@ pub struct ManagedBrowser {
 trait CdpEventObserver {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError>;
+}
+
+impl CdpEventObserver for MailboxCatalogNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::MailboxCatalogNetwork)
+    }
 }
 
 impl CdpEventObserver for MessageListNetworkCapture {
@@ -693,6 +708,127 @@ impl ManagedBrowser {
             });
         }
         Ok(())
+    }
+
+    /// Passively captures the complete mail folder/label catalog during reload.
+    ///
+    /// Only the browser application's own exact core-v4 label GETs are used.
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Contact groups and unrelated traffic are ignored, and response bodies are
+    /// projected immediately to bounded IDs, names, order, kind, and folder
+    /// parent IDs. No provider request is injected by the adapter.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for a non-Mail/unready page, missing or duplicated category
+    /// responses, unsafe Network lifecycle/body data, or origin drift.
+    pub fn observe_mailbox_catalog(
+        &mut self,
+        page: &ProviderPage,
+    ) -> Result<ObservedMailboxCatalog, BrowserDriverError> {
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        let observed = self.observe_mailbox_catalog_in_session(page, &session);
+        let detached = self.detach(&session);
+        let catalog = observed?;
+        detached?;
+        Ok(catalog)
+    }
+
+    fn observe_mailbox_catalog_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+    ) -> Result<ObservedMailboxCatalog, BrowserDriverError> {
+        let before = self.inspect_mail_shell_in_session(page, session)?;
+        if !before.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedMailboxCatalogResponse::MAX_BODY_BYTES,
+            "maxTotalBufferSize": MAILBOX_CATALOG_TOTAL_BUFFER_BYTES
+        });
+        let mut capture = MailboxCatalogNetworkCapture::new(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let deadline = Instant::now()
+            .checked_add(MAILBOX_CATALOG_CAPTURE_TIMEOUT)
+            .ok_or(BrowserDriverError::MailboxCatalogUnavailable)?;
+        let observed = (|| {
+            self.call_in_session_observing(
+                session,
+                "Page.reload",
+                &json!({"ignoreCache": false}),
+                &mut capture,
+            )?;
+            let responses =
+                // jig-ignore-next-line: canonical rustfmt line.
+                self.capture_mailbox_catalog_responses(session, &mut capture, deadline)?;
+            ObservedMailboxCatalog::from_responses(responses)
+                .map_err(BrowserDriverError::MailboxCatalogResponse)
+        })();
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual = capture.tracked_request_count();
+        let catalog = observed?;
+        disabled?;
+        if residual != 0 {
+            return Err(BrowserDriverError::MailboxCatalogAmbiguous);
+        }
+        let after = self.inspect_mail_shell_in_session(page, session)?;
+        if !after.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        self.ensure_page_origin(page, session)?;
+        Ok(catalog)
+    }
+
+    fn capture_mailbox_catalog_responses(
+        &mut self,
+        session: &str,
+        capture: &mut MailboxCatalogNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Vec<ObservedMailboxCatalogResponse>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut responses: Vec<ObservedMailboxCatalogResponse> = Vec::with_capacity(3);
+        for _event in 0..MAX_UNSOLICITED {
+            let finished = capture.take_finished_requests();
+            for (request_id, kind) in finished {
+                if responses.iter().any(|response| response.kind() == kind) {
+                    return Err(BrowserDriverError::MailboxCatalogAmbiguous);
+                }
+                let body = self.call_in_session_observing(
+                    session,
+                    "Network.getResponseBody",
+                    &json!({"requestId": request_id}),
+                    capture,
+                )?;
+                // jig-ignore-next-line: canonical rustfmt line.
+                let response = ObservedMailboxCatalogResponse::parse_cdp_body(kind, &body)
+                    .map_err(BrowserDriverError::MailboxCatalogResponse)?;
+                responses.push(response);
+            }
+            if responses.len() == 3 {
+                return Ok(responses);
+            }
+            if Instant::now() >= deadline {
+                return Err(BrowserDriverError::MailboxCatalogUnavailable);
+            }
+            let frame = read_frame(&mut self.reader)?;
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture.observe_event(&message)?;
+        }
+        Err(BrowserDriverError::MailboxCatalogUnavailable)
     }
 
     /// Reads content-free evidence for the currently rendered mailbox list.
@@ -2494,6 +2630,14 @@ pub enum BrowserDriverError {
     MailboxPageIncompatible,
     /// Mailbox list is loading or lacks explicit settled-empty evidence.
     MailboxPageNotSettled,
+    /// Exact folder/label catalog Network lifecycle failed closed.
+    MailboxCatalogNetwork(MailboxCatalogNetworkError),
+    /// Folder/label catalog response failed bounded projection.
+    MailboxCatalogResponse(MailboxCatalogResponseError),
+    /// Required folder/label category responses did not arrive in time.
+    MailboxCatalogUnavailable,
+    /// Duplicate or residual exact catalog requests made capture ambiguous.
+    MailboxCatalogAmbiguous,
     /// Exact message-list Network lifecycle failed closed.
     MessageListNetwork(MessageListNetworkError),
     /// Exact legacy Mail event Network lifecycle failed closed.
@@ -2591,6 +2735,18 @@ impl fmt::Display for BrowserDriverError {
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxPageNotSettled => f.write_str("Proton Mail list is not settled"),
+            Self::MailboxCatalogNetwork(_error) => {
+                f.write_str("mailbox catalog Network observation failed")
+            }
+            Self::MailboxCatalogResponse(_error) => {
+                f.write_str("mailbox catalog response projection failed")
+            }
+            Self::MailboxCatalogUnavailable => {
+                f.write_str("mailbox catalog responses were unavailable")
+            }
+            Self::MailboxCatalogAmbiguous => {
+                f.write_str("mailbox catalog observation was ambiguous")
+            }
             Self::MessageListNetwork(_error) => {
                 f.write_str("message-list Network observation failed")
             }

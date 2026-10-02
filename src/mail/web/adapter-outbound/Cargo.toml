@@ -72,3 +72,7 @@ path = "../../../../tests/mail/web/adapter-outbound/message_list_response.rs"
 [[test]]
 name = "mail-web-mailbox-event-watermark"
 path = "../../../../tests/mail/web/adapter-outbound/mailbox_event_watermark.rs"
+
+[[test]]
+name = "mail-web-mailbox-catalog"
+path = "../../../../tests/mail/web/adapter-outbound/mailbox_catalog.rs"

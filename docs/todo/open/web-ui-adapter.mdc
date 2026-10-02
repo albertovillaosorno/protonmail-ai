@@ -255,6 +255,27 @@ web application without requiring Bridge or a third-party direct API identity.
   initial response `Total` is authoritative exactly as current WebClients uses
   it; page offset plus expected first/second batch lengths must agree while
   continuation totals remain ignored because anchors change their meaning.
+- Mailbox/label inventory now has a separate passive Network projection.
+  WebClients current `main` commit
+  `c51e81b3730a5e1084586b383d837947f7636c16` remains byte-identical to the
+  pinned `packages/shared/lib/api/labels.ts` and
+  `packages/mail/store/labels/index.ts` evidence. Startup fetches exact
+  `GET core/v4/labels?Type=4`, `Type=3`, `Type=1`, and contact-group `Type=2`
+  requests, then sorts its category model by provider `Order`.
+- The adapter tracks only the three mail-relevant types, ignores contact groups
+  and unrelated traffic, bounds each decoded response to 256 KiB and 2,048
+  rows, and retains only ID, name, type, provider order, and custom-folder
+  parent ID. Colors, counts, paths, headers, cookies, tokens, and mutation data
+  are discarded.
+- `observe_mailbox_catalog` enables bounded Network observation before reload
+  and follows those browser-owned requests without injecting provider calls.
+  It requires exactly one successful response for system folders, custom
+  folders, and message labels, then disables Network and revalidates Mail
+  shell/origin. Synthetic coverage proves nested-folder parents, Unicode names,
+  contact-group exclusion, app-owned retry after `loadingFailed`, response-type
+  drift rejection, redacted debug, and exactly three body reads. This is
+  complete adapter catalog evidence only; public `list_mailboxes`/`list_labels`
+  page/cursor composition remains downstream.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized
