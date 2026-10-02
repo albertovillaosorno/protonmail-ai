@@ -338,7 +338,9 @@ fn catalog_browser_root(label: &str) -> PathBuf {
     ))
 }
 
-fn fake_catalog_browser(root: &Path) -> PathBuf {
+// jig-ignore-next-line: canonical rustfmt line.
+#[expect(clippy::too_many_lines, reason = "one synthetic CDP browser lifecycle")]
+fn fake_catalog_browser(root: &Path, encoded_label: bool) -> PathBuf {
     use std::fs;
     use std::os::unix::fs::PermissionsExt as _;
 
@@ -416,7 +418,7 @@ while IFS= read -r -d '' message <&3; do
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body='{"Code":1000,"Labels":[{"ID":"label-safe","Name":"Tag","Type":1,"Order":8}]}'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' "$id" "${body//\"/\\\"}" >&4;;
+      printf '{"id":%s,"result":{"body":"%s","base64Encoded":__ENCODED_LABEL__}}\0' "$id" "${body//\"/\\\"}" >&4;;
     *'Network.getResponseBody'*'"requestId":"system-1"'*)
       printf 'body-system\n' >> '__LOG__'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
@@ -432,7 +434,12 @@ while IFS= read -r -d '' message <&3; do
   esac
 done
 "#;
-    let body = template.replace("__LOG__", &log.display().to_string());
+    let body = template
+        .replace("__LOG__", &log.display().to_string())
+        .replace(
+            "__ENCODED_LABEL__",
+            if encoded_label { "true" } else { "false" },
+        );
     fs::write(&script, body).expect("write fake catalog browser");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
         .expect("chmod fake catalog browser");
@@ -447,7 +454,7 @@ fn managed_browser_passively_captures_complete_mail_catalog() {
 
     let root = catalog_browser_root("complete");
     fs::create_dir_all(&root).expect("create catalog browser root");
-    let browser = fake_catalog_browser(&root);
+    let browser = fake_catalog_browser(&root, false);
     let plan = ManagedBrowserPlan::under_data_home(
         browser.to_str().expect("catalog browser path UTF-8"),
         &root.join("data"),
@@ -484,4 +491,42 @@ fn managed_browser_passively_captures_complete_mail_catalog() {
         "enable\nreload\nbody-folder\nbody-label\nbody-system\ndisable\n"
     );
     fs::remove_dir_all(&root).expect("remove catalog browser root");
+}
+
+#[test]
+fn managed_browser_disables_network_after_encoded_catalog_body() {
+    use std::fs;
+
+    use mail_web_adapter::BrowserDriverError;
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+
+    let root = catalog_browser_root("encoded");
+    fs::create_dir_all(&root).expect("create encoded catalog browser root");
+    let browser = fake_catalog_browser(&root, true);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser
+            .to_str()
+            .expect("encoded catalog browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build encoded catalog browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch encoded catalog browser");
+    let page = managed
+        .provider_page()
+        .expect("discover encoded catalog Mail page");
+    let error = managed
+        .observe_mailbox_catalog(&page)
+        .expect_err("encoded catalog body must fail closed");
+    assert_eq!(
+        error,
+        BrowserDriverError::MailboxCatalogResponse(
+            MailboxCatalogResponseError::UnsupportedEncoding
+        )
+    );
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("catalog-log.txt")).expect("read encoded catalog log");
+    assert_eq!(log, "enable\nreload\nbody-folder\nbody-label\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove encoded catalog browser root");
 }
