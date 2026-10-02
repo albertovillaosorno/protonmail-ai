@@ -153,6 +153,32 @@ fn more_and_refresh_are_not_settled() {
 }
 
 #[test]
+fn contacts_only_refresh_does_not_invalidate_mailbox_sequence() {
+    let contacts = ObservedMailboxEventWatermark::parse(
+        "GET",
+        URL,
+        r#"{"EventID":"event-8","More":0,"Refresh":2}"#,
+    )
+    .expect("parse contacts-only refresh");
+    assert!(contacts.settled());
+    // jig-ignore-next-line: canonical rustfmt line.
+    let sequence = mail_web_adapter::ObservedMailboxEventSequence::start(contacts)
+        .expect("contacts-only refresh must not expire mailbox cursor");
+    assert!(sequence.settled());
+
+    let all = ObservedMailboxEventWatermark::parse(
+        "GET",
+        URL,
+        r#"{"EventID":"event-8","More":0,"Refresh":255}"#,
+    )
+    .expect("parse all-data refresh");
+    assert_eq!(
+        mail_web_adapter::ObservedMailboxEventSequence::start(all),
+        Err(MailboxEventSequenceError::RefreshRequired)
+    );
+}
+
+#[test]
 fn event_changes_preserve_order_and_normalize_actions() {
     let body = r#"{
         "EventID":"event-8","More":0,

@@ -53,10 +53,13 @@ bounded resource use.
 - `ObservedMailboxEventSequence` models the proven WebClients event-manager
   chain: each continuation must request the previous response `EventID`,
   `More=1` must advance the watermark, and `Refresh` invalidates resumable
-  state. Sequences are capped at 32 provider pages and 4096 distinct normalized
-  changes, preserve provider order across pages, and coalesce exact duplicates
-  across the
-  chain.
+  state. Current WebClients defines event refresh as a bitmask (`MAIL=1`,
+  `CONTACTS=2`, `ALL=255`), so only a refresh containing the Mail bit
+  invalidates
+  mailbox resumability; contacts-only refresh does not. Sequences are capped at
+  32 provider pages and 4096 distinct normalized changes, preserve provider
+  order
+  across pages, and coalesce exact duplicates across the chain.
 - The classifier is now wired into a passive managed-browser wait. It enables
   CDP Network observation before listening, never injects a Proton event API
   request, accepts waits up to 30 seconds, treats a first-event timeout as a

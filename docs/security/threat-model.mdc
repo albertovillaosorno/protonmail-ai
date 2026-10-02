@@ -195,8 +195,11 @@ capture. Bounded opaque event watermarks plus message/conversation IDs and
 normalized create/update/delete classes may cross that projection; embedded
 message/conversation objects, labels, counts, headers, and other event payload
 content are discarded. Exact duplicate normalized changes are coalesced while
-distinct actions survive. This projection is not itself an immutable list
-snapshot proof.
+distinct actions survive.
+
+Provider event refresh is treated as a bitmask; only refreshes containing the
+Mail bit invalidate mailbox-change resumability. This projection is not itself
+an immutable list snapshot proof.
 
 Passive event waiting enables CDP Network observation only and never injects
 Proton event API requests; first-event waits are capped at 30 seconds and raw
