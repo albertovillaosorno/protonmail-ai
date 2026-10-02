@@ -106,6 +106,15 @@ Ship useful read access before any mailbox mutation is enabled.
   exact conversation requests fail as ambiguous. Synthetic browser tests cover
   complete success, no-action timeout, incomplete membership cleanup, and a
   request starting during Network teardown.
+- Conversation list/search responses now have a separate bounded projector and
+  exact-endpoint Network classifier. Fresh responses require `Stale=0`, no
+  active `TasksRunning`, bounded `Total`, at most 100 unique conversations, and
+  numeric `Time`, provider `Order`, and `NumMessages`; only those fields plus
+  opaque conversation ID survive. Request/response URL identity is bound with
+  randomized in-memory fingerprints, so search terms and query text are not
+  retained. This intentionally does not interpret Page/Anchor continuation or
+  claim snapshot/order compatibility for public `list_threads`/search; those
+  provider-neutral semantics remain separate work.
 
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`

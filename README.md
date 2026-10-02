@@ -209,6 +209,14 @@ request injection. Network observation is disabled before success, timeout, or
 projection failure, and overlapping/late exact conversation requests fail
 closed as ambiguous.
 
+Conversation list/search traffic also has a content-minimizing diagnostic
+boundary. Exact list GET request/response URL identity is privately
+fingerprinted
+without retaining query/search text, and fresh responses project only opaque ID,
+numeric `Time`, provider `Order`, `NumMessages`, and `Total`. This does not yet
+claim provider-neutral pagination or snapshot semantics, so `list_threads` and
+thread search remain unavailable.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and

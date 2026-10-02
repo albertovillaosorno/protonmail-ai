@@ -88,3 +88,7 @@ path = "../../../../tests/mail/web/adapter-outbound/attachment_metadata.rs"
 [[test]]
 name = "mail-web-conversation-detail"
 path = "../../../../tests/mail/web/adapter-outbound/conversation_detail.rs"
+
+[[test]]
+name = "mail-web-conversation-list-response"
+path = "../../../../tests/mail/web/adapter-outbound/conversation_list_response.rs"

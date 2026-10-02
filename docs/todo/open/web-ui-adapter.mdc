@@ -344,6 +344,14 @@ web application without requiring Bridge or a third-party direct API identity.
   provider-call injection. It disables Network before returning success, clean
   timeout, or projection failure; residual and teardown-racing exact requests
   fail as ambiguous.
+- Conversation list/search response research now has a separate exact-endpoint
+  Network classifier and bounded projector. It binds request/response URLs with
+  randomized non-exported fingerprints and projects only conversation ID,
+  numeric `Time`, provider `Order`, `NumMessages`, and `Total` from fresh
+  `Stale=0`, no-task responses of at most 100 rows. Search/query text, subjects,
+  participants, and attachment metadata are discarded. Page/Anchor and snapshot
+  semantics are deliberately not inferred from the message-list implementation,
+  so public conversation-list/search tools remain unavailable.
 - Attachment retrieval research now has a bounded projector and target-session
   Network classifier for exact
   `GET /api/mail/v4/attachments/{attachment_id}/metadata`. The lifecycle accepts
