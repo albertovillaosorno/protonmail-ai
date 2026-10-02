@@ -34,12 +34,15 @@ use std::env;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::sync::Mutex;
 
 use mail_web_adapter::MailboxEventSequenceError;
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
 use mail_web_adapter::ObservedMailboxEventWatermark;
 use mail_web_adapter::{MailboxChangeEntity, MailboxChangeKind};
+
+static EVENT_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 const URL: &str = concat!(
     "https://mail.proton.me/api/core/v5/events/event-7",
@@ -778,6 +781,9 @@ fn with_event_browser<T>(
 ) -> T {
     use std::fs;
 
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic event browser tests");
     let root = event_browser_root(label);
     fs::create_dir_all(&root).expect("create event browser root");
     let browser = fake_event_browser(&root, multi, emit_event);
@@ -835,12 +841,15 @@ fn browser_drains_immediate_more_continuation_without_injecting_api_calls() {
 fn browser_event_wait_timeout_is_successful_empty_and_respects_short_bound() {
     use std::time::{Duration, Instant};
 
-    let started = Instant::now();
-    let result = with_event_browser("timeout", false, false, |browser, page| {
-        browser.observe_mailbox_event_sequence(page, Duration::from_millis(30))
+    // jig-ignore-next-line: canonical rustfmt line.
+    let (result, elapsed) = with_event_browser("timeout", false, false, |browser, page| {
+        let started = Instant::now();
+        // jig-ignore-next-line: canonical rustfmt line.
+        let result = browser.observe_mailbox_event_sequence(page, Duration::from_millis(30));
+        (result, started.elapsed())
     });
     assert_eq!(result, Ok(None));
-    assert!(started.elapsed() < Duration::from_secs(1));
+    assert!(elapsed < Duration::from_secs(1));
 }
 
 #[test]
