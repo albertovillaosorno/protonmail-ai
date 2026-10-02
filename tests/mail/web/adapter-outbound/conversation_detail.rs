@@ -36,6 +36,13 @@ use mail_web_adapter::ConversationDetailNetworkError;
 use mail_web_adapter::ConversationDetailResponseError;
 use mail_web_adapter::ObservedConversationDetailResponse;
 use serde_json::{Value, json};
+use std::env;
+use std::fs;
+use std::os::unix::fs::PermissionsExt as _;
+use std::path::{Path, PathBuf};
+use std::process;
+use std::sync::Mutex;
+use std::time::Duration;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const URL: &str = "https://mail.proton.me/api/mail/v4/conversations/conversation-1";
@@ -360,4 +367,244 @@ fn network_capture_bounds_unfinished_requests() {
         )),
         Err(ConversationDetailNetworkError::CapacityExceeded)
     );
+}
+
+static CONVERSATION_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn conversation_browser_root(label: &str) -> PathBuf {
+    env::temp_dir().join(format!(
+        "protonmail-ai-conversation-detail-{label}-{}",
+        process::id()
+    ))
+}
+
+fn fake_conversation_browser(
+    root: &Path,
+    emit_detail: bool,
+    complete_body: bool,
+    late_during_disable: bool,
+) -> PathBuf {
+    let script = root.join("fake-browser");
+    let log = root.join("conversation-log.txt");
+    let template = r#"#!/usr/bin/env bash
+set -eu
+while IFS= read -r -d '' message <&3; do
+  id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  case "$message" in
+    *'Browser.getVersion'*)
+      printf '{"id":%s,"result":{"product":"FakeChrome/1"}}\0' "$id" >&4;;
+    *'Target.getTargets'*)
+      target='[{"targetId":"page-1","type":"page",'
+      target+='"url":"https://mail.proton.me/u/0/inbox"}]'
+      printf '{"id":%s,"result":{"targetInfos":%s}}\0' "$id" "$target" >&4;;
+    *'Target.attachToTarget'*)
+      printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
+    *'Runtime.evaluate'*)
+      value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
+    *'DOM.getDocument'*)
+      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+    *'Accessibility.queryAXTree'*)
+      # jig-ignore-next-line: indivisible synthetic shell fixture.
+      case "$message" in *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false}]';; *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';; *) exit 91;; esac
+      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+    *'Network.enable'*)
+      printf 'enable\n' >> '__LOG__'
+      printf '{"id":%s,"result":{}}\0' "$id" >&4
+      if [ '__EMIT_DETAIL__' = 'true' ]; then
+        url='https://mail.proton.me/api/mail/v4/conversations/conversation-1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{"requestId":"conversation-1","request":{"method":"GET","url":"'"$url"'","headers":{"Authorization":"Bearer secret","Cookie":"secret-cookie"}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{"sessionId":"session-1","method":"Network.responseReceived","params":{"requestId":"conversation-1","response":{"url":"'"$url"'","status":200,"mimeType":"application/json","headers":{"Set-Cookie":"secret-cookie"}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{"sessionId":"session-1","method":"Network.loadingFinished","params":{"requestId":"conversation-1"}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+      fi;;
+    *'Network.getResponseBody'*'"requestId":"conversation-1"'*)
+      printf 'body\n' >> '__LOG__'
+      if [ '__COMPLETE_BODY__' = 'true' ]; then
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{"Code":1000,"Conversation":{"ID":"conversation-1","NumMessages":2,"Subject":"SECRET SUBJECT"},"Messages":[{"ID":"message-2","ConversationID":"conversation-1","Time":1700000002,"Body":"SECRET BODY 2"},{"ID":"message-1","ConversationID":"conversation-1","Time":1700000001,"Header":"SECRET HEADER 1"}]}'
+      else
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        body='{"Code":1000,"Conversation":{"ID":"conversation-1","NumMessages":2},"Messages":[{"ID":"message-1","ConversationID":"conversation-1","Time":1700000001}]}'
+      fi
+      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' \
+        "$id" "${body//\"/\\\"}" >&4;;
+    *'Network.disable'*)
+      printf 'disable\n' >> '__LOG__'
+      if [ '__LATE_DETAIL__' = 'true' ]; then
+        url='https://mail.proton.me/api/mail/v4/conversations/conversation-late'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{"requestId":"conversation-late","request":{"method":"GET","url":"'"$url"'"}}}'
+        printf '%s\0' "$request" >&4
+      fi
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Target.detachFromTarget'*)
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Page.reload'*) exit 94;;
+    *) exit 92;;
+  esac
+done
+"#;
+    let body = template
+        .replace("__LOG__", &log.display().to_string())
+        .replace(
+            "__EMIT_DETAIL__",
+            if emit_detail { "true" } else { "false" },
+        )
+        .replace(
+            "__COMPLETE_BODY__",
+            if complete_body { "true" } else { "false" },
+        )
+        .replace(
+            "__LATE_DETAIL__",
+            if late_during_disable { "true" } else { "false" },
+        );
+    fs::write(&script, body).expect("write fake conversation browser");
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
+        .expect("chmod fake conversation browser");
+    script
+}
+
+#[test]
+// jig-ignore-next-line: canonical rustfmt line.
+fn managed_browser_passively_observes_complete_conversation_without_navigation() {
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CONVERSATION_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_browser_root("passive");
+    fs::create_dir_all(&root).expect("create passive conversation root");
+    let browser = fake_conversation_browser(&root, true, true, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("conversation browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build passive conversation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch conversation browser");
+    let page = managed.provider_page().expect("discover passive Mail page");
+    let observed = managed
+        .observe_passive_conversation_detail(&page, Duration::from_secs(1))
+        .expect("observe browser-owned conversation request")
+        .expect("conversation request should arrive");
+    assert_eq!(observed.conversation().conversation_id(), "conversation-1");
+    assert_eq!(observed.conversation().reported_message_count(), 2);
+    assert_eq!(
+        observed.conversation().members()[0].message_id(),
+        "message-2"
+    );
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-log.txt"))
+        .expect("read passive conversation log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove passive conversation root");
+}
+
+#[test]
+fn managed_browser_conversation_timeout_performs_no_provider_action() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CONVERSATION_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_browser_root("timeout");
+    fs::create_dir_all(&root).expect("create timeout conversation root");
+    let browser = fake_conversation_browser(&root, false, true, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("timeout browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build timeout conversation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch timeout browser");
+    let page = managed.provider_page().expect("discover timeout Mail page");
+    assert_eq!(
+        managed
+            // jig-ignore-next-line: canonical rustfmt line.
+            .observe_passive_conversation_detail(&page, Duration::from_millis(25))
+            .expect("clean conversation timeout"),
+        None
+    );
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_detail(&page, Duration::from_secs(31)),
+        Err(BrowserDriverError::ConversationDetailWaitTooLong)
+    );
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-log.txt"))
+        .expect("read timeout conversation log");
+    assert_eq!(log, "enable\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove timeout conversation root");
+}
+
+#[test]
+fn incomplete_conversation_disables_network_before_error() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CONVERSATION_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_browser_root("incomplete");
+    fs::create_dir_all(&root).expect("create incomplete conversation root");
+    let browser = fake_conversation_browser(&root, true, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("incomplete browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build incomplete conversation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch incomplete browser");
+    let page = managed
+        .provider_page()
+        .expect("discover incomplete Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::ConversationDetailResponse(
+            ConversationDetailResponseError::IncompleteConversation,
+        ))
+    );
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-log.txt"))
+        .expect("read incomplete conversation log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove incomplete conversation root");
+}
+
+#[test]
+fn conversation_started_during_network_disable_fails_closed() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CONVERSATION_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_browser_root("late-disable");
+    fs::create_dir_all(&root).expect("create late conversation root");
+    let browser = fake_conversation_browser(&root, true, true, true);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("late browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build late conversation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch late browser");
+    let page = managed.provider_page().expect("discover late Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::ConversationDetailAmbiguous)
+    );
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("conversation-log.txt")).expect("read late conversation log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove late conversation root");
 }

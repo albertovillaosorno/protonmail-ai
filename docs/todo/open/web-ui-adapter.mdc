@@ -339,6 +339,11 @@ web application without requiring Bridge or a third-party direct API identity.
   member `ConversationID`. Parameterized `?MessageID=...` requests are rejected
   until their slice semantics are proven; this is membership evidence only and
   does not advertise a plaintext thread read.
+- Managed-browser orchestration can passively wait up to 30 seconds for the next
+  eligible app-owned conversation GET without clicks, navigation, reload, or
+  provider-call injection. It disables Network before returning success, clean
+  timeout, or projection failure; residual and teardown-racing exact requests
+  fail as ambiguous.
 - Attachment retrieval research now has a bounded projector and target-session
   Network classifier for exact
   `GET /api/mail/v4/attachments/{attachment_id}/metadata`. The lifecycle accepts

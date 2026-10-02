@@ -98,6 +98,14 @@ Ship useful read access before any mailbox mutation is enabled.
   provider thread membership for one complete response, not public
   `get_thread`: plaintext members still require independently bounded reads and
   the provider-neutral ordered thread mapping remains unwired.
+- The managed browser can now wait passively for the next complete app-owned
+  unparameterized conversation GET without clicking, navigating, reloading, or
+  injecting a provider request. It bounds the wait to 30 seconds, uses bounded
+  Network buffers, projects only the completed exact response, and disables
+  Network before success, clean timeout, or projection failure. Residual or late
+  exact conversation requests fail as ambiguous. Synthetic browser tests cover
+  complete success, no-action timeout, incomplete membership cleanup, and a
+  request starting during Network teardown.
 
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`

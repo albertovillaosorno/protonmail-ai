@@ -203,6 +203,12 @@ conversation responses are rejected until their completeness semantics are
 proven, and this still does not expose `get_thread` because member plaintext is
 loaded/decrypted separately.
 
+Managed automation can passively wait up to 30 seconds for the next eligible
+browser-owned conversation GET with no click, navigation, reload, or provider
+request injection. Network observation is disabled before success, timeout, or
+projection failure, and overlapping/late exact conversation requests fail
+closed as ambiguous.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and
