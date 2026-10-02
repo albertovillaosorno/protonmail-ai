@@ -915,6 +915,18 @@ fn catalog_page_size_and_account_fail_before_network_capture() {
             WebCatalogCursorCodecError::InvalidCursor
         ))
     );
+    let overlong_account = "a".repeat(513);
+    assert_eq!(
+        managed.observe_mailbox_catalog_page(
+            &provider_page,
+            &overlong_account,
+            MailboxCatalogPageKind::Labels,
+            None,
+        ),
+        Err(BrowserDriverError::MailboxCatalogCursor(
+            WebCatalogCursorCodecError::InvalidCursor
+        ))
+    );
     drop(managed);
     // jig-ignore-next-line: canonical rustfmt line.
     let log = fs::read_to_string(root.join("catalog-log.txt")).unwrap_or_default();
@@ -923,6 +935,10 @@ fn catalog_page_size_and_account_fail_before_network_capture() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one same-kind replacement and cross-kind retention transcript"
+)]
 fn replacing_same_kind_expires_old_cursor_but_other_kind_stays_resumable() {
     use std::fs;
 
@@ -957,6 +973,26 @@ fn replacing_same_kind_expires_old_cursor_but_other_kind_stays_resumable() {
         .expect("capture first mailbox snapshot");
     // jig-ignore-next-line: canonical rustfmt line.
     let old_cursor = first.next_cursor().expect("old mailbox cursor").to_owned();
+    assert_eq!(
+        managed.observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(0),
+        ),
+        Err(BrowserDriverError::MailboxCatalogPage(
+            MailboxCatalogPageError::InvalidPageSize
+        ))
+    );
+    let after_invalid_start = managed
+        .resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(2),
+            &old_cursor,
+        )
+        .expect("invalid replacement must retain old mailbox snapshot");
+    assert_eq!(after_invalid_start.items()[0].id(), "folder-child");
 
     let labels = managed
         .observe_mailbox_catalog_page(
