@@ -295,6 +295,11 @@ web application without requiring Bridge or a third-party direct API identity.
   continuations, and returns a redaction-safe provider-neutral change page with
   a scoped next cursor. A timeout before the first v5 response returns an empty
   page carrying the bootstrap cursor rather than an ambiguous failure.
+- Event observation also follows the app-owned reconnect path without taking it
+  over: an exact CDP `loadingFailed` removes only that failed attempt, leaving
+  the original bounded wait active for WebClients' own retry from the unchanged
+  EventID. Redirects, rejected responses, cursor drift, and refresh still fail
+  closed; the adapter never issues a provider retry itself.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

@@ -108,6 +108,11 @@ bounded resource use.
   Invalid/expired cursor classification remains unchanged. Initial and resumed
   change-page waits both expose cooperative cancellation through the same
   Network-disable and target-detach cleanup path.
+- Provider-owned reconnect/backoff is now compatible with passive observation.
+  Current WebClients keeps the last EventID unchanged across failed calls and
+  retries with its own increasing schedule. A tracked CDP `loadingFailed` now
+  discards only that attempt and keeps the bounded observer alive for a later
+  exact retry; the adapter never injects a retry or advances the cursor itself.
 - Still required: choose and authenticate the public cursor serialization and
-  prove reconnect/backoff and restart behavior before advertising
+  prove adapter/browser restart generation behavior before advertising
   `wait_for_changes`.

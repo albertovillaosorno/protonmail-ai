@@ -206,11 +206,9 @@ impl LatestMailboxEventNetworkCapture {
     }
 
     // jig-ignore-next-line: canonical rustfmt line.
-    fn observe_failed(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+    fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
-        if self.requests.contains_key(request_id) {
-            return Err(MailboxEventNetworkError::RequestFailed);
-        }
+        self.requests.remove(request_id);
         Ok(())
     }
 }
@@ -390,11 +388,9 @@ impl MailboxEventNetworkCapture {
     }
 
     // jig-ignore-next-line: canonical rustfmt line.
-    fn observe_failed(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+    fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
-        if self.requests.contains_key(request_id) {
-            return Err(MailboxEventNetworkError::RequestFailed);
-        }
+        self.requests.remove(request_id);
         Ok(())
     }
 }
@@ -415,8 +411,6 @@ pub enum MailboxEventNetworkError {
     MalformedEvent,
     /// A tracked request redirected away from the exact event endpoint.
     RedirectedAway,
-    /// A tracked request failed at the Network layer.
-    RequestFailed,
     /// Response status, MIME type, URL, or event watermark was unsafe.
     ResponseRejected,
     /// A lifecycle event was repeated or arrived out of order.

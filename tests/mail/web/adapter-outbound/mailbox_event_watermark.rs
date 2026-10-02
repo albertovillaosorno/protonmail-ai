@@ -470,6 +470,50 @@ fn latest_network_capture_tracks_only_exact_bootstrap_get() {
 }
 
 #[test]
+fn latest_network_capture_discards_failed_attempt_before_retry() {
+    use serde_json::json;
+
+    let url = "https://mail.proton.me/api/core/v4/events/latest";
+    let request = || {
+        json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"latest-retry","request":{
+                "method":"GET","url":url
+            }}
+        })
+    };
+    let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+    capture
+        .observe(&request())
+        .expect("track failed latest attempt");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.loadingFailed",
+            "params":{"requestId":"latest-retry"}
+        }))
+        .expect("discard failed latest attempt");
+    capture.observe(&request()).expect("track latest retry");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.responseReceived",
+            "params":{"requestId":"latest-retry","response":{
+                "url":url,"status":200u16,"mimeType":"application/json"
+            }}
+        }))
+        .expect("accept latest retry response");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1","method":"Network.loadingFinished",
+            "params":{"requestId":"latest-retry"}
+        }))
+        .expect("finish latest retry");
+    assert_eq!(
+        capture.take_finished_request_ids(),
+        [String::from("latest-retry")]
+    );
+}
+
+#[test]
 fn network_capture_tracks_exact_event_get_lifecycle() {
     use mail_web_adapter::MailboxEventNetworkCapture;
     use serde_json::json;
@@ -584,13 +628,15 @@ fn network_capture_rejects_redirect_failure_and_bad_response() {
     failed
         .observe(&request("failed"))
         .expect("track failed request");
-    assert_eq!(
-        failed.observe(&json!({
+    failed
+        .observe(&json!({
             "sessionId":"session-1","method":"Network.loadingFailed",
             "params":{"requestId":"failed"}
-        })),
-        Err(MailboxEventNetworkError::RequestFailed)
-    );
+        }))
+        .expect("discard failed attempt while provider owns retry");
+    failed
+        .observe(&request("failed"))
+        .expect("accept exact provider retry from same cursor");
 }
 
 #[test]
