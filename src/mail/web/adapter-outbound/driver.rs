@@ -979,22 +979,35 @@ impl ManagedBrowser {
         wait: Duration,
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
+        self.observe_mailbox_event_sequence_from_expected(page, expected_event_id, wait, None)
+    }
+
+    fn observe_mailbox_event_sequence_from_expected(
+        &mut self,
+        page: &ProviderPage,
+        expected_event_id: &str,
+        wait: Duration,
+        cancellation: Option<&MailboxEventCancellation>,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
         if ObservedMailboxEventWatermark::validate_event_id(expected_event_id).is_err() {
             return Err(BrowserDriverError::EventCursorResume(
                 EventCursorResumeFailure::InvalidCursor,
             ));
         }
-        let observed = match self.observe_mailbox_event_sequence(page, wait) {
-            Err(BrowserDriverError::MailboxEventSequence(
-                // jig-ignore-next-line: canonical rustfmt line.
-                MailboxEventSequenceError::CursorGap | MailboxEventSequenceError::RefreshRequired,
-            )) => {
-                return Err(BrowserDriverError::EventCursorResume(
-                    EventCursorResumeFailure::CursorExpired,
-                ));
-            }
-            result => result?,
-        };
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            match self.observe_mailbox_event_sequence_with_cancellation(page, wait, cancellation) {
+                Err(BrowserDriverError::MailboxEventSequence(
+                    MailboxEventSequenceError::CursorGap
+                    | MailboxEventSequenceError::RefreshRequired,
+                )) => {
+                    return Err(BrowserDriverError::EventCursorResume(
+                        EventCursorResumeFailure::CursorExpired,
+                    ));
+                }
+                result => result?,
+            };
         if let Some(sequence) = observed.as_ref()
             && sequence.start_event_id() != expected_event_id
         {
@@ -1036,6 +1049,41 @@ impl ManagedBrowser {
         )
     }
 
+    /// Resumed provider-neutral change page with cooperative cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns the same exact-resume failures as
+    /// [`Self::observe_mailbox_changes_from_cursor`] plus
+    /// `MailboxEventCancelled` when cancellation is requested.
+    pub fn observe_mailbox_changes_from_cursor_cancellable(
+        &mut self,
+        page: &ProviderPage,
+        cursor: &ScopedEventCursor<String>,
+        current_scope: &EventCursorScope,
+        wait: Duration,
+        cancellation: &MailboxEventCancellation,
+    ) -> Result<ObservedMailboxChangePage, BrowserDriverError> {
+        let expected = cursor
+            .state_for(current_scope)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
+        let sequence = self.observe_mailbox_event_sequence_from_expected(
+            page,
+            expected,
+            wait,
+            Some(cancellation),
+        )?;
+        sequence.map_or_else(
+            || Ok(ObservedMailboxChangePage::from_timeout(cursor.clone())),
+            |sequence| {
+                // jig-ignore-next-line: canonical rustfmt line.
+                ObservedMailboxChangePage::from_sequence(current_scope.clone(), sequence)
+                    .map_err(BrowserDriverError::MailboxEventSequence)
+            },
+        )
+    }
+
     /// Passively resumes from one account/adapter/generation-bound cursor.
     ///
     /// # Errors
@@ -1053,7 +1101,8 @@ impl ManagedBrowser {
             .state_for(current_scope)
             // jig-ignore-next-line: canonical rustfmt line.
             .map_err(|error| BrowserDriverError::EventCursorResume(error.resume_failure()))?;
-        self.observe_mailbox_event_sequence_from(page, expected, wait)
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.observe_mailbox_event_sequence_from_expected(page, expected, wait, None)
     }
 
     fn observe_mailbox_event_sequence_in_session(

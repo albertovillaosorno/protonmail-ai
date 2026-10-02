@@ -1304,6 +1304,47 @@ fn browser_resumed_change_page_advances_or_preserves_cursor() {
 }
 
 #[test]
+fn browser_resumed_change_page_cancellation_cleans_up() {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let scope = EventCursorScope::new("account-a", "web", "generation-7")
+        .expect("valid resumed cancellation scope");
+    let cursor = scope.clone().bind(String::from("event-7"));
+    let (result, elapsed, page_after) =
+        with_event_browser("resume-cancel", false, false, |browser, page| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let cancellation = mail_web_adapter::MailboxEventCancellation::new();
+            let canceller = cancellation.clone();
+            let worker = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(40));
+                canceller.cancel();
+            });
+            let started = Instant::now();
+            // jig-ignore-next-line: canonical rustfmt line.
+            let result = browser.observe_mailbox_changes_from_cursor_cancellable(
+                page,
+                &cursor,
+                &scope,
+                Duration::from_secs(1),
+                &cancellation,
+            );
+            let elapsed = started.elapsed();
+            worker.join().expect("join resumed cancellation worker");
+            (result, elapsed, browser.provider_page())
+        });
+    assert_eq!(
+        result,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventCancelled)
+    );
+    assert!(elapsed < Duration::from_secs(1));
+    assert_eq!(
+        page_after.expect("browser remains usable").origin(),
+        mail_web_adapter::PageOrigin::ProtonMail
+    );
+}
+
+#[test]
 fn browser_scoped_cursor_resume_requires_current_scope() {
     use std::time::Duration;
 

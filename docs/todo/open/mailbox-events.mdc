@@ -105,7 +105,9 @@ bounded resource use.
 - Resumed waits now expose the same change-page semantics. Exact scoped-cursor
   resume yields a settled sequence page with an advanced next cursor; a bounded
   timeout is a successful empty page carrying the exact acknowledged cursor.
-  Invalid/expired cursor classification remains unchanged.
+  Invalid/expired cursor classification remains unchanged. Initial and resumed
+  change-page waits both expose cooperative cancellation through the same
+  Network-disable and target-detach cleanup path.
 - Still required: choose and authenticate the public cursor serialization and
   prove reconnect/backoff and restart behavior before advertising
   `wait_for_changes`.
