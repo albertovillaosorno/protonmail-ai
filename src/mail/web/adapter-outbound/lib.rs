@@ -37,6 +37,7 @@
 
 mod attachment_metadata;
 mod catalog_cursor_codec;
+mod conversation_detail;
 mod driver;
 mod event_cursor_codec;
 mod lease;
@@ -61,6 +62,12 @@ pub use attachment_metadata::AttachmentMetadataResponseError;
 pub use attachment_metadata::ObservedAttachmentMetadata;
 pub use attachment_metadata::ObservedAttachmentMetadataResponse;
 pub use catalog_cursor_codec::WebCatalogCursorCodecError;
+pub use conversation_detail::ConversationDetailNetworkCapture;
+pub use conversation_detail::ConversationDetailNetworkError;
+pub use conversation_detail::ConversationDetailResponseError;
+pub use conversation_detail::ObservedConversationDetail;
+pub use conversation_detail::ObservedConversationDetailResponse;
+pub use conversation_detail::ObservedConversationMember;
 pub use driver::SerializedMailboxChangePage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 pub use driver::{MailboxEventCancellation, ProviderPage};

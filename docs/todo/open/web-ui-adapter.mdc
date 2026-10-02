@@ -330,6 +330,15 @@ web application without requiring Bridge or a third-party direct API identity.
   is still not a targeted `get_message`: WebClients may use cached body state
   without another detail GET, and plaintext body/header plus attachment
   decryption are not yet projected.
+- Conversation-detail research now has a bounded projector and target-session
+  classifier for exact unparameterized
+  `GET /api/mail/v4/conversations/{conversation_id}`. It content-minimizes a
+  complete response to parent conversation ID, reported count, and member
+  `(message_id, Time)` pairs only after requiring exact identity, bounded count,
+  `Messages.length == Conversation.NumMessages`, unique members, and matching
+  member `ConversationID`. Parameterized `?MessageID=...` requests are rejected
+  until their slice semantics are proven; this is membership evidence only and
+  does not advertise a plaintext thread read.
 - Attachment retrieval research now has a bounded projector and target-session
   Network classifier for exact
   `GET /api/mail/v4/attachments/{attachment_id}/metadata`. The lifecycle accepts

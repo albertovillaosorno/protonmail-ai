@@ -193,6 +193,16 @@ bounded metadata response, disables Network before returning, and treats clean
 timeout as no evidence. This does not retrieve or decrypt attachment bytes, so
 `get_attachment` remains unavailable.
 
+Conversation membership now has its own content-minimizing response boundary.
+Exact unparameterized `GET /api/mail/v4/conversations/{conversation_id}`
+responses are accepted only when provider identity matches, the reported
+`NumMessages` is bounded and exactly equals the returned `Messages` count, each
+message ID is unique, and every member points back to the same conversation.
+Only message ID and numeric `Time` are retained. Parameterized `?MessageID=`
+conversation responses are rejected until their completeness semantics are
+proven, and this still does not expose `get_thread` because member plaintext is
+loaded/decrypted separately.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and

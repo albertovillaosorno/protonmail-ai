@@ -85,6 +85,20 @@ Ship useful read access before any mailbox mutation is enabled.
   and safe metadata only; it does not make encrypted HTTP bytes equivalent to
   the plaintext `attachment_v1` response.
 
+- Exact unparameterized conversation responses now have a separate bounded
+  membership projector and target-session Network classifier for
+  `GET /api/mail/v4/conversations/{conversation_id}`. It requires provider
+  success, exact response/request conversation identity, a bounded
+  `Conversation.NumMessages`, `Messages.length == NumMessages`, unique message
+  IDs, and every member `ConversationID` matching the parent. Only member ID and
+  numeric `Time` survive, in provider response order; bodies, headers, subject,
+  recipients, attachments, and cryptographic fields are discarded.
+- The classifier rejects `?MessageID=...` conversation requests because their
+  slicing/completeness semantics are not yet proven. This establishes exact
+  provider thread membership for one complete response, not public
+  `get_thread`: plaintext members still require independently bounded reads and
+  the provider-neutral ordered thread mapping remains unwired.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
