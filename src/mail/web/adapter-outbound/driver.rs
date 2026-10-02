@@ -81,6 +81,10 @@ use crate::mailbox_mode::{MailboxModeEvidence, MailboxRenderMode};
 use crate::mailbox_page::{MailboxPageSnapshot, VisibleMessagePageSnapshot};
 use crate::mailbox_pagination::NextPageActivation;
 use crate::mailbox_sort::MailboxSortOrder;
+use crate::message_detail::MessageDetailNetworkCapture;
+use crate::message_detail::MessageDetailNetworkError;
+use crate::message_detail::MessageDetailResponseError;
+use crate::message_detail::ObservedMessageDetailResponse;
 use crate::message_list_response::MessageListNetworkCapture;
 use crate::message_list_response::MessageListNetworkError;
 use crate::message_list_response::MessageListReconciliationError;
@@ -109,6 +113,8 @@ const SORT_MENU_DELAY: Duration = Duration::from_millis(20);
 const SORT_MENU_TIMEOUT: Duration = Duration::from_secs(2);
 const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
+const MESSAGE_DETAIL_MAX_WAIT: Duration = Duration::from_secs(30);
+const MESSAGE_DETAIL_TOTAL_BUFFER_BYTES: usize = 16_777_216;
 const MAILBOX_CATALOG_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MAILBOX_CATALOG_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
@@ -384,6 +390,14 @@ impl CdpEventObserver for MailboxCatalogNetworkCapture {
     fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
         self.observe(event)
             .map_err(BrowserDriverError::MailboxCatalogNetwork)
+    }
+}
+
+impl CdpEventObserver for MessageDetailNetworkCapture {
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_event(&mut self, event: &Value) -> Result<(), BrowserDriverError> {
+        self.observe(event)
+            .map_err(BrowserDriverError::MessageDetailNetwork)
     }
 }
 
@@ -2008,6 +2022,151 @@ impl ManagedBrowser {
         ))
     }
 
+    /// Passively observes the next browser-owned single-message detail GET.
+    ///
+    /// This method does not click, navigate, reload, or inject a provider API
+    /// request. It only waits for Proton Mail itself to issue one exact detail
+    /// GET while Network observation is active, then projects its response. A
+    /// clean timeout is `Ok(None)`.
+    ///
+    /// # Errors
+    ///
+    /// Rejects waits above 30 seconds, non-Mail/unready pages, ambiguous or
+    /// unsafe detail request lifecycles, response projection failure, or origin
+    /// drift.
+    pub fn observe_passive_message_detail(
+        &mut self,
+        page: &ProviderPage,
+        wait: Duration,
+    ) -> Result<Option<ObservedMessageDetailResponse>, BrowserDriverError> {
+        if wait > MESSAGE_DETAIL_MAX_WAIT {
+            return Err(BrowserDriverError::MessageDetailWaitTooLong);
+        }
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_passive_message_detail_in_session(page, &session, wait);
+        let detached = self.detach(&session);
+        let detail = observed?;
+        detached?;
+        Ok(detail)
+    }
+
+    fn observe_passive_message_detail_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+        wait: Duration,
+    ) -> Result<Option<ObservedMessageDetailResponse>, BrowserDriverError> {
+        let before = self.inspect_mail_shell_in_session(page, session)?;
+        if !before.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        let network_params = json!({
+            "maxPostDataSize": 0u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "maxResourceBufferSize": ObservedMessageDetailResponse::MAX_BODY_BYTES,
+            "maxTotalBufferSize": MESSAGE_DETAIL_TOTAL_BUFFER_BYTES
+        });
+        let mut capture = MessageDetailNetworkCapture::new(session);
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let deadline = Instant::now()
+            .checked_add(wait)
+            .ok_or(BrowserDriverError::MessageDetailWaitTooLong)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.capture_passive_message_detail(session, &mut capture, deadline);
+        let disabled =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
+        let residual = capture.tracked_request_count();
+        let detail = observed?;
+        disabled?;
+        if residual != 0 {
+            return Err(BrowserDriverError::MessageDetailAmbiguous);
+        }
+        let after = self.inspect_mail_shell_in_session(page, session)?;
+        if !after.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
+        self.ensure_page_origin(page, session)?;
+        Ok(detail)
+    }
+
+    fn capture_passive_message_detail(
+        &mut self,
+        session: &str,
+        capture: &mut MessageDetailNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Option<ObservedMessageDetailResponse>, BrowserDriverError> {
+        let Some((request_id, message_id)) =
+            self.wait_for_message_detail_request(capture, deadline)?
+        else {
+            return Ok(None);
+        };
+        let body = self.call_in_session_observing(
+            session,
+            "Network.getResponseBody",
+            &json!({"requestId": request_id}),
+            capture,
+        )?;
+        ObservedMessageDetailResponse::parse_cdp_body(&message_id, &body)
+            .map(Some)
+            .map_err(BrowserDriverError::MessageDetailResponse)
+    }
+
+    fn wait_for_message_detail_request(
+        &mut self,
+        capture: &mut MessageDetailNetworkCapture,
+        deadline: Instant,
+    ) -> Result<Option<(String, String)>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if let Some(request) = take_one_finished_message_detail_request(capture)? {
+            return Ok(Some(request));
+        }
+        let mut unsolicited = 0u16;
+        while Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(remaining.min(PIPE_TIMEOUT)))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let frame = read_frame_waiting(&mut self.reader);
+            self.reader
+                .get_mut()
+                .set_read_timeout(Some(PIPE_TIMEOUT))
+                .map_err(|_error| BrowserDriverError::PipeSetup)?;
+            let Some(frame) = frame? else {
+                continue;
+            };
+            unsolicited = unsolicited
+                .checked_add(1)
+                .ok_or(BrowserDriverError::MessageDetailAmbiguous)?;
+            if unsolicited > MAX_UNSOLICITED {
+                return Err(BrowserDriverError::MessageDetailAmbiguous);
+            }
+            let message: Value =
+                // jig-ignore-next-line: canonical rustfmt line.
+                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            if message.get("id").is_some() {
+                return Err(BrowserDriverError::Protocol);
+            }
+            capture
+                .observe(&message)
+                .map_err(BrowserDriverError::MessageDetailNetwork)?;
+            // jig-ignore-next-line: canonical rustfmt line.
+            if let Some(request) = take_one_finished_message_detail_request(capture)? {
+                return Ok(Some(request));
+            }
+        }
+        Ok(None)
+    }
+
     /// Reloads a proven message-mode Mail page and projects one exact list
     /// response through the bounded CDP Network observer.
     ///
@@ -2747,6 +2906,15 @@ pub enum BrowserDriverError {
     MailboxCatalogUnavailable,
     /// Duplicate or residual exact catalog requests made capture ambiguous.
     MailboxCatalogAmbiguous,
+    /// Exact single-message detail Network lifecycle failed closed.
+    MessageDetailNetwork(MessageDetailNetworkError),
+    /// Single-message detail response failed bounded projection.
+    MessageDetailResponse(MessageDetailResponseError),
+    /// Requested passive message-detail wait exceeds 30 seconds.
+    MessageDetailWaitTooLong,
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Multiple or residual exact message-detail requests made capture ambiguous.
+    MessageDetailAmbiguous,
     /// Exact message-list Network lifecycle failed closed.
     MessageListNetwork(MessageListNetworkError),
     /// Exact legacy Mail event Network lifecycle failed closed.
@@ -2864,6 +3032,16 @@ impl fmt::Display for BrowserDriverError {
             Self::MailboxCatalogAmbiguous => {
                 f.write_str("mailbox catalog observation was ambiguous")
             }
+            Self::MessageDetailNetwork(_error) => {
+                f.write_str("message-detail Network observation failed")
+            }
+            Self::MessageDetailResponse(_error) => {
+                f.write_str("message-detail response projection failed")
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MessageDetailWaitTooLong => f.write_str("message-detail wait exceeds 30 seconds"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MessageDetailAmbiguous => f.write_str("message-detail observation was ambiguous"),
             Self::MessageListNetwork(_error) => {
                 f.write_str("message-list Network observation failed")
             }
@@ -3090,6 +3268,17 @@ fn take_one_finished_mailbox_event_request(
         0 => Ok(None),
         1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
         _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
+    }
+}
+
+fn take_one_finished_message_detail_request(
+    capture: &mut MessageDetailNetworkCapture,
+) -> Result<Option<(String, String)>, BrowserDriverError> {
+    let mut finished = capture.take_finished_requests();
+    match finished.len() {
+        0 => Ok(None),
+        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
+        _ => Err(BrowserDriverError::MessageDetailAmbiguous),
     }
 }
 

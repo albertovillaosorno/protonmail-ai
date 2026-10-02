@@ -179,11 +179,15 @@ provider time/read state, label IDs, MIME type, and attachment descriptors.
 
 That projector deliberately drops message body, raw and parsed headers, password
 fields, key packets, signatures, attachment bytes, and unrelated provider
-fields.
-It is not yet a public `get_message` implementation: WebClients can satisfy an
-already-cached body without issuing the detail GET, and plaintext body/header
-and
-attachment-decryption paths still need independently bounded browser evidence.
+fields. `ManagedBrowser` can passively wait up to 30 seconds for the next
+browser-owned detail GET without clicking, navigating, reloading, or injecting a
+provider request; a clean timeout returns no result and late overlapping detail
+requests fail closed.
+
+This is not yet a public `get_message` implementation. The passive observation
+is not a targeted fetch, WebClients can satisfy an already-cached body without
+issuing the detail GET, and plaintext body/header plus attachment-decryption
+paths still need independently bounded browser evidence.
 
 That still is not enough to advertise provider-neutral `list_messages`. The
 public contract requires `received_at` descending, ID ascending as the tie

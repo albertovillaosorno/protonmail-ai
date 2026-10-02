@@ -26,19 +26,20 @@ Ship useful read access before any mailbox mutation is enabled.
 ## Current evidence
 
 - Mailbox/label catalog metadata can be captured passively and retained as
-  immutable
-  in-memory snapshots, then paged with authenticated
-  account/generation/query-bound
-  cursors without rereading Proton during continuation. Public transport DTO
-  fields are still undefined by the frozen contract, so no wire shape is
-  invented.
+  immutable in-memory snapshots, then paged with authenticated
+  account/generation/query-bound cursors without rereading Proton during
+  continuation. Public transport DTO fields remain undefined by the frozen
+  contract, so no wire shape is invented.
 - Exact single-message `mail/v4/messages/{messageID}` responses can now be
   reduced to bounded identity/envelope/read-state/label/MIME and attachment
-  descriptor
-  metadata while dropping body, headers, passwords, cryptographic packets, and
-  attachment bytes. This does not yet satisfy `get_message`: current WebClients
-  may use cached message body without a network fetch, and plaintext body/header
-  plus attachment-decryption evidence remains open.
+  descriptor metadata while dropping body, headers, passwords, cryptographic
+  packets, and attachment bytes. The managed browser can passively wait for the
+  next app-owned detail GET without clicking, navigating, reloading, or
+  injecting
+  a provider call, with clean timeout and ambiguity handling. This still does
+  not satisfy targeted `get_message`: current WebClients may use cached message
+  body without a network fetch, and plaintext body/header plus attachment
+  decryption evidence remains open.
 
 ## Acceptance criteria
 

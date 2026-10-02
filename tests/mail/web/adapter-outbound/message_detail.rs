@@ -36,7 +36,12 @@ use mail_web_adapter::MessageDetailNetworkCapture;
 use mail_web_adapter::MessageDetailNetworkError;
 use mail_web_adapter::MessageDetailResponseError;
 use mail_web_adapter::ObservedMessageDetailResponse;
+use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 use serde_json::{Value, json};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::Duration;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_URL: &str = "https://mail.proton.me/api/mail/v4/messages/message-1";
@@ -392,4 +397,205 @@ fn detail_network_response_must_preserve_message_identity_and_json_status() {
             Err(MessageDetailNetworkError::ResponseRejected)
         );
     }
+}
+
+static DETAIL_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+fn detail_browser_root(label: &str) -> PathBuf {
+    use std::env;
+    use std::process;
+
+    env::temp_dir().join(format!(
+        "protonmail-ai-message-detail-{label}-{}",
+        process::id()
+    ))
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn fake_detail_browser(root: &Path, emit_detail: bool, late_during_disable: bool) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let script = root.join("fake-browser");
+    let log = root.join("detail-log.txt");
+    let template = r#"#!/usr/bin/env bash
+set -eu
+while IFS= read -r -d '' message <&3; do
+  id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  case "$message" in
+    *'Browser.getVersion'*)
+      printf '{"id":%s,"result":{"product":"FakeChrome/1"}}\0' "$id" >&4;;
+    *'Target.getTargets'*)
+      target='[{"targetId":"page-1","type":"page",'
+      target+='"url":"https://mail.proton.me/u/0/inbox"}]'
+      printf '{"id":%s,"result":{"targetInfos":%s}}\0' "$id" "$target" >&4;;
+    *'Target.attachToTarget'*)
+      printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
+    *'Runtime.evaluate'*)
+      value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
+    *'DOM.getDocument'*)
+      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+    *'Accessibility.queryAXTree'*)
+      case "$message" in
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false}]';;
+        *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
+        *) exit 91;;
+      esac
+      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+    *'Network.enable'*)
+      printf 'enable\n' >> '__LOG__'
+      printf '{"id":%s,"result":{}}\0' "$id" >&4
+      if [ '__EMIT_DETAIL__' = 'true' ]; then
+        url='https://mail.proton.me/api/mail/v4/messages/message-1'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request+='"requestId":"detail-1","request":{"method":"GET","url":"'"$url"'",'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request+='"headers":{"Authorization":"Bearer secret","Cookie":"secret-cookie"}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        response='{"sessionId":"session-1","method":"Network.responseReceived","params":{'
+        response+='"requestId":"detail-1","response":{"url":"'"$url"'",'
+        response+='"status":200,"mimeType":"application/json",'
+        response+='"headers":{"Set-Cookie":"secret-cookie"}}}}'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        finished='{"sessionId":"session-1","method":"Network.loadingFinished","params":{'
+        finished+='"requestId":"detail-1"}}'
+        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
+      fi;;
+    *'Network.getResponseBody'*'"requestId":"detail-1"'*)
+      printf 'body\n' >> '__LOG__'
+      body='{"Code":1000,"Message":{"ID":"message-1",'
+      body+='"ConversationID":"conversation-1","Subject":"subject",'
+      body+='"Sender":{"Name":"Sender","Address":"sender@example.test"},'
+      body+='"ToList":[],"CCList":[],"BCCList":[],"Time":1700000000,'
+      body+='"Unread":0,"LabelIDs":["0"],"MIMEType":"text/plain",'
+      body+='"Attachments":[],"Body":"SECRET-BODY","Header":"SECRET-HEADER"}}'
+      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' \
+        "$id" "${body//\"/\\\"}" >&4;;
+    *'Network.disable'*)
+      printf 'disable\n' >> '__LOG__'
+      if [ '__LATE_DETAIL__' = 'true' ]; then
+        url='https://mail.proton.me/api/mail/v4/messages/late-message'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{'
+        # jig-ignore-next-line: indivisible synthetic shell fixture.
+        request+='"requestId":"detail-late","request":{"method":"GET","url":"'"$url"'"}}}'
+        printf '%s\0' "$request" >&4
+      fi
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Target.detachFromTarget'*)
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+    *'Page.reload'*) exit 94;;
+    *) exit 92;;
+  esac
+done
+"#;
+    let body = template
+        .replace("__LOG__", &log.display().to_string())
+        .replace(
+            "__EMIT_DETAIL__",
+            if emit_detail { "true" } else { "false" },
+        )
+        .replace(
+            "__LATE_DETAIL__",
+            if late_during_disable { "true" } else { "false" },
+        );
+    fs::write(&script, body).expect("write fake detail browser");
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
+        .expect("chmod fake detail browser");
+    script
+}
+
+#[test]
+fn managed_browser_passively_observes_detail_without_navigation() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    let root = detail_browser_root("passive");
+    fs::create_dir_all(&root).expect("create passive detail root");
+    let browser = fake_detail_browser(&root, true, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("passive detail browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build passive detail plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch passive detail browser");
+    let page = managed.provider_page().expect("discover passive Mail page");
+    let observed = managed
+        .observe_passive_message_detail(&page, Duration::from_secs(1))
+        .expect("observe browser-owned detail request")
+        .expect("detail request should arrive");
+    assert_eq!(observed.message().id(), "message-1");
+    assert_eq!(observed.message().subject(), "subject");
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("detail-log.txt")).expect("read passive detail log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove passive detail root");
+}
+
+#[test]
+fn managed_browser_passive_detail_timeout_performs_no_provider_action() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    let root = detail_browser_root("timeout");
+    fs::create_dir_all(&root).expect("create timeout detail root");
+    let browser = fake_detail_browser(&root, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("timeout detail browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build timeout detail plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch timeout detail browser");
+    let page = managed.provider_page().expect("discover timeout Mail page");
+    let observed = managed
+        .observe_passive_message_detail(&page, Duration::from_millis(25))
+        .expect("clean passive detail timeout");
+    assert_eq!(observed, None);
+    assert_eq!(
+        managed.observe_passive_message_detail(&page, Duration::from_secs(31)),
+        Err(BrowserDriverError::MessageDetailWaitTooLong)
+    );
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("detail-log.txt")).expect("read timeout detail log");
+    assert_eq!(log, "enable\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove timeout detail root");
+}
+
+#[test]
+fn detail_started_during_network_disable_fails_closed() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    let root = detail_browser_root("late-disable");
+    fs::create_dir_all(&root).expect("create late-disable detail root");
+    let browser = fake_detail_browser(&root, true, true);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser
+            .to_str()
+            .expect("late-disable detail browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build late-disable detail plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch late-disable browser");
+    let page = managed
+        .provider_page()
+        .expect("discover late-disable Mail page");
+    assert_eq!(
+        managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::MessageDetailAmbiguous)
+    );
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("detail-log.txt")).expect("read late-disable detail log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove late-disable detail root");
 }

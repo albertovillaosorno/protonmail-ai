@@ -314,14 +314,22 @@ web application without requiring Bridge or a third-party direct API identity.
   optional attachment ID/name/size/MIME descriptors. It does not retain `Body`,
   `Header`, `ParsedHeaders`, password/hint fields, key packets, signatures,
   attachment bytes/data, cookies, tokens, or unrelated message fields.
+- `ManagedBrowser::observe_passive_message_detail` now enables bounded Network
+  observation and waits at most 30 seconds for the next app-owned exact detail
+  request. It performs no click, navigation, reload, or provider API injection;
+  a clean timeout returns no detail, Network disable remains observer-aware, and
+  residual or overlapping detail requests fail closed before origin/shell
+  recheck.
 - Synthetic detail coverage proves Unicode metadata, redacted diagnostics,
   endpoint/body identity binding, provider rejection, duplicate label/attachment
   rejection, encoded-body refusal, optional attachment metadata, request
   capacity
-  bounds, response status/MIME checks, redirect rejection, and app-owned retry.
-  This remains response-boundary evidence only: WebClients may use cached body
-  state without another detail GET, and plaintext body/header plus attachment
-  decryption are not yet projected, so `get_message` is not advertised.
+  bounds, response status/MIME checks, redirect rejection, app-owned retry,
+  action-free passive capture/timeout, and late-disable ambiguity detection.
+  This
+  is still not a targeted `get_message`: WebClients may use cached body state
+  without another detail GET, and plaintext body/header plus attachment
+  decryption are not yet projected.
 - A bounded legacy core-event projection now accepts only exact
   `GET /api/core/v5/events/{EventID}` responses and retains the requested and
   response watermarks plus `More`, refresh, and bounded normalized
