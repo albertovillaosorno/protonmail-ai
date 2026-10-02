@@ -49,8 +49,8 @@ mod policy;
 mod profile;
 mod shell;
 
-pub use driver::ProviderPage;
 pub use driver::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+pub use driver::{MailboxEventCancellation, ProviderPage};
 pub use lease::{AutomationProfileLease, ProfileLeaseError};
 pub use list_messages_readiness::{ListMessagesBlocker, ListMessagesReadiness};
 pub use mailbox_event_watermark::MailboxEventSequenceError;

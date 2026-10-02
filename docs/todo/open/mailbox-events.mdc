@@ -77,8 +77,13 @@ bounded resource use.
   diagnostics. Settled web event sequences can mint a scoped next cursor, and
   passive resume releases its provider watermark only for an exact current
   scope; account/adapter/generation drift fails before provider observation.
+- Bounded waits now support cooperative cancellation through a cloneable
+  handle. Cancellable waits poll the DevTools pipe at most every 25 ms, still
+  disable Network and detach before surfacing cancellation, and synthetic
+  coverage proves the same managed browser remains usable immediately after a
+  cancelled wait.
 - Still required: choose and authenticate the public cursor serialization, map
   provider refresh/expiry and cursor gaps into the frozen public errors, obtain
   a safe initial cursor even when a short no-cursor wait times out before the
-  browser's next poll, and prove cancellation, reconnect/backoff, and restart
-  behavior before advertising `wait_for_changes`.
+  browser's next poll, and prove reconnect/backoff and restart behavior before
+  advertising `wait_for_changes`.

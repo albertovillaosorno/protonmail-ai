@@ -37,6 +37,8 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::slice::from_ref;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -89,6 +91,7 @@ const PAGE_ADVANCE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
 const MESSAGE_LIST_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 const MAILBOX_EVENT_MAX_WAIT: Duration = Duration::from_secs(30);
+const MAILBOX_EVENT_CANCEL_POLL: Duration = Duration::from_millis(25);
 const MAILBOX_EVENT_TOTAL_BUFFER_BYTES: usize = 1_048_576;
 
 struct CompletedMessageListRequest {
@@ -139,6 +142,31 @@ impl CapturedMessageListResponses {
             return false;
         };
         last.time() != next.time()
+    }
+}
+
+/// Cooperative cancellation handle for one bounded passive mailbox-event wait.
+#[derive(Clone, Debug, Default)]
+pub struct MailboxEventCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl MailboxEventCancellation {
+    /// Creates a non-cancelled handle.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Requests cancellation of an in-progress bounded wait.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    /// Returns whether cancellation has been requested.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
     }
 }
 
@@ -619,15 +647,42 @@ impl ManagedBrowser {
         page: &ProviderPage,
         wait: Duration,
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        self.observe_mailbox_event_sequence_with_cancellation(page, wait, None)
+    }
+
+    /// Passively observes the browser event loop with cooperative cancellation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `MailboxEventCancelled` when cancellation is requested and every
+    /// error documented by [`Self::observe_mailbox_event_sequence`].
+    pub fn observe_mailbox_event_sequence_cancellable(
+        &mut self,
+        page: &ProviderPage,
+        wait: Duration,
+        cancellation: &MailboxEventCancellation,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        self.observe_mailbox_event_sequence_with_cancellation(page, wait, Some(cancellation))
+    }
+
+    fn observe_mailbox_event_sequence_with_cancellation(
+        &mut self,
+        page: &ProviderPage,
+        wait: Duration,
+        cancellation: Option<&MailboxEventCancellation>,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
         if page.origin != PageOrigin::ProtonMail {
             return Err(BrowserDriverError::MailOriginRequired);
         }
         if wait > MAILBOX_EVENT_MAX_WAIT {
             return Err(BrowserDriverError::MailboxEventWaitTooLong);
         }
+        ensure_event_wait_not_cancelled(cancellation)?;
         let session = self.attach(page)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        let observed = self.observe_mailbox_event_sequence_in_session(page, &session, wait);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.observe_mailbox_event_sequence_in_session(page, &session, wait, cancellation);
         let detached = self.detach(&session);
         let sequence = observed?;
         detached?;
@@ -688,6 +743,7 @@ impl ManagedBrowser {
         page: &ProviderPage,
         session: &str,
         wait: Duration,
+        cancellation: Option<&MailboxEventCancellation>,
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
         let shell = self.inspect_mail_shell_in_session(page, session)?;
         if !shell.ready() {
@@ -705,8 +761,9 @@ impl ManagedBrowser {
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::MailboxEventWaitTooLong)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        let observed = self.capture_mailbox_event_sequence(session, &mut capture, deadline);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.capture_mailbox_event_sequence(session, &mut capture, deadline, cancellation);
         let disabled =
             // jig-ignore-next-line: canonical rustfmt line.
             self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
@@ -725,19 +782,25 @@ impl ManagedBrowser {
         session: &str,
         capture: &mut MailboxEventNetworkCapture,
         deadline: Instant,
+        cancellation: Option<&MailboxEventCancellation>,
     ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
-        // jig-ignore-next-line: canonical rustfmt line.
-        let Some(first_request) = self.wait_for_mailbox_event_request(capture, deadline)? else {
+        let Some(first_request) =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.wait_for_mailbox_event_request(capture, deadline, cancellation)?
+        else {
             return Ok(None);
         };
+        ensure_event_wait_not_cancelled(cancellation)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_mailbox_event_body(session, &first_request, capture)?;
         let mut sequence = ObservedMailboxEventSequence::start(first)
             .map_err(BrowserDriverError::MailboxEventSequence)?;
         while !sequence.settled() {
             let request = self
-                .wait_for_mailbox_event_request(capture, deadline)?
+                // jig-ignore-next-line: canonical rustfmt line.
+                .wait_for_mailbox_event_request(capture, deadline, cancellation)?
                 .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            ensure_event_wait_not_cancelled(cancellation)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let page = self.read_mailbox_event_body(session, &request, capture)?;
             sequence
@@ -767,6 +830,7 @@ impl ManagedBrowser {
         &mut self,
         capture: &mut MailboxEventNetworkCapture,
         deadline: Instant,
+        cancellation: Option<&MailboxEventCancellation>,
     ) -> Result<Option<(String, String)>, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         if let Some(request) = take_one_finished_mailbox_event_request(capture)? {
@@ -774,13 +838,19 @@ impl ManagedBrowser {
         }
         let mut unsolicited = 0u16;
         while Instant::now() < deadline {
+            ensure_event_wait_not_cancelled(cancellation)?;
             let remaining = deadline.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
                 break;
             }
+            let read_wait = cancellation.map_or_else(
+                || remaining.min(PIPE_TIMEOUT),
+                // jig-ignore-next-line: canonical rustfmt line.
+                |_handle| remaining.min(PIPE_TIMEOUT).min(MAILBOX_EVENT_CANCEL_POLL),
+            );
             self.reader
                 .get_mut()
-                .set_read_timeout(Some(remaining.min(PIPE_TIMEOUT)))
+                .set_read_timeout(Some(read_wait))
                 .map_err(|_error| BrowserDriverError::PipeSetup)?;
             let frame = read_frame_waiting(&mut self.reader);
             self.reader
@@ -788,6 +858,7 @@ impl ManagedBrowser {
                 .set_read_timeout(Some(PIPE_TIMEOUT))
                 .map_err(|_error| BrowserDriverError::PipeSetup)?;
             let Some(frame) = frame? else {
+                ensure_event_wait_not_cancelled(cancellation)?;
                 continue;
             };
             unsolicited = unsolicited
@@ -1601,6 +1672,8 @@ pub enum BrowserDriverError {
     EventCursorBinding(EventCursorBindingError),
     /// Requested passive Mail event wait exceeds the frozen 30-second bound.
     MailboxEventWaitTooLong,
+    /// Cooperative cancellation interrupted a passive Mail event wait.
+    MailboxEventCancelled,
     /// No required continuation event response arrived before the deadline.
     MailboxEventResponseUnavailable,
     /// More than one completed or residual event request made capture
@@ -1695,6 +1768,8 @@ impl fmt::Display for BrowserDriverError {
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::MailboxEventWaitTooLong => f.write_str("mailbox-event wait exceeds 30 seconds"),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::MailboxEventCancelled => f.write_str("mailbox-event wait was cancelled"),
             Self::MailboxEventResponseUnavailable => {
                 f.write_str("mailbox-event continuation was unavailable")
             }
@@ -1731,6 +1806,15 @@ impl fmt::Display for BrowserDriverError {
             Self::Protocol => f.write_str("invalid DevTools protocol state"),
         }
     }
+}
+
+fn ensure_event_wait_not_cancelled(
+    cancellation: Option<&MailboxEventCancellation>,
+) -> Result<(), BrowserDriverError> {
+    if cancellation.is_some_and(MailboxEventCancellation::is_cancelled) {
+        return Err(BrowserDriverError::MailboxEventCancelled);
+    }
+    Ok(())
 }
 
 fn expected_message_list_batch_lengths(

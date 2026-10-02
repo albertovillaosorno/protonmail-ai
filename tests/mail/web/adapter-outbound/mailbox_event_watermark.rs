@@ -885,6 +885,42 @@ fn browser_event_wait_timeout_is_successful_empty_and_respects_short_bound() {
 }
 
 #[test]
+fn browser_event_wait_cancellation_is_prompt_and_browser_remains_usable() {
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    let (result, elapsed, page_after) =
+        with_event_browser("cancel", false, false, |browser, page| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let cancellation = mail_web_adapter::MailboxEventCancellation::new();
+            let canceller = cancellation.clone();
+            let worker = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(40));
+                canceller.cancel();
+            });
+            let started = Instant::now();
+            let result = browser.observe_mailbox_event_sequence_cancellable(
+                page,
+                Duration::from_secs(1),
+                &cancellation,
+            );
+            let elapsed = started.elapsed();
+            worker.join().expect("join synthetic cancellation worker");
+            let page_after = browser.provider_page();
+            (result, elapsed, page_after)
+        });
+    assert_eq!(
+        result,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventCancelled)
+    );
+    assert!(elapsed < Duration::from_secs(1));
+    assert_eq!(
+        page_after.expect("browser remains usable").origin(),
+        mail_web_adapter::PageOrigin::ProtonMail
+    );
+}
+
+#[test]
 fn browser_event_wait_rejects_more_than_thirty_seconds() {
     use std::time::Duration;
 
