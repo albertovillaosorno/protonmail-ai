@@ -37,10 +37,12 @@ use mail_web_adapter::{MailboxCatalogPageError, MailboxCatalogPageKind};
 use mail_web_adapter::{ObservedMailboxCatalog, ObservedMailboxCatalogResponse};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 const LABEL_URL: &str = "https://mail.proton.me/api/core/v4/labels?Type=1";
 const FOLDER_URL: &str = "https://mail.proton.me/api/core/v4/labels?Type=3";
 const SYSTEM_URL: &str = "https://mail.proton.me/api/core/v4/labels?Type=4";
+static CATALOG_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn request(session: &str, id: &str, method: &str, url: &str) -> Value {
     json!({
@@ -483,6 +485,9 @@ fn managed_browser_passively_captures_complete_mail_catalog() {
 
     use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("complete");
     fs::create_dir_all(&root).expect("create catalog browser root");
     let browser = fake_catalog_browser(&root, false, false);
@@ -531,6 +536,9 @@ fn managed_browser_disables_network_after_encoded_catalog_body() {
     use mail_web_adapter::BrowserDriverError;
     use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("encoded");
     fs::create_dir_all(&root).expect("create encoded catalog browser root");
     let browser = fake_catalog_browser(&root, true, false);
@@ -569,6 +577,9 @@ fn managed_browser_rejects_duplicate_catalog_kind_before_body_fetch() {
     use mail_web_adapter::BrowserDriverError;
     use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("duplicate-kind");
     fs::create_dir_all(&root).expect("create duplicate catalog browser root");
     let browser = fake_catalog_browser(&root, false, true);
@@ -722,6 +733,9 @@ fn managed_browser_pages_catalog_snapshot_without_provider_reread() {
     // jig-ignore-next-line: canonical rustfmt line.
     use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("paged");
     fs::create_dir_all(&root).expect("create paged catalog root");
     let browser = fake_catalog_browser(&root, false, false);
@@ -861,6 +875,9 @@ fn catalog_page_size_and_account_fail_before_network_capture() {
     // jig-ignore-next-line: canonical rustfmt line.
     use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("page-input");
     fs::create_dir_all(&root).expect("create page-input catalog root");
     let browser = fake_catalog_browser(&root, false, false);
@@ -912,6 +929,9 @@ fn replacing_same_kind_expires_old_cursor_but_other_kind_stays_resumable() {
     // jig-ignore-next-line: canonical rustfmt line.
     use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let root = catalog_browser_root("snapshot-replace");
     fs::create_dir_all(&root).expect("create snapshot-replace root");
     let browser = fake_catalog_browser(&root, false, false);
@@ -1010,6 +1030,9 @@ fn catalog_cursor_expires_across_managed_browser_generation() {
     // jig-ignore-next-line: canonical rustfmt line.
     use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
     let first_root = catalog_browser_root("cursor-generation-first");
     // jig-ignore-next-line: canonical rustfmt line.
     fs::create_dir_all(&first_root).expect("create first cursor-generation root");
@@ -1072,4 +1095,98 @@ fn catalog_cursor_expires_across_managed_browser_generation() {
     assert!(log.is_empty());
     // jig-ignore-next-line: canonical rustfmt line.
     fs::remove_dir_all(&second_root).expect("remove second cursor-generation root");
+}
+
+#[test]
+fn catalog_size_one_chain_is_complete_and_default_page_is_terminal() {
+    use std::fs;
+
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic catalog browser tests");
+    let root = catalog_browser_root("three-page");
+    fs::create_dir_all(&root).expect("create three-page catalog root");
+    let browser = fake_catalog_browser(&root, false, false);
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("three-page browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build three-page catalog plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch three-page catalog browser");
+    let provider_page = managed
+        .provider_page()
+        .expect("discover three-page Mail page");
+
+    let first = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(1),
+        )
+        .expect("capture first single-item page");
+    assert_eq!(first.items()[0].id(), "0");
+    let first_cursor = first.next_cursor().expect("first cursor").to_owned();
+
+    let second = managed
+        .resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(1),
+            &first_cursor,
+        )
+        .expect("resume second single-item page");
+    assert_eq!(second.items()[0].id(), "folder-parent");
+    let second_cursor = second.next_cursor().expect("second cursor").to_owned();
+
+    let replay_second = managed
+        .resume_mailbox_catalog_page(
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            Some(1),
+            &first_cursor,
+        )
+        .expect("replay second page state");
+    assert_eq!(replay_second.items(), second.items());
+    let replay_cursor = replay_second
+        .next_cursor()
+        .expect("replayed second page cursor")
+        .to_owned();
+    assert_ne!(replay_cursor, second_cursor);
+
+    for cursor in [&second_cursor, &replay_cursor] {
+        let third = managed
+            .resume_mailbox_catalog_page(
+                "account-a",
+                MailboxCatalogPageKind::Mailboxes,
+                Some(1),
+                cursor,
+            )
+            .expect("both randomized cursors resume final state");
+        assert_eq!(third.items()[0].id(), "folder-child");
+        assert_eq!(third.next_cursor(), None);
+    }
+
+    let default_page = managed
+        .observe_mailbox_catalog_page(
+            &provider_page,
+            "account-a",
+            MailboxCatalogPageKind::Mailboxes,
+            None,
+        )
+        .expect("default size captures terminal page");
+    assert_eq!(default_page.items().len(), 3);
+    assert_eq!(default_page.next_cursor(), None);
+
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("catalog-log.txt")).expect("read three-page catalog log");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let one_capture = "enable\nreload\nbody-folder\nbody-label\nbody-system\ndisable\n";
+    assert_eq!(log, one_capture.repeat(2));
+    fs::remove_dir_all(&root).expect("remove three-page catalog root");
 }
