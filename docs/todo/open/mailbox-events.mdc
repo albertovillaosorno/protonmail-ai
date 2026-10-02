@@ -123,8 +123,10 @@ bounded resource use.
   the outbound web adapter. `ev1` tokens use AES-256-GCM with a fresh random
   96-bit nonce, URL-safe base64 framing, and a zeroizing in-memory key owned by
   the managed-browser generation. Account, adapter, generation, and provider
-  watermark live only inside authenticated ciphertext; diagnostics redact both
-  generation and key material. Re-encoding the same cursor yields different
+  watermark are authenticated inside ciphertext; a separate random nonsemantic
+  generation hint permits deterministic prior-generation expiry without
+  exposing account or mailbox state while diagnostics redact generation/key
+  material. Re-encoding the same cursor yields different
   tokens, ciphertext tampering/account-or-adapter drift is `InvalidCursor`, and
   a well-formed token from a prior browser generation is `CursorExpired`.
 - Transport-ready change-page entry points now derive scope from the managed
