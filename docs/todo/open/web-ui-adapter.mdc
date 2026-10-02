@@ -279,7 +279,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - The core-v5 classifier is wired into a passive managed-browser wait of at most
   30 seconds. First-event timeout returns empty, immediate `More=1` pages are
   drained through exact `EventID` chaining, and Network is disabled before
-  return. Arbitrary client-cursor resume is not yet implemented.
+  return. An acknowledged provider watermark may resume only when the
+  browser-owned next event request starts at that exact watermark; drift fails
+  as a cursor gap, but arbitrary seek after the browser loop moves remains
+  unavailable.
 - Current list-response consumers expose no `EventID`, revision, cursor, or
   snapshot field that can bind a cursor chain. WebClients also labels
   `dynamicPageLength` as not fully consistent and suitable only for

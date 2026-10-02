@@ -632,6 +632,36 @@ impl ManagedBrowser {
         Ok(sequence)
     }
 
+    /// Passively observes only if the browser resumes from the acknowledged
+    /// provider event watermark exactly.
+    ///
+    /// This never seeks or injects an event request. A mismatch between the
+    /// acknowledged watermark and the browser-owned next request fails as a
+    /// cursor gap rather than silently skipping forward.
+    ///
+    /// # Errors
+    ///
+    /// Rejects malformed expected watermarks and every error documented by
+    /// [`Self::observe_mailbox_event_sequence`].
+    pub fn observe_mailbox_event_sequence_from(
+        &mut self,
+        page: &ProviderPage,
+        expected_event_id: &str,
+        wait: Duration,
+    ) -> Result<Option<ObservedMailboxEventSequence>, BrowserDriverError> {
+        ObservedMailboxEventWatermark::validate_event_id(expected_event_id)
+            .map_err(BrowserDriverError::MailboxEventWatermark)?;
+        let observed = self.observe_mailbox_event_sequence(page, wait)?;
+        if let Some(sequence) = observed.as_ref()
+            && sequence.start_event_id() != expected_event_id
+        {
+            return Err(BrowserDriverError::MailboxEventSequence(
+                MailboxEventSequenceError::CursorGap,
+            ));
+        }
+        Ok(observed)
+    }
+
     fn observe_mailbox_event_sequence_in_session(
         &mut self,
         page: &ProviderPage,

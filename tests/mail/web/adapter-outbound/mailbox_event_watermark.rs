@@ -35,6 +35,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use mail_web_adapter::MailboxEventSequenceError;
 use mail_web_adapter::MailboxEventWatermarkError;
 use mail_web_adapter::ObservedLatestMailboxEventWatermark;
 use mail_web_adapter::ObservedMailboxEventWatermark;
@@ -826,5 +827,61 @@ fn browser_event_wait_rejects_more_than_thirty_seconds() {
     assert_eq!(
         result,
         Err(mail_web_adapter::BrowserDriverError::MailboxEventWaitTooLong)
+    );
+}
+
+#[test]
+fn browser_resume_requires_exact_acknowledged_event_watermark() {
+    use std::time::Duration;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let matching = with_event_browser("resume-match", false, true, |browser, page| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_mailbox_event_sequence_from(page, "event-7", Duration::from_secs(1))
+    });
+    let sequence = matching
+        .expect("matching acknowledged cursor must be observed")
+        .expect("matching event must arrive");
+    assert_eq!(sequence.start_event_id(), "event-7");
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let drifted = with_event_browser("resume-gap", false, true, |browser, page| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_mailbox_event_sequence_from(page, "event-6", Duration::from_secs(1))
+    });
+    assert_eq!(
+        drifted,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventSequence(
+            MailboxEventSequenceError::CursorGap
+        ))
+    );
+}
+
+#[test]
+fn browser_resume_timeout_preserves_existing_acknowledged_watermark() {
+    use std::time::Duration;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let result = with_event_browser("resume-timeout", false, false, |browser, page| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_mailbox_event_sequence_from(page, "event-7", Duration::from_millis(30))
+    });
+    assert_eq!(result, Ok(None));
+}
+
+#[test]
+fn browser_resume_rejects_malformed_provider_watermark() {
+    use std::time::Duration;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let result = with_event_browser("resume-invalid", false, false, |browser, page| {
+        // jig-ignore-next-line: canonical rustfmt line.
+        browser.observe_mailbox_event_sequence_from(page, "bad/event", Duration::from_millis(30))
+    });
+    assert_eq!(
+        result,
+        Err(mail_web_adapter::BrowserDriverError::MailboxEventWatermark(
+            MailboxEventWatermarkError::Malformed
+        ))
     );
 }

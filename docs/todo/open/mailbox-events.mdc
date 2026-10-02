@@ -64,8 +64,12 @@ bounded resource use.
   Network before returning. The transport also caps unsolicited frames at 128
   and short waits temporarily lower the pipe read timeout so they do not
   overshoot the requested bound.
+- Resume preflight now accepts an acknowledged provider watermark only when the
+  browser-owned next core-v5 request starts at that exact watermark. A mismatch
+  fails as a cursor gap, malformed watermarks fail before observation, and an
+  empty timeout leaves the acknowledged watermark unchanged. The adapter still
+  cannot seek an arbitrary older cursor after the browser event loop has moved.
 - Still required: define the public opaque cursor envelope bound to
-  account/adapter generation, resume from an arbitrary acknowledged cursor
-  without private API injection, map provider refresh/expiry into the frozen
-  cursor errors, and prove cancellation, reconnect/backoff, and no-gap resume
-  behavior before advertising `wait_for_changes`.
+  account/adapter generation, map provider refresh/expiry and cursor gaps into
+  the frozen public errors, and prove cancellation, reconnect/backoff, and
+  restart behavior before advertising `wait_for_changes`.

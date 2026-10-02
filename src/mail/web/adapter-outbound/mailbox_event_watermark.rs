@@ -395,6 +395,14 @@ impl ObservedMailboxEventWatermark {
     /// Maximum decoded event-response body retained for immediate projection.
     pub const MAX_BODY_BYTES: usize = MAX_EVENT_BODY_BYTES;
 
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub(crate) fn validate_event_id(event_id: &str) -> Result<(), MailboxEventWatermarkError> {
+        if valid_event_id(event_id) {
+            return Ok(());
+        }
+        Err(MailboxEventWatermarkError::Malformed)
+    }
+
     /// Validates one exact core-v5 event response and projects only safe state.
     ///
     /// # Errors
