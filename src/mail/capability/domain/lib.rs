@@ -35,6 +35,11 @@
 
 #![forbid(unsafe_code)]
 
+mod event_cursor;
+
+pub use event_cursor::EventCursorBindingError;
+pub use event_cursor::{EventCursorScope, ScopedEventCursor};
+
 /// Frozen version-one public tool contract.
 #[path = "../contract/v1.rs"]
 pub mod contract_v1;

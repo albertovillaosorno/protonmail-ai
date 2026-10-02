@@ -22,6 +22,10 @@ path = "../../../../tests/mail/capability/domain/safety.rs"
 name = "mail-capability-contract-v1"
 path = "../../../../tests/mail/capability/contract/v1.rs"
 
+[[test]]
+name = "mail-capability-event-cursor"
+path = "../../../../tests/mail/capability/domain/event_cursor.rs"
+
 [lints]
 workspace = true
 
