@@ -3,7 +3,7 @@
 **/*.rs.bk
 
 # Local reference corpus: useful for research, never published wholesale.
-/reference/
+/reference
 
 # Credentials and local state
 .env
@@ -17,9 +17,9 @@
 /state/
 
 # Jig and local tooling state
-/.cache/
-/.dependencies/
-/.temp/
+/.cache
+/.dependencies
+/.temp
 /.jig/graph/jig.db
 /.jig/graph/jig.db-*
 

@@ -97,8 +97,8 @@ selector = "workspace.dependencies.nix.version"
 template = "={version}"
 
 [authority.git]
-current = "2.55.0"
-stable = "2.55.0"
+current = "2.56.0"
+stable = "2.56.0"
 
 [authority.git.projection.tool]
 kind = "tool"
