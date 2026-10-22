@@ -1607,3 +1607,183 @@ fn browser_resume_rejects_malformed_provider_watermark() {
         ))
     );
 }
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn cdp_lifecycle_event(method: &str, request_id: &str, url: &str) -> serde_json::Value {
+    use serde_json::json;
+    let params = match method {
+        "Network.requestWillBeSent" => {
+            json!({"requestId":request_id,"request":{"method":"GET","url":url}})
+        }
+        "Network.responseReceived" => {
+            json!({"requestId":request_id,"response":{
+                "url":url,"status":200u16,"mimeType":"application/json"
+            }})
+        }
+        _ => json!({"requestId":request_id}),
+    };
+    json!({"sessionId":"session-1","method":method,"params":params})
+}
+
+#[test]
+fn latest_event_consumed_ids_reject_all_late_lifecycle_events() {
+    use mail_web_adapter::MailboxEventNetworkError;
+    let url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+    ] {
+        capture
+            .observe(&cdp_lifecycle_event(method, "latest-secret", url))
+            .expect("consume complete latest-event GET");
+    }
+    assert_eq!(capture.take_finished_request_ids(), ["latest-secret"]);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+        "Network.loadingFailed",
+    ] {
+        assert_eq!(
+            capture.observe(&cdp_lifecycle_event(method, "latest-secret", url)),
+            Err(MailboxEventNetworkError::InvalidSequence)
+        );
+    }
+    assert!(!format!("{capture:?}").contains("latest-secret"));
+}
+
+#[test]
+fn event_poll_consumed_ids_reject_all_late_lifecycle_events() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    let mut capture = MailboxEventNetworkCapture::new("session-1");
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+    ] {
+        capture
+            .observe(&cdp_lifecycle_event(method, "poll-secret", URL))
+            .expect("consume complete v5 event GET");
+    }
+    assert_eq!(capture.take_finished_request_ids(), ["poll-secret"]);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+        "Network.loadingFailed",
+    ] {
+        assert_eq!(
+            capture.observe(&cdp_lifecycle_event(method, "poll-secret", URL)),
+            Err(MailboxEventNetworkError::InvalidSequence)
+        );
+    }
+    assert!(!format!("{capture:?}").contains("poll-secret"));
+}
+
+#[test]
+fn latest_and_v5_event_request_ids_are_bounded_after_consumption() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let mut events = MailboxEventNetworkCapture::new("session-1");
+    for index in 0u8..32u8 {
+        let id = format!("private-{index}");
+        for method in [
+            "Network.requestWillBeSent",
+            "Network.responseReceived",
+            "Network.loadingFinished",
+        ] {
+            latest
+                .observe(&cdp_lifecycle_event(method, &id, latest_url))
+                .expect("capture bounded latest event");
+            events
+                .observe(&cdp_lifecycle_event(method, &id, URL))
+                .expect("capture bounded v5 event");
+        }
+        assert_eq!(latest.take_finished_request_ids(), [id.as_str()]);
+        assert_eq!(events.take_finished_request_ids(), [id.as_str()]);
+    }
+    for (id, expected) in [
+        (
+            "overflow".to_owned(),
+            MailboxEventNetworkError::CapacityExceeded,
+        ),
+        (String::new(), MailboxEventNetworkError::MalformedEvent),
+        ("x".repeat(513), MailboxEventNetworkError::MalformedEvent),
+    ] {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let fresh = cdp_lifecycle_event("Network.requestWillBeSent", &id, latest_url);
+        let poll = cdp_lifecycle_event("Network.requestWillBeSent", &id, URL);
+        assert_eq!(latest.observe(&fresh), Err(expected));
+        assert_eq!(events.observe(&poll), Err(expected));
+    }
+    assert!(!format!("{latest:?}").contains("private-"));
+    assert!(!format!("{events:?}").contains("private-"));
+}
+
+#[test]
+fn consumed_event_ids_replayed_during_network_disable_fail_closed() {
+    use mail_web_adapter::{BrowserDriverError, MailboxEventNetworkError};
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+    use serde_json::json;
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock event browser fixtures");
+    for (name, request_id, event_poll) in [
+        ("latest-replay", "latest-1", false),
+        ("v5-replay", "event-1", true),
+    ] {
+        let root = event_browser_root(name);
+        fs::create_dir_all(&root).expect("create synthetic event browser root");
+        let executable = fake_event_browser(&root, false, event_poll);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&executable).expect("read fake CDP browser");
+        let marker = "    *'Network.disable'*)\n";
+        assert!(script.contains(marker));
+        let late = json!({
+            "sessionId":"session-1","method":"Network.loadingFailed",
+            "params":{"requestId":request_id}
+        });
+        // jig-ignore-next-line: canonical rustfmt line.
+        let injected = format!("{marker}      late='{late}'\n      printf '%s\\0' \"$late\" >&4\n");
+        fs::write(&executable, script.replacen(marker, &injected, 1))
+            .expect("install replayed event request ID");
+        let plan = ManagedBrowserPlan::under_data_home(
+            executable.to_str().expect("synthetic browser path UTF-8"),
+            &root.join("data"),
+        )
+        .expect("build synthetic event plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut browser = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = browser.provider_page().expect("find Mail test page");
+        let observed = if event_poll {
+            browser
+                .observe_mailbox_event_sequence(&page, Duration::from_secs(1))
+                .map(|_value| ())
+        } else {
+            browser
+                .observe_mailbox_event_bootstrap(&page)
+                .map(|_value| ())
+        };
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::MailboxEventNetwork(
+                MailboxEventNetworkError::InvalidSequence
+            )),
+        );
+        browser
+            .require_mail_shell(&page)
+            .expect("same CDP connection remains safe for shell inspection");
+        drop(browser);
+        fs::remove_dir_all(&root).expect("clean synthetic event browser root");
+    }
+}

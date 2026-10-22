@@ -25,6 +25,16 @@ bounded resource use.
 - Expose observation only while a client request or explicit service lifecycle
   owns it; do not create an implicit public daemon.
 
+## Additional synthetic lifecycle evidence
+
+- Both latest-event bootstrap and v5 event-loop CDP classifiers now bound
+  retained completed request IDs to 32 combined lifecycle slots and a 512-byte
+  per-ID ceiling. A completed ID cannot be replayed after consumption, while
+  a genuinely failed unfinished poll remains eligible for app-owned retry.
+- Fake Chromium tests inject a late failure for a completed bootstrap or event
+  GET during Network disable, then prove the session can still be inspected
+  without navigation, additional polling, or leaking event payload content.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

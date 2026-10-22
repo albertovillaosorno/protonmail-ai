@@ -576,6 +576,13 @@ web application without requiring Bridge or a third-party direct API identity.
   completed IDs. Synthetic tests cover each event type, the capacity limit,
   redacted diagnostics, and a late failure during Network.disable followed by
   safe browser shell inspection.
+- Latest-event bootstrap and v5 mailbox-change Network captures now keep a
+  combined 32-request pending/completed ledger with 512-byte exact CDP IDs.
+  Consumed IDs are terminal, so late replies, failures, or reused IDs fail
+  closed during teardown, while incomplete failed provider polls still allow
+  a genuine app-owned retry. Unit regressions cover replay, capacity, and
+  redacted diagnostics; synthetic browser tests inject a late failure during
+  Network.disable in each flow and prove subsequent safe Mail-shell access.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -43,6 +43,7 @@ const LATEST_EVENT_URL: &str = "https://mail.proton.me/api/core/v4/events/latest
 const MAX_EVENT_BODY_BYTES: usize = 262_144;
 const MAX_EVENT_ID_BYTES: usize = 512;
 const MAX_TRACKED_EVENT_REQUESTS: usize = 32;
+const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_PROJECTED_CHANGES: usize = 512;
 const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
 const MAX_EVENT_SEQUENCE_CHANGES: usize = 4096;
@@ -66,6 +67,7 @@ struct TrackedEventRequest {
 pub struct LatestMailboxEventNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, EventRequestState>,
+    completed_ids: BTreeSet<String>,
 }
 
 impl LatestMailboxEventNetworkCapture {
@@ -75,6 +77,7 @@ impl LatestMailboxEventNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
         }
     }
 
@@ -115,6 +118,7 @@ impl LatestMailboxEventNetworkCapture {
             .collect::<Vec<_>>();
         self.requests
             .retain(|_id, state| *state != EventRequestState::Finished);
+        self.completed_ids.extend(finished.iter().cloned());
         finished
     }
 
@@ -138,6 +142,9 @@ impl LatestMailboxEventNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         let tracked = self.requests.contains_key(request_id);
         let candidate = method == "GET" && is_latest_event_url(url);
         if tracked && !candidate {
@@ -149,7 +156,13 @@ impl LatestMailboxEventNetworkCapture {
         if tracked {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        if self.requests.len() >= MAX_TRACKED_EVENT_REQUESTS {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+            return Err(MailboxEventNetworkError::MalformedEvent);
+        }
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_EVENT_REQUESTS
+        {
             return Err(MailboxEventNetworkError::CapacityExceeded);
         }
         self.requests
@@ -166,6 +179,9 @@ impl LatestMailboxEventNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         if !self.requests.contains_key(request_id) {
             return Ok(());
         }
@@ -195,6 +211,9 @@ impl LatestMailboxEventNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         let Some(state) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -208,6 +227,9 @@ impl LatestMailboxEventNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -218,6 +240,7 @@ impl fmt::Debug for LatestMailboxEventNetworkCapture {
         f.debug_struct("LatestMailboxEventNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .finish()
     }
 }
@@ -227,6 +250,7 @@ impl fmt::Debug for LatestMailboxEventNetworkCapture {
 pub struct MailboxEventNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedEventRequest>,
+    completed_ids: BTreeSet<String>,
 }
 
 impl MailboxEventNetworkCapture {
@@ -236,6 +260,7 @@ impl MailboxEventNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
         }
     }
 
@@ -285,6 +310,9 @@ impl MailboxEventNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != EventRequestState::Finished);
+        for (request_id, _event_id) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -308,6 +336,9 @@ impl MailboxEventNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         let tracked = self.requests.contains_key(request_id);
         // jig-ignore-next-line: canonical rustfmt line.
         let candidate = method == "GET" && url.starts_with(CORE_EVENT_URL_PREFIX);
@@ -323,7 +354,13 @@ impl MailboxEventNetworkCapture {
         let event_id =
             // jig-ignore-next-line: canonical rustfmt line.
             event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::MalformedEvent)?;
-        if self.requests.len() >= MAX_TRACKED_EVENT_REQUESTS {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+            return Err(MailboxEventNetworkError::MalformedEvent);
+        }
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_EVENT_REQUESTS
+        {
             return Err(MailboxEventNetworkError::CapacityExceeded);
         }
         self.requests.insert(
@@ -345,6 +382,9 @@ impl MailboxEventNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         if !self.requests.contains_key(request_id) {
             return Ok(());
         }
@@ -377,6 +417,9 @@ impl MailboxEventNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -390,6 +433,9 @@ impl MailboxEventNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -400,6 +446,7 @@ impl fmt::Debug for MailboxEventNetworkCapture {
         f.debug_struct("MailboxEventNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .finish()
     }
 }
