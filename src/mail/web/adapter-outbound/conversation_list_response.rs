@@ -428,8 +428,7 @@ impl ObservedConversationListResponse {
             let id = conversation
                 .get("ID")
                 .and_then(Value::as_str)
-                // jig-ignore-next-line: canonical rustfmt line.
-                .filter(|id| !id.is_empty() && id.len() <= MAX_CONVERSATION_ID_BYTES)
+                .filter(|id| valid_list_id(id, MAX_CONVERSATION_ID_BYTES))
                 .ok_or(ConversationListResponseError::Malformed)?;
             if !ids.insert(id) {
                 // jig-ignore-next-line: canonical rustfmt line.
@@ -544,7 +543,7 @@ impl ReconciledVisibleConversationMetadata {
         let mut seen = BTreeSet::new();
         for id in visible_ids {
             // jig-ignore-next-line: canonical rustfmt line.
-            if id.is_empty() || id.len() > MAX_CONVERSATION_ID_BYTES || !seen.insert(*id) {
+            if !valid_list_id(id, MAX_CONVERSATION_ID_BYTES) || !seen.insert(*id) {
                 // jig-ignore-next-line: canonical rustfmt line.
                 return Err(ConversationListReconciliationError::InvalidVisibleId);
             }
@@ -614,6 +613,17 @@ pub enum ConversationListResponseError {
     DuplicateConversationId,
     /// CDP returned an encoded body instead of decoded JSON text.
     UnsupportedEncoding,
+}
+
+/// Accept only bounded opaque identifiers safe to carry into detail routes.
+fn valid_list_id(id: &str, maximum: usize) -> bool {
+    !id.is_empty()
+        && id.len() <= maximum
+        && !id.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(character, '/' | '?' | '#' | '\\')
+        })
 }
 
 fn is_conversation_list_url(url: &str) -> bool {

@@ -641,6 +641,11 @@ web application without requiring Bridge or a third-party direct API identity.
   than an ordinary request failure. The finished response remains available
   for capture teardown and cannot be silently erased. Synthetic state tests
   cover both list types and ensure debug diagnostics omit request IDs.
+- Message-list and conversation-list metadata now validate provider IDs as
+  safe opaque route components before projecting them. Empty, oversized,
+  control/whitespace-bearing, or delimiter-bearing IDs fail closed, including
+  Unicode whitespace. The same rule applies to stable rendered IDs before
+  reconciliation; tests retain printable opaque IDs at the 512-byte ceiling.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

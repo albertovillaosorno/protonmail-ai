@@ -724,8 +724,7 @@ impl ObservedMessageListResponse {
             let id = message
                 .get("ID")
                 .and_then(Value::as_str)
-                // jig-ignore-next-line: canonical rustfmt line.
-                .filter(|id| !id.is_empty() && id.len() <= MAX_MESSAGE_LIST_ID_BYTES)
+                .filter(|id| valid_list_id(id, MAX_MESSAGE_LIST_ID_BYTES))
                 .ok_or(MessageListResponseError::Malformed)?;
             let time = message
                 .get("Time")
@@ -845,7 +844,10 @@ impl ReconciledVisibleMessageMetadata {
 
         let mut visible = BTreeSet::new();
         for id in visible_ids {
-            if id.is_empty() || !visible.insert(*id) {
+            if !valid_list_id(id, MAX_MESSAGE_LIST_ID_BYTES) {
+                return Err(MessageListReconciliationError::InvalidVisibleId);
+            }
+            if !visible.insert(*id) {
                 return Err(MessageListReconciliationError::DuplicateVisibleId);
             }
         }
@@ -881,6 +883,8 @@ pub enum MessageListReconciliationError {
     TooManyVisibleMessages,
     /// Stable visible evidence repeats or contains an empty message ID.
     DuplicateVisibleId,
+    /// One visible message ID cannot safely name an exact provider read.
+    InvalidVisibleId,
     /// Two observed provider batches overlap on the same message ID.
     DuplicateObservedId,
     /// A stable visible message ID has no observed machine metadata.
@@ -908,6 +912,17 @@ pub enum MessageListResponseError {
     DuplicateMessageId,
     /// CDP returned an encoded body instead of decoded JSON text.
     UnsupportedEncoding,
+}
+
+/// Accept only bounded opaque identifiers safe to carry into detail routes.
+fn valid_list_id(id: &str, maximum: usize) -> bool {
+    !id.is_empty()
+        && id.len() <= maximum
+        && !id.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(character, '/' | '?' | '#' | '\\')
+        })
 }
 
 fn is_message_list_url(url: &str) -> bool {

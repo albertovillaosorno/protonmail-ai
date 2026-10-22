@@ -234,6 +234,12 @@ Ship useful read access before any mailbox mutation is enabled.
   contradiction, even before the completed request has been consumed. Pure
   synthetic tests prove the completed request remains recoverable for cleanup.
 
+- Projected message and conversation list IDs now use the same bounded
+  route-component safety rules as their detail-read endpoints, additionally
+  disallowing Unicode whitespace and controls. Rendered-row reconciliation
+  fails before metadata lookup on such IDs; provider content never enters
+  an error or debug diagnostic. This is still not public paginated reading.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -1517,3 +1517,47 @@ fn completed_conversation_get_cannot_be_turned_into_failed_list_before_consumpti
     assert_eq!(capture.take_finished_request_ids().len(), 0);
     assert!(!format!("{capture:?}").contains("done-secret"));
 }
+
+#[test]
+fn list_projection_rejects_unsafe_conversation_route_ids() {
+    use serde_json::json;
+    for bad in [
+        // jig-ignore-next-line: canonical rustfmt line.
+        "x/y", "x?y", "x#y", "x\\y", "x y", "x\ny", "x\ty", "x\rY", "x\u{a0}y", "x\u{7f}y", "",
+    ] {
+        let body = json!({
+            "Code":1000u16, "Stale":0u8, "Total":1u8,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "Conversations":[{"ID":bad,"Time":1u64,"Order":1i64,"NumMessages":1u8}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedConversationListResponse::parse("GET", URL, &body),
+            Err(ConversationListResponseError::Malformed)
+        );
+    }
+    for id in ["opaque+_~=", &"x".repeat(512)] {
+        let body = json!({
+            "Code":1000u16, "Stale":0u8, "Total":1u8,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "Conversations":[{"ID":id,"Time":1u64,"Order":1i64,"NumMessages":1u8}]
+        })
+        .to_string();
+        // jig-ignore-next-line: canonical rustfmt line.
+        let projected = ObservedConversationListResponse::parse("GET", URL, &body)
+            .expect("accept safe bounded opaque conversation ID");
+        assert_eq!(projected.conversations()[0].id(), id);
+    }
+}
+
+#[test]
+fn visible_conversation_ids_are_checked_before_metadata_lookup() {
+    let response = ObservedConversationListResponse::parse("GET", URL, body())
+        .expect("parse safe synthetic list");
+    for id in ["", "c/1", "c?1", "c#1", "c\\1", "c 1", "c\n1", "c\u{a0}1"] {
+        assert_eq!(
+            ReconciledVisibleConversationMetadata::reconcile(&[id], &response),
+            Err(ConversationListReconciliationError::InvalidVisibleId)
+        );
+    }
+}

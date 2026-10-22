@@ -927,3 +927,64 @@ fn completed_message_list_get_cannot_be_turned_into_failed_list_before_consumpti
     assert_eq!(capture.take_finished_request_ids().len(), 0);
     assert!(!format!("{capture:?}").contains("done-secret"));
 }
+
+#[test]
+fn list_projection_rejects_unsafe_message_route_ids() {
+    use serde_json::json;
+    let bad_ids = [
+        "with/slash",
+        "with?query",
+        "with#fragment",
+        "with\\backslash",
+        "with space",
+        "with\nnewline",
+        "with\ttab",
+        "with\rreturn",
+        "with\u{a0}nbsp",
+        "with\u{7f}del",
+        "",
+    ];
+    for bad in bad_ids {
+        let body = json!({
+            "Stale":0u8,"Total":1u8,
+            "Messages":[{"ID":bad,"Time":1u64,"Order":2i64}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedMessageListResponse::parse("GET", URL, &body),
+            Err(MessageListResponseError::Malformed)
+        );
+    }
+    for valid in ["opaque+_~=", &"x".repeat(512)] {
+        let body = json!({
+            "Stale":0u8,"Total":1u8,
+            "Messages":[{"ID":valid,"Time":1u64,"Order":2i64}]
+        })
+        .to_string();
+        let result = ObservedMessageListResponse::parse("GET", URL, &body)
+            .expect("accept safe bounded opaque provider ID");
+        assert_eq!(result.messages()[0].id(), valid);
+    }
+}
+
+#[test]
+fn visible_message_ids_are_checked_before_metadata_lookup() {
+    use std::slice::from_ref;
+    let good = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Stale":0,"Total":1,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
+    )
+    .expect("parse synthetic metadata");
+    for id in ["", "m/1", "m?1", "m#1", "m\\1", "m 1", "m\n1", "m\u{a0}1"] {
+        assert_eq!(
+            ReconciledVisibleMessageMetadata::reconcile(&[id], from_ref(&good)),
+            Err(MessageListReconciliationError::InvalidVisibleId)
+        );
+    }
+    let oversized = "x".repeat(513);
+    assert_eq!(
+        ReconciledVisibleMessageMetadata::reconcile(&[&oversized], &[good]),
+        Err(MessageListReconciliationError::InvalidVisibleId)
+    );
+}
