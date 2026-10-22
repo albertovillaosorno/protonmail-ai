@@ -984,7 +984,7 @@ fn managed_browser_rejects_request_page_mismatch_and_anchor() {
             observed,
             Err(BrowserDriverError::ConversationListPageUnproven)
         );
-        assert_eq!(log, "enable\nbody\ndisable\n");
+        assert_eq!(log, "enable\ndisable\n");
     }
 }
 

@@ -149,6 +149,13 @@ Ship useful read access before any mailbox mutation is enabled.
   returned rows but positive provider total is treated as contradictory,
   without inferring that a later page represents an empty mailbox.
 
+- For visible-ID diagnostics, sanitized conversation-list page/anchor
+  evidence is now checked immediately after the app-owned GET lifecycle and
+  *before* requesting its response body. Requests for another page or an
+  anchor continuation fail without reading provider JSON at all; Network is
+  still disabled before surfacing the error. The independent, explicitly
+  passive raw-list observer retains its previous behavior.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

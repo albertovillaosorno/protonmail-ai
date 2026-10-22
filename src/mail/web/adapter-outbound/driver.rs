@@ -2244,8 +2244,9 @@ impl ManagedBrowser {
             return Err(BrowserDriverError::MailOriginRequired);
         }
         let session = self.attach(page)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        let observed = self.observe_passive_conversation_list_in_session(page, &session, wait);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.observe_passive_conversation_list_in_session(page, &session, wait, None);
         let detached = self.detach(&session);
         let list = observed?;
         detached?;
@@ -2257,6 +2258,7 @@ impl ManagedBrowser {
         page: &ProviderPage,
         session: &str,
         wait: Duration,
+        expected_page: Option<&MailboxListEvidence>,
     ) -> Result<Option<CapturedConversationListResponse>, BrowserDriverError> {
         let before = self.inspect_mail_shell_in_session(page, session)?;
         if !before.ready() {
@@ -2283,8 +2285,9 @@ impl ManagedBrowser {
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::ConversationListWaitTooLong)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        let observed = self.capture_passive_conversation_list(session, &mut capture, deadline);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.capture_passive_conversation_list(session, &mut capture, deadline, expected_page);
         let disabled =
             // jig-ignore-next-line: canonical rustfmt line.
             self.call_in_session_observing(session, "Network.disable", &json!({}), &mut capture);
@@ -2307,12 +2310,21 @@ impl ManagedBrowser {
         session: &str,
         capture: &mut ConversationListNetworkCapture,
         deadline: Instant,
+        expected_page: Option<&MailboxListEvidence>,
     ) -> Result<Option<CapturedConversationListResponse>, BrowserDriverError> {
         let Some((request_id, requested_page, anchor_continuation)) =
             self.wait_for_conversation_list_request(capture, deadline)?
         else {
             return Ok(None);
         };
+        // Never decode an irrelevant provider body when the already-visible
+        // pagination evidence rules out a match to this request.
+        if expected_page.is_some_and(|visible| {
+            // jig-ignore-next-line: canonical rustfmt line.
+            anchor_continuation || !conversation_request_page_matches(visible, requested_page)
+        }) {
+            return Err(BrowserDriverError::ConversationListPageUnproven);
+        }
         let body = self.call_in_session_observing(
             session,
             "Network.getResponseBody",
@@ -2431,8 +2443,9 @@ impl ManagedBrowser {
                 return Err(BrowserDriverError::MailboxPageNotSettled);
             }
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        let observed = self.observe_passive_conversation_list_in_session(page, session, wait)?;
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            self.observe_passive_conversation_list_in_session(page, session, wait, Some(&before))?;
         let after_mode = self.inspect_mailbox_mode_in_session(page, session)?;
         if after_mode != before_mode {
             return Err(BrowserDriverError::MailboxModeChanged);

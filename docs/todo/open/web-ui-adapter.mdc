@@ -494,6 +494,13 @@ web application without requiring Bridge or a third-party direct API identity.
   This supplements zero-based Page and anchor-pair validation without retaining
   search, label, or other request query strings; tests exercise each malformed
   selector and preserve the accepted initial-list query shape.
+- A visible conversation-list diagnostic now checks its sanitized request
+  page and anchor presence *before* calling `Network.getResponseBody`. Even a
+  fresh mismatched response is not decoded, and Network teardown remains
+  mandatory; synthetic tests check the absent body-read call for mismatched
+  pages, missing page evidence, and anchor continuations. The standalone
+  passive diagnostic still observes app-owned requests without a visible-page
+  constraint.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
