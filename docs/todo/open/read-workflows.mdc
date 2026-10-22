@@ -225,6 +225,10 @@ Ship useful read access before any mailbox mutation is enabled.
   This is a conservative identity check rather than provider search semantics;
   unknown repeated filter values cannot reorder silently between batches.
 
+- Direct list response projection now enforces the capture's 16 KiB URL
+  input ceiling for both messages and conversations; even standalone parser
+  calls cannot interpret an overlong exact list endpoint as safe metadata.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -864,3 +864,27 @@ fn repeated_message_list_filter_order_remains_part_of_query_identity() {
         assert!(!format!("{unsafe_capture:?}").contains(secret));
     }
 }
+
+#[test]
+fn direct_list_projector_refuses_oversized_request_urls() {
+    let prefix = format!("{URL}&Synthetic=");
+    let accepted = format!("{prefix}{}", "x".repeat(16_384 - prefix.len()));
+    assert_eq!(accepted.len(), 16_384);
+    assert!(
+        ObservedMessageListResponse::parse(
+            "GET",
+            &accepted,
+            r#"{"Stale":0,"Total":0,"Messages":[]}"#
+        )
+        .is_ok()
+    );
+    let oversized = format!("{accepted}x");
+    assert_eq!(
+        ObservedMessageListResponse::parse(
+            "GET",
+            &oversized,
+            r#"{"Stale":0,"Total":0,"Messages":[]}"#
+        ),
+        Err(MessageListResponseError::UnexpectedEndpoint)
+    );
+}

@@ -1465,3 +1465,27 @@ fn fragment_bearing_conversation_list_url_cannot_be_an_exact_get() {
         Err(ConversationListNetworkError::RedirectedAway)
     );
 }
+
+#[test]
+fn direct_list_projector_refuses_oversized_request_urls() {
+    let prefix = format!("{URL}&Synthetic=");
+    let accepted = format!("{prefix}{}", "x".repeat(16_384 - prefix.len()));
+    assert_eq!(accepted.len(), 16_384);
+    assert!(
+        ObservedConversationListResponse::parse(
+            "GET",
+            &accepted,
+            r#"{"Code":1000,"Stale":0,"Total":0,"Conversations":[]}"#
+        )
+        .is_ok()
+    );
+    let oversized = format!("{accepted}x");
+    assert_eq!(
+        ObservedConversationListResponse::parse(
+            "GET",
+            &oversized,
+            r#"{"Code":1000,"Stale":0,"Total":0,"Conversations":[]}"#
+        ),
+        Err(ConversationListResponseError::UnexpectedEndpoint)
+    );
+}

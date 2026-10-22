@@ -679,7 +679,8 @@ impl ObservedMessageListResponse {
     /// numeric metadata, or duplicate message IDs.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse(method: &str, url: &str, body: &str) -> Result<Self, MessageListResponseError> {
-        if method != "GET" || !is_message_list_url(url) {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if method != "GET" || url.len() > MAX_MESSAGE_LIST_URL_BYTES || !is_message_list_url(url) {
             return Err(MessageListResponseError::UnexpectedEndpoint);
         }
         if body.len() > Self::MAX_BODY_BYTES {

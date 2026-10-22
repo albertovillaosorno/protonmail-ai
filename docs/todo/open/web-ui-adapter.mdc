@@ -617,6 +617,10 @@ web application without requiring Bridge or a third-party direct API identity.
   original order so an unproven filter-sequence swap cannot appear identical.
   A synthetic test covers both harmless key reordering and rejected repeated
   filter drift without retaining or printing confidential query content.
+- The standalone message-list and conversation-list projectors now enforce
+  the same 16 KiB URL ceiling as their exact CDP request classifiers. Direct
+  parser callers cannot bypass the capture limit with an oversized query;
+  synthetic tests check acceptance at the ceiling and rejection one byte over.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

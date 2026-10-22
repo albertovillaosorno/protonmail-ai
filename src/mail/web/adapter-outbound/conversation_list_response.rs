@@ -381,7 +381,10 @@ impl ObservedConversationListResponse {
         url: &str,
         body: &str,
     ) -> Result<Self, ConversationListResponseError> {
-        if method != "GET" || !is_conversation_list_url(url) {
+        if method != "GET"
+            || url.len() > MAX_CONVERSATION_LIST_URL_BYTES
+            || !is_conversation_list_url(url)
+        {
             return Err(ConversationListResponseError::UnexpectedEndpoint);
         }
         if body.len() > Self::MAX_BODY_BYTES {
