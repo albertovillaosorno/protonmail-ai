@@ -882,6 +882,12 @@ web application without requiring Bridge or a third-party direct API identity.
   input injection and cookie/storage mutation commands fail before pipe I/O.
   Pure unit tests enumerate permitted methods, cross-scope rejects, and
   representative privileged commands. The full adapter suite remains green.
+- The final CDP pipe-write validator now checks the complete shape of every
+  Runtime.evaluate request, not just its method: `expression` must exactly
+  match one of the nine audited static controls and `returnByValue` must be
+  true, with no additional keys. This prevents later internal callers from
+  bypassing script authorization by invoking the lower-level command path.
+  Private unit tests live under the root `tests/` tree per Jig policy.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -3516,7 +3516,7 @@ impl ManagedBrowser {
         method: &str,
         params: &Value,
     ) -> Result<(), BrowserDriverError> {
-        if !allowed_mail_cdp_method(session, method) {
+        if !allowed_mail_cdp_request(session, method, params) {
             return Err(BrowserDriverError::Protocol);
         }
         let request = session.map_or_else(
@@ -4268,6 +4268,28 @@ fn allowed_mail_cdp_method(session: Option<&str>, method: &str) -> bool {
                 | "Page.reload"
         ),
     }
+}
+
+// Validate complete command shape at the final pipe-write boundary, not only
+// in the ordinary Runtime.evaluate helper. Future internal callers cannot
+// bypass script authorization by calling send_request directly.
+// jig-ignore-next-line: canonical rustfmt line.
+fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value) -> bool {
+    if !allowed_mail_cdp_method(session, method) {
+        return false;
+    }
+    if method == "Runtime.evaluate" {
+        return params.as_object().is_some_and(|fields| {
+            fields.len() == 2
+                && fields
+                    .get("expression")
+                    .and_then(Value::as_str)
+                    .is_some_and(allowed_mail_runtime_expression)
+                // jig-ignore-next-line: canonical rustfmt line.
+                && fields.get("returnByValue").and_then(Value::as_bool) == Some(true)
+        });
+    }
+    true
 }
 
 // Runtime evaluations are limited to pre-audited, static UI observations and

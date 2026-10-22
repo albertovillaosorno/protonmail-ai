@@ -33,7 +33,9 @@
 
 use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
 use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
-use super::{allowed_mail_cdp_method, allowed_mail_runtime_expression};
+// jig-ignore-next-line: canonical rustfmt line.
+use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runtime_expression};
+use serde_json::json;
 
 #[test]
 fn only_audited_cdp_methods_are_accepted_in_their_session_scope() {
@@ -102,4 +104,34 @@ fn only_static_audited_runtime_expressions_are_accepted() {
     ] {
         assert!(!allowed_mail_runtime_expression(denied));
     }
+}
+
+#[test]
+fn runtime_evaluation_must_prove_static_script_at_final_pipe_boundary() {
+    let location = LOCATION_EXPRESSION;
+    assert!(allowed_mail_cdp_request(
+        Some("session-a"),
+        "Runtime.evaluate",
+        &json!({"expression":location,"returnByValue":true})
+    ));
+    for params in [
+        json!({"expression":"document.cookie","returnByValue":true}),
+        json!({"expression":location,"returnByValue":false}),
+        json!({"expression":location,"returnByValue":true,"awaitPromise":true}),
+        json!({"expression":location}),
+        json!({"returnByValue":true}),
+        json!({"expression":null,"returnByValue":true}),
+        json!([]),
+    ] {
+        assert!(!allowed_mail_cdp_request(
+            Some("session-a"),
+            "Runtime.evaluate",
+            &params
+        ));
+    }
+    assert!(!allowed_mail_cdp_request(
+        None,
+        "Runtime.evaluate",
+        &json!({"expression":location,"returnByValue":true})
+    ));
 }
