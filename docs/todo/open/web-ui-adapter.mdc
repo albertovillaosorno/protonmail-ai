@@ -869,6 +869,12 @@ web application without requiring Bridge or a third-party direct API identity.
   before or after an otherwise valid Mail page. Synthetic target arrays test
   null, array, string, missing, numeric, empty and oversized type fields, while
   well-typed service-worker and shared-worker entries remain ignorable.
+- Shared opaque Mail route-ID validation now rejects additional invisible
+  Unicode formatting controls (soft hyphens, combining grapheme joiners,
+  Mongolian separators, invisible mathematical operators, legacy direction
+  controls, and tag characters). Synthetic read-only fixtures cover visible
+  rows, message lists, conversation members, and attachment metadata without
+  narrowing printable provider IDs or retaining rejected ID values in errors.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -50,12 +50,13 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
         })
 }
 
-/// Refuse invisible direction controls that could obscure exact identity.
+/// Refuse hidden formatting and direction controls that obscure exact identity.
 const fn is_invisible_format(character: char) -> bool {
     matches!(
         character,
-        '\u{061c}' | '\u{200b}' | '\u{200c}' | '\u{200d}'
-            | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}'
-            | '\u{2060}' | '\u{2066}'..='\u{2069}' | '\u{feff}'
+        '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{180e}'
+            | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}'
+            | '\u{2060}'..='\u{206f}' | '\u{feff}'
+            | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
     )
 }
