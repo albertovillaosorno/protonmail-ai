@@ -1673,6 +1673,15 @@ fn malformed_cdp_envelope_during_observed_enable_cleans_catalog_network() {
         ("bad-id", r#"{"id":"fake-reply","result":{}}"#),
         ("reply-without-id", r#"{"result":{}}"#),
         ("method-without-string", r#"{"method":77,"params":{}}"#),
+        ("empty-method", r#"{"method":"","params":{}}"#),
+        (
+            "array-params",
+            r#"{"method":"Network.loadingFinished","params":[]}"#,
+        ),
+        (
+            "number-session",
+            r#"{"method":"Network.loadingFinished","sessionId":7}"#,
+        ),
         ("garbled-json", "not-json"),
         ("truncated-json", "{\"method\":"),
     ] {

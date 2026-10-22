@@ -1091,6 +1091,23 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         ("error-without-id", r#"{"error":{"code":-32601}}"#),
         ("method-is-number", r#"{"method":7,"params":{}}"#),
         ("array-envelope", "[]"),
+        ("event-empty-method", r#"{"method":""}"#),
+        (
+            "event-null-params",
+            r#"{"method":"Network.loadingFinished","params":null}"#,
+        ),
+        (
+            "event-array-params",
+            r#"{"method":"Network.loadingFinished","params":[]}"#,
+        ),
+        (
+            "event-empty-session",
+            r#"{"method":"Network.loadingFinished","sessionId":""}"#,
+        ),
+        (
+            "event-number-session",
+            r#"{"method":"Network.loadingFinished","sessionId":4}"#,
+        ),
         ("not-json", "not-json"),
         ("partial-json", "{\"id\":"),
         (

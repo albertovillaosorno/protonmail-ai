@@ -808,6 +808,12 @@ web application without requiring Bridge or a third-party direct API identity.
   not compared with the initial `Total`, because its query scope changes
   (see initial Total evidence above). Synthetic fixtures demonstrate the
   distinction, Network disable, and subsequent safe browser inspection.
+- The CDP command reader now validates unsolicited event envelopes even when
+  no Network observer is active: a method must be a nonempty string, optional
+  params an object, and optional session ID a nonempty string. Malformed
+  events are remembered as protocol failures while the authentic command
+  reply is drained for mandatory Network disable. Private-pipe fixtures cover
+  ordinary and observed activation and safe same-session shell recovery.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

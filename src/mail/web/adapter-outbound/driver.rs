@@ -3442,8 +3442,16 @@ impl ManagedBrowser {
                 || (message.get("id").is_none()
                     && (message.get("result").is_some()
                         || message.get("error").is_some()
-                        // jig-ignore-next-line: canonical rustfmt line.
-                        || message.get("method").and_then(Value::as_str).is_none()))
+                        || message
+                            .get("method")
+                            .and_then(Value::as_str)
+                            .is_none_or(str::is_empty)
+                        || message
+                            .get("params")
+                            .is_some_and(|params| !params.is_object())
+                        || message.get("sessionId").is_some_and(|session| {
+                            session.as_str().is_none_or(str::is_empty)
+                        })))
             {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
