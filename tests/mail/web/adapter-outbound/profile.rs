@@ -329,3 +329,26 @@ fn dedicated_profile_debug_does_not_reveal_absolute_data_home() {
     assert!(debug.contains("<redacted>"));
     assert!(!debug.contains(&root.display().to_string()));
 }
+
+#[test]
+fn login_error_diagnostics_redact_local_paths_and_browser_executables() {
+    use mail_web_adapter::WebLoginError;
+
+    let secret_path = PathBuf::from("/test-only/private-home/audit-credential-marker");
+    let secret_browser = String::from("/test-only/browser/audit-credential-marker");
+    let sensitive = [
+        WebLoginError::ProfileLink(secret_path.clone()),
+        WebLoginError::ProjectLink(secret_path.clone()),
+        WebLoginError::ProfileIsNotDirectory(secret_path.clone()),
+        WebLoginError::ProfileCreate(secret_path),
+        WebLoginError::BrowserLaunch(secret_browser),
+    ];
+    for error in sensitive {
+        let debug = format!("{error:?}");
+        let display = error.to_string();
+        assert!(!debug.contains("audit-credential-marker"));
+        assert!(!display.contains("audit-credential-marker"));
+        assert!(debug.contains("<redacted>"));
+        assert_ne!(display, "");
+    }
+}

@@ -175,7 +175,7 @@ impl WebLoginPlan {
 }
 
 /// Fail-closed visible-login setup error.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum WebLoginError {
     /// Neither XDG data home nor a usable home directory is available.
     MissingDataHome,
@@ -197,35 +197,38 @@ pub enum WebLoginError {
     LeaseInspect,
 }
 
+impl fmt::Debug for WebLoginError {
+    fn fmt(&self, f: &mut Fmt<'_>) -> fmt::Result {
+        match self {
+            Self::MissingDataHome => f.write_str("MissingDataHome"),
+            Self::BrowserUnavailable => f.write_str("BrowserUnavailable"),
+            Self::ProfileLink(_) => f.write_str("ProfileLink(<redacted>)"),
+            Self::ProjectLink(_) => f.write_str("ProjectLink(<redacted>)"),
+            Self::ProfileIsNotDirectory(_) => f.write_str("ProfileIsNotDirectory(<redacted>)"),
+            Self::ProfileCreate(_) => f.write_str("ProfileCreate(<redacted>)"),
+            Self::AutomationInUse => f.write_str("AutomationInUse"),
+            Self::BrowserLaunch(_) => f.write_str("BrowserLaunch(<redacted>)"),
+            Self::LeaseInspect => f.write_str("LeaseInspect"),
+        }
+    }
+}
+
 impl fmt::Display for WebLoginError {
     fn fmt(&self, f: &mut Fmt<'_>) -> fmt::Result {
         match self {
             Self::MissingDataHome => f.write_str("browser data unavailable"),
             Self::BrowserUnavailable => f.write_str("Chromium unavailable"),
-            // jig-ignore-next-line: canonical rustfmt line.
             Self::AutomationInUse => f.write_str("profile owned by managed automation"),
-            Self::ProfileLink(path) => path_err(f, "profile symlink", path),
-            Self::ProjectLink(path) => path_err(f, "project symlink", path),
-            Self::ProfileIsNotDirectory(path) => {
-                write!(
-                    f,
-                    "browser profile path is not a directory: {}",
-                    path.display()
-                )
+            Self::ProfileLink(_) => f.write_str("profile symlink"),
+            Self::ProjectLink(_) => f.write_str("project symlink"),
+            Self::ProfileIsNotDirectory(_) => {
+                f.write_str("browser profile path is not a directory")
             }
-            Self::ProfileCreate(path) => {
-                write!(f, "cannot create browser profile: {}", path.display())
-            }
-            Self::BrowserLaunch(browser) => {
-                write!(f, "cannot launch browser: {browser}")
-            }
+            Self::ProfileCreate(_) => f.write_str("cannot create browser profile"),
+            Self::BrowserLaunch(_) => f.write_str("cannot launch browser"),
             Self::LeaseInspect => f.write_str("cannot inspect profile lease"),
         }
     }
-}
-
-fn path_err(formatter: &mut Fmt<'_>, msg: &str, path: &Path) -> fmt::Result {
-    write!(formatter, "{msg}: {}", path.display())
 }
 
 fn profile_dir_from_environment() -> Result<PathBuf, WebLoginError> {

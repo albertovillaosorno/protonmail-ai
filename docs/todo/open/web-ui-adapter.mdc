@@ -854,6 +854,11 @@ web application without requiring Bridge or a third-party direct API identity.
   numbers remain private even if the lease is formatted during diagnostics.
   Synthetic private-file tests assert no absolute profile path escapes and
   lease creation/removal semantics remain unchanged.
+- Login/profile setup failures now keep their typed error variants while
+  structurally redacting local profile paths and browser executable locations
+  from both `Display` and `Debug`. Synthetic error diagnostics assert five
+  sensitive variants contain only their category, not the original path.
+  Nested profile-lease setup failures inherit the same safe error formatting.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
