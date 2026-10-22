@@ -932,6 +932,11 @@ web application without requiring Bridge or a third-party direct API identity.
   The checks execute synchronously before `.click()`, inspect no field values,
   and do not add new evaluated scripts or CDP methods. Root-tree assertions
   preserve guard order, and existing page/sort regression suites remain green.
+- Each of the three audited navigation/sort click expressions now also
+  rechecks `location.origin === "https://mail.proton.me"` synchronously with
+  its button action. Root-tree assertions prove the origin guard precedes
+  every click, refusing selector lookalikes after navigation drift even if a
+  prior origin/shell snapshot was ready. No additional CDP authority is added.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

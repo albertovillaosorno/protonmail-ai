@@ -34,6 +34,8 @@ use serde_json::Value;
 
 const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "(() => {",
+    // Check live origin inside the same JS task as the navigation click.
+    "if(location.origin!=='https://mail.proton.me'){return null;}",
     // Refuse common authentication challenge controls immediately before click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",

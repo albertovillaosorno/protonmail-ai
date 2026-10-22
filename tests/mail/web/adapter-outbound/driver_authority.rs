@@ -280,6 +280,10 @@ fn audited_click_scripts_block_common_auth_inputs_before_any_activation() {
         let activation = script
             .find(".click();")
             .expect("audited page/navigation action exists");
+        let live_origin = script
+            .find("location.origin!=='https://mail.proton.me'")
+            .expect("UI click must require the exact live Mail origin");
+        assert!(live_origin < activation);
         assert!(password < activation);
         assert!(one_time < activation);
         assert!(!script.contains(".value"));
