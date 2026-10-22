@@ -538,7 +538,7 @@ web application without requiring Bridge or a third-party direct API identity.
   observation. Late failures, repeated responses, and duplicate request IDs
   during `Network.disable` fail closed even after the original request was
   removed from the pending map. A combined 16-request pending/completed limit
-  and redacted count-only diagnostics bound tombstones. Existing failed app
+  and redacted count-only diagnostics bound tombstones; existing failed app
   attempts may still be retried with a new request. Per-boundary unit tests
   cover all late event types and capacity; synthetic browsers also confirm
   replay detection and subsequent safe Mail-shell access after teardown.
