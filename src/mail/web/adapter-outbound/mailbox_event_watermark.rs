@@ -1196,6 +1196,7 @@ fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
 
 fn valid_event_id(event_id: &str) -> bool {
     !event_id.is_empty()
+        && !matches!(event_id, "." | "..")
         && event_id.len() <= MAX_EVENT_ID_BYTES
         && !event_id.chars().any(|character| {
             character.is_control()

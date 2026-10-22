@@ -803,6 +803,8 @@ fn complete_conversation_membership_refuses_unsafe_message_ids() {
         "message\r",
         "message\u{a0}a",
         "message\u{7f}a",
+        ".",
+        "..",
     ] {
         let mut body = conversation_body();
         body["Messages"][0]["ID"] = json!(bad);
@@ -835,6 +837,8 @@ fn complete_conversation_detail_endpoint_refuses_unsafe_route_ids() {
         "convo a",
         "convo\na",
         "convo\u{a0}a",
+        ".",
+        "..",
     ] {
         // jig-ignore-next-line: canonical rustfmt line.
         let url = format!("https://mail.proton.me/api/mail/v4/conversations/{bad}");

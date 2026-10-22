@@ -231,6 +231,7 @@ fn usize_field(value: &Value, key: &str) -> Result<usize, ()> {
 /// Only route-safe opaque row IDs may escape an untrusted DOM observation.
 fn safe_row_id(id: &str) -> bool {
     !id.is_empty()
+        && !matches!(id, "." | "..")
         && id.len() <= MAX_ROW_ID_BYTES
         && !id.chars().any(|character| {
             character.is_control()

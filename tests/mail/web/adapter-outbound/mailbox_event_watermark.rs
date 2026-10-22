@@ -1841,6 +1841,8 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
         "event\u{85}bad",
         "event\u{a0}bad",
         "event\u{2003}bad",
+        ".",
+        "..",
     ];
     for value in bad {
         let latest_body = json!({"EventID": value}).to_string();
@@ -1879,6 +1881,8 @@ fn malformed_mailbox_change_ids_are_not_exposed_from_event_projection() {
         "bad\u{85}id",
         "bad\u{a0}id",
         "bad\u{2003}id",
+        ".",
+        "..",
     ] {
         for collection in ["Messages", "Conversations"] {
             let mut body = json!({"EventID":"event-8", "More":0u8});

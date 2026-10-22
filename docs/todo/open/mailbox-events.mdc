@@ -93,6 +93,9 @@ bounded resource use.
   reject Unicode controls and whitespace, not just ASCII variants. Synthetic
   tests cover NBSP, em-space, and C1 control characters without logging IDs.
 
+- Event watermarks and change IDs now reject dot-only URL path segments,
+  preventing path-normalization ambiguity in resumable event cursors.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

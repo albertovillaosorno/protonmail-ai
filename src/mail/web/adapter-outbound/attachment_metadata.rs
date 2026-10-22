@@ -496,6 +496,7 @@ pub enum AttachmentMetadataResponseError {
 /// Check an opaque ID before it can name a provider attachment or message.
 fn valid_route_id(id: &str, maximum: usize) -> bool {
     !id.is_empty()
+        && !matches!(id, "." | "..")
         && id.len() <= maximum
         && !id.chars().any(|character| {
             character.is_control()

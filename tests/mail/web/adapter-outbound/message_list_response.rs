@@ -943,6 +943,8 @@ fn list_projection_rejects_unsafe_message_route_ids() {
         "with\u{a0}nbsp",
         "with\u{7f}del",
         "",
+        ".",
+        "..",
     ];
     for bad in bad_ids {
         let body = json!({
@@ -1011,6 +1013,8 @@ fn message_list_anchor_id_rejects_unsafe_route_components() {
         "bad\u{a0}id",
         "bad\u{85}id",
         "bad\u{2003}id",
+        ".",
+        "..",
     ] {
         let url = format!(
             // jig-ignore-next-line: canonical rustfmt line.

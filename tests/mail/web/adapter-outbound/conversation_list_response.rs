@@ -1523,7 +1523,8 @@ fn list_projection_rejects_unsafe_conversation_route_ids() {
     use serde_json::json;
     for bad in [
         // jig-ignore-next-line: canonical rustfmt line.
-        "x/y", "x?y", "x#y", "x\\y", "x y", "x\ny", "x\ty", "x\rY", "x\u{a0}y", "x\u{7f}y", "",
+        "x/y", "x?y", "x#y", "x\\y", "x y", "x\ny", "x\ty", "x\rY", "x\u{a0}y", "x\u{7f}y", "", ".",
+        "..",
     ] {
         let body = json!({
             "Code":1000u16, "Stale":0u8, "Total":1u8,

@@ -574,6 +574,7 @@ pub enum MailboxCatalogResponseError {
 /// Provider mailbox/label identity; user-visible names remain unrestricted.
 fn valid_catalog_id(id: &str) -> bool {
     !id.is_empty()
+        && !matches!(id, "." | "..")
         && id.len() <= MAX_CATALOG_ID_BYTES
         && !id.chars().any(|character| {
             character.is_control()

@@ -798,6 +798,7 @@ fn bounded_optional_string(
 /// Restrict projected provider identifiers to bounded safe route components.
 fn valid_opaque_route_id(id: &str, maximum: usize) -> bool {
     !id.is_empty()
+        && !matches!(id, "." | "..")
         && id.len() <= maximum
         && !id.chars().any(|character| {
             character.is_control()

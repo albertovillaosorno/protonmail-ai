@@ -269,6 +269,11 @@ Ship useful read access before any mailbox mutation is enabled.
   reject whitespace and separator-bearing DOM attributes in the earliest
   content-free list read, rather than relying on later network reconciliation.
 
+- Every route-bound read identifier now rejects the special path segments
+  `.` and `..`, in addition to whitespace, controls, and delimiters. Synthetic
+  list, detail, catalog and visible-page evidence closes path normalization
+  ambiguity before provider-neutral read or cursor processing.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

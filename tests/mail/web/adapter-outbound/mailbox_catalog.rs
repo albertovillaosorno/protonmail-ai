@@ -1431,6 +1431,8 @@ fn mailbox_catalog_refuses_unsafe_label_and_folder_identifiers() {
         "bad\rid",
         "bad\u{a0}id",
         "bad\u{7f}id",
+        ".",
+        "..",
     ] {
         let label = json!({
             "Code":1000u16,

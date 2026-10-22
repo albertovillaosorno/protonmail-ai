@@ -317,6 +317,8 @@ fn rendered_list_refuses_unsafe_row_identities_before_page_snapshot() {
         "bad\rid",
         "bad\u{a0}id",
         "bad\u{7f}id",
+        ".",
+        "..",
     ]
     .into_iter()
     .enumerate()

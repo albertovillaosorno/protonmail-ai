@@ -886,6 +886,8 @@ fn metadata_identity_rejects_unsafe_route_and_caller_ids() {
         "bad\rid",
         "bad\u{a0}id",
         "bad\u{7f}id",
+        ".",
+        "..",
     ] {
         // jig-ignore-next-line: canonical rustfmt line.
         let invalid_url = format!("https://mail.proton.me/api/mail/v4/attachments/{bad}/metadata");

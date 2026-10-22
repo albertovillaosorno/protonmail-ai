@@ -684,6 +684,10 @@ web application without requiring Bridge or a third-party direct API identity.
   into an otherwise valid app-owned response. The managed browser rejects the
   metadata, logs mandatory Network.disable, and safely inspects Mail afterward
   without exposing the invalid ID or retrying through another provider path.
+- All bounded opaque read-identity validators now reject the special URL
+  path segments `.` and `..` before row projection, detail lookup, catalog
+  snapshot, or event cursor construction. Synthetic boundary tests prove dot
+  segments fail without weakening valid printable opaque IDs.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

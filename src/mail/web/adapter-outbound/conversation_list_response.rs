@@ -618,6 +618,7 @@ pub enum ConversationListResponseError {
 /// Accept only bounded opaque identifiers safe to carry into detail routes.
 fn valid_list_id(id: &str, maximum: usize) -> bool {
     !id.is_empty()
+        && !matches!(id, "." | "..")
         && id.len() <= maximum
         && !id.chars().any(|character| {
             character.is_control()

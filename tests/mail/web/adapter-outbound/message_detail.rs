@@ -820,6 +820,8 @@ fn detail_projection_rejects_unsafe_route_bound_metadata_ids() {
         "bad\rid",
         "bad\u{a0}id",
         "bad\u{7f}id",
+        ".",
+        "..",
     ] {
         let mut conversation = detail_body();
         conversation["Message"]["ConversationID"] = json!(bad);

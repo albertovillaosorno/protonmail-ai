@@ -513,6 +513,7 @@ pub enum ConversationDetailResponseError {
 /// Only bounded opaque values safe for exact message/conversation routes.
 fn valid_route_component(value: &str, maximum: usize) -> bool {
     !value.is_empty()
+        && !matches!(value, "." | "..")
         && value.len() <= maximum
         && !value.chars().any(|character| {
             character.is_control()
