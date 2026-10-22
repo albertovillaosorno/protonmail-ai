@@ -980,10 +980,14 @@ fn managed_browser_rejects_request_page_mismatch_and_anchor() {
                 page_marker: marker,
             },
         );
-        assert_eq!(
-            observed,
-            Err(BrowserDriverError::ConversationListPageUnproven)
-        );
+        let expected = if label == "request-anchor" {
+            BrowserDriverError::ConversationListNetwork(
+                ConversationListNetworkError::InvalidPagination,
+            )
+        } else {
+            BrowserDriverError::ConversationListPageUnproven
+        };
+        assert_eq!(observed, Err(expected));
         assert_eq!(log, "enable\ndisable\n");
     }
 }
@@ -1063,6 +1067,9 @@ fn network_capture_rejects_malformed_conversation_page_selectors() {
         "?Page=0&Limit=101",
         "?Page=0&Limit=-1",
         "?Page=0&Limit=50&Limit=50",
+        "?Page=0&PageSize=50&Limit=25",
+        "?Page=0&PageSize=10&Limit=100",
+        "?Page=0&Anchor=123&AnchorID=c-2",
     ]
     .iter()
     .enumerate()

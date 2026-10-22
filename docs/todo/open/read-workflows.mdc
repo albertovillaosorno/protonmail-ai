@@ -156,6 +156,12 @@ Ship useful read access before any mailbox mutation is enabled.
   still disabled before surfacing the error. The independent, explicitly
   passive raw-list observer retains its previous behavior.
 
+- The passive conversation-list classifier now rejects contradictory numeric
+  paging metadata (`PageSize != Limit`) and a numbered `Page` mixed with
+  `Anchor`/`AnchorID`. These are separate initial-versus-continuation shapes
+  in the reviewed WebClients request path; rejecting their mixture prevents
+  a false positive page match without interpreting any search/label text.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

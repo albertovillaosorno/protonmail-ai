@@ -506,6 +506,11 @@ web application without requiring Bridge or a third-party direct API identity.
   content-free Mail inspection on the same CDP connection. The original
   Network error remains typed, command frames remain synchronized, and
   Network teardown is observed without navigation or a mail action.
+- Request-shape validation additionally rejects a conflicting PageSize/Limit
+  pair and numbered Page plus Anchor/AnchorID on one conversation-list GET.
+  The diagnostic never treats a mixed initial/continuation request as a
+  matching visible page. Tests exercise the malformed combinations with only
+  synthetic query strings.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

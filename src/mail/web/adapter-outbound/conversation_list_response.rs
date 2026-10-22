@@ -633,7 +633,10 @@ fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationList
             _ => {}
         }
     }
-    if has_anchor != has_anchor_id {
+    if has_anchor != has_anchor_id
+        || (has_anchor && page.is_some())
+        || (page_size.is_some() && limit.is_some() && page_size != limit)
+    {
         return Err(ConversationListNetworkError::InvalidPagination);
     }
     Ok((page, has_anchor))
