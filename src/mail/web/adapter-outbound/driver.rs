@@ -916,8 +916,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MAILBOX_CATALOG_TOTAL_BUFFER_BYTES
         });
         let mut capture = MailboxCatalogNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(MAILBOX_CATALOG_CAPTURE_TIMEOUT)
             .ok_or(BrowserDriverError::MailboxCatalogUnavailable)?;
@@ -1321,8 +1320,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MAILBOX_EVENT_TOTAL_BUFFER_BYTES
         });
         let mut capture = InitialMailboxEventCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let bootstrap_deadline = Instant::now()
             .checked_add(MAILBOX_EVENT_BOOTSTRAP_TIMEOUT)
             .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
@@ -1430,8 +1428,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MAILBOX_EVENT_TOTAL_BUFFER_BYTES
         });
         let mut capture = LatestMailboxEventNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(MAILBOX_EVENT_BOOTSTRAP_TIMEOUT)
             .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
@@ -1683,8 +1680,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MAILBOX_EVENT_TOTAL_BUFFER_BYTES
         });
         let mut capture = MailboxEventNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::MailboxEventWaitTooLong)?;
@@ -2123,8 +2119,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": CONVERSATION_DETAIL_TOTAL_BUFFER_BYTES
         });
         let mut capture = ConversationDetailNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::ConversationDetailWaitTooLong)?;
@@ -2271,17 +2266,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": CONVERSATION_LIST_TOTAL_BUFFER_BYTES
         });
         let mut capture = ConversationListNetworkCapture::new(session);
-        let enable = self.call_in_session_observing(
-            session,
-            "Network.enable",
-            &network_params,
-            &mut capture,
-        );
-        if let Err(error) = enable {
-            // Never abandon an enabled Network domain after lifecycle failure.
-            self.call_in_session(session, "Network.disable", &json!({}))?;
-            return Err(error);
-        }
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::ConversationListWaitTooLong)?;
@@ -2532,8 +2517,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": ATTACHMENT_METADATA_TOTAL_BUFFER_BYTES
         });
         let mut capture = AttachmentMetadataNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::AttachmentMetadataWaitTooLong)?;
@@ -2687,8 +2671,7 @@ impl ManagedBrowser {
             "maxTotalBufferSize": MESSAGE_DETAIL_TOTAL_BUFFER_BYTES
         });
         let mut capture = MessageDetailNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        self.enable_network_observing(session, &network_params, &mut capture)?;
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::MessageDetailWaitTooLong)?;
@@ -3385,6 +3368,26 @@ impl ManagedBrowser {
     ) -> Result<Value, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         self.call_with_session_observer(Some(session), method, params, Some(capture))
+    }
+
+    /// Activates a bounded Network capture, cleaning up on CDP event failure.
+    ///
+    /// A malformed event may precede the successful enable reply. The observer
+    /// drains that reply, then this helper disables Network before returning
+    /// the original redacted error instead of leaking an active capture.
+    fn enable_network_observing(
+        &mut self,
+        session: &str,
+        params: &Value,
+        capture: &mut dyn CdpEventObserver,
+    ) -> Result<(), BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let enabled = self.call_in_session_observing(session, "Network.enable", params, capture);
+        if let Err(error) = enabled {
+            self.call_in_session(session, "Network.disable", &json!({}))?;
+            return Err(error);
+        }
+        Ok(())
     }
 
     fn call_with_session_observer(

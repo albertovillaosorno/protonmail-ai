@@ -600,3 +600,56 @@ fn attachment_started_during_network_disable_fails_closed() {
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove late attachment root");
 }
+
+#[test]
+fn malformed_attachment_event_during_enable_disables_network() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = ATTACHMENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic attachment browser tests");
+    let root = attachment_browser_root("invalid-enable");
+    fs::create_dir_all(&root).expect("create attachment browser root");
+    let browser = fake_attachment_browser(&root, false, MESSAGE_ID, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    let marker = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4";
+    assert!(script.contains(marker));
+    let invalid_event = json!({
+        "sessionId": "session-1",
+        "method": "Network.requestWillBeSent",
+        "params": {
+            "requestId": "bad-attachment",
+            "request": {"method": null, "url": URL}
+        }
+    });
+    let injection =
+        // jig-ignore-next-line: canonical rustfmt line.
+        format!("      invalid='{invalid_event}'\n      printf '%s\\0' \"$invalid\" >&4\n");
+    let updated = script.replacen(marker, &format!("{injection}{marker}"), 1);
+    fs::write(&browser, updated).expect("install invalid attachment event");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build attachment test plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("discover fake Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_attachment_metadata(&page, MESSAGE_ID, Duration::from_secs(1),),
+        Err(BrowserDriverError::AttachmentMetadataNetwork(
+            AttachmentMetadataNetworkError::MalformedEvent,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("safe Mail inspection remains possible after failed enable");
+    drop(managed);
+    let log = fs::read_to_string(root.join("attachment-log.txt"))
+        .expect("read synthetic Network lifecycle");
+    assert_eq!(log, "enable\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove synthetic attachment root");
+}

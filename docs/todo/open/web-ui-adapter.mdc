@@ -511,6 +511,13 @@ web application without requiring Bridge or a third-party direct API identity.
   The diagnostic never treats a mixed initial/continuation request as a
   matching visible page. Tests exercise the malformed combinations with only
   synthetic query strings.
+- The shared managed-browser `enable_network_observing` helper now applies
+  mandatory `Network.disable` cleanup when observed activation fails for
+  mailbox catalog, mailbox event, conversation detail, conversation list,
+  attachment metadata, or message detail. The earlier conversation-list
+  synthetic covers malformed enable traffic, and an independent attachment
+  metadata fixture proves a malformed pre-acknowledgement Network event leaves
+  the browser session usable for a following Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
