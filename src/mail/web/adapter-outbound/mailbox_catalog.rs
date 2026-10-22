@@ -412,6 +412,9 @@ impl ObservedMailboxCatalogResponse {
             }
             items.push(item);
         }
+        if kind == MailboxCatalogKind::Folder {
+            validate_folder_parent_graph(&items)?;
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         items.sort_by(|left, right| left.order.cmp(&right.order).then(left.id.cmp(&right.id)));
         Ok(Self { kind, items })
@@ -570,6 +573,37 @@ pub enum MailboxCatalogResponseError {
     MissingKind,
     /// CDP returned an encoded body instead of decoded JSON text.
     UnsupportedEncoding,
+}
+
+/// Refuse loops within the captured custom-folder graph. External/root
+/// parent markers remain opaque and are not assumed to be missing data.
+fn validate_folder_parent_graph(
+    items: &[ObservedMailboxCatalogItem],
+) -> Result<(), MailboxCatalogResponseError> {
+    let parents = items
+        .iter()
+        .filter_map(|item| {
+            item.parent_id
+                .as_deref()
+                .map(|parent| (item.id.as_str(), parent))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut settled = BTreeSet::new();
+    for item in items {
+        let mut visited = BTreeSet::new();
+        let mut current = item.id.as_str();
+        while let Some(parent) = parents.get(current) {
+            if settled.contains(current) {
+                break;
+            }
+            if !visited.insert(current) {
+                return Err(MailboxCatalogResponseError::Malformed);
+            }
+            current = parent;
+        }
+        settled.extend(visited);
+    }
+    Ok(())
 }
 
 fn parse_item(

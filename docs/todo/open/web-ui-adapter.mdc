@@ -778,6 +778,11 @@ web application without requiring Bridge or a third-party direct API identity.
   an enabled next-page control; an apparently empty page cannot claim there is
   a further page to read. Synthetic browser tests cover both the rejected
   enabled control and a valid disabled control without exposing row contents.
+- Custom-folder catalog snapshots now reject parent-reference loops,
+  including self-parent, mutual, and multi-hop cycles, using a bounded
+  traversal that settles already-verified nodes. Synthetic responses retain
+  valid nested folders and external/root markers without guessing their
+  meaning or emitting folder names to diagnostics.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

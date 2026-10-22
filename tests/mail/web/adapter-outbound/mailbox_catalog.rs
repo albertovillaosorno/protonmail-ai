@@ -1711,3 +1711,48 @@ fn malformed_cdp_envelope_during_observed_enable_cleans_catalog_network() {
         fs::remove_dir_all(&root).expect("remove test-only browser profile");
     }
 }
+
+#[test]
+fn custom_folder_parent_cycles_are_rejected_without_exposing_names() {
+    let folder = |id: &str, parent: Option<&str>| {
+        json!({"ID":id,"Name":"Synthetic Project","Type":3u8,
+            "Order":1i64,"ParentID":parent})
+    };
+    for cycle in [
+        vec![folder("folder-a", Some("folder-a"))],
+        vec![
+            folder("folder-a", Some("folder-b")),
+            folder("folder-b", Some("folder-a")),
+        ],
+        vec![
+            folder("folder-a", Some("folder-b")),
+            folder("folder-b", Some("folder-c")),
+            folder("folder-c", Some("folder-a")),
+        ],
+    ] {
+        let body = json!({"Code":1000u16,"Labels":cycle}).to_string();
+        assert_eq!(
+            ObservedMailboxCatalogResponse::parse(
+                MailboxCatalogKind::Folder,
+                "GET",
+                FOLDER_URL,
+                &body
+            ),
+            Err(MailboxCatalogResponseError::Malformed)
+        );
+    }
+    let chain = vec![
+        folder("folder-a", Some("folder-b")),
+        folder("folder-b", Some("folder-c")),
+        folder("folder-c", Some("0")),
+        folder("folder-d", None),
+    ];
+    let body = json!({"Code":1000u16,"Labels":chain}).to_string();
+    let projected =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Folder, "GET", FOLDER_URL, &body)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("acyclic nested folders with external root markers are valid");
+    assert_eq!(projected.items().len(), 4);
+    assert_eq!(projected.items()[0].parent_id(), Some("folder-b"));
+}

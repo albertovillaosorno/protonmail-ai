@@ -315,6 +315,10 @@ Ship useful read access before any mailbox mutation is enabled.
   numeric page representation as Network list requests, so a noncanonical
   DOM page marker cannot be reconciled with a different app-owned GET.
 
+- The full custom-folder catalog projector now verifies that references
+  among captured folders do not form cycles. It preserves external/root
+  parent identifiers without assuming that all parent IDs name catalog rows.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
