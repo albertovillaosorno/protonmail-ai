@@ -1863,3 +1863,27 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
     // jig-ignore-next-line: canonical rustfmt line.
     assert!(ObservedLatestMailboxEventWatermark::parse("GET", bootstrap, &good).is_ok());
 }
+
+#[test]
+fn malformed_mailbox_change_ids_are_not_exposed_from_event_projection() {
+    use serde_json::json;
+    for bad in ["bad id", "bad\tid", "bad\nid", "bad\rid", "bad\u{7f}id"] {
+        for collection in ["Messages", "Conversations"] {
+            let mut body = json!({"EventID":"event-8", "More":0u8});
+            body[collection] = json!([{"ID":bad,"Action":1u8}]);
+            assert_eq!(
+                // jig-ignore-next-line: canonical rustfmt line.
+                ObservedMailboxEventWatermark::parse("GET", URL, &body.to_string()),
+                Err(MailboxEventWatermarkError::Malformed)
+            );
+        }
+    }
+    let valid = json!({
+        "EventID":"event-8", "More":0u8,
+        "Messages":[{"ID":"synthetic+_~=-id","Action":1u8}]
+    });
+    // jig-ignore-next-line: canonical rustfmt line.
+    let projected = ObservedMailboxEventWatermark::parse("GET", URL, &valid.to_string())
+        .expect("retain printable opaque message IDs");
+    assert_eq!(projected.changes()[0].id(), "synthetic+_~=-id");
+}

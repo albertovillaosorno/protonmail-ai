@@ -43,6 +43,11 @@ bounded resource use.
   printable opaque IDs and reject synthetic spaces, tabs, line breaks, and
   DEL before any event state can be persisted.
 
+- The same event watermark validator protects normalized message and
+  conversation change identifiers from whitespace and control characters.
+  Synthetic tests prove these malformed IDs cannot escape the change
+  projection while ordinary printable opaque IDs still round-trip.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume
