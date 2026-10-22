@@ -42,6 +42,7 @@ const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "ma
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
 const MAX_MESSAGE_LIST_ID_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
+const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -266,6 +267,10 @@ impl MessageListNetworkCapture {
         else {
             return Ok(());
         };
+        // jig-ignore-next-line: canonical rustfmt line.
+        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+            return Err(MessageListNetworkError::MalformedEvent);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         let context_fingerprint = query_context_fingerprint(url, &self.fingerprint_hashers)?;
         match self.context_fingerprint {

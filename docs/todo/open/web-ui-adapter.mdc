@@ -549,6 +549,12 @@ web application without requiring Bridge or a third-party direct API identity.
   instead of passing as unrelated traffic. Synthetic tests cover all replay
   event forms, 128 completed IDs, equality/redaction, and a reused ID during
   cleanup with successful follow-up Mail-shell inspection.
+- Exact message-list, message-detail, conversation-detail, and attachment-
+  metadata Network classifiers now refuse empty or oversized CDP request IDs
+  (maximum 512 bytes) *before retaining them* as pending or terminal evidence.
+  The existing conversation-list classifier already used that limit.
+  Synthetic tests prove invalid exact IDs fail closed without adding state,
+  while oversized identifiers on unrelated background endpoints are ignored.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

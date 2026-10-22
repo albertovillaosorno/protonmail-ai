@@ -56,6 +56,7 @@ const MAX_ATTACHMENT_ID_BYTES: usize = 512;
 const MAX_ATTACHMENT_NAME_BYTES: usize = 4_096;
 const MAX_MIME_TYPE_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_DETAIL_REQUESTS: usize = 16;
+const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MessageDetailRequestState {
@@ -173,6 +174,10 @@ impl MessageDetailNetworkCapture {
         let Some(message_id) = message_id else {
             return Ok(());
         };
+        // jig-ignore-next-line: canonical rustfmt line.
+        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+            return Err(MessageDetailNetworkError::MalformedEvent);
+        }
         if self.requests.len().saturating_add(self.completed_ids.len())
             >= MAX_TRACKED_MESSAGE_DETAIL_REQUESTS
         {

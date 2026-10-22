@@ -180,6 +180,12 @@ Ship useful read access before any mailbox mutation is enabled.
   proves subsequent safe browser inspection still works. This strengthens
   diagnostics without changing public read/search availability.
 
+- CDP request-ID retention is now bounded to 512 bytes across message-list,
+  message-detail, conversation-detail, attachment-metadata, and conversation-
+  list reads. This applies only to exact app-owned GET shapes, not other
+  background traffic; empty/oversized matching IDs fail closed without being
+  persisted into capture state or debug diagnostics.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

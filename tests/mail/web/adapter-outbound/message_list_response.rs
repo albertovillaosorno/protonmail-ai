@@ -705,3 +705,33 @@ fn completed_message_list_ids_are_bounded_across_consumption() {
     );
     assert!(!format!("{capture:?}").contains("sensitive-list-"));
 }
+
+#[test]
+fn exact_message_list_request_ids_are_bounded_before_tracking() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    for id in [String::new(), "x".repeat(513)] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let event = json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":URL}}
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let unrelated = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"x".repeat(1024), "request":{
+            // jig-ignore-next-line: canonical rustfmt line.
+            "method":"GET", "url":"https://mail.proton.me/api/mail/v4/messages/count"
+        }}
+    });
+    capture
+        .observe(&unrelated)
+        .expect("ignore unrelated browser traffic");
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+}

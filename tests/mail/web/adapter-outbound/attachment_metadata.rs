@@ -809,3 +809,26 @@ fn completed_detail_id_reused_during_disable_fails_closed() {
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove synthetic browser root");
 }
+
+#[test]
+fn exact_detail_request_id_is_bounded_before_tracking() {
+    for id in [String::new(), "x".repeat(513)] {
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+        assert_eq!(
+            capture.observe(&request_event("session-a", &id, "GET", URL)),
+            Err(AttachmentMetadataNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+        assert_eq!(capture.take_finished_requests().len(), 0);
+    }
+    let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event(
+            "session-a",
+            &"x".repeat(1024),
+            "GET",
+            "https://mail.proton.me/api/mail/v4/attachments",
+        ))
+        .expect("unrelated browser traffic is ignored");
+    assert_eq!(capture.tracked_request_count(), 0);
+}
