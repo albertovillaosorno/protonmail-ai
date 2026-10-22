@@ -4396,13 +4396,20 @@ fn validate_cdp_notification(message: &Value) -> Result<(), BrowserDriverError> 
         || message
             .get("method")
             .and_then(Value::as_str)
-            .is_none_or(str::is_empty)
+            .is_none_or(|method| {
+                method.is_empty()
+                    || method.len() > 128
+                    || !method
+                        .bytes()
+                        // jig-ignore-next-line: canonical rustfmt line.
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.')
+            })
         || message
             .get("params")
             .is_some_and(|params| !params.is_object())
         || match message.get("sessionId") {
             None => false,
-            Some(Value::String(session)) => session.is_empty(),
+            Some(Value::String(session)) => !safe_cdp_endpoint_id(session),
             Some(_) => true,
         }
     {

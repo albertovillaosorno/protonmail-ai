@@ -1722,3 +1722,62 @@ fn unrelated_well_typed_browser_targets_remain_ignorable() {
     drop(managed);
     cleanup(&root);
 }
+
+#[test]
+fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
+    use serde_json::json;
+    let malformed = [
+        ("long-method", json!({"method":"x".repeat(129)})),
+        ("spaced-method", json!({"method":"Network loadingFinished"})),
+        ("slash-method", json!({"method":"Network/loadingFinished"})),
+        (
+            "bad-session",
+            json!({"method":"Network.loadingFinished","sessionId":"bad/id"}),
+        ),
+        (
+            "long-session",
+            // jig-ignore-next-line: canonical rustfmt line.
+            json!({"method":"Network.loadingFinished","sessionId":"s".repeat(513)}),
+        ),
+    ];
+    for (label, frame) in malformed {
+        let root = test_root(label);
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::create_dir_all(&root).expect("create isolated fake browser profile");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        assert!(script.contains(reply));
+        let inserted = format!("      printf '%s\\0' '{frame}' >&4\n{reply}");
+        fs::write(&browser, script.replacen(reply, &inserted, 1))
+            .expect("inject malformed CDP event before authentic enable reply");
+        let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+            .expect("launch isolated synthetic browser");
+        let page = managed.provider_page().expect("find Mail target");
+        assert_eq!(
+            managed.observe_message_list_response(&page),
+            Err(BrowserDriverError::Protocol),
+            "case {label} must fail closed"
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("genuine reply drained before safe subsequent inspection");
+        drop(managed);
+        let log = fs::read_to_string(root.join("network-log.txt"))
+            .expect("read synthetic Network command audit");
+        assert_eq!(log, "enable\ndisable\n");
+        cleanup(&root);
+    }
+}

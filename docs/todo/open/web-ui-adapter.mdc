@@ -894,6 +894,11 @@ web application without requiring Bridge or a third-party direct API identity.
   zero-post-data Network buffers, nonempty bounded response request IDs, and
   safe reload/disable options. Mutation-capable parameters or unknown keys
   fail before pipe writes; root-tree tests exercise allowed and denied shapes.
+- Incoming CDP notifications also require an ASCII dotted/alphanumeric
+  method label of at most 128 bytes and a browser-safe session identifier of
+  at most 512 bytes. Private-pipe fixtures reject oversized, slash-delimited
+  or whitespace-containing labels and malformed sessions, then drain the
+  authentic enable reply, disable Network and re-inspect the Mail shell.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
