@@ -2004,3 +2004,64 @@ fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
     assert_eq!(latest.take_finished_request_ids().len(), 0);
     assert_eq!(events.take_finished_request_ids().len(), 0);
 }
+
+#[test]
+fn event_poll_response_must_match_full_private_request_url() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    let different_counts = URL.replace("MessageCounts=1", "MessageCounts=0");
+    let reordered_query = URL.replace(
+        "ConversationCounts=1&MessageCounts=1",
+        "MessageCounts=1&ConversationCounts=1",
+    );
+    for drift in [&different_counts, &reordered_query] {
+        let mut capture = MailboxEventNetworkCapture::new("session-1");
+        capture
+            .observe(&cdp_lifecycle_event(
+                "Network.requestWillBeSent",
+                "event-private",
+                URL,
+            ))
+            .expect("observe original app-owned event GET");
+        assert_eq!(
+            capture.observe(&cdp_lifecycle_event(
+                "Network.responseReceived",
+                "event-private",
+                drift
+            )),
+            Err(MailboxEventNetworkError::ResponseRejected)
+        );
+        let debug = format!("{capture:?}");
+        for secret in [
+            "event-private",
+            "ConversationCounts",
+            "MessageCounts",
+            "Foreground",
+        ] {
+            assert!(!debug.contains(secret));
+        }
+    }
+    let mut matched = MailboxEventNetworkCapture::new("session-1");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.requestWillBeSent",
+            "matching",
+            URL,
+        ))
+        .expect("observe exact event request");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.responseReceived",
+            "matching",
+            URL,
+        ))
+        .expect("accept identical complete response URL");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.loadingFinished",
+            "matching",
+            URL,
+        ))
+        .expect("complete exact event read");
+    assert_eq!(matched.take_finished_request_ids(), ["matching"]);
+}

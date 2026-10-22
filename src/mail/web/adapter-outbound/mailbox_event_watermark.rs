@@ -30,8 +30,10 @@
 
 //! Content-minimizing projection of Proton Mail's legacy core event loop.
 
+use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::hash::BuildHasher as _;
 
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
@@ -61,6 +63,7 @@ enum EventRequestState {
 struct TrackedEventRequest {
     state: EventRequestState,
     event_id: String,
+    url_fingerprint: [u64; 2],
 }
 
 /// Bounded CDP lifecycle state for the exact legacy latest-event GET.
@@ -256,12 +259,31 @@ impl fmt::Debug for LatestMailboxEventNetworkCapture {
 }
 
 /// Bounded CDP lifecycle state for exact legacy Mail core-event GETs.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct MailboxEventNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedEventRequest>,
     completed_ids: BTreeSet<String>,
+    url_hashers: [RandomState; 2],
 }
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "default ne preserves Eq for redacted capture state"
+)]
+impl PartialEq for MailboxEventNetworkCapture {
+    fn eq(&self, other: &Self) -> bool {
+        self.session_id == other.session_id
+            && self.requests == other.requests
+            && self.completed_ids == other.completed_ids
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Eq marker needs no randomized-state implementation"
+)]
+impl Eq for MailboxEventNetworkCapture {}
 
 impl MailboxEventNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
@@ -271,6 +293,7 @@ impl MailboxEventNetworkCapture {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
+            url_hashers: [RandomState::new(), RandomState::new()],
         }
     }
 
@@ -381,6 +404,8 @@ impl MailboxEventNetworkCapture {
             TrackedEventRequest {
                 state: EventRequestState::Requested,
                 event_id: String::from(event_id),
+                // jig-ignore-next-line: canonical rustfmt line.
+                url_fingerprint: self.url_hashers.each_ref().map(|state| state.hash_one(url)),
             },
         );
         Ok(())
@@ -414,6 +439,8 @@ impl MailboxEventNetworkCapture {
         let event_id =
             // jig-ignore-next-line: canonical rustfmt line.
             event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::ResponseRejected)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url_fingerprint = self.url_hashers.each_ref().map(|state| state.hash_one(url));
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         let Some(request) = self.requests.get_mut(request_id) else {
@@ -422,8 +449,11 @@ impl MailboxEventNetworkCapture {
         if request.state != EventRequestState::Requested {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        if status != Some(200) || mime != Some("application/json") || event_id != request.event_id {
+        if status != Some(200)
+            || mime != Some("application/json")
+            || event_id != request.event_id
+            || url_fingerprint != request.url_fingerprint
+        {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
         request.state = EventRequestState::Responded;
@@ -470,6 +500,7 @@ impl fmt::Debug for MailboxEventNetworkCapture {
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
             .field("completed_request_count", &self.completed_ids.len())
+            .field("url_hashers", &"<redacted>")
             .finish()
     }
 }

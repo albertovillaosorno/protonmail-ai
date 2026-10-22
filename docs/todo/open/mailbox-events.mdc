@@ -62,6 +62,12 @@ bounded resource use.
   Synthetic tests cover the precise accepted length, one byte over, redacted
   fail-closed responses, and ignored unrelated oversized browser traffic.
 
+- V5 event GET lifecycle correlation now binds the full bounded request URL
+  to its response with a randomized, non-exported fingerprint. A matching
+  event watermark alone cannot conceal query-flag drift; synthetic requests
+  prove mismatched count flags and query order fail before response-body reads.
+  The request URL, its query, and the hash keys never enter debug output.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

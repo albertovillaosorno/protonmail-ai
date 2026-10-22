@@ -625,6 +625,10 @@ web application without requiring Bridge or a third-party direct API identity.
   CDP lifecycle matching or response projection, preventing unbounded URL
   query interpretation. Synthetic tests cover requests, responses, direct
   parser entry points, and unrelated background traffic.
+- V5 event Network responses now require a private fingerprint match of the
+  complete app-owned request URL, not merely the event watermark path.
+  Synthetic tests reject drift in message-count flags and query ordering
+  without retaining or logging the event request query.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
