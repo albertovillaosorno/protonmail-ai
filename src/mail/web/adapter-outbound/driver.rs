@@ -4353,12 +4353,7 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
                 && fields
                     .get("requestId")
                     .and_then(Value::as_str)
-                    .is_some_and(|id| {
-                        !id.is_empty()
-                            && id.len() <= 512
-                            // jig-ignore-next-line: canonical rustfmt line.
-                            && !id.chars().any(|ch| ch.is_control() || ch.is_whitespace())
-                    })
+                    .is_some_and(safe_cdp_request_id)
         }
         "Page.reload" => {
             fields.is_empty()
@@ -4368,6 +4363,14 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
         }
         _ => false,
     }
+}
+
+// Browser-issued request IDs are not Mail path components. Require bounded
+// printable ASCII to prevent control, spacing and invisible Unicode aliases
+// from reaching Network.getResponseBody without narrowing ordinary CDP dots.
+fn safe_cdp_request_id(id: &str) -> bool {
+    // jig-ignore-next-line: canonical rustfmt line.
+    !id.is_empty() && id.len() <= 512 && id.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 // Runtime evaluations are limited to pre-audited, static UI observations and

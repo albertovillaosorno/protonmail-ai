@@ -919,6 +919,10 @@ web application without requiring Bridge or a third-party direct API identity.
   root, not a project-owned component). A same-user attacker replacing paths
   after validation but before Chromium opens its user-data directory remains
   a separate launch-time threat boundary.
+- Final `Network.getResponseBody` commands now require bounded printable ASCII
+  request IDs. This retains ordinary Chromium request IDs containing dots
+  without admitting invisible Unicode, controls, whitespace, or oversized
+  request handles; private authority tests cover both sides of the bound.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

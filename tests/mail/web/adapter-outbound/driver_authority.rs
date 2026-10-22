@@ -235,3 +235,31 @@ fn transport_rejects_unsafe_cdps_parameter_shapes_in_every_authorized_method() {
         assert!(!allowed_mail_cdp_request(scope, method, &params));
     }
 }
+
+#[test]
+fn response_body_requests_refuse_invisible_cdp_request_ids() {
+    for id in ["1.4", "req-1", "opaque_+~="] {
+        assert!(allowed_mail_cdp_request(
+            Some("session-a"),
+            "Network.getResponseBody",
+            &json!({"requestId":id})
+        ));
+    }
+    for invalid in [
+        "",
+        "with space",
+        "with\tcontrol",
+        "with\nnewline",
+        "unicode\u{200b}hidden",
+        "soft\u{ad}hyphen",
+        "dotted\u{e0020}tag",
+        "nonascii-\u{b5}",
+        &"x".repeat(513),
+    ] {
+        assert!(!allowed_mail_cdp_request(
+            Some("session-a"),
+            "Network.getResponseBody",
+            &json!({"requestId":invalid})
+        ));
+    }
+}
