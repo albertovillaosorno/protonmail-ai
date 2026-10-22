@@ -864,6 +864,11 @@ web application without requiring Bridge or a third-party direct API identity.
   value is present. `DOM.getDocument` root IDs must also be positive before
   issuing any AX role query. Two fake-browser regressions prove both
   fail-closed paths and redact synthetic private exception text.
+- Every Chromium `Target.getTargets` entry must now be an object with a
+  nonempty bounded string `type`; malformed unrelated entries cannot hide
+  before or after an otherwise valid Mail page. Synthetic target arrays test
+  null, array, string, missing, numeric, empty and oversized type fields, while
+  well-typed service-worker and shared-worker entries remain ignorable.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

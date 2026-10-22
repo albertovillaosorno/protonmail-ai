@@ -4283,7 +4283,12 @@ fn safe_cdp_endpoint_id(id: &str) -> bool {
 
 // jig-ignore-next-line: canonical rustfmt line.
 fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, BrowserDriverError> {
-    if info.get("type").and_then(Value::as_str) != Some("page") {
+    let target_type = info
+        .get("type")
+        .and_then(Value::as_str)
+        .filter(|kind| !kind.is_empty() && kind.len() <= 64)
+        .ok_or(BrowserDriverError::Protocol)?;
+    if target_type != "page" {
         return Ok(None);
     }
     let target_id = info

@@ -1665,3 +1665,60 @@ fn provider_target_url_metadata_has_a_bounded_ceiling() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn malformed_non_page_target_entries_cannot_hide_in_valid_target_catalog() {
+    use serde_json::json;
+    let valid_mail = json!({
+        "targetId":"page-1", "type":"page",
+        "url":"https://mail.proton.me/u/0/inbox"
+    });
+    for (case, malformed) in [
+        ("null", json!(null)),
+        ("array", json!([])),
+        ("string", json!("service_worker")),
+        ("missing-type", json!({"targetId":"other"})),
+        ("numeric-type", json!({"type":7u8})),
+        ("empty-type", json!({"type":""})),
+        ("oversized-type", json!({"type":"x".repeat(65)})),
+    ] {
+        for (position, targets) in [
+            ("before", json!([malformed.clone(), valid_mail.clone()])),
+            ("after", json!([valid_mail.clone(), malformed])),
+        ] {
+            let root = test_root(&format!("invalid-target-{case}-{position}"));
+            fs::create_dir_all(&root).expect("create isolated fake profile");
+            // jig-ignore-next-line: canonical rustfmt line.
+            let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+            let mut managed =
+                // jig-ignore-next-line: canonical rustfmt line.
+                ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+            // jig-ignore-next-line: canonical rustfmt line.
+            assert_eq!(managed.provider_page(), Err(BrowserDriverError::Protocol));
+            drop(managed);
+            cleanup(&root);
+        }
+    }
+}
+
+#[test]
+fn unrelated_well_typed_browser_targets_remain_ignorable() {
+    use serde_json::json;
+    let root = test_root("well-typed-other-targets");
+    fs::create_dir_all(&root).expect("create fake browser profile");
+    let targets = json!([
+        {"type":"service_worker"},
+        {"type":"shared_worker","targetId":"worker-1"},
+        // jig-ignore-next-line: canonical rustfmt line.
+        {"targetId":"mail-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}
+    ]);
+    let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+    assert_eq!(
+        managed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(managed);
+    cleanup(&root);
+}
