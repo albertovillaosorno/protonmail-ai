@@ -214,6 +214,12 @@ Ship useful read access before any mailbox mutation is enabled.
   Synthetic CDP requests prove those ambiguous paths fail closed before any
   response body can be read or mapped to provider-neutral identifiers.
 
+- Message-list CDP request URLs are now bounded to 16 KiB before hashing
+  untrusted query context, with the same bound enforced on matching responses.
+  Message and conversation list URL classifiers also refuse fragments as
+  non-network identities. This prevents synthetic fragment/query drift from
+  being mistaken for app-owned list evidence without inventing public paging.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

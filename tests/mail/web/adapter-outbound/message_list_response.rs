@@ -735,3 +735,89 @@ fn exact_message_list_request_ids_are_bounded_before_tracking() {
         .expect("ignore unrelated browser traffic");
     assert_eq!(capture.take_finished_request_ids().len(), 0);
 }
+
+#[test]
+fn message_list_cdp_url_length_is_bounded_before_query_hashing() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    const CEILING: usize = 16_384;
+    let make_event = |url: &str| {
+        json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            // jig-ignore-next-line: canonical rustfmt line.
+            "params":{"requestId":"bounded","request":{"method":"GET","url":url}}
+        })
+    };
+    let prefix = format!("{URL}&Filter=");
+    let accepted = format!("{prefix}{}", "x".repeat(CEILING - prefix.len()));
+    assert_eq!(accepted.len(), CEILING);
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&make_event(&accepted))
+        .expect("accept bounded exact URL");
+    let oversized = format!("{accepted}x");
+    let mut rejected = MessageListNetworkCapture::new("session-1");
+    assert_eq!(
+        rejected.observe(&make_event(&oversized)),
+        Err(MessageListNetworkError::MalformedEvent)
+    );
+    let response = json!({
+        "sessionId":"session-1", "method":"Network.responseReceived",
+        "params":{"requestId":"bounded","response":{
+            "url":oversized,"status":200u16,"mimeType":"application/json"
+        }}
+    });
+    assert_eq!(
+        capture.observe(&response),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+    let unrelated = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"background","request":{"method":"GET","url":
+            // jig-ignore-next-line: canonical rustfmt line.
+            format!("https://mail.proton.me/api/mail/v4/messages/count?{}", "x".repeat(20000))
+        }}
+    });
+    rejected
+        .observe(&unrelated)
+        .expect("ignore oversized unrelated GET");
+    assert_eq!(rejected.take_finished_request_ids().len(), 0);
+}
+
+#[test]
+fn fragment_bearing_message_list_urls_are_not_exact_network_gets() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let fragment = format!("{URL}#synthetic-fragment");
+    assert_eq!(
+        ObservedMessageListResponse::parse(
+            "GET",
+            &fragment,
+            r#"{"Stale":0,"Total":0,"Messages":[]}"#
+        ),
+        Err(MessageListResponseError::UnexpectedEndpoint)
+    );
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let untracked = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        // jig-ignore-next-line: canonical rustfmt line.
+        "params":{"requestId":"fragment","request":{"method":"GET","url":fragment}}
+    });
+    capture
+        .observe(&untracked)
+        .expect("ignore non-network fragment GET");
+    let valid = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"tracked","request":{"method":"GET","url":URL}}
+    });
+    capture.observe(&valid).expect("track exact network GET");
+    let redirect = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        // jig-ignore-next-line: canonical rustfmt line.
+        "params":{"requestId":"tracked","request":{"method":"GET","url":fragment}}
+    });
+    assert_eq!(
+        capture.observe(&redirect),
+        Err(MessageListNetworkError::RedirectedAway)
+    );
+}

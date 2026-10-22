@@ -604,6 +604,13 @@ web application without requiring Bridge or a third-party direct API identity.
   loadingFailed for the same unconsumed label request during Page.reload.
   The driver refuses the contradiction, disables Network without requesting
   any provider body, then safely inspects the Mail shell on the same session.
+- Exact message-list GET metadata is now capped at 16 KiB of request URL
+  before query-context fingerprinting or retaining capture state, matching
+  the conversation-list request bound. Overlong responses fail before URL
+  fingerprinting, and unrelated oversized background endpoints remain ignored.
+  Both list classifiers also reject fragment-bearing URLs rather than
+  interpreting their fragments as real network query evidence. Unit tests
+  cover the byte ceiling, response rejection, fragments, and redirects.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

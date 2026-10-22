@@ -1430,3 +1430,38 @@ fn malformed_event_during_network_disable_keeps_cdp_synchronized() {
     // jig-ignore-next-line: canonical rustfmt line.
     assert_malformed_event_recovers_cdp("malformed-during-disable", "enable\nbody\ndisable\n");
 }
+
+#[test]
+fn fragment_bearing_conversation_list_url_cannot_be_an_exact_get() {
+    use mail_web_adapter::ConversationListNetworkError;
+    use serde_json::json;
+    let fragment = format!("{URL}#synthetic-fragment");
+    let body = r#"{"Code":1000,"Stale":0,"Total":0,"Conversations":[]}"#;
+    assert_eq!(
+        ObservedConversationListResponse::parse("GET", &fragment, body),
+        Err(ConversationListResponseError::UnexpectedEndpoint)
+    );
+    let mut capture = ConversationListNetworkCapture::new("session-1");
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        // jig-ignore-next-line: canonical rustfmt line.
+        "params":{"requestId":"fragment","request":{"method":"GET","url":fragment}}
+    });
+    capture
+        .observe(&request)
+        .expect("ignore fragment-bearing GET");
+    let valid = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"tracked","request":{"method":"GET","url":URL}}
+    });
+    capture.observe(&valid).expect("track exact GET");
+    let redirected = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        // jig-ignore-next-line: canonical rustfmt line.
+        "params":{"requestId":"tracked","request":{"method":"GET","url":fragment}}
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(ConversationListNetworkError::RedirectedAway)
+    );
+}

@@ -614,7 +614,7 @@ fn is_conversation_list_url(url: &str) -> bool {
     let Some(remainder) = url.strip_prefix(CONVERSATION_LIST_URL_PREFIX) else {
         return false;
     };
-    remainder.is_empty() || remainder.starts_with('?')
+    !url.contains('#') && (remainder.is_empty() || remainder.starts_with('?'))
 }
 
 fn parse_request_page(

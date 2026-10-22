@@ -43,6 +43,7 @@ const MAX_MESSAGE_LIST_ITEMS: usize = 100;
 const MAX_MESSAGE_LIST_ID_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
+const MAX_MESSAGE_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -262,6 +263,9 @@ impl MessageListNetworkCapture {
         if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
+        if url.len() > MAX_MESSAGE_LIST_URL_BYTES {
+            return Err(MessageListNetworkError::MalformedEvent);
+        }
         let Some((kind, limit, page, sort_key, descending, anchor, anchor_id)) =
             message_list_request_shape(url)?
         else {
@@ -323,6 +327,9 @@ impl MessageListNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
+        if url.len() > MAX_MESSAGE_LIST_URL_BYTES {
+            return Err(MessageListNetworkError::ResponseRejected);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         let context_fingerprint = query_context_fingerprint(url, &self.fingerprint_hashers)
             .map_err(|_error| MessageListNetworkError::ResponseRejected)?;
@@ -895,5 +902,5 @@ fn is_message_list_url(url: &str) -> bool {
     let Some(remainder) = url.strip_prefix(MESSAGE_LIST_URL_PREFIX) else {
         return false;
     };
-    remainder.is_empty() || remainder.starts_with('?')
+    !url.contains('#') && (remainder.is_empty() || remainder.starts_with('?'))
 }
