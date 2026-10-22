@@ -723,6 +723,10 @@ web application without requiring Bridge or a third-party direct API identity.
   categories; unrelated numeric categories remain ignored, while signed,
   zero-padded, encoded, fractional, or overflowing forms fail closed. Synthetic
   tests verify request refusal and response-only selector drift rejection.
+- A fake Chromium catalog regression now injects noncanonical `Type` only
+  into an app-owned GET request or only its response. Both paths fail before
+  body retrieval, audit `Network.disable`, and preserve later safe same-session
+  Mail-shell inspection. No account, navigation or provider call is used.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

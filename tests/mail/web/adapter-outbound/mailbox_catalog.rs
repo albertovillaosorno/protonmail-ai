@@ -1587,3 +1587,76 @@ fn catalog_type_query_requires_canonical_decimal_category() {
     );
     assert_eq!(capture.take_finished_request_ids().len(), 0);
 }
+
+#[test]
+fn noncanonical_catalog_category_cleans_network_and_preserves_browser() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock catalog fake browsers");
+    for (label, response_only, expected) in [
+        (
+            "request-type-alias",
+            false,
+            MailboxCatalogNetworkError::MalformedEvent,
+        ),
+        (
+            "response-type-alias",
+            true,
+            MailboxCatalogNetworkError::ResponseRejected,
+        ),
+    ] {
+        let root = catalog_browser_root(label);
+        fs::create_dir_all(&root).expect("create synthetic browser profile");
+        let browser = fake_catalog_browser(&root, false, false);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+        let changed = if response_only {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let emission = r#"printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4"#;
+            let injected = format!(
+                // jig-ignore-next-line: canonical rustfmt line.
+                "if [ \"$type\" = '1' ]; then response=\"${{response/Type=1/Type=+1}}\"; fi\n        {emission}"
+            );
+            assert!(script.contains(emission));
+            script.replacen(emission, &injected, 1)
+        } else {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let url = r#"url="https://mail.proton.me/api/core/v4/labels?Type=$type""#;
+            let injected = format!(
+                // jig-ignore-next-line: canonical rustfmt line.
+                "{url}\n        if [ \"$type\" = '1' ]; then url='https://mail.proton.me/api/core/v4/labels?Type=+1'; fi"
+            );
+            assert!(script.contains(url));
+            script.replacen(url, &injected, 1)
+        };
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::write(&browser, changed).expect("inject request or response category alias");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic UTF-8 browser path"),
+            &root.join("data"),
+        )
+        .expect("create isolated browser plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+        let page = managed
+            .provider_page()
+            .expect("discover synthetic Mail page");
+        assert_eq!(
+            managed.observe_mailbox_catalog(&page),
+            Err(BrowserDriverError::MailboxCatalogNetwork(expected))
+        );
+        managed
+            .require_mail_shell(&page)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("same browser remains safely inspectable after Network teardown");
+        drop(managed);
+        let log = fs::read_to_string(root.join("catalog-log.txt"))
+            .expect("read audited synthetic commands");
+        assert_eq!(log, "enable\nreload\ndisable\n");
+        fs::remove_dir_all(&root).expect("remove synthetic profile and log");
+    }
+}
