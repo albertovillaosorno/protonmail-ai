@@ -714,7 +714,11 @@ impl ManagedBrowser {
         });
         // jig-ignore-next-line: canonical rustfmt line.
         let result = self.call_in_session(session, "Runtime.evaluate", &params)?;
-        if result.get("exceptionDetails").is_some() {
+        if result.get("exceptionDetails").is_some()
+            || result
+                .get("wasThrown")
+                .is_some_and(|thrown| thrown.as_bool() != Some(false))
+        {
             return Err(BrowserDriverError::Protocol);
         }
         result

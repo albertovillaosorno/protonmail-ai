@@ -556,3 +556,50 @@ fn runtime_javascript_exception_cannot_become_ready_shell_evidence() {
     drop(managed);
     fs::remove_dir_all(root).expect("remove synthetic test tree");
 }
+
+#[test]
+fn runtime_thrown_flag_cannot_authorize_mail_shell_with_plausible_value() {
+    for (label, flag, expected) in [
+        ("runtime-thrown", "true", Err(BrowserDriverError::Protocol)),
+        (
+            "runtime-unknown-throw",
+            "null",
+            Err(BrowserDriverError::Protocol),
+        ),
+        ("runtime-not-thrown", "false", Ok(true)),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile root");
+        let browser = fake_browser(
+            &root,
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            "mail.proton.me",
+            &RoleFixture::ready(),
+        );
+        let script = fs::read_to_string(&browser).expect("read fake browser");
+        let original = "      printf '%s\\0' \"$response\" >&4;;";
+        assert!(script.contains(original));
+        let remote = format!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            r#"{{"result":{{"value":{{"protocol":"https:","hostname":"mail.proton.me","port":""}}}},"wasThrown":{flag}}}"#
+        );
+        let replacement =
+            // jig-ignore-next-line: canonical rustfmt line.
+            format!("      printf '{{\"id\":%s,\"result\":{remote}}}\\0' \"$id\" >&4;;");
+        fs::write(&browser, script.replacen(original, &replacement, 1))
+            .expect("inject a bounded old-CDP throw flag");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+        let page = managed.provider_page().expect("discover fake Mail target");
+        assert_eq!(
+            managed
+                .require_mail_shell(&page)
+                .map(mail_web_adapter::MailShellEvidence::ready),
+            expected
+        );
+        drop(managed);
+        fs::remove_dir_all(root).expect("remove synthetic fixture");
+    }
+}

@@ -942,6 +942,10 @@ web application without requiring Bridge or a third-party direct API identity.
   ceiling. This rejects disguised/extra separators even for otherwise ignored
   notifications, while preserving standard Network/Target event forms.
   Synthetic browser and private unit tests both cover the boundary.
+- Runtime page-state evaluation now refuses legacy CDP `wasThrown:true`
+  or malformed flag values even alongside an apparently valid Mail origin.
+  Explicit `false` remains compatible, and three synthetic Chromium response
+  cases prove no thrown JavaScript result can grant Mail-shell readiness.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
