@@ -3478,7 +3478,16 @@ impl ManagedBrowser {
                 }
                 continue;
             };
+            // A flattened CDP reply may carry the session it belongs to.
+            // If present, it must match the outstanding command; numeric IDs
+            // alone are not cross-session identity evidence.
+            let wrong_reply_session = match message.get("sessionId") {
+                None => false,
+                Some(Value::String(actual)) => session != Some(actual.as_str()),
+                Some(_) => true,
+            };
             if response_id != id
+                || wrong_reply_session
                 || message.get("method").is_some()
                 || message.get("params").is_some()
             {

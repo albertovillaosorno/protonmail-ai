@@ -820,6 +820,13 @@ web application without requiring Bridge or a third-party direct API identity.
   tests refuse empty, oversized, separator, and invisible-character IDs and
   accept exactly 512-byte handles. `ProviderPage` Debug now redacts target IDs
   while still reporting safe origin classification; no real profile is used.
+- Correlated CDP command replies now compare any explicit flattened
+  `sessionId` against the outstanding command's session in addition to its
+  numeric ID. A wrong, null, empty, or numeric reply session is never treated
+  as successful Network activation; the genuine reply is drained, Network is
+  disabled, and later safe Mail-shell inspection succeeds. An explicit
+  matching session also has a positive fake-browser test. Replies without a
+  session field remain compatible with existing synthetic browser fixtures.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

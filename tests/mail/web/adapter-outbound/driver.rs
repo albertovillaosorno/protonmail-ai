@@ -1503,3 +1503,98 @@ fn maximal_safe_cdp_target_and_session_handles_work_without_log_exposure() {
     drop(managed);
     cleanup(&root);
 }
+
+#[test]
+fn wrong_session_reply_with_current_command_id_cannot_spoof_enable() {
+    for (label, session_json) in [
+        ("wrong-session", r#""sessionId":"other-session""#),
+        ("null-session", r#""sessionId":null"#),
+        ("numeric-session", r#""sessionId":7"#),
+        ("empty-session", r#""sessionId":"""#),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create isolated synthetic profile");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read fake browser fixture");
+        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        assert!(script.contains(reply));
+        let unsolicited = format!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            "      printf '{{\"id\":%s,{session_json},\"result\":{{}}}}\\0' \"$id\" >&4\n{reply}"
+        );
+        fs::write(&browser, script.replacen(reply, &unsolicited, 1))
+            .expect("install cross-session reply ahead of actual reply");
+        let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+            .expect("launch private-pipe fake Chrome");
+        let page = managed.provider_page().expect("select synthetic Mail page");
+        assert_eq!(
+            managed.observe_message_list_response(&page),
+            Err(BrowserDriverError::Protocol),
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("authentic command reply was drained before cleanup");
+        drop(managed);
+        let log =
+            // jig-ignore-next-line: canonical rustfmt line.
+            fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network audit");
+        assert_eq!(log, "enable\ndisable\n");
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn matching_explicit_cdp_session_reply_is_accepted() {
+    let root = test_root("matched-cdp-session-reply");
+    fs::create_dir_all(&root).expect("create isolated test profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake browser script");
+    let original = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    let explicit =
+        // jig-ignore-next-line: canonical rustfmt line.
+        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"result\":{}}\\0' \"$id\" >&4;;";
+    assert!(script.contains(original));
+    fs::write(&browser, script.replacen(original, explicit, 1))
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("add matching explicit session to Network.enable acknowledgement");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail page");
+    let response = managed
+        .observe_message_list_response(&page)
+        .expect("matching explicit session permits a safe app-owned list read");
+    assert_eq!(response.messages().len(), 1);
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network audit");
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+    cleanup(&root);
+}
