@@ -354,3 +354,66 @@ fn login_error_diagnostics_redact_local_paths_and_browser_executables() {
         assert_ne!(display, "");
     }
 }
+
+#[test]
+fn symlinked_project_or_profile_cannot_change_external_directory_permissions() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    for (case, project_link) in [("external-project", true), ("external-profile", false)] {
+        let root = test_root(case);
+        let data_home = root.join("data");
+        let outside = root.join("outside-private-data");
+        fs::create_dir_all(&data_home).expect("create isolated test data home");
+        fs::create_dir_all(&outside).expect("create external marker directory");
+        fs::set_permissions(&outside, fs::Permissions::from_mode(0o751))
+            .expect("set distinguishable outside mode");
+        let project = data_home.join("protonmail-ai");
+        if project_link {
+            // jig-ignore-next-line: canonical rustfmt line.
+            symlink(&outside, &project).expect("link project directory to outside");
+        } else {
+            fs::create_dir_all(&project).expect("create owned project");
+            symlink(&outside, project.join("browser-profile"))
+                .expect("link profile directory to outside");
+        }
+        let browser = fake_browser(&root);
+        let output = login(&root, &browser, Some(&data_home));
+        assert!(!output.status.success());
+        assert!(!root.join("browser-args.txt").exists());
+        let mode = fs::metadata(&outside)
+            .expect("external directory remains present")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            mode, 0o751,
+            "outside mode must not be hardened through a link"
+        );
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn existing_dedicated_directories_are_private_after_login() {
+    let root = test_root("existing-private-directories");
+    let data_home = root.join("data");
+    let project = data_home.join("protonmail-ai");
+    let profile = project.join("browser-profile");
+    fs::create_dir_all(&profile).expect("create isolated existing profile");
+    for directory in [&project, &profile] {
+        fs::set_permissions(directory, fs::Permissions::from_mode(0o751))
+            .expect("set distinguishable old permissions");
+    }
+    let browser = fake_browser(&root);
+    assert!(login(&root, &browser, Some(&data_home)).status.success());
+    for directory in [&project, &profile] {
+        assert_eq!(
+            fs::metadata(directory)
+                .expect("existing directory still present")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+    }
+    cleanup(&root);
+}

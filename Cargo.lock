@@ -237,6 +237,7 @@ dependencies = [
  "command-fds",
  "getrandom",
  "mail_capability_domain",
+ "nix",
  "serde_json",
  "zeroize",
 ]

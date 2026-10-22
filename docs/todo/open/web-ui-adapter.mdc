@@ -904,6 +904,12 @@ web application without requiring Bridge or a third-party direct API identity.
   reject absent, empty, nonstring and oversized markers, prove immediate
   dedicated-profile lease recovery after each failure, and accept exactly
   256 bytes without retaining browser product strings in diagnostics.
+- Dedicated-profile directory permissions now use a no-follow directory FD,
+  set mode `0700` on the held inode, and compare its device/inode with the
+  named path before accepting setup. This avoids chmod through a swapped
+  final symlink. Synthetic login tests prove external symlink targets retain
+  their own mode and existing project/profile directories become private.
+  Path replacement at a later browser launch remains a separate boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

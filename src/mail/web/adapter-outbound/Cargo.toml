@@ -17,6 +17,7 @@ base64 = { workspace = true }
 command-fds = { workspace = true }
 getrandom = { workspace = true }
 mail_capability_domain = { workspace = true }
+nix = { workspace = true }
 serde_json = { workspace = true }
 zeroize = { workspace = true }
 

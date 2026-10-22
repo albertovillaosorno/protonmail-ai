@@ -34,9 +34,12 @@
 
 use std::env;
 use std::fmt::{self, Formatter as Fmt};
-use std::fs;
+use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind};
-use std::os::unix::fs::PermissionsExt as _;
+use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+
+use nix::fcntl::{OFlag, open};
+use nix::sys::stat::Mode;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -320,8 +323,24 @@ fn create_private_dir(path: &Path) -> Result<(), WebLoginError> {
 }
 
 fn restrict_permissions(path: &Path) -> Result<(), WebLoginError> {
-    let permissions = fs::Permissions::from_mode(0o700);
-    fs::set_permissions(path, permissions).map_err(|error| io_err(path, error))
+    // Open the validated directory without following a replaced final symlink.
+    // Set permissions on that inode, never through a path that could redirect.
+    // jig-ignore-next-line: canonical rustfmt line.
+    let flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let fd = open(path, flags, Mode::empty()).map_err(|_error| create_error(path))?;
+    let directory = File::from(fd);
+    directory
+        .set_permissions(fs::Permissions::from_mode(0o700))
+        .map_err(|error| io_err(path, error))?;
+    let held = directory.metadata().map_err(|error| io_err(path, error))?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let named = fs::symlink_metadata(path).map_err(|error| io_err(path, error))?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    if !named.is_dir() || held.dev() != named.dev() || held.ino() != named.ino() {
+        return Err(create_error(path));
+    }
+    Ok(())
 }
 
 fn create_error(path: &Path) -> WebLoginError {
