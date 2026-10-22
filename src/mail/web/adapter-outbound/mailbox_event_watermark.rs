@@ -44,6 +44,7 @@ const MAX_EVENT_BODY_BYTES: usize = 262_144;
 const MAX_EVENT_ID_BYTES: usize = 512;
 const MAX_TRACKED_EVENT_REQUESTS: usize = 32;
 const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
+const MAX_EVENT_URL_BYTES: usize = 16_384;
 const MAX_PROJECTED_CHANGES: usize = 512;
 const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
 const MAX_EVENT_SEQUENCE_CHANGES: usize = 4096;
@@ -156,6 +157,9 @@ impl LatestMailboxEventNetworkCapture {
         if tracked {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
+        if url.len() > MAX_EVENT_URL_BYTES {
+            return Err(MailboxEventNetworkError::MalformedEvent);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
             return Err(MailboxEventNetworkError::MalformedEvent);
@@ -199,6 +203,9 @@ impl LatestMailboxEventNetworkCapture {
         };
         if *state != EventRequestState::Requested {
             return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if url.len() > MAX_EVENT_URL_BYTES {
+            return Err(MailboxEventNetworkError::ResponseRejected);
         }
         // jig-ignore-next-line: canonical rustfmt line.
         if status != Some(200) || mime != Some("application/json") || !is_latest_event_url(url) {
@@ -354,6 +361,9 @@ impl MailboxEventNetworkCapture {
         if tracked {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
+        if url.len() > MAX_EVENT_URL_BYTES {
+            return Err(MailboxEventNetworkError::MalformedEvent);
+        }
         let event_id =
             // jig-ignore-next-line: canonical rustfmt line.
             event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::MalformedEvent)?;
@@ -398,6 +408,9 @@ impl MailboxEventNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if url.len() > MAX_EVENT_URL_BYTES {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
         let event_id =
             // jig-ignore-next-line: canonical rustfmt line.
             event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::ResponseRejected)?;
@@ -491,7 +504,8 @@ impl ObservedLatestMailboxEventWatermark {
     /// bodies, and invalid event watermarks.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse(method: &str, url: &str, body: &str) -> Result<Self, MailboxEventWatermarkError> {
-        if method != "GET" || !is_latest_event_url(url) {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if method != "GET" || url.len() > MAX_EVENT_URL_BYTES || !is_latest_event_url(url) {
             return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
         }
         if body.len() > MAX_EVENT_BODY_BYTES {
@@ -1060,7 +1074,7 @@ fn is_latest_event_url(url: &str) -> bool {
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
-    if url.contains('#') {
+    if url.len() > MAX_EVENT_URL_BYTES || url.contains('#') {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     let path = url.split_once('?').map_or(url, |(path, _query)| path);

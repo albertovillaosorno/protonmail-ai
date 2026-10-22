@@ -621,6 +621,10 @@ web application without requiring Bridge or a third-party direct API identity.
   the same 16 KiB URL ceiling as their exact CDP request classifiers. Direct
   parser callers cannot bypass the capture limit with an oversized query;
   synthetic tests check acceptance at the ceiling and rejection one byte over.
+- Exact latest-event and v5 event GET URLs are now limited to 16 KiB before
+  CDP lifecycle matching or response projection, preventing unbounded URL
+  query interpretation. Synthetic tests cover requests, responses, direct
+  parser entry points, and unrelated background traffic.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

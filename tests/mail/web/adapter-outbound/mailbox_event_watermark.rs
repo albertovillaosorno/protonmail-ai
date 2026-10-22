@@ -1897,3 +1897,110 @@ fn event_url_backslash_cannot_be_promoted_to_cursor_watermark() {
         Err(MailboxEventWatermarkError::UnexpectedEndpoint)
     );
 }
+
+#[test]
+fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    const CEILING: usize = 16_384;
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    for (url, is_latest) in [(latest_url, true), (URL, false)] {
+        let prefix = format!("{url}&Synthetic=");
+        let prefix = if is_latest {
+            format!("{url}?Synthetic=")
+        } else {
+            prefix
+        };
+        // jig-ignore-next-line: canonical rustfmt line.
+        let accepted = format!("{prefix}{}", "x".repeat(CEILING - prefix.len()));
+        let oversized = format!("{accepted}x");
+        assert_eq!(accepted.len(), CEILING);
+        if is_latest {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+            capture
+                .observe(&cdp_lifecycle_event(
+                    "Network.requestWillBeSent",
+                    "good",
+                    &accepted,
+                ))
+                .expect("capture bounded bootstrap URL");
+            assert_eq!(
+                capture.observe(&cdp_lifecycle_event(
+                    "Network.responseReceived",
+                    "good",
+                    &oversized
+                )),
+                Err(MailboxEventNetworkError::ResponseRejected)
+            );
+            // jig-ignore-next-line: canonical rustfmt line.
+            let mut oversize = LatestMailboxEventNetworkCapture::new("session-1");
+            assert_eq!(
+                oversize.observe(&cdp_lifecycle_event(
+                    "Network.requestWillBeSent",
+                    "bad",
+                    &oversized
+                )),
+                Err(MailboxEventNetworkError::MalformedEvent)
+            );
+            assert_eq!(
+                ObservedLatestMailboxEventWatermark::parse(
+                    "GET",
+                    &oversized,
+                    r#"{"EventID":"event-7"}"#
+                ),
+                Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+            );
+        } else {
+            let mut capture = MailboxEventNetworkCapture::new("session-1");
+            capture
+                .observe(&cdp_lifecycle_event(
+                    "Network.requestWillBeSent",
+                    "good",
+                    &accepted,
+                ))
+                .expect("capture bounded v5 event URL");
+            assert_eq!(
+                capture.observe(&cdp_lifecycle_event(
+                    "Network.responseReceived",
+                    "good",
+                    &oversized
+                )),
+                Err(MailboxEventNetworkError::ResponseRejected)
+            );
+            let mut oversize = MailboxEventNetworkCapture::new("session-1");
+            assert_eq!(
+                oversize.observe(&cdp_lifecycle_event(
+                    "Network.requestWillBeSent",
+                    "bad",
+                    &oversized
+                )),
+                Err(MailboxEventNetworkError::MalformedEvent)
+            );
+            assert_eq!(
+                ObservedMailboxEventWatermark::parse(
+                    "GET",
+                    &oversized,
+                    r#"{"EventID":"event-7","More":0}"#
+                ),
+                Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+            );
+        }
+    }
+    let unrelated = format!(
+        "https://mail.proton.me/api/core/v4/users?{}",
+        "x".repeat(20_000)
+    );
+    let mut latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let mut events = MailboxEventNetworkCapture::new("session-1");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let traffic = cdp_lifecycle_event("Network.requestWillBeSent", "background", &unrelated);
+    latest
+        .observe(&traffic)
+        .expect("ignore unrelated oversize latest traffic");
+    events
+        .observe(&traffic)
+        .expect("ignore unrelated oversize event traffic");
+    assert_eq!(latest.take_finished_request_ids().len(), 0);
+    assert_eq!(events.take_finished_request_ids().len(), 0);
+}

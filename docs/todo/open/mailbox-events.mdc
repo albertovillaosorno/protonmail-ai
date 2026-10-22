@@ -57,6 +57,11 @@ bounded resource use.
   an ambiguous path suffix as an opaque event watermark. Synthetic parsing
   evidence proves no resumable cursor can be produced from that endpoint.
 
+- Legacy latest-event and v5 poll Network captures now bound exact request
+  and response URLs to 16 KiB, as do their standalone response projectors.
+  Synthetic tests cover the precise accepted length, one byte over, redacted
+  fail-closed responses, and ignored unrelated oversized browser traffic.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume
