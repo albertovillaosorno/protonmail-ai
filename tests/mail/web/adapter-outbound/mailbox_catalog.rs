@@ -1756,3 +1756,39 @@ fn custom_folder_parent_cycles_are_rejected_without_exposing_names() {
     assert_eq!(projected.items().len(), 4);
     assert_eq!(projected.items()[0].parent_id(), Some("folder-b"));
 }
+
+#[test]
+fn maximum_bounded_custom_folder_chain_rejects_late_cycle() {
+    let mut labels = (0..2_048usize)
+        .map(|index| {
+            let parent = if index == 0 {
+                None
+            } else {
+                Some(format!("folder-{}", index - 1))
+            };
+            json!({
+                "ID":format!("folder-{index}"),
+                "Name":"Synthetic folder", "Type":3u8,
+                "Order":index, "ParentID":parent
+            })
+        })
+        .collect::<Vec<_>>();
+    let body = json!({"Code":1000u16,"Labels":labels}).to_string();
+    let projected =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Folder, "GET", FOLDER_URL, &body)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("maximum permitted acyclic chain remains bounded and valid");
+    assert_eq!(projected.items().len(), 2_048);
+    labels[0]["ParentID"] = json!("folder-2047");
+    let cycle = json!({"Code":1000u16,"Labels":labels}).to_string();
+    assert_eq!(
+        ObservedMailboxCatalogResponse::parse(
+            MailboxCatalogKind::Folder,
+            "GET",
+            FOLDER_URL,
+            &cycle
+        ),
+        Err(MailboxCatalogResponseError::Malformed)
+    );
+}

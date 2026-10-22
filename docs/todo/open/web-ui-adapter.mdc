@@ -788,6 +788,10 @@ web application without requiring Bridge or a third-party direct API identity.
   list parser before a next-page click; a terminal maximum-numbered page is
   still acceptable when its next control is disabled. Synthetic browser
   tests distinguish those cases and preserve canonical page marker proof.
+- A synthetic 2,048-item custom-folder catalog (the exact item ceiling)
+  now verifies that an acyclic deep parent chain projects completely while
+  a closing root-to-tail link fails closed as a cycle. Parent traversal
+  reuses settled nodes and does not recurse or expose folder names in errors.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
