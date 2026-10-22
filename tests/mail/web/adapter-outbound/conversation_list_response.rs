@@ -347,7 +347,7 @@ fn network_capture_never_promotes_other_sessions_or_write_requests() {
         .observe(&finished_event("session-a", "write"))
         .expect("ignore untracked write completion");
     assert_eq!(capture.tracked_request_count(), 0);
-    assert!(capture.take_finished_request_ids().is_empty());
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
 }
 
 static CONVERSATION_LIST_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());

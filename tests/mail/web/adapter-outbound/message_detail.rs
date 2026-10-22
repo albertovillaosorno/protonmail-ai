@@ -138,7 +138,7 @@ fn exact_detail_projection_keeps_only_bounded_metadata() {
     assert_eq!(message.sender().address(), "sender@example.test");
     assert_eq!(message.to()[0].address(), "to@example.test");
     assert_eq!(message.cc()[0].address(), "cc@example.test");
-    assert!(message.bcc().is_empty());
+    assert_eq!(message.bcc().len(), 0);
     assert_eq!(message.time(), 1_700_000_000);
     assert!(message.unread());
     assert_eq!(

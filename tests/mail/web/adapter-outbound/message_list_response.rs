@@ -221,7 +221,7 @@ fn network_capture_tracks_only_exact_get_list_lifecycle() {
     });
     capture.observe(&finished).expect("finish list request");
     assert_eq!(capture.take_finished_request_ids(), ["list-1"]);
-    assert!(capture.take_finished_request_ids().is_empty());
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
     let debug = format!("{capture:?}");
     assert!(!debug.contains("session-1"));
     assert!(!debug.contains(URL));
@@ -469,7 +469,7 @@ fn explicit_empty_reconciliation_rejects_observed_messages() {
     );
     let empty = ReconciledVisibleMessageMetadata::reconcile(&[], &[])
         .expect("empty page without observations is consistent");
-    assert!(empty.messages().is_empty());
+    assert_eq!(empty.messages().len(), 0);
 }
 
 #[test]
@@ -581,7 +581,7 @@ fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
             }))
             .expect("ignore list request outside WebClients batch shape");
     }
-    assert!(capture.take_finished_request_ids().is_empty());
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
 
     for url in [
         // jig-ignore-next-line: indivisible synthetic URL fixture.

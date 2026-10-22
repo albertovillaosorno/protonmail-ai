@@ -955,7 +955,7 @@ fn opt_in_real_chrome_private_pipe_smoke() {
     fs::write(&wrapper, body).expect("write real Chrome wrapper");
     let permissions = fs::Permissions::from_mode(0o700);
     fs::set_permissions(&wrapper, permissions).expect("chmod Chrome wrapper");
-    assert!(!real_chrome.is_empty());
+    assert_ne!(real_chrome.len(), 0);
 
     let plan = plan(&root, &wrapper);
     // jig-ignore-next-line: canonical rustfmt line.

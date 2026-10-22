@@ -215,7 +215,7 @@ fn loading_discards_partial_rows_and_pagination() {
         // jig-ignore-next-line: canonical rustfmt line.
         inspect("loading", LOADING, VISIBLE_AX, "mail.proton.me").expect("inspect loading list");
     assert_eq!(evidence.state(), MailboxListState::Loading);
-    assert!(evidence.row_ids().is_empty());
+    assert_eq!(evidence.row_ids().len(), 0);
     assert_eq!(evidence.current_page(), None);
     assert_eq!(evidence.next_page(), NextPageControl::Absent);
 }

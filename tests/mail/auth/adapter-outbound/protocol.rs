@@ -334,7 +334,7 @@ fn absent_payload_decodes_to_empty_key_password() {
         .decode(None, ForkPayloadVersion::V3)
         .expect("missing payload represents empty key password");
 
-    assert!(password.expose().is_empty());
+    assert_eq!(password.expose().len(), 0);
 }
 
 const fn sdk_identity() -> ProviderRequestIdentity<'static> {

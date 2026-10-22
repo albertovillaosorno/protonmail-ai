@@ -101,6 +101,10 @@ fn is_regular_file(file_type: fs::FileType) -> bool {
 }
 
 #[expect(
+    clippy::allow_attributes,
+    reason = "Cross-toolchain Drop lint changes require an explicit exemption"
+)]
+#[allow(
     clippy::missing_trait_methods,
     reason = "Drop::pin_drop is unstable and conflicts with Drop::drop"
 )]

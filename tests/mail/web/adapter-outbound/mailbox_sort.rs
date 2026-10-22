@@ -344,7 +344,7 @@ fn preopened_menu_is_not_closed_by_adapter() {
         ManagedBrowser::inspect_mailbox_sort,
     );
     assert_eq!(result, Ok(MailboxSortOrder::OldestFirst));
-    assert!(log.is_empty());
+    assert_eq!(log.len(), 0);
 }
 
 #[test]

@@ -197,7 +197,7 @@ fn explicit_empty_is_the_only_empty_snapshot() {
     // jig-ignore-next-line: canonical rustfmt line.
     let snapshot = read("empty", EMPTY_LIST, "[]", EMPTY_LIST).expect("read explicit empty page");
     assert!(snapshot.explicitly_empty());
-    assert!(snapshot.rows().is_empty());
+    assert_eq!(snapshot.rows().len(), 0);
 }
 
 #[test]

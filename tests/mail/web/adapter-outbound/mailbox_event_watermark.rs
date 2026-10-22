@@ -580,7 +580,7 @@ fn network_capture_ignores_other_sessions_and_non_event_traffic() {
     ] {
         capture.observe(&event).expect("ignore unrelated traffic");
     }
-    assert!(capture.take_finished_request_ids().is_empty());
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
 }
 
 #[test]
@@ -782,7 +782,7 @@ fn change_pages_preserve_timeout_cursor_and_project_settled_sequence() {
     .expect("parse bootstrap watermark");
     // jig-ignore-next-line: canonical rustfmt line.
     let initial = ObservedMailboxChangePage::from_bootstrap(scope.clone(), &bootstrap);
-    assert!(initial.changes().is_empty());
+    assert_eq!(initial.changes().len(), 0);
     assert_eq!(
         initial.next_cursor().state_for(&scope).map(String::as_str),
         Ok("event-1")
@@ -790,7 +790,7 @@ fn change_pages_preserve_timeout_cursor_and_project_settled_sequence() {
 
     // jig-ignore-next-line: canonical rustfmt line.
     let timed_out = ObservedMailboxChangePage::from_timeout(initial.next_cursor().clone());
-    assert!(timed_out.changes().is_empty());
+    assert_eq!(timed_out.changes().len(), 0);
     assert_eq!(timed_out.next_cursor(), initial.next_cursor());
 
     let event = ObservedMailboxEventWatermark::parse(
@@ -1151,8 +1151,8 @@ fn browser_serialized_change_wait_round_trips_timeout_cursor() {
             (initial, resumed, wrong_account, logical_state)
         },
     );
-    assert!(initial.changes().is_empty());
-    assert!(resumed.changes().is_empty());
+    assert_eq!(initial.changes().len(), 0);
+    assert_eq!(resumed.changes().len(), 0);
     assert_ne!(initial.next_cursor(), resumed.next_cursor());
     assert_eq!(logical_state.0, logical_state.1);
     assert_eq!(logical_state.0, "event-bootstrap");
@@ -1237,7 +1237,7 @@ fn browser_initial_change_timeout_returns_bootstrap_cursor() {
             (result, started.elapsed(), browser.provider_page())
         });
     let page = result.expect("initial timeout is a successful change page");
-    assert!(page.changes().is_empty());
+    assert_eq!(page.changes().len(), 0);
     assert_eq!(
         page.next_cursor().state_for(&scope).map(String::as_str),
         Ok("event-bootstrap")
@@ -1468,7 +1468,7 @@ fn browser_resumed_change_page_advances_or_preserves_cursor() {
         )
     })
     .expect("resumed timeout is a successful empty page");
-    assert!(timed_out.changes().is_empty());
+    assert_eq!(timed_out.changes().len(), 0);
     assert_eq!(timed_out.next_cursor(), &cursor);
 }
 

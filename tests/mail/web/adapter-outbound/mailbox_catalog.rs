@@ -930,7 +930,7 @@ fn catalog_page_size_and_account_fail_before_network_capture() {
     drop(managed);
     // jig-ignore-next-line: canonical rustfmt line.
     let log = fs::read_to_string(root.join("catalog-log.txt")).unwrap_or_default();
-    assert!(log.is_empty());
+    assert_eq!(log.len(), 0);
     fs::remove_dir_all(&root).expect("remove page-input catalog root");
 }
 
@@ -1128,7 +1128,7 @@ fn catalog_cursor_expires_across_managed_browser_generation() {
     drop(managed);
     // jig-ignore-next-line: canonical rustfmt line.
     let log = fs::read_to_string(second_root.join("catalog-log.txt")).unwrap_or_default();
-    assert!(log.is_empty());
+    assert_eq!(log.len(), 0);
     // jig-ignore-next-line: canonical rustfmt line.
     fs::remove_dir_all(&second_root).expect("remove second cursor-generation root");
 }
