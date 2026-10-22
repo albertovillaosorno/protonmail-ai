@@ -23,8 +23,7 @@
 // - Description:
 //   - Tests scope-aware methods and rejects arbitrary browser script strings.
 // - Usage:
-// jig-ignore-next-line: canonical rustfmt line.
-//   - Included by the driver module for in-crate tests under the root tests tree.
+//   - Included as private driver tests from the root tests directory.
 // - Defaults:
 //   - No live browser activity or provider data.
 //
