@@ -452,8 +452,7 @@ impl ObservedConversationDetailResponse {
         conversation_id: &str,
         result: &Value,
     ) -> Result<Self, ConversationDetailResponseError> {
-        // jig-ignore-next-line: canonical rustfmt line.
-        if conversation_id.is_empty() || conversation_id.len() > MAX_CONVERSATION_ID_BYTES {
+        if !valid_route_component(conversation_id, MAX_CONVERSATION_ID_BYTES) {
             return Err(ConversationDetailResponseError::UnexpectedEndpoint);
         }
         let encoded = result
@@ -511,6 +510,17 @@ pub enum ConversationDetailResponseError {
     UnsupportedEncoding,
 }
 
+/// Only bounded opaque values safe for exact message/conversation routes.
+fn valid_route_component(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum
+        && !value.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(character, '/' | '?' | '#' | '\\')
+        })
+}
+
 fn conversation_id_from_detail_url(
     url: &str,
 ) -> Result<Option<&str>, ConversationDetailResponseError> {
@@ -518,12 +528,7 @@ fn conversation_id_from_detail_url(
     let Some(conversation_id) = url.strip_prefix(CONVERSATION_DETAIL_URL_PREFIX) else {
         return Ok(None);
     };
-    if conversation_id.is_empty()
-        || conversation_id.len() > MAX_CONVERSATION_ID_BYTES
-        || conversation_id
-            .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'\\'))
-    {
+    if !valid_route_component(conversation_id, MAX_CONVERSATION_ID_BYTES) {
         return Err(ConversationDetailResponseError::UnexpectedEndpoint);
     }
     Ok(Some(conversation_id))
@@ -547,7 +552,7 @@ fn bounded_required_string(
         .get(key)
         .and_then(Value::as_str)
         .ok_or(ConversationDetailResponseError::Malformed)?;
-    if value.is_empty() || value.len() > max_bytes {
+    if !valid_route_component(value, max_bytes) {
         return Err(ConversationDetailResponseError::Malformed);
     }
     Ok(String::from(value))

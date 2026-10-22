@@ -789,3 +789,74 @@ fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
     );
     assert_eq!(capture.take_finished_requests().len(), 0);
 }
+
+#[test]
+fn complete_conversation_membership_refuses_unsafe_message_ids() {
+    for bad in [
+        "message/a",
+        "message?a",
+        "message#a",
+        "message\\a",
+        "message a",
+        "message\na",
+        "message\ta",
+        "message\r",
+        "message\u{a0}a",
+        "message\u{7f}a",
+    ] {
+        let mut body = conversation_body();
+        body["Messages"][0]["ID"] = json!(bad);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedConversationDetailResponse::parse("GET", URL, &body.to_string()),
+            Err(ConversationDetailResponseError::Malformed)
+        );
+        let mut parent = conversation_body();
+        parent["Messages"][0]["ConversationID"] = json!(bad);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedConversationDetailResponse::parse("GET", URL, &parent.to_string()),
+            Err(ConversationDetailResponseError::Malformed)
+        );
+    }
+    let mut valid = conversation_body();
+    valid["Messages"][0]["ID"] = json!("opaque+_~=");
+    // jig-ignore-next-line: canonical rustfmt line.
+    assert!(ObservedConversationDetailResponse::parse("GET", URL, &valid.to_string()).is_ok());
+}
+
+#[test]
+fn complete_conversation_detail_endpoint_refuses_unsafe_route_ids() {
+    for bad in [
+        "convo/a",
+        "convo?a",
+        "convo#a",
+        "convo\\a",
+        "convo a",
+        "convo\na",
+        "convo\u{a0}a",
+    ] {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("https://mail.proton.me/api/mail/v4/conversations/{bad}");
+        assert_eq!(
+            ObservedConversationDetailResponse::parse(
+                "GET",
+                &url,
+                &conversation_body().to_string()
+            ),
+            Err(ConversationDetailResponseError::UnexpectedEndpoint)
+        );
+        let mut capture = ConversationDetailNetworkCapture::new("session-a");
+        assert_eq!(
+            capture.observe(&request_event("session-a", "bad-id", "GET", &url)),
+            Err(ConversationDetailNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.take_finished_requests().len(), 0);
+    }
+    // jig-ignore-next-line: canonical rustfmt line.
+    let body = json!({"base64Encoded":false,"body":conversation_body().to_string()});
+    assert_eq!(
+        ObservedConversationDetailResponse::parse_cdp_body("convo\nbad", &body),
+        Err(ConversationDetailResponseError::UnexpectedEndpoint)
+    );
+}

@@ -240,6 +240,11 @@ Ship useful read access before any mailbox mutation is enabled.
   fails before metadata lookup on such IDs; provider content never enters
   an error or debug diagnostic. This is still not public paginated reading.
 
+- Complete conversation membership now rejects unsafe member-message and
+  parent identifiers as well as unsafe exact detail URL components, aligning
+  its projected IDs with bounded list-read route safety. Only synthetic
+  identity metadata is retained; plaintext thread reading remains blocked.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

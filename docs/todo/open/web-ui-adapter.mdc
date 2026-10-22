@@ -646,6 +646,11 @@ web application without requiring Bridge or a third-party direct API identity.
   control/whitespace-bearing, or delimiter-bearing IDs fail closed, including
   Unicode whitespace. The same rule applies to stable rendered IDs before
   reconciliation; tests retain printable opaque IDs at the 512-byte ceiling.
+- Complete conversation-detail GET metadata now refuses unsafe opaque
+  conversation URL components and member-message/parent IDs. Route separators,
+  whitespace, and control characters are rejected before future per-message
+  reads can use those identifiers. Synthetic tests cover direct projection,
+  CDP request classification, and bounded parent-member identity evidence.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
