@@ -699,6 +699,12 @@ impl ObservedMessageListResponse {
         let value: Value =
     // jig-ignore-next-line: canonical rustfmt line.
             serde_json::from_str(body).map_err(|_error| MessageListResponseError::Malformed)?;
+        if value
+            .get("Code")
+            .is_some_and(|code| code.as_u64() != Some(1000))
+        {
+            return Err(MessageListResponseError::ProviderRejected);
+        }
         let stale = value
             .get("Stale")
             .and_then(Value::as_u64)
@@ -907,6 +913,8 @@ pub enum MessageListResponseError {
     UnexpectedEndpoint,
     /// Response body exceeds the bounded parser input size.
     BodyTooLarge,
+    /// Provider explicitly returned a non-success result code.
+    ProviderRejected,
     /// JSON shape or required metadata is malformed.
     Malformed,
     /// Provider marks the list stale and `WebClients` would refetch it.

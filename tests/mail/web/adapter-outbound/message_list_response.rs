@@ -1104,3 +1104,37 @@ fn numeric_message_list_query_fields_require_bounded_decimal_evidence() {
         assert_eq!(capture.take_finished_request_ids().len(), 0);
     }
 }
+
+#[test]
+fn explicitly_rejected_message_list_code_cannot_become_read_metadata() {
+    use serde_json::json;
+    for invalid in [
+        json!(0u64),
+        json!(2001u64),
+        json!("1000"),
+        json!(-1i32),
+        json!(null),
+        json!(true),
+    ] {
+        let body = json!({
+            "Code":invalid,"Stale":0u8,"Total":1u8,
+            "Messages":[{"ID":"synthetic-message","Time":1u8,"Order":1i8}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedMessageListResponse::parse("GET", URL, &body),
+            Err(MessageListResponseError::ProviderRejected)
+        );
+    }
+    for success in [None, Some(json!(1000u64))] {
+        let mut body = json!({"Stale":0u8,"Total":0u8,"Messages":[]});
+        if let Some(code) = success {
+            body["Code"] = code;
+        }
+        // jig-ignore-next-line: canonical rustfmt line.
+        let parsed = ObservedMessageListResponse::parse("GET", URL, &body.to_string())
+            .expect("valid or absent Code remains compatible");
+        assert_eq!(parsed.total(), 0);
+        assert_eq!(parsed.messages().len(), 0);
+    }
+}

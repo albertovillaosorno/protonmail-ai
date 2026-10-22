@@ -1279,3 +1279,44 @@ fn invalid_utf8_cdp_frame_drains_real_enable_reply_before_cleanup() {
     assert_eq!(log, "enable\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn provider_rejected_message_list_body_disables_network_before_returning() {
+    let root = test_root("message-list-provider-code-rejected");
+    fs::create_dir_all(&root).expect("create synthetic profile root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic CDP script");
+    let success_code = r#"\"Code\":1000"#;
+    assert!(script.contains(success_code));
+    fs::write(&browser, script.replace(success_code, r#"\"Code\":2001"#))
+        .expect("inject explicit unsuccessful provider response code");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::MessageListResponse(
+            MessageListResponseError::ProviderRejected
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("same browser remains usable after failed list projection");
+    drop(managed);
+    let log = fs::read_to_string(root.join("network-log.txt"))
+        .expect("read synthetic browser command audit");
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+    cleanup(&root);
+}

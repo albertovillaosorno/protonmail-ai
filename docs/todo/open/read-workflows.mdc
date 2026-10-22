@@ -322,6 +322,11 @@ Ship useful read access before any mailbox mutation is enabled.
 - Visible pagination now rejects an enabled successor from page `u32::MAX`
   before the read-only adapter can attempt impossible numeric page advancement.
 
+- Passive message-list metadata now honors an explicitly unsuccessful
+  provider `Code` rather than accepting fresh-looking rows from it. Missing
+  optional `Code` remains compatible pending verified wire-schema evidence;
+  browser tests cover the typed rejection without exposing message content.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -792,6 +792,11 @@ web application without requiring Bridge or a third-party direct API identity.
   now verifies that an acyclic deep parent chain projects completely while
   a closing root-to-tail link fails closed as a cycle. Parent traversal
   reuses settled nodes and does not recurse or expose folder names in errors.
+- Message-list projection now rejects an explicit non-success provider
+  `Code` even when HTTP status and list fields look fresh. The optional field
+  remains compatible with legacy synthetic responses; `Code=1000` succeeds.
+  A fake Chromium list-body fixture proves provider rejection, audited
+  Network disable and later same-session Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
