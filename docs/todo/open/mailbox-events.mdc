@@ -73,6 +73,12 @@ bounded resource use.
   just the `/latest` path no longer hides query flag or parameter-order drift;
   synthetic lifecycle tests cover exact matches and rejected variations.
 
+- A fake Chromium pipe now injects response-only query drift in both the
+  bootstrap and v5 event flow. Both reject the response as a typed Network
+  error, perform an audited `Network.disable`, and keep the same session usable
+  for a subsequent content-free Mail-shell inspection. No provider request,
+  navigation, credentials, or event content enters the test result.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

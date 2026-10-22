@@ -2126,3 +2126,95 @@ fn latest_bootstrap_response_must_match_full_private_request_url() {
         .expect("finish matching bootstrap GET");
     assert_eq!(matched.take_finished_request_ids(), ["latest"]);
 }
+
+#[test]
+fn event_url_query_drift_during_browser_capture_stays_fail_closed() {
+    use mail_web_adapter::{BrowserDriverError, MailboxEventNetworkError};
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock fake event browsers");
+    for (label, poll, old_query, new_query) in [
+        (
+            "bootstrap-query-drift",
+            false,
+            "events/latest",
+            "events/latest?Unexpected=1",
+        ),
+        ("v5-query-drift", true, "MessageCounts=1", "MessageCounts=0"),
+    ] {
+        let root = event_browser_root(label);
+        fs::create_dir_all(&root).expect("create synthetic event browser root");
+        let browser = fake_event_browser(&root, false, poll);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic script");
+        let branch = if poll {
+            "    *'Network.enable'*)"
+        } else {
+            "    *'Page.reload'*)"
+        };
+        let head = script
+            .find(branch)
+            .expect("find synthetic lifecycle branch");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let emission = r#"printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4"#;
+        let emitted = script
+            .get(head..)
+            .expect("UTF-8 branch boundary")
+            .find(emission)
+            .expect("find CDP lifecycle emission")
+            + head;
+        let altered = format!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            "response=$(printf '%s' \"$response\" | sed 's|{old_query}|{new_query}|')\n      "
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut injected = String::from(script.get(..emitted).expect("UTF-8 emission prefix"));
+        injected.push_str(&altered);
+        // jig-ignore-next-line: canonical rustfmt line.
+        injected.push_str(script.get(emitted..).expect("UTF-8 emission suffix"));
+        let disable = "    *'Network.disable'*)";
+        assert!(injected.contains(disable));
+        let record = format!(
+            "{disable}\n      printf 'disabled\\n' >> '{}'",
+            root.join("network-disabled.log").display()
+        );
+        fs::write(&browser, injected.replacen(disable, &record, 1))
+            .expect("inject response-only query drift and teardown audit");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic browser UTF-8 path"),
+            &root.join("data"),
+        )
+        .expect("construct synthetic browser plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = managed.provider_page().expect("discover fake Mail page");
+        let observed = if poll {
+            managed
+                .observe_mailbox_event_sequence(&page, Duration::from_secs(1))
+                .map(|_value| ())
+        } else {
+            managed
+                .observe_mailbox_event_bootstrap(&page)
+                .map(|_value| ())
+        };
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::MailboxEventNetwork(
+                MailboxEventNetworkError::ResponseRejected
+            ))
+        );
+        managed
+            .require_mail_shell(&page)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("same CDP session works after rejecting response URL drift");
+        drop(managed);
+        let disable_log = fs::read_to_string(root.join("network-disabled.log"))
+            .expect("Network.disable must run after mismatched response");
+        assert_eq!(disable_log, "disabled\n");
+        fs::remove_dir_all(&root).expect("clean fake event browser root");
+    }
+}

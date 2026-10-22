@@ -633,6 +633,9 @@ web application without requiring Bridge or a third-party direct API identity.
   bounded request/response URL using redacted randomized hashes, preventing
   query drift from masquerading as the same latest-event path. Synthetic
   tests check matching, changed, reordered, and missing query conditions.
+- Fake Chromium now confirms bootstrap and v5 query-identity mismatches
+  fail closed through the real managed-browser Network lifecycle, including
+  mandatory disable and successful later Mail-shell inspection on that pipe.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
