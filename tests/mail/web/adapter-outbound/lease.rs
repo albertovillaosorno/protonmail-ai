@@ -89,6 +89,10 @@ fn lease_is_private_and_removed_on_drop() {
     let path = lease_path(&profile);
     let metadata = fs::metadata(&path).expect("lease file must exist");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+    let debug = format!("{lease:?}");
+    assert!(debug.contains("<redacted>"));
+    assert!(!debug.contains(&root.display().to_string()));
+    assert!(!debug.contains(&path.display().to_string()));
 
     drop(lease);
     assert!(!path.exists());

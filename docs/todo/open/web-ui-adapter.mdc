@@ -849,6 +849,11 @@ web application without requiring Bridge or a third-party direct API identity.
   handles and cursor state; only safe presence flags and already-redacted
   generation/codec metadata remain. Fake-browser and profile-login tests check
   synthetic local paths and target handles cannot escape through Debug.
+- The project-owned automation profile lease also has a redacted `Debug`
+  projection: the filesystem path, open file descriptor, inode and device
+  numbers remain private even if the lease is formatted during diagnostics.
+  Synthetic private-file tests assert no absolute profile path escapes and
+  lease creation/removal semantics remain unchanged.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

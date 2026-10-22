@@ -51,12 +51,19 @@ fn lease_io<T>(_error: T) -> ProfileLeaseError {
 }
 
 /// Exclusive ownership of one project browser profile for managed automation.
-#[derive(Debug)]
 pub struct AutomationProfileLease {
     _file: File,
     device: u64,
     inode: u64,
     path: PathBuf,
+}
+
+impl fmt::Debug for AutomationProfileLease {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AutomationProfileLease")
+            .field("path", &"<redacted>")
+            .finish_non_exhaustive()
+    }
 }
 
 impl AutomationProfileLease {
