@@ -2871,7 +2871,7 @@ impl ManagedBrowser {
             "maxResourceBufferSize": ObservedMessageListResponse::MAX_BODY_BYTES,
             "maxTotalBufferSize": MESSAGE_LIST_TOTAL_BUFFER_BYTES
         });
-        self.call_in_session(session, "Network.enable", &network_params)?;
+        self.enable_network_in_session(session, &network_params)?;
         let mut capture = MessageListNetworkCapture::new(session);
         // jig-ignore-next-line: canonical rustfmt line.
         let observed = self.reload_and_capture_message_lists(session, &mut capture);
@@ -3368,6 +3368,19 @@ impl ManagedBrowser {
     ) -> Result<Value, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         self.call_with_session_observer(Some(session), method, params, Some(capture))
+    }
+
+    /// Enables a reload-based Network capture, disabling on protocol rejection.
+    fn enable_network_in_session(
+        &mut self,
+        session: &str,
+        params: &Value,
+    ) -> Result<(), BrowserDriverError> {
+        if let Err(error) = self.call_in_session(session, "Network.enable", params) {
+            self.call_in_session(session, "Network.disable", &json!({}))?;
+            return Err(error);
+        }
+        Ok(())
     }
 
     /// Activates a bounded Network capture, cleaning up on CDP event failure.

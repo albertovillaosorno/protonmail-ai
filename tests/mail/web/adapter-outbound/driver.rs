@@ -977,3 +977,46 @@ fn opt_in_real_chrome_private_pipe_smoke() {
     managed.shutdown().expect("cleanly shut down real Chrome");
     cleanup(&root);
 }
+
+#[test]
+fn rejected_message_list_network_enable_disables_before_returning() {
+    let root = test_root("message-list-enable-rejected");
+    fs::create_dir_all(&root).expect("create synthetic driver root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read fake CDP script");
+    // jig-ignore-next-line: indivisible synthetic fixture command.
+    let expected = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    assert!(script.contains(expected));
+    // jig-ignore-next-line: indivisible synthetic fixture command.
+    let rejected = "      printf '{\"id\":%s,\"error\":{\"code\":-32601}}\\0' \"$id\" >&4;;";
+    let modified = script.replacen(expected, rejected, 1);
+    fs::write(&browser, modified).expect("install synthetic error reply");
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+        .expect("launch synthetic message-list driver");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("CDP remains usable following message-list activation failure");
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("network-log.txt")).expect("read Network commands");
+    assert_eq!(log, "enable\ndisable\n");
+    cleanup(&root);
+}

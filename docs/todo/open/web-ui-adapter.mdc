@@ -522,6 +522,10 @@ web application without requiring Bridge or a third-party direct API identity.
   error to `Network.enable`, not merely a malformed unsolicited event. This
   still triggers `Network.disable`, returns a redacted protocol error, and
   permits a later content-free Mail-shell probe in the same browser process.
+- The message-mode list reload, which enables Network without an event
+  observer, also tears down the domain on a failed enable reply before any
+  reload. A synthetic protocol-rejection fixture confirms no body read,
+  explicit Network disable, and successful follow-up Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
