@@ -31,9 +31,9 @@
 
 //! Tests for private, static CDP authority validation.
 
+use super::safe_cdp_notification_method;
 use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
 use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
-use super::safe_cdp_notification_method;
 // jig-ignore-next-line: canonical rustfmt line.
 use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runtime_expression};
 use serde_json::json;
