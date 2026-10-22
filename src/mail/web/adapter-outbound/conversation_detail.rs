@@ -243,6 +243,14 @@ impl ConversationDetailNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(ConversationDetailNetworkError::InvalidSequence);
         }
+        if self
+            .requests
+            .get(request_id)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .is_some_and(|request| request.state == ConversationDetailRequestState::Finished)
+        {
+            return Err(ConversationDetailNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }

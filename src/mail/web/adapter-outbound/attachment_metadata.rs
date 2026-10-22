@@ -251,6 +251,14 @@ impl AttachmentMetadataNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(AttachmentMetadataNetworkError::InvalidSequence);
         }
+        if self
+            .requests
+            .get(request_id)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .is_some_and(|request| request.state == AttachmentMetadataRequestState::Finished)
+        {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }

@@ -1787,3 +1787,43 @@ fn consumed_event_ids_replayed_during_network_disable_fail_closed() {
         fs::remove_dir_all(&root).expect("clean synthetic event browser root");
     }
 }
+
+#[test]
+fn finished_mailbox_event_requests_cannot_fail_before_consumption() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let mut events = MailboxEventNetworkCapture::new("session-1");
+    for method in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished",
+    ] {
+        latest
+            // jig-ignore-next-line: canonical rustfmt line.
+            .observe(&cdp_lifecycle_event(method, "finished-latest", latest_url))
+            .expect("complete latest lifecycle");
+        events
+            .observe(&cdp_lifecycle_event(method, "finished-v5", URL))
+            .expect("complete v5 lifecycle");
+    }
+    assert_eq!(
+        latest.observe(&cdp_lifecycle_event(
+            "Network.loadingFailed",
+            "finished-latest",
+            latest_url
+        )),
+        Err(MailboxEventNetworkError::InvalidSequence)
+    );
+    assert_eq!(
+        events.observe(&cdp_lifecycle_event(
+            "Network.loadingFailed",
+            "finished-v5",
+            URL
+        )),
+        Err(MailboxEventNetworkError::InvalidSequence)
+    );
+    assert_eq!(latest.take_finished_request_ids(), ["finished-latest"]);
+    assert_eq!(events.take_finished_request_ids(), ["finished-v5"]);
+}

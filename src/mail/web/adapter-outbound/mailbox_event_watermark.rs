@@ -230,6 +230,9 @@ impl LatestMailboxEventNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
+        if self.requests.get(request_id) == Some(&EventRequestState::Finished) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -434,6 +437,13 @@ impl MailboxEventNetworkCapture {
     fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
         if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if self
+            .requests
+            .get(request_id)
+            .is_some_and(|request| request.state == EventRequestState::Finished)
+        {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         self.requests.remove(request_id);

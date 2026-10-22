@@ -749,3 +749,31 @@ fn exact_detail_request_id_is_bounded_before_tracking() {
         .expect("unrelated browser traffic is ignored");
     assert_eq!(capture.tracked_request_count(), 0);
 }
+
+#[test]
+fn completed_response_cannot_be_erased_by_late_failure_before_consumption() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "ready", "GET", URL))
+        .expect("start exact GET");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "ready",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("match response");
+    capture
+        .observe(&finished_event("session-a", "ready"))
+        .expect("finish response");
+    assert_eq!(
+        capture.observe(&failed_event("session-a", "ready")),
+        Err(ConversationDetailNetworkError::InvalidSequence),
+    );
+    assert_eq!(
+        capture.take_finished_requests(),
+        [(String::from("ready"), String::from("conversation-1"))]
+    );
+}

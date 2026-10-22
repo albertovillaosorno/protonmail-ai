@@ -283,6 +283,14 @@ impl MailboxCatalogNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }
+        if self
+            .requests
+            .get(request_id)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .is_some_and(|request| request.state == CatalogRequestState::Finished)
+        {
+            return Err(MailboxCatalogNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }

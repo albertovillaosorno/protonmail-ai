@@ -254,6 +254,14 @@ impl MessageDetailNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(MessageDetailNetworkError::InvalidSequence);
         }
+        if self
+            .requests
+            .get(request_id)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .is_some_and(|request| request.state == MessageDetailRequestState::Finished)
+        {
+            return Err(MessageDetailNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }

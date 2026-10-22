@@ -1348,3 +1348,22 @@ fn completed_catalog_id_replayed_during_disable_fails_closed() {
     assert!(log.ends_with("disable\n"));
     fs::remove_dir_all(&root).expect("clean synthetic browser root");
 }
+
+#[test]
+fn completed_response_cannot_be_erased_by_late_failure_before_consumption() {
+    let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+    capture
+        .observe(&request("session-a", "ready", "GET", LABEL_URL))
+        .expect("start exact GET");
+    capture
+        .observe(&response("session-a", "ready", LABEL_URL))
+        .expect("match response");
+    capture
+        .observe(&finished("session-a", "ready"))
+        .expect("finish response");
+    assert_eq!(
+        capture.observe(&failed("session-a", "ready")),
+        Err(MailboxCatalogNetworkError::InvalidSequence),
+    );
+    assert_eq!(capture.take_finished_request_ids(), ["ready"]);
+}

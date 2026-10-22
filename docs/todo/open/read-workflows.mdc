@@ -203,6 +203,12 @@ Ship useful read access before any mailbox mutation is enabled.
   groups remain ignored. Synthetic browser tests verify failure recovery and
   safe subsequent Mail-shell inspection.
 
+- Network lifecycle observers now reject late loading failures on already
+  finished but unconsumed catalog, message-detail, conversation-detail,
+  attachment-metadata, and event GETs. This closes the gap between receipt and
+  consumption of a safe response; actual pre-completion app failures continue
+  to permit app-owned retries without additional adapter provider requests.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -583,6 +583,13 @@ web application without requiring Bridge or a third-party direct API identity.
   a genuine app-owned retry. Unit regressions cover replay, capacity, and
   redacted diagnostics; synthetic browser tests inject a late failure during
   Network.disable in each flow and prove subsequent safe Mail-shell access.
+- Retry-capable mailbox catalog, conversation-detail, message-detail,
+  attachment-metadata, and both mailbox-event CDP captures now refuse
+  `Network.loadingFailed` after the same request reached `loadingFinished`,
+  even before its request ID has been consumed. This prevents false timeout
+  or dropped completion evidence without disallowing a failed unfinished
+  provider attempt from being retried. Unit tests prove each finished request
+  survives a contradictory failure and remains consumable afterward.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
