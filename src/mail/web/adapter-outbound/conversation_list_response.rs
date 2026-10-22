@@ -662,13 +662,18 @@ fn parse_request_page(
                 }
             }
             "Anchor" => {
-                if value.is_empty() || has_anchor {
+                if has_anchor
+                    || value.len() > 20
+                    || !value.bytes().all(|byte| byte.is_ascii_digit())
+                    || value.parse::<u64>().is_err()
+                {
                     return Err(ConversationListNetworkError::InvalidPagination);
                 }
                 has_anchor = true;
             }
             "AnchorID" => {
-                if value.is_empty() || has_anchor_id {
+                // jig-ignore-next-line: canonical rustfmt line.
+                if !safe_read_id(value, MAX_CONVERSATION_ID_BYTES) || has_anchor_id {
                     return Err(ConversationListNetworkError::InvalidPagination);
                 }
                 has_anchor_id = true;

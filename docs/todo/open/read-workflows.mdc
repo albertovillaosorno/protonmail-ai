@@ -290,6 +290,11 @@ Ship useful read access before any mailbox mutation is enabled.
   Synthetic boundary checks prove the largest accepted URL and fail closed
   on an oversized response without producing list metadata.
 
+- Conversation-list continuation parsing now refuses malformed or
+  overlong `AnchorID` values and non-decimal/overflowing numeric `Anchor`
+  timestamps. This prevents unsafe request-shape evidence from reaching a
+  visible-page diagnostic, while leaving full cursor/snapshot proof open.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

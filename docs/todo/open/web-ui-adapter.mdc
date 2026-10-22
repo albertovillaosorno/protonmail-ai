@@ -702,6 +702,13 @@ web application without requiring Bridge or a third-party direct API identity.
   ceiling as their exact GET requests, rejecting oversized response metadata
   before fingerprinting or changing lifecycle state. Synthetic tests cover the
   inclusive boundary and a rejected oversized response with redacted debug.
+- Passive conversation-list continuation evidence now validates the
+  `Anchor` as a bounded decimal `u64` time and `AnchorID` as a route-safe
+  512-byte opaque ID. Synthetic GET/response fixtures accept the largest
+  numeric timestamp and printable IDs; malformed, encoded, overflowing, or
+  nonnumeric anchors fail before capture state and a fake Chromium fixture
+  confirms Network.disable without a provider response-body read. This is
+  request shape proof, not immutable snapshot or public thread pagination.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

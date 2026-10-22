@@ -1620,3 +1620,141 @@ fn conversation_network_refuses_oversized_response_url_before_fingerprinting() {
     assert_eq!(rejected.take_finished_request_ids().len(), 0);
     assert!(!format!("{rejected:?}").contains(&too_long));
 }
+
+#[test]
+fn conversation_continuation_anchor_id_must_be_safe_and_bounded() {
+    let base = "https://mail.proton.me/api/mail/v4/conversations";
+    for (index, bad) in [
+        "bad/id",
+        "bad?id",
+        "bad\\id",
+        "bad id",
+        "bad%2fid",
+        "bad\u{200b}id",
+        "bad\u{202e}id",
+        ".",
+        "..",
+        "",
+        &"x".repeat(513),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let url = format!("{base}?Anchor=123&AnchorID={bad}&Limit=50");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let request_id = format!("bad-anchor-{index}");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            capture.observe(&request_event("session-a", &request_id, "GET", &url)),
+            Err(ConversationListNetworkError::InvalidPagination),
+            "invalid exact anchor {index}"
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+    let url = format!("{base}?Anchor=123&AnchorID=opaque+_~=&Limit=50");
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "safe-anchor", "GET", &url))
+        .expect("accept bounded printable opaque continuation ID");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "safe-anchor",
+            &url,
+            200,
+            "application/json",
+        ))
+        .expect("accept exact response to safe anchor");
+    capture
+        .observe(&finished_event("session-a", "safe-anchor"))
+        .expect("complete bounded continuation request");
+    assert_eq!(capture.take_finished_request_ids(), ["safe-anchor"]);
+    assert!(!format!("{capture:?}").contains("opaque+_~="));
+}
+
+#[test]
+fn conversation_continuation_anchor_time_must_be_bounded_decimal() {
+    let base = "https://mail.proton.me/api/mail/v4/conversations";
+    let huge = "9".repeat(512);
+    for (index, invalid) in [
+        "",
+        "abc",
+        "-1",
+        "+1",
+        "1.5",
+        "1e4",
+        "0xFF",
+        "%31",
+        "18446744073709551616",
+        huge.as_str(),
+    ]
+    .iter()
+    .enumerate()
+    {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("{base}?Anchor={invalid}&AnchorID=opaque+_~=&Limit=50");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let id = format!("bad-time-{index}");
+        assert_eq!(
+            capture.observe(&request_event("session-a", &id, "GET", &url)),
+            Err(ConversationListNetworkError::InvalidPagination)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    for valid in ["0", "1700000002", "18446744073709551615"] {
+        let url = format!("{base}?Anchor={valid}&AnchorID=opaque+_~=&Limit=50");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "valid-time", "GET", &url))
+            .expect("accept valid numeric continuation time");
+        capture
+            .observe(&response_event(
+                "session-a",
+                "valid-time",
+                &url,
+                200,
+                "application/json",
+            ))
+            .expect("validate exact bounded response identity");
+        capture
+            .observe(&finished_event("session-a", "valid-time"))
+            .expect("complete safe anchored GET");
+        assert_eq!(capture.take_finished_request_ids(), ["valid-time"]);
+    }
+}
+
+#[test]
+fn malformed_conversation_continuation_during_enable_cleans_network() {
+    use mail_web_adapter::BrowserDriverError;
+    for (label, query) in [
+        ("anchor-unsafe-id", "?Anchor=123&AnchorID=bad%2Fid&Limit=50"),
+        (
+            "anchor-unsafe-time",
+            "?Anchor=1e5&AnchorID=safe-id&Limit=50",
+        ),
+        (
+            "anchor-overflow",
+            "?Anchor=18446744073709551616&AnchorID=safe-id&Limit=50",
+        ),
+    ] {
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id: "conversation-2",
+                drift: ViewDrift::None,
+                message_mode: false,
+                emits_response: true,
+                request_query: query,
+                page_marker: None,
+            },
+        );
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::ConversationListNetwork(
+                ConversationListNetworkError::InvalidPagination
+            ))
+        );
+        assert_eq!(log, "enable\ndisable\n");
+    }
+}
