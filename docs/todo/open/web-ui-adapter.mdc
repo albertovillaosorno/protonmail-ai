@@ -465,6 +465,14 @@ web application without requiring Bridge or a third-party direct API identity.
   mismatched/drifting rows, forced-message refusal, explicit-empty mismatch,
   and timeout. The bracket is diagnostic, not immutable snapshot isolation or
   proof that an unknown-mode page displays conversations.
+- Conversation-list diagnostic observation now retains only sanitized request
+  `Page` and Anchor/AnchorID-presence evidence alongside the privately hashed
+  URL identity. Visible reconciliation requires a matching zero-based request
+  page and one-based UI page; a hidden page marker is accepted only for a
+  first-page request with no next-page control. Malformed/duplicated selectors,
+  absent request page, and anchor continuations are not promoted into a
+  snapshot or public thread cursor. Synthetic browser tests cover matching
+  pages and fail-closed page/anchor mismatches.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

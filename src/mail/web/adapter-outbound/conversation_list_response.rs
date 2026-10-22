@@ -55,6 +55,8 @@ enum ConversationListRequestState {
 struct TrackedConversationListRequest {
     state: ConversationListRequestState,
     url_fingerprint: [u64; 2],
+    requested_page: Option<u32>,
+    anchor_continuation: bool,
 }
 
 /// Bounded CDP lifecycle state for exact conversation-list GET requests.
@@ -98,12 +100,29 @@ impl ConversationListNetworkCapture {
 
     /// Removes completed exact list requests as request IDs only.
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
+        self.take_finished_requests()
+            .into_iter()
+            .map(|(request_id, _page, _anchor)| request_id)
+            .collect()
+    }
+
+    /// Removes completed requests with sanitized page and continuation flags.
+    ///
+    /// No URL, search query, label, or request-header text is retained.
+    // jig-ignore-next-line: canonical rustfmt line.
+    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, Option<u32>, bool)> {
         let finished = self
             .requests
             .iter()
             // jig-ignore-next-line: canonical rustfmt line.
             .filter(|(_id, request)| request.state == ConversationListRequestState::Finished)
-            .map(|(request_id, _request)| request_id.clone())
+            .map(|(request_id, request)| {
+                (
+                    request_id.clone(),
+                    request.requested_page,
+                    request.anchor_continuation,
+                )
+            })
             .collect::<Vec<_>>();
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
@@ -152,11 +171,14 @@ impl ConversationListNetworkCapture {
             return Err(ConversationListNetworkError::CapacityExceeded);
         }
         let url_fingerprint = url_fingerprint(url, &self.hashers);
+        let (requested_page, anchor_continuation) = parse_request_page(url)?;
         self.requests.insert(
             String::from(request_id),
             TrackedConversationListRequest {
                 state: ConversationListRequestState::Requested,
                 url_fingerprint,
+                requested_page,
+                anchor_continuation,
             },
         );
         Ok(())
@@ -246,6 +268,8 @@ pub enum ConversationListNetworkError {
     InvalidSequence,
     /// Too many unfinished exact conversation-list requests are retained.
     CapacityExceeded,
+    /// Page/anchor request selectors are malformed or contradictory.
+    InvalidPagination,
 }
 
 /// One content-minimized provider conversation-list row.
@@ -550,6 +574,48 @@ fn is_conversation_list_url(url: &str) -> bool {
         return false;
     };
     remainder.is_empty() || remainder.starts_with('?')
+}
+
+// jig-ignore-next-line: canonical rustfmt line.
+fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationListNetworkError> {
+    let Some((_endpoint, query)) = url.split_once('?') else {
+        return Ok((None, false));
+    };
+    let mut page = None;
+    let mut has_anchor = false;
+    let mut has_anchor_id = false;
+    for parameter in query.split('&') {
+        let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
+        match key {
+            "Page" => {
+                if page.is_some() {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+                let parsed = value
+                    .parse::<u32>()
+                    // jig-ignore-next-line: canonical rustfmt line.
+                    .map_err(|_error| ConversationListNetworkError::InvalidPagination)?;
+                page = Some(parsed);
+            }
+            "Anchor" => {
+                if value.is_empty() || has_anchor {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+                has_anchor = true;
+            }
+            "AnchorID" => {
+                if value.is_empty() || has_anchor_id {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+                has_anchor_id = true;
+            }
+            _ => {}
+        }
+    }
+    if has_anchor != has_anchor_id {
+        return Err(ConversationListNetworkError::InvalidPagination);
+    }
+    Ok((page, has_anchor))
 }
 
 fn url_fingerprint(url: &str, hashers: &[RandomState; 2]) -> [u64; 2] {

@@ -158,6 +158,12 @@ struct CompletedMessageListRequest {
     anchor_id: Option<String>,
 }
 
+struct CapturedConversationListResponse {
+    response: ObservedConversationListResponse,
+    requested_page: Option<u32>,
+    anchor_continuation: bool,
+}
+
 struct CapturedMessageListResponses {
     responses: Vec<ObservedMessageListResponse>,
     initial_page: u32,
@@ -2243,7 +2249,7 @@ impl ManagedBrowser {
         let detached = self.detach(&session);
         let list = observed?;
         detached?;
-        Ok(list)
+        Ok(list.map(|captured| captured.response))
     }
 
     fn observe_passive_conversation_list_in_session(
@@ -2251,7 +2257,7 @@ impl ManagedBrowser {
         page: &ProviderPage,
         session: &str,
         wait: Duration,
-    ) -> Result<Option<ObservedConversationListResponse>, BrowserDriverError> {
+    ) -> Result<Option<CapturedConversationListResponse>, BrowserDriverError> {
         let before = self.inspect_mail_shell_in_session(page, session)?;
         if !before.ready() {
             return Err(BrowserDriverError::MailShellNotReady);
@@ -2292,9 +2298,10 @@ impl ManagedBrowser {
         session: &str,
         capture: &mut ConversationListNetworkCapture,
         deadline: Instant,
-    ) -> Result<Option<ObservedConversationListResponse>, BrowserDriverError> {
-        // jig-ignore-next-line: canonical rustfmt line.
-        let Some(request_id) = self.wait_for_conversation_list_request(capture, deadline)? else {
+    ) -> Result<Option<CapturedConversationListResponse>, BrowserDriverError> {
+        let Some((request_id, requested_page, anchor_continuation)) =
+            self.wait_for_conversation_list_request(capture, deadline)?
+        else {
             return Ok(None);
         };
         let body = self.call_in_session_observing(
@@ -2303,16 +2310,20 @@ impl ManagedBrowser {
             &json!({"requestId": request_id}),
             capture,
         )?;
-        ObservedConversationListResponse::parse_cdp_body(&body)
-            .map(Some)
-            .map_err(BrowserDriverError::ConversationListResponse)
+        let response = ObservedConversationListResponse::parse_cdp_body(&body)
+            .map_err(BrowserDriverError::ConversationListResponse)?;
+        Ok(Some(CapturedConversationListResponse {
+            response,
+            requested_page,
+            anchor_continuation,
+        }))
     }
 
     fn wait_for_conversation_list_request(
         &mut self,
         capture: &mut ConversationListNetworkCapture,
         deadline: Instant,
-    ) -> Result<Option<String>, BrowserDriverError> {
+    ) -> Result<Option<(String, Option<u32>, bool)>, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         if let Some(request) = take_one_finished_conversation_list_request(capture)? {
             return Ok(Some(request));
@@ -2424,12 +2435,19 @@ impl ManagedBrowser {
         let Some(response) = observed else {
             return Ok(None);
         };
+        if response.anchor_continuation
+            // jig-ignore-next-line: canonical rustfmt line.
+            || !conversation_request_page_matches(&before, response.requested_page)
+        {
+            return Err(BrowserDriverError::ConversationListPageUnproven);
+        }
         let ids = before
             .row_ids()
             .iter()
             .map(String::as_str)
             .collect::<Vec<_>>();
-        ReconciledVisibleConversationMetadata::reconcile(&ids, &response)
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleConversationMetadata::reconcile(&ids, &response.response)
             .map(Some)
             .map_err(BrowserDriverError::ConversationListReconciliation)
     }
@@ -3494,6 +3512,8 @@ pub enum BrowserDriverError {
     ConversationListWaitTooLong,
     /// Multiple or residual conversation-list requests made capture ambiguous.
     ConversationListAmbiguous,
+    /// Exact request page is absent or inconsistent with the visible page.
+    ConversationListPageUnproven,
     /// A message-only route cannot use conversation IDs.
     ConversationListMessageMode,
     /// Provider list metadata does not match stable visible row IDs.
@@ -3653,6 +3673,9 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::ConversationListAmbiguous => {
                 f.write_str("conversation-list observation was ambiguous")
+            }
+            Self::ConversationListPageUnproven => {
+                f.write_str("conversation-list request page is unproven")
             }
             // jig-ignore-next-line: canonical rustfmt line.
             Self::ConversationListMessageMode => f.write_str("Mail is in message-only mode"),
@@ -3922,10 +3945,22 @@ fn take_one_finished_mailbox_event_request(
     }
 }
 
+fn conversation_request_page_matches(
+    visible: &MailboxListEvidence,
+    requested_page: Option<u32>,
+) -> bool {
+    match (visible.current_page(), requested_page) {
+        // jig-ignore-next-line: canonical rustfmt line.
+        (Some(current), Some(requested)) => requested.checked_add(1) == Some(current),
+        (None, Some(0)) => visible.next_page() == NextPageControl::Absent,
+        _ => false,
+    }
+}
+
 fn take_one_finished_conversation_list_request(
     capture: &mut ConversationListNetworkCapture,
-) -> Result<Option<String>, BrowserDriverError> {
-    let mut finished = capture.take_finished_request_ids();
+) -> Result<Option<(String, Option<u32>, bool)>, BrowserDriverError> {
+    let mut finished = capture.take_finished_requests();
     match finished.len() {
         0 => Ok(None),
         1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),

@@ -137,6 +137,13 @@ Ship useful read access before any mailbox mutation is enabled.
   not bind a Mail route to a cursor, prove conversation mode when unknown, or
   implement public `list_threads`.
 
+- Conversation-list GET captures now retain sanitized request page and anchor
+  presence, never full query text. The visible-ID diagnostic rejects missing
+  or inconsistent request page numbers and anchor continuations, and does not
+  treat a bare ID match as sufficient page evidence. This is deliberately
+  narrower than provider-neutral paginated list/search and carries no server
+  snapshot consistency guarantee.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

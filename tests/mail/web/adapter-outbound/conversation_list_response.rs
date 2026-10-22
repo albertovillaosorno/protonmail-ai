@@ -721,6 +721,8 @@ struct VisibleBrowserCase<'view> {
     drift: bool,
     message_mode: bool,
     emits_response: bool,
+    request_query: &'view str,
+    page_marker: Option<&'view str>,
 }
 
 fn observe_visible_case(
@@ -746,6 +748,19 @@ fn observe_visible_case(
         case.drift,
         case.message_mode,
     );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser fixture");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = script.replace("?Page=0&PageSize=50&Limit=50", case.request_query);
+    let script = if let Some(page_marker) = case.page_marker {
+        script.replace(
+            "\"currentTestId\":null",
+            &format!("\"currentTestId\":\"{page_marker}\""),
+        )
+    } else {
+        script
+    };
+    fs::write(&browser, script).expect("update synthetic browser view");
     let plan = ManagedBrowserPlan::under_data_home(
         browser.to_str().expect("synthetic browser path UTF-8"),
         &root.join("data"),
@@ -774,6 +789,8 @@ fn managed_browser_matches_stable_visible_conversation_without_action() {
             drift: false,
             message_mode: false,
             emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
         },
     );
     let matched = observed
@@ -795,6 +812,8 @@ fn managed_browser_rejects_uncovered_or_changing_visible_rows() {
             drift: false,
             message_mode: false,
             emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
         },
     );
     assert_eq!(
@@ -811,6 +830,8 @@ fn managed_browser_rejects_uncovered_or_changing_visible_rows() {
             drift: true,
             message_mode: false,
             emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
         },
     );
     assert_eq!(changed, Err(BrowserDriverError::MailboxPageChanged));
@@ -841,6 +862,8 @@ fn managed_browser_refuses_message_mode_and_unsettled_rows_before_network() {
                 drift: false,
                 message_mode,
                 emits_response: true,
+                request_query: "?Page=0&PageSize=50&Limit=50",
+                page_marker: None,
             },
         );
         assert_eq!(observed, Err(expected));
@@ -858,6 +881,8 @@ fn managed_browser_rejects_explicit_empty_contradiction() {
             drift: false,
             message_mode: false,
             emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
         },
     );
     assert_eq!(
@@ -878,8 +903,91 @@ fn managed_browser_visible_metadata_timeout_keeps_rows_unchanged() {
             drift: false,
             message_mode: false,
             emits_response: false,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
         },
     );
     assert_eq!(observed, Ok(None));
     assert_eq!(log, "enable\ndisable\n");
+}
+
+#[test]
+fn managed_browser_rejects_request_page_mismatch_and_anchor() {
+    use mail_web_adapter::BrowserDriverError;
+    for (label, request_query, marker) in [
+        ("request-page-one", "?Page=1&PageSize=50", None),
+        ("request-missing-page", "?PageSize=50", None),
+        ("request-anchor", "?Page=0&Anchor=123&AnchorID=secret", None),
+        (
+            "visible-page-two",
+            "?Page=0&PageSize=50",
+            Some("pagination-row:go-to-page-2"),
+        ),
+    ] {
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id: "conversation-2",
+                drift: false,
+                message_mode: false,
+                emits_response: true,
+                request_query,
+                page_marker: marker,
+            },
+        );
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::ConversationListPageUnproven)
+        );
+        assert_eq!(log, "enable\nbody\ndisable\n");
+    }
+}
+
+#[test]
+fn managed_browser_accepts_matching_page_number_without_claiming_snapshot() {
+    let (observed, log) = observe_visible_case(
+        "visible-page-two-matched",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: false,
+            message_mode: false,
+            emits_response: true,
+            request_query: "?Page=1&PageSize=50",
+            page_marker: Some("pagination-row:go-to-page-2"),
+        },
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let match_result = observed.expect("matched page").expect("observed response");
+    assert_eq!(match_result.conversations()[0].id(), "conversation-2");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+}
+
+#[test]
+fn network_capture_rejects_malformed_conversation_page_selectors() {
+    for (index, query) in [
+        "?Page=invalid",
+        "?Page=-1",
+        "?Page=4294967296",
+        "?Page=0&Page=1",
+        "?Page=0&Anchor=",
+        "?Page=0&AnchorID=",
+        "?Page=0&AnchorID=present",
+        "?Page=0&Anchor=123",
+        "?Page=0&Anchor=123&Anchor=456&AnchorID=present",
+        "?Page=0&Anchor=123&AnchorID=present&AnchorID=other",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let request_id = format!("invalid-{index}");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("https://mail.proton.me/api/mail/v4/conversations{query}");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            capture.observe(&request_event("session-a", &request_id, "GET", &url)),
+            Err(ConversationListNetworkError::InvalidPagination)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
 }

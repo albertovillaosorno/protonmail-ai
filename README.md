@@ -222,7 +222,9 @@ with content-free visible row-ID evidence obtained before and after the capture.
 It refuses known message-mode routes, unproven loading state, changing rows,
 and missing or contradictory provider metadata. A successful match proves only
 ID coverage for the observed surface, not general conversation-mode semantics,
-immutable pagination, or permission to expose thread-list/search tools.
+immutable pagination, or permission to expose thread-list/search tools. The
+request page must also match the visible page, and anchor continuations are
+rejected rather than treated as stable snapshot cursors.
 
 The managed browser can now passively observe the next app-owned exact
 conversation-list GET for up to 30 seconds, without clicking, navigating,
