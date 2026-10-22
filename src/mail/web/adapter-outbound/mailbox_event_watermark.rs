@@ -233,6 +233,9 @@ impl LatestMailboxEventNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
+        if url.len() > MAX_EVENT_URL_BYTES {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         // jig-ignore-next-line: canonical rustfmt line.
@@ -242,9 +245,6 @@ impl LatestMailboxEventNetworkCapture {
         };
         if request.state != EventRequestState::Requested {
             return Err(MailboxEventNetworkError::InvalidSequence);
-        }
-        if url.len() > MAX_EVENT_URL_BYTES {
-            return Err(MailboxEventNetworkError::ResponseRejected);
         }
         if status != Some(200)
             || mime != Some("application/json")

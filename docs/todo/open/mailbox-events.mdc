@@ -79,6 +79,11 @@ bounded resource use.
   for a subsequent content-free Mail-shell inspection. No provider request,
   navigation, credentials, or event content enters the test result.
 
+- The bootstrap Network response-size check now runs before private URL
+  fingerprint computation, so oversized response queries are rejected without
+  further processing. The 16 KiB boundary and redacted response error remain
+  unchanged and have direct synthetic coverage.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume
