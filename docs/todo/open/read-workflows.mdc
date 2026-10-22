@@ -295,6 +295,10 @@ Ship useful read access before any mailbox mutation is enabled.
   timestamps. This prevents unsafe request-shape evidence from reaching a
   visible-page diagnostic, while leaving full cursor/snapshot proof open.
 
+- Message-list numeric pagination selectors now require canonical bounded
+  ASCII-decimal values, removing alternate encodings of page, size, direction,
+  and time anchors before any visible-list request can be correlated.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -709,6 +709,11 @@ web application without requiring Bridge or a third-party direct API identity.
   nonnumeric anchors fail before capture state and a fake Chromium fixture
   confirms Network.disable without a provider response-body read. This is
   request shape proof, not immutable snapshot or public thread pagination.
+- Message-list pagination now accepts only bounded decimal ASCII values for
+  `Page`, `PageSize`, `Limit`, `Desc`, and numeric `Anchor`, rejecting signed,
+  encoded, decimal-point, and exponent representations before capturing a GET.
+  Synthetic request-shape tests cover the malformed variants and preserve
+  existing initial/continuation behavior for canonical numeric values.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

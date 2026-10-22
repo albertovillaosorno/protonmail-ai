@@ -1048,3 +1048,53 @@ fn message_list_anchor_id_rejects_unsafe_route_components() {
         .observe(&request(safe))
         .expect("safe opaque anchor remains valid");
 }
+
+#[test]
+fn numeric_message_list_query_fields_require_bounded_decimal_evidence() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    for (field, invalid) in [
+        ("Page", "+1"),
+        ("Page", " 1"),
+        ("Page", "%31"),
+        ("PageSize", "+50"),
+        ("Limit", "+50"),
+        ("Desc", "+1"),
+        ("Desc", "1.0"),
+        ("Anchor", "-1"),
+        ("Anchor", "+1"),
+        ("Anchor", "1e5"),
+        ("Anchor", "18446744073709551616"),
+    ] {
+        let initial = "Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1";
+        // jig-ignore-next-line: canonical rustfmt line.
+        let continuation = "Anchor=7&AnchorID=opaque+_~=&Limit=50&Sort=Time&Desc=1";
+        let source = if field == "Anchor" {
+            continuation
+        } else {
+            initial
+        };
+        let needle = format!(
+            "{field}={}",
+            match field {
+                "Page" => "0",
+                "PageSize" | "Limit" => "50",
+                "Desc" => "1",
+                _ => "7",
+            }
+        );
+        let query = source.replacen(&needle, &format!("{field}={invalid}"), 1);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("https://mail.proton.me/api/mail/v4/messages?{query}");
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&json!({
+                "sessionId":"session-1", "method":"Network.requestWillBeSent",
+                // jig-ignore-next-line: canonical rustfmt line.
+                "params":{"requestId":"bad-decimal","request":{"method":"GET","url":url}}
+            })),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+}
