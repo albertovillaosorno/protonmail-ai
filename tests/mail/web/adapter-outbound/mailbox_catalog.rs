@@ -1367,3 +1367,53 @@ fn completed_response_cannot_be_erased_by_late_failure_before_consumption() {
     );
     assert_eq!(capture.take_finished_request_ids(), ["ready"]);
 }
+
+#[test]
+fn catalog_finish_then_failure_during_reload_never_reads_provider_body() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock catalog browser tests");
+    let root = catalog_browser_root("finish-then-fail");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_catalog_browser(&root, false, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let marker = "        printf '%s\\0%s\\0%s\\0' \"$request\" \"$response\" \"$finished\" >&4\n";
+    assert!(script.contains(marker));
+    let failure = serde_json::json!({
+        "sessionId":"session-1", "method":"Network.loadingFailed",
+        "params":{"requestId":"label-1"}
+    });
+    let injected =
+        // jig-ignore-next-line: canonical rustfmt line.
+        format!("{marker}        late='{failure}'\n        printf '%s\\0' \"$late\" >&4\n");
+    fs::write(&browser, script.replacen(marker, &injected, 1))
+        .expect("inject synthetic contradictory lifecycle event");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("create synthetic browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("discover Mail test page");
+    assert_eq!(
+        managed.observe_mailbox_catalog(&page),
+        Err(BrowserDriverError::MailboxCatalogNetwork(
+            MailboxCatalogNetworkError::InvalidSequence
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("subsequent safe browser read remains synchronized");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("catalog-log.txt")).expect("read synthetic CDP operation log");
+    assert_eq!(log, "enable\nreload\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
+}

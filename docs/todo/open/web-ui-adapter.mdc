@@ -600,6 +600,10 @@ web application without requiring Bridge or a third-party direct API identity.
   the same policy to prevent ambiguous route-like IDs entering cursor state.
   Synthetic request and projector tests exercise each boundary without
   browser navigation or provider request injection.
+- A separate catalog browser fixture now sends loadingFinished followed by
+  loadingFailed for the same unconsumed label request during Page.reload.
+  The driver refuses the contradiction, disables Network without requesting
+  any provider body, then safely inspects the Mail shell on the same session.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
