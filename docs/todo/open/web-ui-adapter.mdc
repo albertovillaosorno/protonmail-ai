@@ -923,6 +923,10 @@ web application without requiring Bridge or a third-party direct API identity.
   request IDs. This retains ordinary Chromium request IDs containing dots
   without admitting invisible Unicode, controls, whitespace, or oversized
   request handles; private authority tests cover both sides of the bound.
+- The response-body request-ID guard also has a full private-pipe fixture:
+  a syntactically valid message-list lifecycle with a hidden Unicode request
+  ID fails at the final CDP command boundary, never performs body retrieval,
+  disables Network, and permits later same-session Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

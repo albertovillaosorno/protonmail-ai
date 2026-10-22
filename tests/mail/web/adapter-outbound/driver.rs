@@ -1845,3 +1845,48 @@ fn bounded_chromium_product_marker_is_accepted_at_the_boundary() {
     drop(managed);
     cleanup(&root);
 }
+
+#[test]
+fn invisible_network_request_id_never_triggers_response_body_fetch() {
+    let root = test_root("hidden-request-id");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(&root).expect("create isolated synthetic browser profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic Network fixture");
+    assert!(script.contains("list-1"));
+    let disguised = "list-\u{200b}1";
+    fs::write(&browser, script.replace("list-1", disguised))
+        .expect("inject hidden-Unicode ID in a matching list lifecycle");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake dedicated browser");
+    let page = managed
+        .provider_page()
+        .expect("discover Mail provider page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("Network cleanup keeps the same target inspectable");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("network-log.txt")).expect("read synthetic command audit");
+    assert_eq!(log, "enable\nreload\ndisable\n");
+    assert!(!log.contains("body"));
+    cleanup(&root);
+}
