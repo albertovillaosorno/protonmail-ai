@@ -515,7 +515,7 @@ fn attachment_id_from_metadata_url(
         || attachment_id.len() > MAX_ATTACHMENT_ID_BYTES
         || attachment_id
             .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#'))
+            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'\\'))
     {
         return Err(AttachmentMetadataResponseError::UnexpectedEndpoint);
     }

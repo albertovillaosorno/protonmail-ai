@@ -522,7 +522,7 @@ fn conversation_id_from_detail_url(
         || conversation_id.len() > MAX_CONVERSATION_ID_BYTES
         || conversation_id
             .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#'))
+            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'\\'))
     {
         return Err(ConversationDetailResponseError::UnexpectedEndpoint);
     }

@@ -777,3 +777,15 @@ fn completed_response_cannot_be_erased_by_late_failure_before_consumption() {
         [(String::from("ready"), String::from("conversation-1"))]
     );
 }
+
+#[test]
+fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-a");
+    let unsafe_url = URL.replace("conversation-1", "conversation-1\\adjacent");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        capture.observe(&request_event("session-a", "bad-path", "GET", &unsafe_url)),
+        Err(ConversationDetailNetworkError::MalformedEvent)
+    );
+    assert_eq!(capture.take_finished_requests().len(), 0);
+}

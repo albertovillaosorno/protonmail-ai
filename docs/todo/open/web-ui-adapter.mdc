@@ -594,6 +594,12 @@ web application without requiring Bridge or a third-party direct API identity.
   in opaque IDs from the latest bootstrap, v5 response, or request URL before
   they can become resumable cursor state. Synthetic tests cover tab, newline,
   carriage return, space, and DEL while allowing printable opaque IDs.
+- Exact message, conversation, and attachment metadata detail URLs now
+  reject backslashes inside opaque path IDs alongside slash, query, and
+  fragment separators. The core-v5 event watermark URL validator follows
+  the same policy to prevent ambiguous route-like IDs entering cursor state.
+  Synthetic request and projector tests exercise each boundary without
+  browser navigation or provider request injection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

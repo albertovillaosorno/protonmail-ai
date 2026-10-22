@@ -792,7 +792,7 @@ fn message_id_from_detail_url(url: &str) -> Result<Option<&str>, MessageDetailNe
         || message_id.len() > MAX_MESSAGE_ID_BYTES
         || message_id
             .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#'))
+            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'\\'))
     {
         return Err(MessageDetailNetworkError::MalformedEvent);
     }

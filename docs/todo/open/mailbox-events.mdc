@@ -53,6 +53,10 @@ bounded resource use.
   watermark characters fail *before encryption* with InvalidCursor; valid
   provider watermarks still round-trip with confidential, scope-bound tokens.
 
+- Event GET URLs also reject backslash-separated paths instead of treating
+  an ambiguous path suffix as an opaque event watermark. Synthetic parsing
+  evidence proves no resumable cursor can be produced from that endpoint.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

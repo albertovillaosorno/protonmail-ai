@@ -209,6 +209,11 @@ Ship useful read access before any mailbox mutation is enabled.
   consumption of a safe response; actual pre-completion app failures continue
   to permit app-owned retries without additional adapter provider requests.
 
+- Exact detail GET identities now refuse backslash characters as opaque URL
+  path separators for messages, conversations, and attachment metadata.
+  Synthetic CDP requests prove those ambiguous paths fail closed before any
+  response body can be read or mapped to provider-neutral identifiers.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

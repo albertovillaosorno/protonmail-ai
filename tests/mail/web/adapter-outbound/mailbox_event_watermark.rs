@@ -1887,3 +1887,13 @@ fn malformed_mailbox_change_ids_are_not_exposed_from_event_projection() {
         .expect("retain printable opaque message IDs");
     assert_eq!(projected.changes()[0].id(), "synthetic+_~=-id");
 }
+
+#[test]
+fn event_url_backslash_cannot_be_promoted_to_cursor_watermark() {
+    let url = "https://mail.proton.me/api/core/v5/events/event-7\\neighbor";
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventWatermark::parse("GET", url, r#"{"EventID":"event-8","More":0}"#),
+        Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+    );
+}
