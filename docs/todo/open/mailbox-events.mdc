@@ -84,6 +84,11 @@ bounded resource use.
   further processing. The 16 KiB boundary and redacted response error remain
   unchanged and have direct synthetic coverage.
 
+- Event capture equality remains based on sanitized lifecycle state, not the
+  random seeds used for URL correlation. Independent captures observing the
+  same request are equality-compatible as before; the private URL fingerprints
+  remain authoritative solely for validating request/response identity.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

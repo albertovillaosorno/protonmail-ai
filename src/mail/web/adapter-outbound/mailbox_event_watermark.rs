@@ -59,18 +59,50 @@ enum EventRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 struct TrackedEventRequest {
     state: EventRequestState,
     event_id: String,
     url_fingerprint: [u64; 2],
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "request equality excludes per-capture randomized URL hashes"
+)]
+impl PartialEq for TrackedEventRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state && self.event_id == other.event_id
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Eq marker leaves randomized URL hash contents private"
+)]
+impl Eq for TrackedEventRequest {}
+
+#[derive(Clone, Debug)]
 struct TrackedLatestEventRequest {
     state: EventRequestState,
     url_fingerprint: [u64; 2],
 }
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "bootstrap equality excludes per-capture randomized URL hashes"
+)]
+impl PartialEq for TrackedLatestEventRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Eq marker leaves randomized URL hash contents private"
+)]
+impl Eq for TrackedLatestEventRequest {}
 
 /// Bounded CDP lifecycle state for the exact legacy latest-event GET.
 #[derive(Clone)]

@@ -2218,3 +2218,37 @@ fn event_url_query_drift_during_browser_capture_stays_fail_closed() {
         fs::remove_dir_all(&root).expect("clean fake event browser root");
     }
 }
+
+#[test]
+fn event_capture_equality_ignores_randomized_url_hashing_keys() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    let first_latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let second_latest = LatestMailboxEventNetworkCapture::new("session-1");
+    assert_eq!(first_latest, second_latest);
+    let first_event = MailboxEventNetworkCapture::new("session-1");
+    let second_event = MailboxEventNetworkCapture::new("session-1");
+    assert_eq!(first_event, second_event);
+    let mut first_latest = first_latest;
+    let mut second_latest = second_latest;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let latest_request = cdp_lifecycle_event("Network.requestWillBeSent", "bootstrap", latest_url);
+    first_latest
+        .observe(&latest_request)
+        .expect("first independent latest capture");
+    second_latest
+        .observe(&latest_request)
+        .expect("second independent latest capture");
+    assert_eq!(first_latest, second_latest);
+    let mut first_event = first_event;
+    let mut second_event = second_event;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let event_request = cdp_lifecycle_event("Network.requestWillBeSent", "event", URL);
+    first_event
+        .observe(&event_request)
+        .expect("first independent event capture");
+    second_event
+        .observe(&event_request)
+        .expect("second independent event capture");
+    assert_eq!(first_event, second_event);
+}
