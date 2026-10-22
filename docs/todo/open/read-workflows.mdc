@@ -115,6 +115,14 @@ Ship useful read access before any mailbox mutation is enabled.
   retained. This intentionally does not interpret Page/Anchor continuation or
   claim snapshot/order compatibility for public `list_threads`/search; those
   provider-neutral semantics remain separate work.
+- The managed browser now offers an explicitly passive, bounded wait for the
+  next app-owned exact conversation-list GET. It checks ready Mail shell and
+  origin before/after the capture, disables Network on success, timeout, or
+  projection failure, and rejects residual concurrent requests. Synthetic
+  Chromium-pipe tests cover successful fresh projection, clean timeout, stale
+  response cleanup, and a request starting during Network teardown. No
+  provider-neutral thread search, pagination, or immutable snapshot claim is
+  implied.
 
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`

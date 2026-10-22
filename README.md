@@ -217,6 +217,13 @@ numeric `Time`, provider `Order`, `NumMessages`, and `Total`. This does not yet
 claim provider-neutral pagination or snapshot semantics, so `list_threads` and
 thread search remain unavailable.
 
+The managed browser can now passively observe the next app-owned exact
+conversation-list GET for up to 30 seconds, without clicking, navigating,
+reloading, or issuing provider requests. It limits retained Network buffers,
+projects only fresh bounded metadata, disables Network before returning, and
+rejects overlapping requests. A clean timeout yields no observation. This is
+still diagnostic evidence, not a public thread-list or search capability.
+
 Single-message reads now have a separate content-minimizing response boundary.
 Current WebClients loads an uncached message with exact
 `GET mail/v4/messages/{messageID}`; the adapter can classify that lifecycle and

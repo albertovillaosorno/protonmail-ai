@@ -446,6 +446,12 @@ web application without requiring Bridge or a third-party direct API identity.
   non-sensitive
   behavior, so neither event-loop state nor optimistic page-length selectors are
   promoted into snapshot evidence for this adapter.
+- The bounded conversation-list projector is now reachable through a passive
+  managed-browser observation, with a 30-second maximum, exact GET lifecycle
+  gating, fresh response projection, explicit Network teardown, and safe
+  handling of timeout or overlapping requests. Synthetic browser tests verify
+  no navigation, stale rejection, and late-request ambiguity. This remains
+  diagnostic only; thread-list/search wire semantics are not yet proven.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
