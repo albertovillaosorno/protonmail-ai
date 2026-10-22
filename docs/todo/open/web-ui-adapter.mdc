@@ -859,6 +859,11 @@ web application without requiring Bridge or a third-party direct API identity.
   from both `Display` and `Debug`. Synthetic error diagnostics assert five
   sensitive variants contain only their category, not the original path.
   Nested profile-lease setup failures inherit the same safe error formatting.
+- Mail-shell origin and role evaluation now rejects `Runtime.evaluate`
+  results with explicit JavaScript `exceptionDetails` even if a plausible
+  value is present. `DOM.getDocument` root IDs must also be positive before
+  issuing any AX role query. Two fake-browser regressions prove both
+  fail-closed paths and redact synthetic private exception text.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

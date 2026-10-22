@@ -477,3 +477,82 @@ fn accessibility_role_query_has_bounded_node_count() {
         );
     }
 }
+
+#[test]
+fn invalid_dom_root_node_cannot_authorize_accessibility_queries() {
+    let root = test_root("zero-dom-root");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let browser = fake_browser(
+        &root,
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        "mail.proton.me",
+        &RoleFixture::ready(),
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake Chrome fixture");
+    let valid = "\"nodeId\":1";
+    assert!(script.contains(valid));
+    let invalid = script.replace(valid, "\"nodeId\":0");
+    let ax_branch = "    *'Accessibility.queryAXTree'*)";
+    let ax_audit = format!(
+        "{ax_branch}\n      printf 'unexpected-ax\\n' >> '{}'",
+        root.join("ax-audit.log").display()
+    );
+    fs::write(&browser, invalid.replacen(ax_branch, &ax_audit, 1))
+        .expect("install invalid DOM root and access-audit fixture");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch isolated fake browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail target");
+    assert_eq!(
+        managed.require_mail_shell(&page),
+        Err(BrowserDriverError::Protocol)
+    );
+    drop(managed);
+    assert!(!root.join("ax-audit.log").exists());
+    fs::remove_dir_all(root).expect("remove synthetic test tree");
+}
+
+#[test]
+fn runtime_javascript_exception_cannot_become_ready_shell_evidence() {
+    let root = test_root("runtime-exception");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let browser = fake_browser(
+        &root,
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        "mail.proton.me",
+        &RoleFixture::ready(),
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake Chrome fixture");
+    let expected = "      printf '%s\\0' \"$response\" >&4;;";
+    assert!(script.contains(expected));
+    let error_reply = concat!(
+        "      printf '{\"id\":%s,\"result\":",
+        "{\"result\":{\"value\":{\"protocol\":\"https:\",",
+        "\"hostname\":\"mail.proton.me\",\"port\":\"\"}},",
+        "\"exceptionDetails\":{\"text\":\"synthetic-private-message\"}}}\\0' ",
+        "\"$id\" >&4;;"
+    );
+    fs::write(&browser, script.replacen(expected, error_reply, 1))
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("inject reported JavaScript exception alongside plausible value");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch isolated fake browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail target");
+    let error = managed
+        .require_mail_shell(&page)
+        .expect_err("JavaScript exception invalidates apparent Mail origin");
+    assert_eq!(error, BrowserDriverError::Protocol);
+    let text = format!("{error:?} {error}");
+    assert!(!text.contains("synthetic-private-message"));
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove synthetic test tree");
+}

@@ -711,6 +711,9 @@ impl ManagedBrowser {
         });
         // jig-ignore-next-line: canonical rustfmt line.
         let result = self.call_in_session(session, "Runtime.evaluate", &params)?;
+        if result.get("exceptionDetails").is_some() {
+            return Err(BrowserDriverError::Protocol);
+        }
         result
             .get("result")
             .and_then(|remote| remote.get("value"))
@@ -796,6 +799,7 @@ impl ManagedBrowser {
             .get("root")
             .and_then(|node| node.get("nodeId"))
             .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
             .ok_or(BrowserDriverError::Protocol)?;
         let navigation = self.query_ax_role(session, node_id, "navigation")?;
         let search = self.query_ax_role(session, node_id, "search")?;
