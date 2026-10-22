@@ -501,6 +501,11 @@ web application without requiring Bridge or a third-party direct API identity.
   pages, missing page evidence, and anchor continuations. The standalone
   passive diagnostic still observes app-owned requests without a visible-page
   constraint.
+- CDP reply-draining tests now inject malformed exact list events during
+  both `Network.getResponseBody` and `Network.disable`, then issue another
+  content-free Mail inspection on the same CDP connection. The original
+  Network error remains typed, command frames remain synchronized, and
+  Network teardown is observed without navigation or a mail action.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
