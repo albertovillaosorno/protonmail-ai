@@ -676,6 +676,10 @@ web application without requiring Bridge or a third-party direct API identity.
   Browser fixtures prove that whitespace, control, and separator drift fails
   with typed list incompatibility before message-page snapshots or navigation,
   while ordinary printable opaque IDs still yield settled read-only evidence.
+- A dedicated fake-Chromium message-page regression now proves the early
+  visible-list ID guard blocks content-bearing snapshots for slash-bearing or
+  Unicode-whitespace IDs. It returns a typed list incompatibility before
+  message content projection and permits subsequent safe Mail-shell access.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

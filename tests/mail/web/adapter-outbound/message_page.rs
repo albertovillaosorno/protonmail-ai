@@ -296,3 +296,35 @@ fn stable_message_page_rejects_missing_machine_metadata() {
         Err(MessageListReconciliationError::MissingVisibleMessage)
     );
 }
+
+#[test]
+fn visible_message_page_refuses_unsafe_dom_ids_before_content_projection() {
+    for (name, replacement) in [
+        ("slash", "message/unsafe"),
+        ("unicode-space", "message\\u00a0unsafe"),
+    ] {
+        let root = test_root(name);
+        fs::create_dir_all(&root).expect("create isolated fake page");
+        let browser = fake(&root, FORCED_MESSAGES, FORCED_MESSAGES);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read fake Chromium fixture");
+        assert!(script.contains("message-a"));
+        fs::write(&browser, script.replace("message-a", replacement))
+            .expect("install unsafe row-identity evidence");
+        let plan = plan(&root, &browser);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+        let page = managed
+            .provider_page()
+            .expect("discover synthetic Mail page");
+        assert_eq!(
+            managed.read_visible_message_page(&page),
+            Err(BrowserDriverError::MailboxListIncompatible)
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("same CDP session remains readable after failed list");
+        drop(managed);
+        fs::remove_dir_all(&root).expect("remove isolated browser profile");
+    }
+}
