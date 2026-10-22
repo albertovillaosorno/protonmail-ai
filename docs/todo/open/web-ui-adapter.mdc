@@ -875,6 +875,13 @@ web application without requiring Bridge or a third-party direct API identity.
   controls, and tag characters). Synthetic read-only fixtures cover visible
   rows, message lists, conversation members, and attachment metadata without
   narrowing printable provider IDs or retaining rejected ID values in errors.
+- The CDP transport now enforces a literal browser-command allowlist and
+  separates browser-root methods from flattened target-session methods.
+  `Runtime.evaluate` accepts only nine compiled-in UI observations/checked
+  page-and-sort controls; arbitrary expressions, script injection, DOM writes,
+  input injection and cookie/storage mutation commands fail before pipe I/O.
+  Pure unit tests enumerate permitted methods, cross-scope rejects, and
+  representative privileged commands. The full adapter suite remains green.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

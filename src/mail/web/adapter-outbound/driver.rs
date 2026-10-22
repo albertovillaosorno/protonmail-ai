@@ -705,6 +705,9 @@ impl ManagedBrowser {
         session: &str,
         expression: &str,
     ) -> Result<Value, BrowserDriverError> {
+        if !allowed_mail_runtime_expression(expression) {
+            return Err(BrowserDriverError::Protocol);
+        }
         let params = json!({
             "expression": expression,
             "returnByValue": true
@@ -3513,6 +3516,9 @@ impl ManagedBrowser {
         method: &str,
         params: &Value,
     ) -> Result<(), BrowserDriverError> {
+        if !allowed_mail_cdp_method(session, method) {
+            return Err(BrowserDriverError::Protocol);
+        }
         let request = session.map_or_else(
             || json!({"id": id, "method": method, "params": params}),
             |session_id| {
@@ -4238,6 +4244,50 @@ fn read_frame(reader: &mut BufReader<UnixStream>) -> Result<Vec<u8>, BrowserDriv
     }
 }
 
+// Browser process commands and flattened target-session commands have
+// disjoint authority. No CDP method outside the audited read-only browser
+// boundary can be emitted, even if later code inadvertently requests it.
+fn allowed_mail_cdp_method(session: Option<&str>, method: &str) -> bool {
+    match session {
+        None => matches!(
+            method,
+            "Browser.getVersion"
+                | "Browser.close"
+                | "Target.getTargets"
+                | "Target.attachToTarget"
+                | "Target.detachFromTarget"
+        ),
+        Some(_) => matches!(
+            method,
+            "Runtime.evaluate"
+                | "DOM.getDocument"
+                | "Accessibility.queryAXTree"
+                | "Network.enable"
+                | "Network.disable"
+                | "Network.getResponseBody"
+                | "Page.reload"
+        ),
+    }
+}
+
+// Runtime evaluations are limited to pre-audited, static UI observations and
+// the existing checked page/sort controls. No user-controlled expression or
+// dynamically assembled script can cross the CDP transport boundary.
+fn allowed_mail_runtime_expression(expression: &str) -> bool {
+    [
+        LOCATION_EXPRESSION,
+        MailboxModeEvidence::expression(),
+        MailboxListEvidence::expression(),
+        MailboxPageSnapshot::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::close_expression(),
+        MailboxSortOrder::closed_expression(),
+        NextPageActivation::expression(),
+    ]
+    .contains(&expression)
+}
+
 // Accept only a well-formed unsolicited notification. This shared check
 // covers the command reader and every passive observer wait, even when an
 // unrelated CDP method would otherwise be ignored by a specific classifier.
@@ -4336,4 +4386,80 @@ fn location_origin(protocol: &str, hostname: &str, port: &str) -> PageOrigin {
         return PageOrigin::Other;
     }
     PageOrigin::from_location(protocol, hostname)
+}
+
+#[cfg(test)]
+mod cdp_authority_tests {
+    use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
+    use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
+    use super::{allowed_mail_cdp_method, allowed_mail_runtime_expression};
+
+    #[test]
+    fn only_audited_cdp_methods_are_accepted_in_their_session_scope() {
+        for command in [
+            "Browser.getVersion",
+            "Browser.close",
+            "Target.getTargets",
+            "Target.attachToTarget",
+            "Target.detachFromTarget",
+        ] {
+            assert!(allowed_mail_cdp_method(None, command));
+            assert!(!allowed_mail_cdp_method(Some("session-a"), command));
+        }
+        for command in [
+            "Runtime.evaluate",
+            "DOM.getDocument",
+            "Accessibility.queryAXTree",
+            "Network.enable",
+            "Network.disable",
+            "Network.getResponseBody",
+            "Page.reload",
+        ] {
+            assert!(allowed_mail_cdp_method(Some("session-a"), command));
+            assert!(!allowed_mail_cdp_method(None, command));
+        }
+        for denied in [
+            "Runtime.callFunctionOn",
+            "Runtime.addBinding",
+            "DOM.setAttributeValue",
+            "DOM.setOuterHTML",
+            "Input.dispatchMouseEvent",
+            "Input.insertText",
+            "Network.setCookie",
+            "Network.setCookies",
+            "Storage.clearDataForOrigin",
+            "Page.navigate",
+            "Page.addScriptToEvaluateOnNewDocument",
+            "Fetch.fulfillRequest",
+        ] {
+            assert!(!allowed_mail_cdp_method(None, denied));
+            assert!(!allowed_mail_cdp_method(Some("session-a"), denied));
+        }
+    }
+
+    #[test]
+    fn only_static_audited_runtime_expressions_are_accepted() {
+        for expression in [
+            LOCATION_EXPRESSION,
+            MailboxModeEvidence::expression(),
+            MailboxListEvidence::expression(),
+            MailboxPageSnapshot::expression(),
+            MailboxSortOrder::open_expression(),
+            MailboxSortOrder::expression(),
+            MailboxSortOrder::close_expression(),
+            MailboxSortOrder::closed_expression(),
+            NextPageActivation::expression(),
+        ] {
+            assert!(allowed_mail_runtime_expression(expression));
+        }
+        for denied in [
+            "",
+            "document.cookie",
+            "fetch('/api/mail/v4/messages')",
+            "document.querySelector('button').click()",
+            "window.location.href='https://example.test'",
+        ] {
+            assert!(!allowed_mail_runtime_expression(denied));
+        }
+    }
 }
