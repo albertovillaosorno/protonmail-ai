@@ -32,6 +32,8 @@
 
 use serde_json::Value;
 
+const MAX_AX_ROLE_MATCH_NODES: usize = 256;
+
 /// Structural Mail-shell evidence that contains no accessible names or text.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MailShellEvidence {
@@ -85,6 +87,9 @@ impl MailShellEvidence {
 
 fn visible_match(result: &Value) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
+    if nodes.len() > MAX_AX_ROLE_MATCH_NODES {
+        return Err(());
+    }
     let mut any_visible = false;
     for node in nodes {
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;

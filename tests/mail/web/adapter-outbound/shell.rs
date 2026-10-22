@@ -405,3 +405,75 @@ fn well_formed_multiple_role_nodes_preserve_ready_shell_without_names() {
     assert!(!debug.contains("secret"));
     assert!(!debug.contains("hidden"));
 }
+
+#[test]
+fn accessibility_role_query_has_bounded_node_count() {
+    use std::iter::{once, repeat_n};
+    let bounded = format!(
+        "[{}]",
+        once(r#"{"ignored":false}"#)
+            .chain(repeat_n(r#"{"ignored":true}"#, 255))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let oversized = format!(
+        "{},{}]",
+        bounded
+            .strip_suffix(']')
+            .expect("bounded AX array terminator"),
+        r#"{"ignored":true}"#
+    );
+    let valid = RoleFixture {
+        navigation: &bounded,
+        ..RoleFixture::ready()
+    };
+    let evidence = inspect(
+        "role-count-at-bound",
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        &valid,
+    )
+    .expect("256 bounded AX role nodes remain valid");
+    assert!(evidence.ready());
+    for (role, roles) in [
+        (
+            "navigation",
+            RoleFixture {
+                navigation: &oversized,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "search",
+            RoleFixture {
+                search: &oversized,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "dialog",
+            RoleFixture {
+                dialog: &oversized,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "alertdialog",
+            RoleFixture {
+                alertdialog: &oversized,
+                ..RoleFixture::ready()
+            },
+        ),
+    ] {
+        let label = format!("role-count-over-{role}");
+        assert_eq!(
+            inspect(
+                &label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+        );
+    }
+}

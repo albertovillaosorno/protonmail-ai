@@ -838,6 +838,11 @@ web application without requiring Bridge or a third-party direct API identity.
   selection. Synthetic tests prove both accepted boundary values and one-over
   refusals. No page titles, URLs, or target handles are written to diagnostics,
   and extra non-page targets remain ignored within the overall bound.
+- Role-filtered Chromium accessibility evidence now caps each navigation,
+  search, dialog, or alertdialog query to 256 nodes. A larger role result is a
+  typed protocol incompatibility before Mail-shell readiness is granted.
+  Synthetic fake-browser tests accept the exact 256-node bound and refuse
+  257 nodes in every role without inspecting or retaining accessible names.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
