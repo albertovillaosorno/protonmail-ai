@@ -1781,3 +1781,67 @@ fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn malformed_chromium_handshake_releases_owned_profile_for_retry() {
+    use serde_json::json;
+    for (case, invalid) in [
+        ("missing-product", String::from("null")),
+        ("empty-product", String::from("\"\"")),
+        ("numeric-product", String::from("19")),
+        ("oversized-product", json!("P".repeat(257)).to_string()),
+    ] {
+        let root = test_root(case);
+        fs::create_dir_all(&root).expect("create synthetic browser profile");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let targets = r#"[{"targetId":"page-1","type":"page","url":"https://mail.proton.me/"}]"#;
+        let browser = fake_browser(&root, targets, "mail.proton.me");
+        let plan = plan(&root, &browser);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic launch script");
+        let product = r#""product":"FakeChrome/1""#;
+        assert!(script.contains(product));
+        let invalid_product = format!("\"product\":{invalid}");
+        fs::write(&browser, script.replace(product, &invalid_product))
+            .expect("inject malformed browser version result");
+        assert!(matches!(
+            ManagedBrowser::launch(&plan),
+            Err(BrowserDriverError::Protocol)
+        ));
+        fs::write(&browser, &script).expect("restore valid isolated browser");
+        let mut resumed = ManagedBrowser::launch(&plan)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("malformed handshake must release the dedicated-profile lease");
+        assert_eq!(
+            resumed.provider_page().map(|page| page.origin()),
+            Ok(PageOrigin::ProtonMail)
+        );
+        drop(resumed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn bounded_chromium_product_marker_is_accepted_at_the_boundary() {
+    use serde_json::json;
+    let root = test_root("product-marker-max");
+    fs::create_dir_all(&root).expect("create isolated profile");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let targets = r#"[{"targetId":"page-1","type":"page","url":"https://mail.proton.me/"}]"#;
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake browser fixture");
+    let product = r#""product":"FakeChrome/1""#;
+    assert!(script.contains(product));
+    let bounded = format!("\"product\":{}", json!("P".repeat(256)));
+    fs::write(&browser, script.replace(product, &bounded))
+        .expect("install exact maximum-length product marker");
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+        .expect("bounded browser product marker is valid");
+    assert_eq!(
+        managed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(managed);
+    cleanup(&root);
+}

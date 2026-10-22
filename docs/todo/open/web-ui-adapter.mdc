@@ -899,6 +899,11 @@ web application without requiring Bridge or a third-party direct API identity.
   at most 512 bytes. Private-pipe fixtures reject oversized, slash-delimited
   or whitespace-containing labels and malformed sessions, then drain the
   authentic enable reply, disable Network and re-inspect the Mail shell.
+- The initial Chromium `Browser.getVersion` handshake now requires a
+  nonempty product marker capped at 256 bytes. Synthetic launch fixtures
+  reject absent, empty, nonstring and oversized markers, prove immediate
+  dedicated-profile lease recovery after each failure, and accept exactly
+  256 bytes without retaining browser product strings in diagnostics.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

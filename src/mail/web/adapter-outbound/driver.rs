@@ -3364,7 +3364,11 @@ impl ManagedBrowser {
 
     fn verify_handshake(&mut self) -> Result<(), BrowserDriverError> {
         let result = self.call("Browser.getVersion", &json!({}))?;
-        if result.get("product").and_then(Value::as_str).is_none() {
+        if result
+            .get("product")
+            .and_then(Value::as_str)
+            .is_none_or(|product| product.is_empty() || product.len() > 256)
+        {
             return Err(BrowserDriverError::Protocol);
         }
         Ok(())
