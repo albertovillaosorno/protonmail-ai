@@ -568,6 +568,14 @@ web application without requiring Bridge or a third-party direct API identity.
   shapes *before* body decoding without retaining their values; passive
   unassociated list capture remains available. Synthetic page-matching tests
   cover all three selector keys and prove Network teardown without body reads.
+- Mailbox catalog Network captures now retain a bounded set of consumed
+  request IDs after returning safe catalog-kind evidence. Replayed requests,
+  responses, finished events, and failed events remain invalid through Network
+  teardown, while genuine failed app-owned attempts still permit a new retry.
+  Exact tracked CDP IDs are capped at 512 bytes with 16 combined pending and
+  completed IDs. Synthetic tests cover each event type, the capacity limit,
+  redacted diagnostics, and a late failure during Network.disable followed by
+  safe browser shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

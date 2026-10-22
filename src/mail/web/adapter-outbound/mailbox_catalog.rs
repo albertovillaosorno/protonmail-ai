@@ -42,6 +42,7 @@ const MAX_CATALOG_ITEMS: usize = 2_048;
 const MAX_CATALOG_ID_BYTES: usize = 512;
 const MAX_CATALOG_NAME_BYTES: usize = 1_024;
 const MAX_TRACKED_CATALOG_REQUESTS: usize = 16;
+const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum CatalogRequestState {
@@ -91,6 +92,7 @@ struct TrackedCatalogRequest {
 pub struct MailboxCatalogNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedCatalogRequest>,
+    completed_ids: BTreeSet<String>,
 }
 
 impl MailboxCatalogNetworkCapture {
@@ -100,6 +102,7 @@ impl MailboxCatalogNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
         }
     }
 
@@ -146,6 +149,9 @@ impl MailboxCatalogNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != CatalogRequestState::Finished);
+        for (request_id, _kind) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -175,6 +181,9 @@ impl MailboxCatalogNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MailboxCatalogNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxCatalogNetworkError::InvalidSequence);
+        }
         let tracked = self.requests.contains_key(request_id);
         let kind = if method == "GET" {
             catalog_kind_from_url(url)?
@@ -190,7 +199,13 @@ impl MailboxCatalogNetworkCapture {
         if tracked {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }
-        if self.requests.len() >= MAX_TRACKED_CATALOG_REQUESTS {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+            return Err(MailboxCatalogNetworkError::MalformedEvent);
+        }
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_CATALOG_REQUESTS
+        {
             return Err(MailboxCatalogNetworkError::CapacityExceeded);
         }
         self.requests.insert(
@@ -212,6 +227,9 @@ impl MailboxCatalogNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MailboxCatalogNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxCatalogNetworkError::InvalidSequence);
+        }
         if !self.requests.contains_key(request_id) {
             return Ok(());
         }
@@ -246,6 +264,9 @@ impl MailboxCatalogNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxCatalogNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxCatalogNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -259,6 +280,9 @@ impl MailboxCatalogNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&mut self, event: &Value) -> Result<(), MailboxCatalogNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxCatalogNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -269,6 +293,7 @@ impl fmt::Debug for MailboxCatalogNetworkCapture {
         f.debug_struct("MailboxCatalogNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .finish()
     }
 }

@@ -1226,3 +1226,125 @@ fn catalog_size_one_chain_is_complete_and_default_page_is_terminal() {
     assert_eq!(log, one_capture.repeat(2));
     fs::remove_dir_all(&root).expect("remove three-page catalog root");
 }
+
+#[test]
+fn completed_catalog_requests_reject_replay_and_late_failure() {
+    let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+    capture
+        .observe(&request("session-a", "private-id", "GET", LABEL_URL))
+        .expect("start exact label GET");
+    capture
+        .observe(&response("session-a", "private-id", LABEL_URL))
+        .expect("observe matching label GET response");
+    capture
+        .observe(&finished("session-a", "private-id"))
+        .expect("finish exact label GET");
+    assert_eq!(capture.take_finished_request_ids(), ["private-id"]);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    for late in [
+        request("session-a", "private-id", "GET", LABEL_URL),
+        request("session-a", "private-id", "POST", LABEL_URL),
+        response("session-a", "private-id", LABEL_URL),
+        finished("session-a", "private-id"),
+        failed("session-a", "private-id"),
+    ] {
+        assert_eq!(
+            capture.observe(&late),
+            Err(MailboxCatalogNetworkError::InvalidSequence)
+        );
+    }
+    assert!(!format!("{capture:?}").contains("private-id"));
+}
+
+#[test]
+fn catalog_completion_markers_bound_request_count_and_id_length() {
+    let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+    for index in 0u8..16u8 {
+        let request_id = format!("synthetic-private-{index}");
+        capture
+            .observe(&request("session-a", &request_id, "GET", LABEL_URL))
+            .expect("observe bounded request");
+        capture
+            .observe(&response("session-a", &request_id, LABEL_URL))
+            .expect("observe exact response");
+        capture
+            .observe(&finished("session-a", &request_id))
+            .expect("finish exact request");
+        assert_eq!(capture.take_finished_request_ids(), [request_id]);
+    }
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    assert_eq!(
+        capture.observe(&request("session-a", "overflow", "GET", LABEL_URL)),
+        Err(MailboxCatalogNetworkError::CapacityExceeded)
+    );
+    let mut fresh = MailboxCatalogNetworkCapture::new("session-a");
+    for request_id in [String::new(), "x".repeat(513)] {
+        assert_eq!(
+            fresh.observe(&request("session-a", &request_id, "GET", LABEL_URL)),
+            Err(MailboxCatalogNetworkError::MalformedEvent)
+        );
+        assert_eq!(fresh.take_finished_request_ids().len(), 0);
+    }
+    fresh
+        .observe(&request(
+            "session-a",
+            &"x".repeat(1024),
+            "GET",
+            "https://mail.proton.me/api/core/v4/labels?Type=2",
+        ))
+        .expect("ignore unrelated contact-group request");
+    assert_eq!(fresh.take_finished_request_ids().len(), 0);
+}
+
+#[test]
+fn completed_catalog_id_replayed_during_disable_fails_closed() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock catalog browser tests");
+    let root = catalog_browser_root("completed-replay");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_catalog_browser(&root, false, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser fixture");
+    let marker = "    *'Network.disable'*)\n";
+    assert!(script.contains(marker));
+    let late = serde_json::json!({
+        "sessionId":"session-1",
+        "method":"Network.loadingFailed",
+        "params":{"requestId":"label-1"}
+    });
+    let injected = format!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        "    *'Network.disable'*)\n      late='{late}'\n      printf '%s\\0' \"$late\" >&4\n"
+    );
+    fs::write(&browser, script.replacen(marker, &injected, 1))
+        .expect("inject synthetic late network failure");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build synthetic catalog plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("discover fake Mail page");
+    assert_eq!(
+        managed.observe_mailbox_catalog(&page),
+        Err(BrowserDriverError::MailboxCatalogNetwork(
+            MailboxCatalogNetworkError::InvalidSequence,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("next content-free shell read succeeds after failed observation");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("catalog-log.txt")).expect("read fake browser activity log");
+    assert!(log.ends_with("disable\n"));
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
+}

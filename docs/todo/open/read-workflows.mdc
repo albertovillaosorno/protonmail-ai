@@ -197,6 +197,12 @@ Ship useful read access before any mailbox mutation is enabled.
   rendered page even when Page/PageSize/Limit agree. The presence-only flag is
   kept internally; selector values and private query text are discarded.
 
+- Mailbox/label catalog capture now retains consumed CDP request IDs until
+  observation teardown. A bounded 16-request ledger and 512-byte ID ceiling
+  prevent late lifecycle replays and unbounded diagnostics; unrelated contact
+  groups remain ignored. Synthetic browser tests verify failure recovery and
+  safe subsequent Mail-shell inspection.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
