@@ -744,6 +744,12 @@ web application without requiring Bridge or a third-party direct API identity.
   Three variants return typed Protocol, audit `Network.disable` without body
   access, and then safely inspect the same Mail session. This confirms the
   command-reply drain also works when capture observers are active.
+- CDP command correlation now rejects spurious numeric response IDs and
+  hybrid frames containing both a response ID and event method/params. A
+  protocol error is retained while draining to the actual command reply so
+  cleanup stays aligned. Synthetic browser fixtures exercise wrong IDs and a
+  fake notification that copies the *current* command ID, then prove typed
+  failure, Network disable, and subsequent same-session shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

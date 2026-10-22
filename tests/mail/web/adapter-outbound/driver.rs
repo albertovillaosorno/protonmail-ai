@@ -1082,6 +1082,11 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
     for (label, unsolicited) in [
         ("bad-string-id", r#"{"id":"not-a-command","result":{}}"#),
         ("null-id", r#"{"id":null,"result":{}}"#),
+        ("wrong-numeric-id", r#"{"id":999999,"result":{}}"#),
+        (
+            "hybrid-wrong-id",
+            r#"{"id":999998,"method":"Network.loadingFinished","result":{}}"#,
+        ),
         ("result-without-id", r#"{"result":{}}"#),
         ("error-without-id", r#"{"error":{"code":-32601}}"#),
         ("method-is-number", r#"{"method":7,"params":{}}"#),
@@ -1130,4 +1135,49 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         );
         cleanup(&root);
     }
+}
+
+#[test]
+fn hybrid_cdp_frame_with_matching_command_id_does_not_spoof_success() {
+    let root = test_root("hybrid-matching-command-id");
+    fs::create_dir_all(&root).expect("create test-only browser profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+    let expected = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    assert!(script.contains(expected));
+    let injected = format!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        "      printf '{{\"id\":%s,\"method\":\"Network.responseReceived\",\"result\":{{}}}}\\0' \"$id\" >&4\n{expected}"
+    );
+    fs::write(&browser, script.replacen(expected, &injected, 1))
+        .expect("inject ambiguous matching-id notification before valid reply");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic CDP driver");
+    let page = managed.provider_page().expect("discover Mail test page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol)
+    );
+    managed
+        .require_mail_shell(&page)
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("drained legitimate enable reply allows later Mail-shell check");
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("network-log.txt")).expect("read fake Network commands");
+    assert_eq!(log, "enable\ndisable\n");
+    cleanup(&root);
 }

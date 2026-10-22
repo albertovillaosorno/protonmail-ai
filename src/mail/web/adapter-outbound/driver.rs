@@ -3453,7 +3453,14 @@ impl ManagedBrowser {
                 }
                 continue;
             };
-            if response_id != id || message.get("error").is_some() {
+            if response_id != id
+                || message.get("method").is_some()
+                || message.get("params").is_some()
+            {
+                observation_error.get_or_insert(BrowserDriverError::Protocol);
+                continue;
+            }
+            if message.get("error").is_some() {
                 return Err(BrowserDriverError::Protocol);
             }
             let result = message
