@@ -718,6 +718,11 @@ web application without requiring Bridge or a third-party direct API identity.
   canonical ASCII-decimal values only, with separate size bounds and overflow
   checks. The passive classifier rejects alternative encodings before binding
   page evidence; synthetic tests cover malformed forms and maximum `u32` page.
+- Mailbox catalog request/response `Type` selectors now require canonical
+  ASCII-decimal category spelling. `Type=1`, `3`, and `4` remain exact mail
+  categories; unrelated numeric categories remain ignored, while signed,
+  zero-padded, encoded, fractional, or overflowing forms fail closed. Synthetic
+  tests verify request refusal and response-only selector drift rejection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

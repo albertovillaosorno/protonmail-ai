@@ -1546,3 +1546,44 @@ fn unsafe_catalog_body_id_is_rejected_with_network_teardown() {
     assert_eq!(log, "enable\nreload\nbody-folder\nbody-label\ndisable\n");
     fs::remove_dir_all(&root).expect("clean synthetic browser root");
 }
+
+#[test]
+fn catalog_type_query_requires_canonical_decimal_category() {
+    const BASE: &str = "https://mail.proton.me/api/core/v4/labels?Type=";
+    for (index, bad) in [
+        "+1",
+        "01",
+        "001",
+        " 1",
+        "1.0",
+        "%31",
+        "1e0",
+        "",
+        "18446744073709551616",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+        let url = format!("{BASE}{bad}");
+        let id = format!("invalid-category-{index}");
+        assert_eq!(
+            capture.observe(&request("session-a", &id, "GET", &url)),
+            Err(MailboxCatalogNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+    let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+    capture
+        .observe(&request("session-a", "contact", "GET", &format!("{BASE}2")))
+        .expect("canonical unsupported category remains unrelated");
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    capture
+        .observe(&request("session-a", "mail", "GET", &format!("{BASE}1")))
+        .expect("canonical Mail category remains trackable");
+    assert_eq!(
+        capture.observe(&response("session-a", "mail", &format!("{BASE}+1"))),
+        Err(MailboxCatalogNetworkError::ResponseRejected)
+    );
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+}

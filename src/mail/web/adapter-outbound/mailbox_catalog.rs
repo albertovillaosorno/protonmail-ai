@@ -666,6 +666,13 @@ fn catalog_kind_from_url(
     if key != "Type" {
         return Ok(None);
     }
+    if value.is_empty()
+        || value.len() > 20
+        || (value.len() > 1 && value.starts_with('0'))
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(MailboxCatalogNetworkError::MalformedEvent);
+    }
     let raw = value
         .parse::<u64>()
         .map_err(|_error| MailboxCatalogNetworkError::MalformedEvent)?;

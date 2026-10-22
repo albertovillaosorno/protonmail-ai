@@ -303,6 +303,10 @@ Ship useful read access before any mailbox mutation is enabled.
   shape policy as the message list, refusing ambiguous signed or encoded
   numbers before a browser page may be associated with a Network response.
 
+- Exact label/catalog `Type` selectors now reject alternate numeric
+  representations, so a decoded catalog cannot be attributed to a loosely
+  parsed category. Unsupported canonical numeric types remain unobserved.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
