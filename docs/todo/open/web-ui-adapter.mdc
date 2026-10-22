@@ -765,6 +765,11 @@ web application without requiring Bridge or a third-party direct API identity.
   redacted Protocol failure, drains the real reply, disables Network, and
   leaves the same managed Mail shell inspectable. This is separate from the
   terminal oversized/truncated *framing* boundary.
+- AX role-query projection now validates every returned node's boolean
+  `ignored` field, including nodes after an already-visible landmark or
+  blocker. Synthetic browser tests reject malformed trailing navigation,
+  search, dialog, and alertdialog nodes, while valid multi-node landmark
+  arrays remain ready without retaining accessible names or visible content.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -324,3 +324,84 @@ fn origin_drift_after_accessibility_queries_fails_closed() {
         }
     );
 }
+
+#[test]
+fn visible_ax_landmark_cannot_hide_malformed_trailing_nodes() {
+    for (label, malformed) in [
+        (
+            "missing-ignored",
+            r#"[{"ignored":false},{"name":"synthetic"}]"#,
+        ),
+        (
+            "wrong-ignored-type",
+            r#"[{"ignored":false},{"ignored":"false"}]"#,
+        ),
+        ("null-node", r#"[{"ignored":false},null]"#),
+    ] {
+        for (role_name, roles) in [
+            (
+                "navigation",
+                RoleFixture {
+                    navigation: malformed,
+                    ..RoleFixture::ready()
+                },
+            ),
+            (
+                "search",
+                RoleFixture {
+                    search: malformed,
+                    ..RoleFixture::ready()
+                },
+            ),
+            (
+                "dialog",
+                RoleFixture {
+                    dialog: malformed,
+                    ..RoleFixture::ready()
+                },
+            ),
+            (
+                "alertdialog",
+                RoleFixture {
+                    alertdialog: malformed,
+                    ..RoleFixture::ready()
+                },
+            ),
+        ] {
+            let case = format!("{label}-{role_name}");
+            assert_eq!(
+                inspect(
+                    &case,
+                    "https://mail.proton.me/u/0/inbox",
+                    "mail.proton.me",
+                    &roles
+                ),
+                Err(BrowserDriverError::Protocol),
+                "malformed role node cannot be ignored after a valid landmark"
+            );
+        }
+    }
+}
+
+#[test]
+fn well_formed_multiple_role_nodes_preserve_ready_shell_without_names() {
+    let roles = RoleFixture {
+        // jig-ignore-next-line: canonical rustfmt line.
+        navigation: r#"[{"ignored":false,"name":{"value":"secret"}},{"ignored":true}]"#,
+        // jig-ignore-next-line: canonical rustfmt line.
+        search: r#"[{"ignored":true},{"ignored":false,"name":{"value":"hidden"}}]"#,
+        dialog: r#"[{"ignored":true},{"ignored":true}]"#,
+        alertdialog: ABSENT,
+    };
+    let evidence = inspect(
+        "multi-valid-roles",
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        &roles,
+    )
+    .expect("every well-formed role node permits ready Mail shell");
+    assert!(evidence.ready());
+    let debug = format!("{evidence:?}");
+    assert!(!debug.contains("secret"));
+    assert!(!debug.contains("hidden"));
+}

@@ -85,11 +85,12 @@ impl MailShellEvidence {
 
 fn visible_match(result: &Value) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
+    let mut any_visible = false;
     for node in nodes {
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;
-        if !ignored {
-            return Ok(true);
-        }
+        // Even after a visible landmark is found, malformed later nodes
+        // invalidate the query instead of being silently skipped.
+        any_visible |= !ignored;
     }
-    Ok(false)
+    Ok(any_visible)
 }
