@@ -100,6 +100,11 @@ bounded resource use.
   zero-width format controls through the shared bounded route-ID predicate.
   Synthetic bootstrap and v5 event projection tests cover these variants.
 
+- Optional event provider success codes are now validated on both latest
+  bootstrap and core-v5 poll bodies before yielding a watermark/cursor.
+  Explicit non-success is typed `ProviderRejected`; synthetic CDP browsers
+  prove the rejected body cannot become a resume cursor and Network is disabled.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

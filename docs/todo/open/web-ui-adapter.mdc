@@ -797,6 +797,11 @@ web application without requiring Bridge or a third-party direct API identity.
   remains compatible with legacy synthetic responses; `Code=1000` succeeds.
   A fake Chromium list-body fixture proves provider rejection, audited
   Network disable and later same-session Mail-shell inspection.
+- Legacy latest-event bootstrap and core-v5 event poll body projectors now
+  reject an explicit non-success provider `Code` instead of converting it to
+  a cursor. Missing `Code` remains backward-compatible, and `1000` succeeds.
+  Fake Chromium fixtures for both flows prove typed provider refusal, Network
+  disable, and subsequent safe same-session Mail-shell access.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

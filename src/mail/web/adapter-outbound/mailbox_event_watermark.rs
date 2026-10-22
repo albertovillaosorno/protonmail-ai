@@ -622,6 +622,7 @@ impl ObservedLatestMailboxEventWatermark {
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
             serde_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+        validate_optional_event_code(&value)?;
         let event_id = value
             .get("EventID")
             .and_then(Value::as_str)
@@ -823,6 +824,7 @@ impl ObservedMailboxEventWatermark {
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
             serde_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+        validate_optional_event_code(&value)?;
         let response_event_id = value
             .get("EventID")
             .and_then(Value::as_str)
@@ -1160,10 +1162,24 @@ pub enum MailboxEventWatermarkError {
     BodyTooLarge,
     /// Event metadata shape was missing or invalid.
     Malformed,
+    /// Provider explicitly returned a non-success code in an event response.
+    ProviderRejected,
     /// Chromium returned an encoded body instead of decoded JSON text.
     UnsupportedEncoding,
     /// Event response contained too many normalized mailbox changes.
     TooManyChanges,
+}
+
+/// Optional legacy event success code must not contradict a valid watermark.
+// jig-ignore-next-line: canonical rustfmt line.
+fn validate_optional_event_code(value: &Value) -> Result<(), MailboxEventWatermarkError> {
+    if value
+        .get("Code")
+        .is_some_and(|code| code.as_u64() != Some(1000))
+    {
+        return Err(MailboxEventWatermarkError::ProviderRejected);
+    }
+    Ok(())
 }
 
 fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {

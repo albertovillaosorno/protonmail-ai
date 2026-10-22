@@ -2280,3 +2280,110 @@ fn event_capture_equality_ignores_randomized_url_hashing_keys() {
         .expect("second independent event capture");
     assert_eq!(first_event, second_event);
 }
+
+#[test]
+fn explicit_provider_failure_cannot_become_bootstrap_or_poll_cursor() {
+    use serde_json::json;
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    for rejected in [
+        json!(0u64),
+        json!(2001u64),
+        json!("1000"),
+        json!(-1i32),
+        json!(null),
+    ] {
+        let latest = json!({"Code":rejected,"EventID":"event-7"}).to_string();
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedLatestMailboxEventWatermark::parse("GET", latest_url, &latest),
+            Err(MailboxEventWatermarkError::ProviderRejected)
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let poll = json!({"Code":rejected,"EventID":"event-8","More":0u8}).to_string();
+        assert_eq!(
+            ObservedMailboxEventWatermark::parse("GET", URL, &poll),
+            Err(MailboxEventWatermarkError::ProviderRejected)
+        );
+    }
+    for success in [None, Some(json!(1000u64))] {
+        let mut latest = json!({"EventID":"event-7"});
+        let mut poll = json!({"EventID":"event-8","More":0u8});
+        if let Some(code) = success {
+            latest["Code"] = code.clone();
+            poll["Code"] = code;
+        }
+        assert!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedLatestMailboxEventWatermark::parse("GET", latest_url, &latest.to_string())
+                .is_ok()
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        assert!(ObservedMailboxEventWatermark::parse("GET", URL, &poll.to_string()).is_ok());
+    }
+}
+
+#[test]
+fn provider_rejected_event_body_never_yields_resumable_browser_cursor() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock event fake browsers");
+    for (label, poll, id) in [
+        ("bootstrap-provider-error", false, "event-bootstrap"),
+        ("v5-provider-error", true, "event-8"),
+    ] {
+        let root = event_browser_root(label);
+        fs::create_dir_all(&root).expect("create isolated event profile");
+        let browser = fake_event_browser(&root, false, poll);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+        let original = format!(r#"\"EventID\":\"{id}\""#);
+        let rejected = format!(r#"\"Code\":2001,\"EventID\":\"{id}\""#);
+        assert!(script.contains(&original));
+        let changed = script.replace(&original, &rejected);
+        let disable = "    *'Network.disable'*)";
+        assert!(changed.contains(disable));
+        let audit = format!(
+            "{disable}\n      printf 'disabled\\n' >> '{}'",
+            root.join("network-disabled.log").display()
+        );
+        fs::write(&browser, changed.replacen(disable, &audit, 1))
+            .expect("install explicit provider rejection and Network audit");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic executable UTF-8"),
+            &root.join("data"),
+        )
+        .expect("construct isolated profile plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake Mail browser");
+        let page = managed.provider_page().expect("discover Mail page");
+        let result = if poll {
+            managed
+                .observe_mailbox_event_sequence(&page, Duration::from_secs(1))
+                .map(|_page| ())
+        } else {
+            managed
+                .observe_mailbox_event_bootstrap(&page)
+                .map(|_event| ())
+        };
+        assert_eq!(
+            result,
+            Err(BrowserDriverError::MailboxEventWatermark(
+                MailboxEventWatermarkError::ProviderRejected
+            )),
+            "case {label} must not produce a successful cursor"
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("same session remains safe to inspect after rejected body");
+        drop(managed);
+        let log = fs::read_to_string(root.join("network-disabled.log"))
+            .expect("synthetic Network.disable audit");
+        assert_eq!(log, "disabled\n");
+        fs::remove_dir_all(&root).expect("remove isolated synthetic profile");
+    }
+}
