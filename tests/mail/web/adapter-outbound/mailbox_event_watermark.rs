@@ -1833,6 +1833,12 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
     use serde_json::json;
     let bootstrap = "https://mail.proton.me/api/core/v4/events/latest";
     let bad = [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "event bad",
         "event\tbad",
         "event\nbad",
@@ -1873,6 +1879,12 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
 fn malformed_mailbox_change_ids_are_not_exposed_from_event_projection() {
     use serde_json::json;
     for bad in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "bad id",
         "bad\tid",
         "bad\nid",

@@ -693,6 +693,11 @@ web application without requiring Bridge or a third-party direct API identity.
   validator. This removes duplicated route-component policy and gives future
   normalization changes one auditable fail-closed implementation. Unit tests
   cover the shared boundary; existing synthetic browser suites remain intact.
+- The shared bounded read-ID validator now rejects literal `%` escapes and
+  invisible Unicode directional/formatting characters before opaque IDs can
+  enter a read route, UI row, catalog cursor, or event watermark. Synthetic
+  parsers and managed Chromium message-page fixtures reject encoded slash,
+  encoded dot segments, and hidden direction controls without exposing IDs.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

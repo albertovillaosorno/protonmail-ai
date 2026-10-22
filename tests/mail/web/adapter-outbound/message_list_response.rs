@@ -932,6 +932,12 @@ fn completed_message_list_get_cannot_be_turned_into_failed_list_before_consumpti
 fn list_projection_rejects_unsafe_message_route_ids() {
     use serde_json::json;
     let bad_ids = [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "with/slash",
         "with?query",
         "with#fragment",
@@ -1003,6 +1009,12 @@ fn message_list_anchor_id_rejects_unsafe_route_components() {
         })
     };
     for bad in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "bad/id",
         "bad?id",
         "bad\\id",

@@ -307,6 +307,12 @@ fn rendered_list_refuses_unsafe_row_identities_before_page_snapshot() {
         // jig-ignore-next-line: canonical rustfmt line.
         serde_json::from_str(ROWS).expect("decode synthetic settled mailbox list");
     for (index, invalid) in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "bad/id",
         "bad?id",
         "bad#id",

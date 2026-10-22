@@ -1421,6 +1421,12 @@ fn catalog_finish_then_failure_during_reload_never_reads_provider_body() {
 #[test]
 fn mailbox_catalog_refuses_unsafe_label_and_folder_identifiers() {
     for bad in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "bad/id",
         "bad?id",
         "bad#id",

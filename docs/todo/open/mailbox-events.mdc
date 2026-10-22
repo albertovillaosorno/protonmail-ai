@@ -96,6 +96,10 @@ bounded resource use.
 - Event watermarks and change IDs now reject dot-only URL path segments,
   preventing path-normalization ambiguity in resumable event cursors.
 
+- Cursor/event identities reject percent escapes and bidirectional or
+  zero-width format controls through the shared bounded route-ID predicate.
+  Synthetic bootstrap and v5 event projection tests cover these variants.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

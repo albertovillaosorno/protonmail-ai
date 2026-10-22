@@ -279,6 +279,12 @@ Ship useful read access before any mailbox mutation is enabled.
   attachment metadata, catalog, event, and rendered-page evidence. This is
   an internal defensive boundary, not a newly advertised public read feature.
 
+- Percent-escaped path components and selected invisible Unicode format
+  controls now fail the shared read-ID predicate before list, detail,
+  attachment, catalog and visible-row identity can be exposed. The validator
+  never decodes or normalizes provider IDs; user-visible names and content
+  fields retain their independent bounds.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

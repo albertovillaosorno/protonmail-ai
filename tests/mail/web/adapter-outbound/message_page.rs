@@ -302,6 +302,9 @@ fn visible_message_page_refuses_unsafe_dom_ids_before_content_projection() {
     for (name, replacement) in [
         ("slash", "message/unsafe"),
         ("unicode-space", "message\\u00a0unsafe"),
+        ("encoded-slash", "message%2Funsafe"),
+        ("encoded-dot", "%2e%2e"),
+        ("bidi-control", "message\\u202eunsafe"),
     ] {
         let root = test_root(name);
         fs::create_dir_all(&root).expect("create isolated fake page");

@@ -793,6 +793,12 @@ fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
 #[test]
 fn complete_conversation_membership_refuses_unsafe_message_ids() {
     for bad in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "message/a",
         "message?a",
         "message#a",
@@ -830,6 +836,12 @@ fn complete_conversation_membership_refuses_unsafe_message_ids() {
 #[test]
 fn complete_conversation_detail_endpoint_refuses_unsafe_route_ids() {
     for bad in [
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
         "convo/a",
         "convo?a",
         "convo#a",

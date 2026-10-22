@@ -1522,8 +1522,24 @@ fn completed_conversation_get_cannot_be_turned_into_failed_list_before_consumpti
 fn list_projection_rejects_unsafe_conversation_route_ids() {
     use serde_json::json;
     for bad in [
-        // jig-ignore-next-line: canonical rustfmt line.
-        "x/y", "x?y", "x#y", "x\\y", "x y", "x\ny", "x\ty", "x\rY", "x\u{a0}y", "x\u{7f}y", "", ".",
+        "encoded%2Fslash",
+        "%2e",
+        "%2E%2E",
+        "direction\u{202e}flip",
+        "invisible\u{200b}join",
+        "isolated\u{2066}id\u{2069}",
+        "x/y",
+        "x?y",
+        "x#y",
+        "x\\y",
+        "x y",
+        "x\ny",
+        "x\ty",
+        "x\rY",
+        "x\u{a0}y",
+        "x\u{7f}y",
+        "",
+        ".",
         "..",
     ] {
         let body = json!({

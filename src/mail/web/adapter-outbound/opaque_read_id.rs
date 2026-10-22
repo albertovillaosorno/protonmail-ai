@@ -44,8 +44,19 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
         && !id.chars().any(|character| {
             character.is_control()
                 || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
+                || matches!(character, '/' | '?' | '#' | '%' | '\\')
+                || is_invisible_format(character)
         })
+}
+
+/// Refuse invisible direction controls that could obscure exact identity.
+const fn is_invisible_format(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}' | '\u{200b}' | '\u{200c}' | '\u{200d}'
+            | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}'
+            | '\u{2060}' | '\u{2066}'..='\u{2069}' | '\u{feff}'
+    )
 }
 
 #[cfg(test)]
@@ -68,6 +79,14 @@ mod tests {
             "field\u{a0}nbsp",
             "field\u{2003}wide",
             "field\u{85}control",
+            "percent%2Fslash",
+            "%2e",
+            "%2E%2E",
+            "prefix%252Fdouble",
+            "direction\u{202e}flip",
+            "joiner\u{200b}invisible",
+            "isolate\u{2066}hidden\u{2069}",
+            "mark\u{feff}hidden",
         ] {
             assert!(!safe_read_id(invalid, 512));
         }
