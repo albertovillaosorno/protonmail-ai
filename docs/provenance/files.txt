@@ -379,6 +379,16 @@ destination_license=GPL-3.0-only
 modifications=original-rust-transport-from-protocol-facts
 
 [file]
+path=tests/mail/web/adapter-outbound/driver_authority.rs
+origin=fact-informed
+source_id=chromium-devtools-pipe
+source_path=content/browser/devtools/devtools_pipe_handler.cc
+source_revision=e972c575b9a075ab5dcadddf269d60bb23d4af35
+source_license=BSD-3-Clause
+destination_license=GPL-3.0-only
+modifications=original-rust-cdp-command-authority-tests-from-protocol-facts
+
+[file]
 path=src/mail/web/adapter-outbound/shell.rs
 origin=fact-informed
 source_id=proton-webclients
