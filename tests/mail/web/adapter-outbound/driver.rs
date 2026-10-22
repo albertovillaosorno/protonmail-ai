@@ -1239,3 +1239,43 @@ fn malformed_cdp_result_shapes_never_enable_network_capture() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn invalid_utf8_cdp_frame_drains_real_enable_reply_before_cleanup() {
+    let root = test_root("invalid-utf8-frame");
+    fs::create_dir_all(&root).expect("create synthetic browser directory");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    assert!(script.contains(reply));
+    let injected = format!("      printf '\\377\\0' >&4\n{reply}");
+    fs::write(&browser, script.replacen(reply, &injected, 1))
+        .expect("insert NUL-delimited invalid UTF-8 CDP frame");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake browser");
+    let page = managed.provider_page().expect("find synthetic Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol)
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("binary frame failure must leave the command pipe aligned");
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network log");
+    assert_eq!(log, "enable\ndisable\n");
+    cleanup(&root);
+}
