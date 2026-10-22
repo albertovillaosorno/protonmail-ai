@@ -774,6 +774,10 @@ web application without requiring Bridge or a third-party direct API identity.
   page numbers, rejecting signed, zero-padded, encoded, fractional, and
   overflowing alternatives before any content-free page evidence is retained.
   Fake-browser tests cover malformed aliases and accepted maximum `u32` pages.
+- Content-free loaded-list evidence now rejects an explicit empty marker with
+  an enabled next-page control; an apparently empty page cannot claim there is
+  a further page to read. Synthetic browser tests cover both the rejected
+  enabled control and a valid disabled control without exposing row contents.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

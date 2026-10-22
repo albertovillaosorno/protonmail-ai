@@ -183,6 +183,9 @@ impl MailboxListEvidence {
             (true, Some(false)) => NextPageControl::Enabled,
             _ => return Err(()),
         };
+        if empty_marker && next_page == NextPageControl::Enabled {
+            return Err(());
+        }
         let state = if !row_ids.is_empty() {
             MailboxListState::SettledRows
         } else if empty_marker {

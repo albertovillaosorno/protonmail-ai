@@ -405,3 +405,32 @@ fn rendered_page_marker_rejects_noncanonical_numeric_aliases() {
         );
     }
 }
+
+#[test]
+fn explicit_empty_never_authorizes_enabled_next_page() {
+    use serde_json::json;
+    let mut empty: serde_json::Value =
+        // jig-ignore-next-line: canonical rustfmt line.
+        serde_json::from_str(EXPLICIT_EMPTY).expect("decode synthetic explicit empty list");
+    empty["nextPresent"] = json!(true);
+    empty["nextDisabled"] = json!(false);
+    assert_eq!(
+        inspect(
+            "empty-next-enabled",
+            &empty.to_string(),
+            VISIBLE_AX,
+            "mail.proton.me"
+        ),
+        Err(BrowserDriverError::MailboxListIncompatible),
+    );
+    empty["nextDisabled"] = json!(true);
+    let observed = inspect(
+        "empty-next-disabled",
+        &empty.to_string(),
+        VISIBLE_AX,
+        "mail.proton.me",
+    )
+    .expect("disabled next control cannot contradict an explicit empty page");
+    assert!(observed.explicitly_empty());
+    assert_eq!(observed.next_page(), NextPageControl::Disabled);
+}
