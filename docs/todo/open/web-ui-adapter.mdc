@@ -656,6 +656,11 @@ web application without requiring Bridge or a third-party direct API identity.
   attachment descriptor identifiers. Separator, whitespace, or control-byte
   drift fails closed without rejecting normal subject/address/MIME content.
   Synthetic cases preserve printable opaque IDs and redacted body projection.
+- Exact attachment metadata now rejects unsafe attachment and expected
+  parent-message IDs in URLs and body metadata before projection. The route
+  validator rejects separator, whitespace, and control-character drift, while
+  leaving filename and MIME sanitization separate. Synthetic tests cover
+  capture, direct body projection, caller scope, and safe opaque identifiers.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

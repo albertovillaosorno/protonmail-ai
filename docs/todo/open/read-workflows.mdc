@@ -250,6 +250,11 @@ Ship useful read access before any mailbox mutation is enabled.
   IDs, while preserving content-bearing metadata and valid printable IDs.
   This remains bounded metadata only; body decryption and headers are not read.
 
+- Attachment metadata projection now validates both attachment and expected
+  parent-message IDs as bounded, safe opaque route components before reading
+  bodies. Invalid caller identities or provider body fields fail closed;
+  filename and MIME processing remain independent of identity safety.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

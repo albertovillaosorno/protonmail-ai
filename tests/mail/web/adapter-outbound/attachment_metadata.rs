@@ -872,3 +872,95 @@ fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
     );
     assert_eq!(capture.take_finished_requests().len(), 0);
 }
+
+#[test]
+fn metadata_identity_rejects_unsafe_route_and_caller_ids() {
+    for bad in [
+        "bad/id",
+        "bad?id",
+        "bad#id",
+        "bad\\id",
+        "bad id",
+        "bad\nid",
+        "bad\tid",
+        "bad\rid",
+        "bad\u{a0}id",
+        "bad\u{7f}id",
+    ] {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let invalid_url = format!("https://mail.proton.me/api/mail/v4/attachments/{bad}/metadata");
+        assert_eq!(
+            ObservedAttachmentMetadataResponse::parse(
+                "GET",
+                &invalid_url,
+                MESSAGE_ID,
+                &metadata_body().to_string()
+            ),
+            Err(AttachmentMetadataResponseError::UnexpectedEndpoint)
+        );
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+        assert_eq!(
+            capture.observe(&request_event(
+                "session-a",
+                "bad-request",
+                "GET",
+                &invalid_url
+            )),
+            Err(AttachmentMetadataNetworkError::MalformedEvent)
+        );
+        assert_eq!(
+            ObservedAttachmentMetadataResponse::parse(
+                "GET",
+                URL,
+                bad,
+                &metadata_body().to_string()
+            ),
+            Err(AttachmentMetadataResponseError::InvalidExpectedMessageId)
+        );
+        let mut attachment = metadata_body();
+        attachment["Attachment"]["ID"] = json!(bad);
+        assert_eq!(
+            ObservedAttachmentMetadataResponse::parse(
+                "GET",
+                URL,
+                MESSAGE_ID,
+                &attachment.to_string()
+            ),
+            Err(AttachmentMetadataResponseError::Malformed)
+        );
+        let mut parent = metadata_body();
+        parent["Attachment"]["MessageID"] = json!(bad);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &parent.to_string()),
+            Err(AttachmentMetadataResponseError::Malformed)
+        );
+    }
+    let invalid_envelope = json!({
+        "base64Encoded":false,"body":metadata_body().to_string()
+    });
+    assert_eq!(
+        ObservedAttachmentMetadataResponse::parse_cdp_body(
+            "bad\nid",
+            MESSAGE_ID,
+            &invalid_envelope
+        ),
+        Err(AttachmentMetadataResponseError::UnexpectedEndpoint)
+    );
+}
+
+#[test]
+fn metadata_identity_preserves_printable_opaque_identifiers() {
+    let mut body = metadata_body();
+    body["Attachment"]["ID"] = json!("attach+_~=");
+    body["Attachment"]["MessageID"] = json!("parent+_~=");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let url = "https://mail.proton.me/api/mail/v4/attachments/attach+_~=/metadata";
+    let projected =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedAttachmentMetadataResponse::parse("GET", url, "parent+_~=", &body.to_string())
+            .expect("accept safe opaque attachment and parent IDs");
+    assert_eq!(projected.metadata().attachment_id(), "attach+_~=");
+    assert_eq!(projected.metadata().message_id(), "parent+_~=");
+    assert_eq!(projected.metadata().mime_type(), "application/pdf");
+}
