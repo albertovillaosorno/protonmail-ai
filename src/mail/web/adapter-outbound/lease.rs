@@ -32,17 +32,21 @@
 
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Error as IoError, ErrorKind, Write as _};
+use std::io::{Error as IoError, ErrorKind, Read as _, Write as _};
 use std::os::unix::fs::FileTypeExt as _;
 use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
 use std::path::{Path, PathBuf};
 use std::process;
+
+use nix::fcntl::{OFlag, open};
+use nix::sys::stat::Mode;
 
 use crate::profile::{DedicatedBrowserProfile as Profile, WebLoginError};
 
 const AUTOMATION_LEASE: &str = ".automation-lease";
 const CHROMIUM_SINGLETON_LOCK: &str = "SingletonLock";
 const LEASE_VERSION: &str = "v1";
+const MAX_LEASE_BYTES: u64 = 128;
 type LeaseResult<T> = Result<T, ProfileLeaseError>;
 type LoginResult<T> = Result<T, WebLoginError>;
 
@@ -301,7 +305,38 @@ fn inspect_existing_lease(path: &Path) -> LeaseResult<ExistingLease> {
     if !is_regular_file(metadata.file_type()) {
         return Err(ProfileLeaseError::UnsafeLeasePath);
     }
-    let content = fs::read_to_string(path).map_err(lease_io)?;
+    // The pathname can be swapped between metadata inspection and reading.
+    // Open the actual lease inode without following links, or waiting on a
+    // substituted FIFO, then verify it is still the name we inspected.
+    // jig-ignore-next-line: canonical rustfmt line.
+    let flags = OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC;
+    let fd =
+        // jig-ignore-next-line: canonical rustfmt line.
+        open(path, flags, Mode::empty()).map_err(|_error| ProfileLeaseError::UnsafeLeasePath)?;
+    let file = File::from(fd);
+    let held = file.metadata().map_err(lease_io)?;
+    if !is_regular_file(held.file_type())
+        || held.dev() != metadata.dev()
+        || held.ino() != metadata.ino()
+    {
+        return Err(ProfileLeaseError::UnsafeLeasePath);
+    }
+    if held.len() > MAX_LEASE_BYTES {
+        return Err(ProfileLeaseError::CorruptLease);
+    }
+    let mut content = String::new();
+    file.take(MAX_LEASE_BYTES + 1)
+        .read_to_string(&mut content)
+        .map_err(lease_io)?;
+    if u64::try_from(content.len()).unwrap_or(u64::MAX) > MAX_LEASE_BYTES {
+        return Err(ProfileLeaseError::CorruptLease);
+    }
+    let named = fs::symlink_metadata(path).map_err(lease_io)?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    if !is_regular_file(named.file_type()) || named.dev() != held.dev() || named.ino() != held.ino()
+    {
+        return Err(ProfileLeaseError::UnsafeLeasePath);
+    }
     let owner = parse_owner(&content)?;
     if owner_is_active(owner)? {
         Ok(ExistingLease::Active)

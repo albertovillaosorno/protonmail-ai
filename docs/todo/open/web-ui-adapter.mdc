@@ -946,6 +946,11 @@ web application without requiring Bridge or a third-party direct API identity.
   or malformed flag values even alongside an apparently valid Mail origin.
   Explicit `false` remains compatible, and three synthetic Chromium response
   cases prove no thrown JavaScript result can grant Mail-shell readiness.
+- Existing automation lease content is now read from a held nonblocking
+  no-follow file descriptor after checking inode identity. A strict 128-byte
+  cap rejects oversized lease data before parsing, with a second size bound
+  during reading. Synthetic tests cover malformed bounded leases, oversized
+  files, named pipes, symlinks, stale owners, and ordinary lease recovery.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

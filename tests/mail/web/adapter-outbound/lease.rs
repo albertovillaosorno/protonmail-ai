@@ -247,3 +247,57 @@ fn drop_does_not_delete_replaced_lease_file() {
     );
     cleanup(&root);
 }
+
+#[test]
+fn oversized_automation_lease_is_rejected_without_reading_unbounded_payloads() {
+    let root = test_root("oversized-existing");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(project_dir(&profile)).expect("create synthetic project");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::write(&path, "Z".repeat(129)).expect("create oversized synthetic lease");
+    assert_eq!(
+        acquire(&profile).expect_err("oversized lease must not be reclaimed"),
+        LeaseError::CorruptLease
+    );
+    assert_eq!(
+        fs::metadata(&path).expect("lease remains intact").len(),
+        129
+    );
+    cleanup(&root);
+}
+
+#[test]
+fn named_pipe_at_automation_lease_path_fails_without_blocking() {
+    use nix::sys::stat::Mode;
+    use nix::unistd::mkfifo;
+
+    let root = test_root("unsafe-fifo");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(project_dir(&profile)).expect("create synthetic project");
+    // jig-ignore-next-line: canonical rustfmt line.
+    mkfifo(&path, Mode::from_bits_truncate(0o600)).expect("create non-regular synthetic lease");
+    assert_eq!(
+        acquire(&profile).expect_err("FIFO cannot hold a lease"),
+        LeaseError::UnsafeLeasePath
+    );
+    cleanup(&root);
+}
+
+#[test]
+fn lease_at_exact_read_ceiling_still_rejects_unrecognized_version() {
+    let root = test_root("bounded-unknown-lease");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(project_dir(&profile)).expect("create synthetic project");
+    fs::write(&path, "X".repeat(128)).expect("create bounded invalid lease");
+    assert_eq!(
+        acquire(&profile).expect_err("invalid bounded lease has no owner"),
+        LeaseError::CorruptLease
+    );
+    cleanup(&root);
+}
