@@ -2065,3 +2065,64 @@ fn event_poll_response_must_match_full_private_request_url() {
         .expect("complete exact event read");
     assert_eq!(matched.take_finished_request_ids(), ["matching"]);
 }
+
+#[test]
+fn latest_bootstrap_response_must_match_full_private_request_url() {
+    use mail_web_adapter::MailboxEventNetworkError;
+    let endpoint = "https://mail.proton.me/api/core/v4/events/latest";
+    let original = format!("{endpoint}?CalledFrom=Foreground&MessageCounts=1");
+    for drift in [
+        format!("{endpoint}?CalledFrom=Background&MessageCounts=1"),
+        format!("{endpoint}?MessageCounts=1&CalledFrom=Foreground"),
+        endpoint.to_owned(),
+    ] {
+        let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+        capture
+            .observe(&cdp_lifecycle_event(
+                "Network.requestWillBeSent",
+                "latest-private",
+                &original,
+            ))
+            .expect("track exact latest GET");
+        assert_eq!(
+            capture.observe(&cdp_lifecycle_event(
+                "Network.responseReceived",
+                "latest-private",
+                &drift
+            )),
+            Err(MailboxEventNetworkError::ResponseRejected)
+        );
+        let debug = format!("{capture:?}");
+        for secret in [
+            "latest-private",
+            "CalledFrom",
+            "MessageCounts",
+            "Foreground",
+        ] {
+            assert!(!debug.contains(secret));
+        }
+    }
+    let mut matched = LatestMailboxEventNetworkCapture::new("session-1");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.requestWillBeSent",
+            "latest",
+            &original,
+        ))
+        .expect("capture original bootstrap GET");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.responseReceived",
+            "latest",
+            &original,
+        ))
+        .expect("accept identical complete bootstrap URL");
+    matched
+        .observe(&cdp_lifecycle_event(
+            "Network.loadingFinished",
+            "latest",
+            &original,
+        ))
+        .expect("finish matching bootstrap GET");
+    assert_eq!(matched.take_finished_request_ids(), ["latest"]);
+}

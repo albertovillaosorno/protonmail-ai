@@ -66,13 +66,38 @@ struct TrackedEventRequest {
     url_fingerprint: [u64; 2],
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct TrackedLatestEventRequest {
+    state: EventRequestState,
+    url_fingerprint: [u64; 2],
+}
+
 /// Bounded CDP lifecycle state for the exact legacy latest-event GET.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct LatestMailboxEventNetworkCapture {
     session_id: String,
-    requests: BTreeMap<String, EventRequestState>,
+    requests: BTreeMap<String, TrackedLatestEventRequest>,
     completed_ids: BTreeSet<String>,
+    url_hashers: [RandomState; 2],
 }
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "default ne preserves Eq for redacted bootstrap capture state"
+)]
+impl PartialEq for LatestMailboxEventNetworkCapture {
+    fn eq(&self, other: &Self) -> bool {
+        self.session_id == other.session_id
+            && self.requests == other.requests
+            && self.completed_ids == other.completed_ids
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Eq marker requires no custom randomized-hasher behavior"
+)]
+impl Eq for LatestMailboxEventNetworkCapture {}
 
 impl LatestMailboxEventNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
@@ -82,6 +107,7 @@ impl LatestMailboxEventNetworkCapture {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
+            url_hashers: [RandomState::new(), RandomState::new()],
         }
     }
 
@@ -117,11 +143,13 @@ impl LatestMailboxEventNetworkCapture {
         let finished = self
             .requests
             .iter()
-            .filter(|(_id, state)| **state == EventRequestState::Finished)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .filter(|(_id, request)| request.state == EventRequestState::Finished)
             .map(|(id, _state)| id.clone())
             .collect::<Vec<_>>();
         self.requests
-            .retain(|_id, state| *state != EventRequestState::Finished);
+            // jig-ignore-next-line: canonical rustfmt line.
+            .retain(|_id, request| request.state != EventRequestState::Finished);
         self.completed_ids.extend(finished.iter().cloned());
         finished
     }
@@ -172,8 +200,14 @@ impl LatestMailboxEventNetworkCapture {
         {
             return Err(MailboxEventNetworkError::CapacityExceeded);
         }
-        self.requests
-            .insert(String::from(request_id), EventRequestState::Requested);
+        self.requests.insert(
+            String::from(request_id),
+            TrackedLatestEventRequest {
+                state: EventRequestState::Requested,
+                // jig-ignore-next-line: canonical rustfmt line.
+                url_fingerprint: self.url_hashers.each_ref().map(|state| state.hash_one(url)),
+            },
+        );
         Ok(())
     }
 
@@ -201,20 +235,25 @@ impl LatestMailboxEventNetworkCapture {
             .ok_or(MailboxEventNetworkError::MalformedEvent)?;
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
-        let Some(state) = self.requests.get_mut(request_id) else {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url_fingerprint = self.url_hashers.each_ref().map(|state| state.hash_one(url));
+        let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
-        if *state != EventRequestState::Requested {
+        if request.state != EventRequestState::Requested {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if url.len() > MAX_EVENT_URL_BYTES {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        if status != Some(200) || mime != Some("application/json") || !is_latest_event_url(url) {
+        if status != Some(200)
+            || mime != Some("application/json")
+            || !is_latest_event_url(url)
+            || url_fingerprint != request.url_fingerprint
+        {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
-        *state = EventRequestState::Responded;
+        request.state = EventRequestState::Responded;
         Ok(())
     }
 
@@ -224,13 +263,13 @@ impl LatestMailboxEventNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        let Some(state) = self.requests.get_mut(request_id) else {
+        let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
-        if *state != EventRequestState::Responded {
+        if request.state != EventRequestState::Responded {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        *state = EventRequestState::Finished;
+        request.state = EventRequestState::Finished;
         Ok(())
     }
 
@@ -240,7 +279,11 @@ impl LatestMailboxEventNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        if self.requests.get(request_id) == Some(&EventRequestState::Finished) {
+        if self
+            .requests
+            .get(request_id)
+            .is_some_and(|request| request.state == EventRequestState::Finished)
+        {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         self.requests.remove(request_id);
@@ -254,6 +297,7 @@ impl fmt::Debug for LatestMailboxEventNetworkCapture {
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
             .field("completed_request_count", &self.completed_ids.len())
+            .field("url_hashers", &"<redacted>")
             .finish()
     }
 }

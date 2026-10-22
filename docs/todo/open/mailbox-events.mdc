@@ -68,6 +68,11 @@ bounded resource use.
   prove mismatched count flags and query order fail before response-body reads.
   The request URL, its query, and the hash keys never enter debug output.
 
+- Bootstrap `events/latest` Network captures now bind full request and
+  response URL identity with randomized redacted fingerprints too. Matching
+  just the `/latest` path no longer hides query flag or parameter-order drift;
+  synthetic lifecycle tests cover exact matches and rejected variations.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

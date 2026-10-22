@@ -629,6 +629,10 @@ web application without requiring Bridge or a third-party direct API identity.
   complete app-owned request URL, not merely the event watermark path.
   Synthetic tests reject drift in message-count flags and query ordering
   without retaining or logging the event request query.
+- Legacy `events/latest` bootstrap correlation now checks the complete
+  bounded request/response URL using redacted randomized hashes, preventing
+  query drift from masquerading as the same latest-event path. Synthetic
+  tests check matching, changed, reordered, and missing query conditions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
