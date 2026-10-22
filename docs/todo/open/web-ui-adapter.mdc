@@ -555,6 +555,13 @@ web application without requiring Bridge or a third-party direct API identity.
   The existing conversation-list classifier already used that limit.
   Synthetic tests prove invalid exact IDs fail closed without adding state,
   while oversized identifiers on unrelated background endpoints are ignored.
+- Visible conversation ID diagnostics now require the exact initial-list
+  request shape: numeric Page plus both PageSize and Limit, with equal bounded
+  values and no continuation anchor. Missing either size selector or carrying
+  only a page number returns `ConversationListPageUnproven` before any provider
+  response-body retrieval. Standalone passive list observation remains less
+  specific and does not claim a rendered-page match. Synthetic two-page tests
+  cover valid initial requests and missing size/limit cases.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -186,6 +186,12 @@ Ship useful read access before any mailbox mutation is enabled.
   background traffic; empty/oversized matching IDs fail closed without being
   persisted into capture state or debug diagnostics.
 
+- Visible conversation metadata now requires both PageSize and Limit to
+  agree alongside a numeric initial Page, not merely a matching page number.
+  Missing initial-request shape fails before `Network.getResponseBody` and
+  does not affect the independent passive diagnostic; this still does not
+  create snapshot isolation or public thread-list support.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

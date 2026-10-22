@@ -60,6 +60,7 @@ use crate::conversation_detail::ConversationDetailNetworkCapture;
 use crate::conversation_detail::ConversationDetailNetworkError;
 use crate::conversation_detail::ConversationDetailResponseError;
 use crate::conversation_detail::ObservedConversationDetailResponse;
+use crate::conversation_list_response::CapturedConversationListRequest;
 use crate::conversation_list_response::ConversationListNetworkCapture;
 use crate::conversation_list_response::ConversationListNetworkError;
 use crate::conversation_list_response::ConversationListReconciliationError;
@@ -162,6 +163,7 @@ struct CapturedConversationListResponse {
     response: ObservedConversationListResponse,
     requested_page: Option<u32>,
     anchor_continuation: bool,
+    initial_page_shape: bool,
 }
 
 struct CapturedMessageListResponses {
@@ -2297,7 +2299,8 @@ impl ManagedBrowser {
         deadline: Instant,
         expected_page: Option<&MailboxListEvidence>,
     ) -> Result<Option<CapturedConversationListResponse>, BrowserDriverError> {
-        let Some((request_id, requested_page, anchor_continuation)) =
+        // jig-ignore-next-line: canonical rustfmt line.
+        let Some((request_id, requested_page, anchor_continuation, initial_page_shape)) =
             self.wait_for_conversation_list_request(capture, deadline)?
         else {
             return Ok(None);
@@ -2305,8 +2308,9 @@ impl ManagedBrowser {
         // Never decode an irrelevant provider body when the already-visible
         // pagination evidence rules out a match to this request.
         if expected_page.is_some_and(|visible| {
-            // jig-ignore-next-line: canonical rustfmt line.
-            anchor_continuation || !conversation_request_page_matches(visible, requested_page)
+            anchor_continuation
+                || !initial_page_shape
+                || !conversation_request_page_matches(visible, requested_page)
         }) {
             return Err(BrowserDriverError::ConversationListPageUnproven);
         }
@@ -2322,6 +2326,7 @@ impl ManagedBrowser {
             response,
             requested_page,
             anchor_continuation,
+            initial_page_shape,
         }))
     }
 
@@ -2329,7 +2334,7 @@ impl ManagedBrowser {
         &mut self,
         capture: &mut ConversationListNetworkCapture,
         deadline: Instant,
-    ) -> Result<Option<(String, Option<u32>, bool)>, BrowserDriverError> {
+    ) -> Result<Option<CapturedConversationListRequest>, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         if let Some(request) = take_one_finished_conversation_list_request(capture)? {
             return Ok(Some(request));
@@ -2443,6 +2448,7 @@ impl ManagedBrowser {
             return Ok(None);
         };
         if response.anchor_continuation
+            || !response.initial_page_shape
             // jig-ignore-next-line: canonical rustfmt line.
             || !conversation_request_page_matches(&before, response.requested_page)
         {
@@ -4007,7 +4013,7 @@ fn conversation_request_page_matches(
 
 fn take_one_finished_conversation_list_request(
     capture: &mut ConversationListNetworkCapture,
-) -> Result<Option<(String, Option<u32>, bool)>, BrowserDriverError> {
+) -> Result<Option<CapturedConversationListRequest>, BrowserDriverError> {
     let mut finished = capture.take_finished_requests();
     match finished.len() {
         0 => Ok(None),

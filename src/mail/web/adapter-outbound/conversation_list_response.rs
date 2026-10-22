@@ -47,6 +47,14 @@ const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_CONVERSATION_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 
+/// Redacted CDP request identity plus sanitized pagination evidence.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "shared private CDP tuple belongs to sibling driver module"
+)]
+// jig-ignore-next-line: four sanitized internal tuple fields are indivisible.
+pub(crate) type CapturedConversationListRequest = (String, Option<u32>, bool, bool);
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConversationListRequestState {
     Requested,
@@ -60,6 +68,7 @@ struct TrackedConversationListRequest {
     url_fingerprint: [u64; 2],
     requested_page: Option<u32>,
     anchor_continuation: bool,
+    initial_page_shape: bool,
 }
 
 /// Bounded CDP lifecycle state for exact conversation-list GET requests.
@@ -107,7 +116,7 @@ impl ConversationListNetworkCapture {
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
             .into_iter()
-            .map(|(request_id, _page, _anchor)| request_id)
+            .map(|(request_id, _page, _anchor, _initial)| request_id)
             .collect()
     }
 
@@ -115,7 +124,7 @@ impl ConversationListNetworkCapture {
     ///
     /// No URL, search query, label, or request-header text is retained.
     // jig-ignore-next-line: canonical rustfmt line.
-    pub(crate) fn take_finished_requests(&mut self) -> Vec<(String, Option<u32>, bool)> {
+    pub(crate) fn take_finished_requests(&mut self) -> Vec<CapturedConversationListRequest> {
         let finished = self
             .requests
             .iter()
@@ -126,13 +135,14 @@ impl ConversationListNetworkCapture {
                     request_id.clone(),
                     request.requested_page,
                     request.anchor_continuation,
+                    request.initial_page_shape,
                 )
             })
             .collect::<Vec<_>>();
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != ConversationListRequestState::Finished);
-        for (request_id, _page, _anchor) in &finished {
+        for (request_id, _page, _anchor, _initial) in &finished {
             self.completed_ids.insert(request_id.clone());
         }
         finished
@@ -190,7 +200,8 @@ impl ConversationListNetworkCapture {
             return Err(ConversationListNetworkError::CapacityExceeded);
         }
         let url_fingerprint = url_fingerprint(url, &self.hashers);
-        let (requested_page, anchor_continuation) = parse_request_page(url)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let (requested_page, anchor_continuation, initial_page_shape) = parse_request_page(url)?;
         self.requests.insert(
             String::from(request_id),
             TrackedConversationListRequest {
@@ -198,6 +209,7 @@ impl ConversationListNetworkCapture {
                 url_fingerprint,
                 requested_page,
                 anchor_continuation,
+                initial_page_shape,
             },
         );
         Ok(())
@@ -605,10 +617,11 @@ fn is_conversation_list_url(url: &str) -> bool {
     remainder.is_empty() || remainder.starts_with('?')
 }
 
-// jig-ignore-next-line: canonical rustfmt line.
-fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationListNetworkError> {
+fn parse_request_page(
+    url: &str,
+) -> Result<(Option<u32>, bool, bool), ConversationListNetworkError> {
     let Some((_endpoint, query)) = url.split_once('?') else {
-        return Ok((None, false));
+        return Ok((None, false, false));
     };
     let mut page = None;
     let mut page_size = None;
@@ -659,7 +672,10 @@ fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationList
     {
         return Err(ConversationListNetworkError::InvalidPagination);
     }
-    Ok((page, has_anchor))
+    let initial_page_shape =
+        // jig-ignore-next-line: canonical rustfmt line.
+        page.is_some() && page_size.is_some() && page_size == limit && !has_anchor;
+    Ok((page, has_anchor, initial_page_shape))
 }
 
 fn bounded_page_size(value: &str) -> Result<u16, ConversationListNetworkError> {

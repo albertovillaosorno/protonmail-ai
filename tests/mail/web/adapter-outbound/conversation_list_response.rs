@@ -1071,12 +1071,15 @@ fn managed_browser_visible_metadata_timeout_keeps_rows_unchanged() {
 fn managed_browser_rejects_request_page_mismatch_and_anchor() {
     use mail_web_adapter::BrowserDriverError;
     for (label, request_query, marker) in [
-        ("request-page-one", "?Page=1&PageSize=50", None),
+        ("request-page-one", "?Page=1&PageSize=50&Limit=50", None),
         ("request-missing-page", "?PageSize=50", None),
+        ("request-missing-limit", "?Page=0&PageSize=50", None),
+        ("request-missing-size", "?Page=0&Limit=50", None),
+        ("request-only-page", "?Page=0", None),
         ("request-anchor", "?Page=0&Anchor=123&AnchorID=secret", None),
         (
             "visible-page-two",
-            "?Page=0&PageSize=50",
+            "?Page=0&PageSize=50&Limit=50",
             Some("pagination-row:go-to-page-2"),
         ),
     ] {
@@ -1112,7 +1115,7 @@ fn managed_browser_accepts_matching_page_number_without_claiming_snapshot() {
             drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
-            request_query: "?Page=1&PageSize=50",
+            request_query: "?Page=1&PageSize=50&Limit=50",
             page_marker: Some("pagination-row:go-to-page-2"),
         },
     );
