@@ -756,6 +756,10 @@ web application without requiring Bridge or a third-party direct API identity.
   fake-browser streams; both remain fail closed, disable Network, and permit
   subsequent safe same-session Mail-shell inspection. Framing/size errors
   remain terminal because synchronization cannot be established from them.
+- CDP success replies now require a JSON object under `result`, rather than
+  accepting null, arrays, strings, numbers, or booleans as successful command
+  completions. Five synthetic private-pipe cases reject malformed Network
+  enable replies, audit disable, and preserve safe same-session inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

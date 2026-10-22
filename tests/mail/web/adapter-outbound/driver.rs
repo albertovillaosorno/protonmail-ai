@@ -1187,3 +1187,55 @@ fn hybrid_cdp_frame_with_matching_command_id_does_not_spoof_success() {
     assert_eq!(log, "enable\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn malformed_cdp_result_shapes_never_enable_network_capture() {
+    for (label, result_json) in [
+        ("null-result", "null"),
+        ("array-result", "[]"),
+        ("string-result", "\"ok\""),
+        ("boolean-result", "true"),
+        ("numeric-result", "17"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create test-only CDP profile");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        assert!(script.contains(reply));
+        let invalid =
+            // jig-ignore-next-line: canonical rustfmt line.
+            format!("      printf '{{\"id\":%s,\"result\":{result_json}}}\\0' \"$id\" >&4;;");
+        fs::write(&browser, script.replacen(reply, &invalid, 1))
+            .expect("inject invalid success payload into Network.enable");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch isolated test browser");
+        let page = managed.provider_page().expect("discover Mail page");
+        assert_eq!(
+            managed.observe_message_list_response(&page),
+            Err(BrowserDriverError::Protocol),
+            "{label} must not be treated as a successful CDP command"
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("invalid enable result leaves same session inspectable");
+        drop(managed);
+        let log = fs::read_to_string(root.join("network-log.txt"))
+            .expect("read synthetic Network command log");
+        assert_eq!(log, "enable\ndisable\n", "{label} must disable Network");
+        cleanup(&root);
+    }
+}

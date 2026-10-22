@@ -3469,6 +3469,7 @@ impl ManagedBrowser {
             }
             let result = message
                 .get("result")
+                .filter(|result| result.is_object())
                 .cloned()
                 .ok_or(BrowserDriverError::Protocol)?;
             if let Some(error) = observation_error {
