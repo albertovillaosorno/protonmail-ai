@@ -392,6 +392,9 @@ fn rendered_page_marker_rejects_noncanonical_numeric_aliases() {
         let mut value = template.clone();
         // jig-ignore-next-line: canonical rustfmt line.
         value["currentTestId"] = json!(format!("pagination-row:go-to-page-{valid}"));
+        if valid == "4294967295" {
+            value["nextDisabled"] = json!(true);
+        }
         let result = inspect(
             &format!("canonical-{valid}"),
             &value.to_string(),
@@ -433,4 +436,31 @@ fn explicit_empty_never_authorizes_enabled_next_page() {
     .expect("disabled next control cannot contradict an explicit empty page");
     assert!(observed.explicitly_empty());
     assert_eq!(observed.next_page(), NextPageControl::Disabled);
+}
+
+#[test]
+fn maximal_rendered_page_cannot_advertise_unrepresentable_successor() {
+    use serde_json::json;
+    let mut value: serde_json::Value =
+        serde_json::from_str(ROWS).expect("decode synthetic settled list");
+    value["currentTestId"] = json!("pagination-row:go-to-page-4294967295");
+    assert_eq!(
+        inspect(
+            "max-page-next",
+            &value.to_string(),
+            VISIBLE_AX,
+            "mail.proton.me"
+        ),
+        Err(BrowserDriverError::MailboxListIncompatible),
+    );
+    value["nextDisabled"] = json!(true);
+    let evidence = inspect(
+        "max-page-terminal",
+        &value.to_string(),
+        VISIBLE_AX,
+        "mail.proton.me",
+    )
+    .expect("terminal maximum page may be represented without continuation");
+    assert_eq!(evidence.current_page(), Some(u32::MAX));
+    assert_eq!(evidence.next_page(), NextPageControl::Disabled);
 }

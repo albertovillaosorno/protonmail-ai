@@ -319,6 +319,9 @@ Ship useful read access before any mailbox mutation is enabled.
   among captured folders do not form cycles. It preserves external/root
   parent identifiers without assuming that all parent IDs name catalog rows.
 
+- Visible pagination now rejects an enabled successor from page `u32::MAX`
+  before the read-only adapter can attempt impossible numeric page advancement.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

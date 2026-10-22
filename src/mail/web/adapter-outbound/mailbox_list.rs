@@ -183,7 +183,8 @@ impl MailboxListEvidence {
             (true, Some(false)) => NextPageControl::Enabled,
             _ => return Err(()),
         };
-        if empty_marker && next_page == NextPageControl::Enabled {
+        if next_page == NextPageControl::Enabled && (empty_marker || current_page == Some(u32::MAX))
+        {
             return Err(());
         }
         let state = if !row_ids.is_empty() {

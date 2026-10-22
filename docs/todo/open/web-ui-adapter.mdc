@@ -783,6 +783,11 @@ web application without requiring Bridge or a third-party direct API identity.
   traversal that settles already-verified nodes. Synthetic responses retain
   valid nested folders and external/root markers without guessing their
   meaning or emitting folder names to diagnostics.
+- An enabled next-page control is also contradictory when the rendered
+  one-based page is already `u32::MAX`. This is rejected in the content-free
+  list parser before a next-page click; a terminal maximum-numbered page is
+  still acceptable when its next control is disabled. Synthetic browser
+  tests distinguish those cases and preserve canonical page marker proof.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
