@@ -272,6 +272,84 @@ fn network_capture_ignores_neighbor_traffic_and_bounds_capacity() {
     );
 }
 
+#[test]
+fn network_capture_rejects_redirects_and_repeated_lifecycle_events() {
+    let mut redirected = ConversationListNetworkCapture::new("session-a");
+    redirected
+        .observe(&request_event("session-a", "list", "GET", URL))
+        .expect("capture initial exact request");
+    assert_eq!(
+        redirected.observe(&request_event(
+            "session-a",
+            "list",
+            "GET",
+            "https://mail.proton.me/api/mail/v4/conversations/count",
+        )),
+        Err(ConversationListNetworkError::RedirectedAway)
+    );
+    let mut repeated = ConversationListNetworkCapture::new("session-a");
+    repeated
+        .observe(&request_event("session-a", "list", "GET", URL))
+        .expect("capture request");
+    assert_eq!(
+        repeated.observe(&finished_event("session-a", "list")),
+        Err(ConversationListNetworkError::InvalidSequence)
+    );
+    repeated
+        .observe(&response_event(
+            "session-a",
+            "list",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("capture response");
+    assert_eq!(
+        repeated.observe(&response_event(
+            "session-a",
+            "list",
+            URL,
+            200,
+            "application/json"
+        )),
+        Err(ConversationListNetworkError::InvalidSequence)
+    );
+}
+
+#[test]
+fn network_capture_never_promotes_other_sessions_or_write_requests() {
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("other-session", "foreign", "GET", URL))
+        .expect("ignore foreign target");
+    capture
+        .observe(&response_event(
+            "other-session",
+            "foreign",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("ignore foreign response");
+    capture
+        .observe(&request_event("session-a", "write", "POST", URL))
+        .expect("ignore provider write request");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "write",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("ignore untracked write response");
+    capture
+        .observe(&finished_event("session-a", "write"))
+        .expect("ignore untracked write completion");
+    assert_eq!(capture.tracked_request_count(), 0);
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
 static CONVERSATION_LIST_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 fn conversation_list_browser_root(label: &str) -> PathBuf {
