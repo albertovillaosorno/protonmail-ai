@@ -671,6 +671,11 @@ web application without requiring Bridge or a third-party direct API identity.
   between event ID parsing and other opaque read-identifier boundaries.
   Message-list continuation `AnchorID` also uses safe route-component checks
   rather than length alone. Synthetic tests cover both rules and valid anchors.
+- Content-free rendered mailbox-list extraction now rejects route-unsafe
+  `data-element-id` row identifiers at the first visible DOM projection.
+  Browser fixtures prove that whitespace, control, and separator drift fails
+  with typed list incompatibility before message-page snapshots or navigation,
+  while ordinary printable opaque IDs still yield settled read-only evidence.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

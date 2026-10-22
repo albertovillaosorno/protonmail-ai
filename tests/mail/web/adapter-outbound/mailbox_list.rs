@@ -299,3 +299,46 @@ fn oversized_list_evidence_fails_closed() {
         .expect_err("too many visible rows must fail closed");
     assert_eq!(error, BrowserDriverError::MailboxListIncompatible);
 }
+
+#[test]
+fn rendered_list_refuses_unsafe_row_identities_before_page_snapshot() {
+    use serde_json::json;
+    let mut template: serde_json::Value =
+        // jig-ignore-next-line: canonical rustfmt line.
+        serde_json::from_str(ROWS).expect("decode synthetic settled mailbox list");
+    for (index, invalid) in [
+        "bad/id",
+        "bad?id",
+        "bad#id",
+        "bad\\id",
+        "bad id",
+        "bad\nid",
+        "bad\tid",
+        "bad\rid",
+        "bad\u{a0}id",
+        "bad\u{7f}id",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        template["rowIds"] = json!([invalid]);
+        assert_eq!(
+            inspect(
+                &format!("invalid-{index}"),
+                &template.to_string(),
+                VISIBLE_AX,
+                "mail.proton.me"
+            ),
+            Err(BrowserDriverError::MailboxListIncompatible)
+        );
+    }
+    template["rowIds"] = json!(["opaque+_~="]);
+    let stable = inspect(
+        "safe-opaque",
+        &template.to_string(),
+        VISIBLE_AX,
+        "mail.proton.me",
+    )
+    .expect("safe opaque route IDs remain eligible");
+    assert_eq!(stable.row_ids(), ["opaque+_~="]);
+}

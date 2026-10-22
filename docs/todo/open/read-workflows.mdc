@@ -264,6 +264,11 @@ Ship useful read access before any mailbox mutation is enabled.
   IDs rather than length-only strings; malformed separators and Unicode
   whitespace fail before a continuation can become list evidence.
 
+- Visible mailbox-list inspection now enforces safe opaque row IDs before
+  content-bearing page snapshots can inherit them. Synthetic browser tests
+  reject whitespace and separator-bearing DOM attributes in the earliest
+  content-free list read, rather than relying on later network reconciliation.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
