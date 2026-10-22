@@ -130,6 +130,13 @@ Ship useful read access before any mailbox mutation is enabled.
   provider-neutral thread search, pagination, or immutable snapshot claim is
   implied.
 
+- A new managed-browser diagnostic couples those bounded list metadata rows
+  with a same-session content-free before/after visible list. It blocks known
+  message-only routes, loading, changed row IDs or pagination, and absent
+  provider IDs. It never navigates or fetches provider data itself. This does
+  not bind a Mail route to a cursor, prove conversation mode when unknown, or
+  implement public `list_threads`.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

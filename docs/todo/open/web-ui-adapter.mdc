@@ -457,6 +457,14 @@ web application without requiring Bridge or a third-party direct API identity.
   It preserves visible order, ignores prefetched provider-only rows, and
   rejects malformed/missing/duplicate visible IDs or an empty contradiction.
   Matching IDs is not an independent proof of conversation mode or snapshot.
+- Managed-browser visible conversation metadata now brackets the passive
+  response with content-free settled row-ID and route-mode inspection. It
+  rejects known message-mode pages, loading, changed rendered rows, and missing
+  or contradictory response coverage while observing no subjects, recipients,
+  or private browser state. Five synthetic browser tests cover success,
+  mismatched/drifting rows, forced-message refusal, explicit-empty mismatch,
+  and timeout. The bracket is diagnostic, not immutable snapshot isolation or
+  proof that an unknown-mode page displays conversations.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

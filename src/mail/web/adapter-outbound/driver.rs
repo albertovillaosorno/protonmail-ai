@@ -62,8 +62,10 @@ use crate::conversation_detail::ConversationDetailResponseError;
 use crate::conversation_detail::ObservedConversationDetailResponse;
 use crate::conversation_list_response::ConversationListNetworkCapture;
 use crate::conversation_list_response::ConversationListNetworkError;
+use crate::conversation_list_response::ConversationListReconciliationError;
 use crate::conversation_list_response::ConversationListResponseError;
 use crate::conversation_list_response::ObservedConversationListResponse;
+use crate::conversation_list_response::ReconciledVisibleConversationMetadata;
 use crate::event_cursor_codec::{WebEventCursorCodec, WebEventCursorCodecError};
 use crate::lease::{AutomationProfileLease, ProfileLeaseError};
 use crate::list_messages_readiness::ListMessagesReadiness;
@@ -2356,6 +2358,82 @@ impl ManagedBrowser {
         Ok(None)
     }
 
+    // jig-ignore-next-line: canonical rustfmt line.
+    /// Matches stable visible row IDs to one passive conversation-list response.
+    ///
+    /// No read triggers a click, reload, provider request, or mailbox mutation.
+    /// The current page must not be provably in message mode; this does not
+    /// establish that an unknown-mode page displays conversations. Matching
+    /// alone never establishes a durable snapshot or public thread listing.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed for message-mode pages, unsettled or changing row IDs,
+    /// unmatched provider metadata, invalid Network traffic, or origin drift.
+    pub fn observe_visible_conversation_metadata(
+        &mut self,
+        page: &ProviderPage,
+        wait: Duration,
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<Option<ReconciledVisibleConversationMetadata>, BrowserDriverError> {
+        if wait > CONVERSATION_LIST_MAX_WAIT {
+            return Err(BrowserDriverError::ConversationListWaitTooLong);
+        }
+        if page.origin != PageOrigin::ProtonMail {
+            return Err(BrowserDriverError::MailOriginRequired);
+        }
+        let session = self.attach(page)?;
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_visible_conversation_metadata_in_session(page, &session, wait);
+        let detached = self.detach(&session);
+        let metadata = observed?;
+        detached?;
+        Ok(metadata)
+    }
+
+    fn observe_visible_conversation_metadata_in_session(
+        &mut self,
+        page: &ProviderPage,
+        session: &str,
+        wait: Duration,
+        // jig-ignore-next-line: canonical rustfmt line.
+    ) -> Result<Option<ReconciledVisibleConversationMetadata>, BrowserDriverError> {
+        let before_mode = self.inspect_mailbox_mode_in_session(page, session)?;
+        if before_mode.mode() == MailboxRenderMode::Messages {
+            return Err(BrowserDriverError::ConversationListMessageMode);
+        }
+        let before = self.inspect_mailbox_list_in_session(page, session)?;
+        match before.state() {
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxListState::SettledRows | MailboxListState::SettledExplicitEmpty => {}
+            // jig-ignore-next-line: canonical rustfmt line.
+            MailboxListState::Loading | MailboxListState::SettledNoRowsUnproven => {
+                return Err(BrowserDriverError::MailboxPageNotSettled);
+            }
+        }
+        // jig-ignore-next-line: canonical rustfmt line.
+        let observed = self.observe_passive_conversation_list_in_session(page, session, wait)?;
+        let after_mode = self.inspect_mailbox_mode_in_session(page, session)?;
+        if after_mode != before_mode {
+            return Err(BrowserDriverError::MailboxModeChanged);
+        }
+        let after = self.inspect_mailbox_list_in_session(page, session)?;
+        if before != after {
+            return Err(BrowserDriverError::MailboxPageChanged);
+        }
+        let Some(response) = observed else {
+            return Ok(None);
+        };
+        let ids = before
+            .row_ids()
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        ReconciledVisibleConversationMetadata::reconcile(&ids, &response)
+            .map(Some)
+            .map_err(BrowserDriverError::ConversationListReconciliation)
+    }
+
     /// Passively observes the next browser-owned attachment metadata GET.
     ///
     /// This does not click, navigate, reload, or inject a provider API request.
@@ -3416,6 +3494,10 @@ pub enum BrowserDriverError {
     ConversationListWaitTooLong,
     /// Multiple or residual conversation-list requests made capture ambiguous.
     ConversationListAmbiguous,
+    /// A message-only route cannot use conversation IDs.
+    ConversationListMessageMode,
+    /// Provider list metadata does not match stable visible row IDs.
+    ConversationListReconciliation(ConversationListReconciliationError),
     /// Exact conversation-detail Network lifecycle failed closed.
     ConversationDetailNetwork(ConversationDetailNetworkError),
     /// Conversation detail response failed bounded complete projection.
@@ -3571,6 +3653,11 @@ impl fmt::Display for BrowserDriverError {
             }
             Self::ConversationListAmbiguous => {
                 f.write_str("conversation-list observation was ambiguous")
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            Self::ConversationListMessageMode => f.write_str("Mail is in message-only mode"),
+            Self::ConversationListReconciliation(_error) => {
+                f.write_str("visible conversation metadata did not reconcile")
             }
             Self::ConversationDetailNetwork(_error) => {
                 f.write_str("conversation-detail Network observation failed")

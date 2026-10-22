@@ -443,6 +443,32 @@ fn fake_conversation_list_browser(
     complete_body: bool,
     late_during_disable: bool,
 ) -> PathBuf {
+    fake_conversation_list_browser_view(
+        root,
+        emit_detail,
+        complete_body,
+        late_during_disable,
+        "conversation-2",
+        false,
+        false,
+    )
+}
+
+#[expect(
+    clippy::too_many_lines,
+    clippy::fn_params_excessive_bools,
+    // jig-ignore-next-line: canonical rustfmt line.
+    reason = "synthetic browser fixture handles independent view and request states"
+)]
+fn fake_conversation_list_browser_view(
+    root: &Path,
+    emit_detail: bool,
+    complete_body: bool,
+    late_during_disable: bool,
+    visible_id: &str,
+    view_drift: bool,
+    message_mode: bool,
+) -> PathBuf {
     let script = root.join("fake-browser");
     let log = root.join("conversation-list-log.txt");
     let template = r#"#!/usr/bin/env bash
@@ -459,7 +485,26 @@ while IFS= read -r -d '' message <&3; do
     *'Target.attachToTarget'*)
       printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
     *'Runtime.evaluate'*)
-      value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
+      case "$message" in
+        *'forcedMessageRoute'*)
+          value='{"forcedMessageRoute":__MESSAGE_MODE__,"activeSearch":false}';;
+        *'message-list-loaded'*)
+          view='__VISIBLE_ID__'
+          if [ '__DRIFT__' = 'true' ] && [ -f '__LOG__' ]; then
+            view='changed-conversation'
+          fi
+          if [ "$view" = '__EMPTY__' ]; then
+            # jig-ignore-next-line: indivisible synthetic shell fixture.
+            value='{"loading":false,"loaded":true,"rowIds":[],"skeletonCount":0,"emptyMarker":true,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
+          elif [ "$view" = '__LOADING__' ]; then
+            # jig-ignore-next-line: indivisible synthetic shell fixture.
+            value='{"loading":true,"loaded":false,"rowIds":[],"skeletonCount":1,"emptyMarker":false,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
+          else
+            # jig-ignore-next-line: indivisible synthetic shell fixture.
+            value='{"loading":false,"loaded":true,"rowIds":["'"$view"'"],"skeletonCount":0,"emptyMarker":false,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
+          fi;;
+        *) value='{"protocol":"https:","hostname":"mail.proton.me","port":""}';;
+      esac
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
     *'DOM.getDocument'*)
       printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
@@ -521,6 +566,12 @@ done
         .replace(
             "__LATE_DETAIL__",
             if late_during_disable { "true" } else { "false" },
+        )
+        .replace("__VISIBLE_ID__", visible_id)
+        .replace("__DRIFT__", if view_drift { "true" } else { "false" })
+        .replace(
+            "__MESSAGE_MODE__",
+            if message_mode { "true" } else { "false" },
         );
     fs::write(&script, body).expect("write fake conversation browser");
     fs::set_permissions(&script, fs::Permissions::from_mode(0o700))
@@ -662,4 +713,173 @@ fn conversation_list_started_during_network_disable_fails_closed() {
         fs::read_to_string(root.join("conversation-list-log.txt")).expect("read late conversation log");
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove late conversation root");
+}
+
+#[derive(Clone, Copy)]
+struct VisibleBrowserCase<'view> {
+    row_id: &'view str,
+    drift: bool,
+    message_mode: bool,
+    emits_response: bool,
+}
+
+fn observe_visible_case(
+    label: &str,
+    case: VisibleBrowserCase<'_>,
+) -> (
+    // jig-ignore-next-line: canonical rustfmt line.
+    Result<Option<ReconciledVisibleConversationMetadata>, mail_web_adapter::BrowserDriverError>,
+    String,
+) {
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+    let _guard = CONVERSATION_LIST_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_list_browser_root(label);
+    fs::create_dir_all(&root).expect("create visible conversation root");
+    let browser = fake_conversation_list_browser_view(
+        &root,
+        case.emits_response,
+        true,
+        false,
+        case.row_id,
+        case.drift,
+        case.message_mode,
+    );
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build visible conversation plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail page");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let observed = managed.observe_visible_conversation_metadata(&page, Duration::from_millis(50));
+    drop(managed);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let log = fs::read_to_string(root.join("conversation-list-log.txt")).unwrap_or_default();
+    fs::remove_dir_all(&root).expect("remove synthetic visible browser root");
+    (observed, log)
+}
+
+#[test]
+fn managed_browser_matches_stable_visible_conversation_without_action() {
+    let (observed, log) = observe_visible_case(
+        "visible-success",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: false,
+            message_mode: false,
+            emits_response: true,
+        },
+    );
+    let matched = observed
+        .expect("stable visible read")
+        .expect("app-owned response");
+    assert_eq!(matched.conversations().len(), 1);
+    assert_eq!(matched.conversations()[0].id(), "conversation-2");
+    assert_eq!(matched.conversations()[0].time(), 1_700_000_002);
+    assert_eq!(log, "enable\nbody\ndisable\n");
+}
+
+#[test]
+fn managed_browser_rejects_uncovered_or_changing_visible_rows() {
+    use mail_web_adapter::BrowserDriverError;
+    let (missing, log) = observe_visible_case(
+        "visible-missing",
+        VisibleBrowserCase {
+            row_id: "other-conversation",
+            drift: false,
+            message_mode: false,
+            emits_response: true,
+        },
+    );
+    assert_eq!(
+        missing,
+        Err(BrowserDriverError::ConversationListReconciliation(
+            ConversationListReconciliationError::MissingVisibleConversation,
+        ))
+    );
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    let (changed, log) = observe_visible_case(
+        "visible-changed",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: true,
+            message_mode: false,
+            emits_response: true,
+        },
+    );
+    assert_eq!(changed, Err(BrowserDriverError::MailboxPageChanged));
+    assert_eq!(log, "enable\nbody\ndisable\n");
+}
+
+#[test]
+fn managed_browser_refuses_message_mode_and_unsettled_rows_before_network() {
+    use mail_web_adapter::BrowserDriverError;
+    for (label, row_id, message_mode, expected) in [
+        (
+            "visible-message",
+            "conversation-2",
+            true,
+            BrowserDriverError::ConversationListMessageMode,
+        ),
+        (
+            "visible-loading",
+            "__LOADING__",
+            false,
+            BrowserDriverError::MailboxPageNotSettled,
+        ),
+    ] {
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id,
+                drift: false,
+                message_mode,
+                emits_response: true,
+            },
+        );
+        assert_eq!(observed, Err(expected));
+        assert_eq!(log, "");
+    }
+}
+
+#[test]
+fn managed_browser_rejects_explicit_empty_contradiction() {
+    use mail_web_adapter::BrowserDriverError;
+    let (observed, log) = observe_visible_case(
+        "visible-empty",
+        VisibleBrowserCase {
+            row_id: "__EMPTY__",
+            drift: false,
+            message_mode: false,
+            emits_response: true,
+        },
+    );
+    assert_eq!(
+        observed,
+        Err(BrowserDriverError::ConversationListReconciliation(
+            ConversationListReconciliationError::UnexpectedObservedConversation,
+        ))
+    );
+    assert_eq!(log, "enable\nbody\ndisable\n");
+}
+
+#[test]
+fn managed_browser_visible_metadata_timeout_keeps_rows_unchanged() {
+    let (observed, log) = observe_visible_case(
+        "visible-timeout",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: false,
+            message_mode: false,
+            emits_response: false,
+        },
+    );
+    assert_eq!(observed, Ok(None));
+    assert_eq!(log, "enable\ndisable\n");
 }
