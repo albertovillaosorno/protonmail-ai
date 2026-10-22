@@ -910,6 +910,15 @@ web application without requiring Bridge or a third-party direct API identity.
   final symlink. Synthetic login tests prove external symlink targets retain
   their own mode and existing project/profile directories become private.
   Path replacement at a later browser launch remains a separate boundary.
+- Dedicated project/profile creation now anchors both fixed path components
+  to held parent directory FDs. `mkdirat` creates missing components only
+  relative to their verified parent, `openat(O_DIRECTORY|O_NOFOLLOW)` rejects
+  replacement links, and FD-mode changes remain restricted to their inode.
+  Tests cover dangling project/profile links, preexisting private directories,
+  and an explicitly selected symlinked XDG data-home root. The latter is an
+  input-selected root, not one of the project-owned components. A same-user
+  attacker replacing paths after validation but before Chromium opens its
+  user-data directory remains a separate launch-time threat boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

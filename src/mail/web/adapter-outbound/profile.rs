@@ -38,8 +38,9 @@ use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind};
 use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 
-use nix::fcntl::{OFlag, open};
-use nix::sys::stat::Mode;
+use nix::errno::Errno;
+use nix::fcntl::{OFlag, open, openat};
+use nix::sys::stat::{Mode, mkdirat};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -285,50 +286,68 @@ fn is_executable(path: &Path) -> bool {
 }
 
 fn prepare_profile_dir(path: &Path) -> Result<(), WebLoginError> {
-    let project_dir = path.parent().ok_or(WebLoginError::MissingDataHome)?;
-    prepare_project_dir(project_dir)?;
+    let project_path = path.parent().ok_or(WebLoginError::MissingDataHome)?;
+    let project = prepare_project_dir(project_path)?;
+    let _profile = open_private_child(
+        &project,
+        PROFILE_DIR,
+        path,
+        WebLoginError::ProfileLink(path.to_path_buf()),
+        WebLoginError::ProfileIsNotDirectory(path.to_path_buf()),
+    )?;
+    Ok(())
+}
+
+fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
+    let data_home = path.parent().ok_or(WebLoginError::MissingDataHome)?;
+    // This is the caller-selected data home, not a project-owned component.
+    fs::create_dir_all(data_home).map_err(|error| io_err(path, error))?;
+    let root_flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC;
+    let data_fd =
+        // jig-ignore-next-line: canonical rustfmt line.
+        open(data_home, root_flags, Mode::empty()).map_err(|_error| create_error(path))?;
+    let data = File::from(data_fd);
+    open_private_child(
+        &data,
+        APP_DIR,
+        path,
+        WebLoginError::ProjectLink(path.to_path_buf()),
+        create_error(path),
+    )
+}
+
+fn open_private_child(
+    parent: &File,
+    name: &str,
+    path: &Path,
+    link_error: WebLoginError,
+    nondirectory_error: WebLoginError,
+) -> Result<File, WebLoginError> {
+    // Keep typed errors for preexisting unsafe components. The subsequent
+    // openat is the authority: this preflight alone is not a race guard.
     match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(WebLoginError::ProfileLink(path.to_path_buf()));
-        }
-        Ok(metadata) if !metadata.is_dir() => {
-            let owned = path.to_path_buf();
-            return Err(WebLoginError::ProfileIsNotDirectory(owned));
-        }
-        Ok(_) => return restrict_permissions(path),
+        // jig-ignore-next-line: canonical rustfmt line.
+        Ok(metadata) if metadata.file_type().is_symlink() => return Err(link_error),
+        Ok(metadata) if !metadata.is_dir() => return Err(nondirectory_error),
+        Ok(_) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(_error) => return Err(create_error(path)),
     }
-    create_private_dir(path)
-}
-
-fn prepare_project_dir(path: &Path) -> Result<(), WebLoginError> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(WebLoginError::ProjectLink(path.to_path_buf()));
-        }
-        Ok(metadata) if !metadata.is_dir() => {
-            return Err(WebLoginError::ProfileCreate(path.to_path_buf()));
-        }
-        Ok(_) => return restrict_permissions(path),
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(_error) => return Err(create_error(path)),
-    }
-    create_private_dir(path)
-}
-
-fn create_private_dir(path: &Path) -> Result<(), WebLoginError> {
-    fs::create_dir_all(path).map_err(|error| io_err(path, error))?;
-    restrict_permissions(path)
-}
-
-fn restrict_permissions(path: &Path) -> Result<(), WebLoginError> {
-    // Open the validated directory without following a replaced final symlink.
-    // Set permissions on that inode, never through a path that could redirect.
     // jig-ignore-next-line: canonical rustfmt line.
     let flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
-    // jig-ignore-next-line: canonical rustfmt line.
-    let fd = open(path, flags, Mode::empty()).map_err(|_error| create_error(path))?;
+    let child = Path::new(name);
+    let fd = match openat(parent, child, flags, Mode::empty()) {
+        Ok(fd) => fd,
+        Err(Errno::ENOENT) => {
+            match mkdirat(parent, child, Mode::from_bits_truncate(0o700)) {
+                Ok(()) | Err(Errno::EEXIST) => {}
+                Err(_error) => return Err(create_error(path)),
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            openat(parent, child, flags, Mode::empty()).map_err(|_error| create_error(path))?
+        }
+        Err(_error) => return Err(create_error(path)),
+    };
     let directory = File::from(fd);
     directory
         .set_permissions(fs::Permissions::from_mode(0o700))
@@ -340,7 +359,7 @@ fn restrict_permissions(path: &Path) -> Result<(), WebLoginError> {
     if !named.is_dir() || held.dev() != named.dev() || held.ino() != named.ino() {
         return Err(create_error(path));
     }
-    Ok(())
+    Ok(directory)
 }
 
 fn create_error(path: &Path) -> WebLoginError {

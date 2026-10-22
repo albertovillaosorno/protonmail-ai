@@ -417,3 +417,46 @@ fn existing_dedicated_directories_are_private_after_login() {
     }
     cleanup(&root);
 }
+
+#[test]
+fn dangling_project_and_profile_links_fail_without_creating_outside_paths() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    for (case, project_link) in [("dangling-project", true), ("dangling-profile", false)] {
+        let root = test_root(case);
+        let data_home = root.join("data");
+        let project = data_home.join("protonmail-ai");
+        let absent = root.join("must-not-be-created");
+        fs::create_dir_all(&data_home).expect("create isolated data home");
+        if project_link {
+            symlink(&absent, &project).expect("create dangling project link");
+        } else {
+            fs::create_dir_all(&project).expect("create dedicated project");
+            symlink(&absent, project.join("browser-profile"))
+                .expect("create dangling profile link");
+        }
+        let browser = fake_browser(&root);
+        assert!(!login(&root, &browser, Some(&data_home)).status.success());
+        assert!(!absent.exists());
+        assert!(!root.join("browser-args.txt").exists());
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn explicitly_chosen_symlinked_data_home_still_isolates_project_components() {
+    let root = test_root("symlinked-data-home");
+    let actual_home = root.join("actual-data-home");
+    let aliased_home = root.join("xdg-data-home-alias");
+    fs::create_dir_all(&actual_home).expect("create isolated data-home target");
+    symlink(&actual_home, &aliased_home).expect("create synthetic XDG alias");
+    let browser = fake_browser(&root);
+    assert!(login(&root, &browser, Some(&aliased_home)).status.success());
+    let expected = actual_home.join("protonmail-ai/browser-profile");
+    assert!(expected.is_dir());
+    let args = wait_for_args(&root);
+    assert!(args.contains("--user-data-dir="));
+    let alias_profile = aliased_home.join("protonmail-ai/browser-profile");
+    // jig-ignore-next-line: canonical rustfmt line.
+    assert!(args.contains(alias_profile.to_str().expect("synthetic UTF-8 path")));
+    cleanup(&root);
+}
