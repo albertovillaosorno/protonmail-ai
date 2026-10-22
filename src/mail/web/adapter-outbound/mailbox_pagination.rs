@@ -34,6 +34,9 @@ use serde_json::Value;
 
 const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "(() => {",
+    // Refuse common authentication challenge controls immediately before click.
+    "if(document.querySelector('input[type=\"password\"],",
+    "input[autocomplete=\"one-time-code\"]')){return null;}",
     "const q='[data-testid=\"pagination-row:go-to-next-page\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1){return {present:nodes.length===1,",

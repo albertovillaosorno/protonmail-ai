@@ -38,6 +38,9 @@ use serde_json::Value;
 
 const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "(() => {",
+    // Refuse common auth challenge fields immediately before a UI click.
+    "if(document.querySelector('input[type=\"password\"],",
+    "input[autocomplete=\"one-time-code\"]')){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "const count=ids.filter((id)=>document.querySelector(",
@@ -73,6 +76,9 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
 
 const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "(() => {",
+    // Refuse common auth challenge fields immediately before a UI click.
+    "if(document.querySelector('input[type=\"password\"],",
+    "input[autocomplete=\"one-time-code\"]')){return false;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",

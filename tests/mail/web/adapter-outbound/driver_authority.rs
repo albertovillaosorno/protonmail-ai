@@ -263,3 +263,26 @@ fn response_body_requests_refuse_invisible_cdp_request_ids() {
         ));
     }
 }
+
+#[test]
+fn audited_click_scripts_block_common_auth_inputs_before_any_activation() {
+    for script in [
+        NextPageActivation::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        let password = script
+            .find("input[type=\"password\"]")
+            .expect("static UI click must guard password challenge input");
+        let one_time = script
+            .find("input[autocomplete=\"one-time-code\"]")
+            .expect("static UI click must guard one-time-code input");
+        let activation = script
+            .find(".click();")
+            .expect("audited page/navigation action exists");
+        assert!(password < activation);
+        assert!(one_time < activation);
+        assert!(!script.contains(".value"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

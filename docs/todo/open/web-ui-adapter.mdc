@@ -927,6 +927,11 @@ web application without requiring Bridge or a third-party direct API identity.
   a syntactically valid message-list lifecycle with a hidden Unicode request
   ID fails at the final CDP command boundary, never performs body retrieval,
   disables Network, and permits later same-session Mail-shell inspection.
+- The three static navigation/sort click expressions now refuse activation
+  when password or one-time-code inputs have appeared since shell preflight.
+  The checks execute synchronously before `.click()`, inspect no field values,
+  and do not add new evaluated scripts or CDP methods. Root-tree assertions
+  preserve guard order, and existing page/sort regression suites remain green.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
