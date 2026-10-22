@@ -715,10 +715,18 @@ fn conversation_list_started_during_network_disable_fails_closed() {
     fs::remove_dir_all(&root).expect("remove late conversation root");
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ViewDrift {
+    None,
+    Rows,
+    Mode,
+    Origin,
+}
+
 #[derive(Clone, Copy)]
 struct VisibleBrowserCase<'view> {
     row_id: &'view str,
-    drift: bool,
+    drift: ViewDrift,
     message_mode: bool,
     emits_response: bool,
     request_query: &'view str,
@@ -745,7 +753,7 @@ fn observe_visible_case(
         true,
         false,
         case.row_id,
-        case.drift,
+        case.drift == ViewDrift::Rows,
         case.message_mode,
     );
     // jig-ignore-next-line: canonical rustfmt line.
@@ -756,6 +764,31 @@ fn observe_visible_case(
         script.replace(
             "\"currentTestId\":null",
             &format!("\"currentTestId\":\"{page_marker}\""),
+        )
+    } else {
+        script
+    };
+    let script = if case.drift == ViewDrift::Mode {
+        script.replace(
+            r#"value='{"forcedMessageRoute":false,"activeSearch":false}';;"#,
+            &format!(
+                // jig-ignore-next-line: indivisible synthetic shell fixture.
+                "value='{{\"forcedMessageRoute\":false,\"activeSearch\":false}}'; if [ -f '{}' ]; then value='{{\"forcedMessageRoute\":true,\"activeSearch\":false}}'; fi;;",
+                root.join("conversation-list-log.txt").display()
+            ),
+        )
+    } else {
+        script
+    };
+    let script = if case.drift == ViewDrift::Origin {
+        script.replace(
+            // jig-ignore-next-line: indivisible synthetic shell fixture.
+            r#"*) value='{"protocol":"https:","hostname":"mail.proton.me","port":""}';;"#,
+            &format!(
+                // jig-ignore-next-line: indivisible synthetic shell fixture.
+                "*) value='{{\"protocol\":\"https:\",\"hostname\":\"mail.proton.me\",\"port\":\"\"}}'; if [ -f '{}' ]; then value='{{\"protocol\":\"https:\",\"hostname\":\"other.example\",\"port\":\"\"}}'; fi;;",
+                root.join("conversation-list-log.txt").display()
+            ),
         )
     } else {
         script
@@ -786,7 +819,7 @@ fn managed_browser_matches_stable_visible_conversation_without_action() {
         "visible-success",
         VisibleBrowserCase {
             row_id: "conversation-2",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=0&PageSize=50&Limit=50",
@@ -809,7 +842,7 @@ fn managed_browser_rejects_uncovered_or_changing_visible_rows() {
         "visible-missing",
         VisibleBrowserCase {
             row_id: "other-conversation",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=0&PageSize=50&Limit=50",
@@ -827,7 +860,7 @@ fn managed_browser_rejects_uncovered_or_changing_visible_rows() {
         "visible-changed",
         VisibleBrowserCase {
             row_id: "conversation-2",
-            drift: true,
+            drift: ViewDrift::Rows,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=0&PageSize=50&Limit=50",
@@ -859,7 +892,7 @@ fn managed_browser_refuses_message_mode_and_unsettled_rows_before_network() {
             label,
             VisibleBrowserCase {
                 row_id,
-                drift: false,
+                drift: ViewDrift::None,
                 message_mode,
                 emits_response: true,
                 request_query: "?Page=0&PageSize=50&Limit=50",
@@ -878,7 +911,7 @@ fn managed_browser_rejects_explicit_empty_contradiction() {
         "visible-empty",
         VisibleBrowserCase {
             row_id: "__EMPTY__",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=0&PageSize=50&Limit=50",
@@ -900,7 +933,7 @@ fn managed_browser_visible_metadata_timeout_keeps_rows_unchanged() {
         "visible-timeout",
         VisibleBrowserCase {
             row_id: "conversation-2",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: false,
             request_query: "?Page=0&PageSize=50&Limit=50",
@@ -928,7 +961,7 @@ fn managed_browser_rejects_request_page_mismatch_and_anchor() {
             label,
             VisibleBrowserCase {
                 row_id: "conversation-2",
-                drift: false,
+                drift: ViewDrift::None,
                 message_mode: false,
                 emits_response: true,
                 request_query,
@@ -949,7 +982,7 @@ fn managed_browser_accepts_matching_page_number_without_claiming_snapshot() {
         "visible-page-two-matched",
         VisibleBrowserCase {
             row_id: "conversation-2",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=1&PageSize=50",
@@ -1034,7 +1067,7 @@ fn malformed_request_during_enable_drains_reply_and_disables_network() {
         "bad-request-during-enable",
         VisibleBrowserCase {
             row_id: "conversation-2",
-            drift: false,
+            drift: ViewDrift::None,
             message_mode: false,
             emits_response: true,
             request_query: "?Page=invalid",
@@ -1089,4 +1122,43 @@ fn malformed_request_during_enable_preserves_followup_inspection() {
         .expect("read synthetic browser log");
     assert_eq!(log, "enable\ndisable\n");
     fs::remove_dir_all(&root).expect("clean synthetic browser root");
+}
+
+#[test]
+fn managed_browser_rejects_mode_drift_without_changing_rows() {
+    use mail_web_adapter::BrowserDriverError;
+    let (observed, log) = observe_visible_case(
+        "visible-mode-drift",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: ViewDrift::Mode,
+            message_mode: false,
+            emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
+        },
+    );
+    assert_eq!(observed, Err(BrowserDriverError::MailboxModeChanged));
+    assert_eq!(log, "enable\nbody\ndisable\n");
+}
+
+#[test]
+fn managed_browser_rejects_origin_drift_after_network_teardown() {
+    use mail_web_adapter::BrowserDriverError;
+    let (observed, log) = observe_visible_case(
+        "visible-origin-drift",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: ViewDrift::Origin,
+            message_mode: false,
+            emits_response: true,
+            request_query: "?Page=0&PageSize=50&Limit=50",
+            page_marker: None,
+        },
+    );
+    assert!(matches!(
+        observed,
+        Err(BrowserDriverError::OriginDrift { .. })
+    ));
+    assert_eq!(log, "enable\nbody\ndisable\n");
 }

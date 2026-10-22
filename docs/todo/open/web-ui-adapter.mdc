@@ -484,6 +484,11 @@ web application without requiring Bridge or a third-party direct API identity.
   state. Empty/oversized exact request identifiers or URLs fail closed, while
   oversized unrelated neighbor traffic remains ignored. Synthetic tests keep
   such input out of tracked state and preserve content-redacted diagnostics.
+- Synthetic same-session conversation-list inspection now tests route-mode
+  drift and origin drift after Network teardown, including the case where
+  rendered row IDs remain unchanged. Both transitions fail closed rather than
+  using previously captured list metadata, and the fake browser never invokes
+  a navigation or mutation operation.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
