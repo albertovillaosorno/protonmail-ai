@@ -1076,6 +1076,21 @@ fn managed_browser_rejects_request_page_mismatch_and_anchor() {
         ("request-missing-limit", "?Page=0&PageSize=50", None),
         ("request-missing-size", "?Page=0&Limit=50", None),
         ("request-only-page", "?Page=0", None),
+        (
+            "request-begin-id",
+            "?Page=0&PageSize=50&Limit=50&BeginID=hidden",
+            None,
+        ),
+        (
+            "request-end-id",
+            "?Page=0&PageSize=50&Limit=50&EndID=hidden",
+            None,
+        ),
+        (
+            "request-id-filter",
+            "?Page=0&PageSize=50&Limit=50&ID=hidden",
+            None,
+        ),
         ("request-anchor", "?Page=0&Anchor=123&AnchorID=secret", None),
         (
             "visible-page-two",

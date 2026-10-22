@@ -628,6 +628,7 @@ fn parse_request_page(
     let mut limit = None;
     let mut has_anchor = false;
     let mut has_anchor_id = false;
+    let mut has_non_visible_selector = false;
     for parameter in query.split('&') {
         let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
         match key {
@@ -663,6 +664,9 @@ fn parse_request_page(
                 }
                 has_anchor_id = true;
             }
+            "BeginID" | "EndID" | "ID" => {
+                has_non_visible_selector = true;
+            }
             _ => {}
         }
     }
@@ -673,8 +677,11 @@ fn parse_request_page(
         return Err(ConversationListNetworkError::InvalidPagination);
     }
     let initial_page_shape =
-        // jig-ignore-next-line: canonical rustfmt line.
-        page.is_some() && page_size.is_some() && page_size == limit && !has_anchor;
+        page.is_some()
+            && page_size.is_some()
+            && page_size == limit
+            && !has_anchor
+            && !has_non_visible_selector;
     Ok((page, has_anchor, initial_page_shape))
 }
 

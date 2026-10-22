@@ -562,6 +562,12 @@ web application without requiring Bridge or a third-party direct API identity.
   response-body retrieval. Standalone passive list observation remains less
   specific and does not claim a rendered-page match. Synthetic two-page tests
   cover valid initial requests and missing size/limit cases.
+- Page-number/size evidence is not enough if the provider GET carries
+  `BeginID`, `EndID`, or `ID` selectors that can represent hidden range or
+  recovery requests. The visible conversation diagnostic now refuses those
+  shapes *before* body decoding without retaining their values; passive
+  unassociated list capture remains available. Synthetic page-matching tests
+  cover all three selector keys and prove Network teardown without body reads.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

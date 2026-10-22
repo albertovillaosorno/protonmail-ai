@@ -192,6 +192,11 @@ Ship useful read access before any mailbox mutation is enabled.
   does not affect the independent passive diagnostic; this still does not
   create snapshot isolation or public thread-list support.
 
+- Visible conversation reconciliation additionally refuses `BeginID`,
+  `EndID`, and `ID` selectors, because these need not describe the currently
+  rendered page even when Page/PageSize/Limit agree. The presence-only flag is
+  kept internally; selector values and private query text are discarded.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
