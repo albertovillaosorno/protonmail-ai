@@ -452,6 +452,11 @@ web application without requiring Bridge or a third-party direct API identity.
   handling of timeout or overlapping requests. Synthetic browser tests verify
   no navigation, stale rejection, and late-request ambiguity. This remains
   diagnostic only; thread-list/search wire semantics are not yet proven.
+- Bounded conversation-list ID reconciliation can now join one minimized
+  response to already-stable rendered IDs without reading subject/sender data.
+  It preserves visible order, ignores prefetched provider-only rows, and
+  rejects malformed/missing/duplicate visible IDs or an empty contradiction.
+  Matching IDs is not an independent proof of conversation mode or snapshot.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

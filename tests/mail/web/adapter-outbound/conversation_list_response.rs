@@ -33,8 +33,10 @@
 
 use mail_web_adapter::ConversationListNetworkCapture;
 use mail_web_adapter::ConversationListNetworkError;
+use mail_web_adapter::ConversationListReconciliationError;
 use mail_web_adapter::ConversationListResponseError;
 use mail_web_adapter::ObservedConversationListResponse;
+use mail_web_adapter::ReconciledVisibleConversationMetadata;
 use serde_json::{Value, json};
 use std::env;
 use std::fs;
@@ -348,6 +350,82 @@ fn network_capture_never_promotes_other_sessions_or_write_requests() {
         .expect("ignore untracked write completion");
     assert_eq!(capture.tracked_request_count(), 0);
     assert_eq!(capture.take_finished_request_ids().len(), 0);
+}
+
+#[test]
+fn rendered_conversation_ids_match_observed_metadata_in_visible_order() {
+    let response = ObservedConversationListResponse::parse("GET", URL, body())
+        .expect("valid synthetic list response");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let matched = ReconciledVisibleConversationMetadata::reconcile(&["c-1", "c-2"], &response)
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("match reversed visible order without interpreting provider sort");
+    assert_eq!(matched.conversations()[0].id(), "c-1");
+    assert_eq!(matched.conversations()[0].time(), 100);
+    assert_eq!(matched.conversations()[1].id(), "c-2");
+    assert_eq!(matched.conversations()[1].message_count(), 4);
+    let diagnostic = format!("{matched:?}");
+    assert!(!diagnostic.contains("c-1"));
+    assert!(!diagnostic.contains("c-2"));
+    assert!(!diagnostic.contains("SECRET"));
+}
+
+#[test]
+fn rendered_subset_may_ignore_prefetched_provider_rows() {
+    let response = ObservedConversationListResponse::parse("GET", URL, body())
+        .expect("valid synthetic list response");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let matched = ReconciledVisibleConversationMetadata::reconcile(&["c-2"], &response)
+        .expect("ignore provider row not currently visible");
+    assert_eq!(matched.conversations().len(), 1);
+    assert_eq!(matched.conversations()[0].id(), "c-2");
+}
+
+#[test]
+fn rendered_ids_fail_closed_on_invalid_or_missing_coverage() {
+    let response = ObservedConversationListResponse::parse("GET", URL, body())
+        .expect("valid synthetic list response");
+    for ids in [vec![""], vec!["c-1", "c-1"]] {
+        assert_eq!(
+            ReconciledVisibleConversationMetadata::reconcile(&ids, &response),
+            Err(ConversationListReconciliationError::InvalidVisibleId)
+        );
+    }
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleConversationMetadata::reconcile(&["unobserved"], &response),
+        Err(ConversationListReconciliationError::MissingVisibleConversation)
+    );
+    let oversized = "x".repeat(513);
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleConversationMetadata::reconcile(&[&oversized], &response),
+        Err(ConversationListReconciliationError::InvalidVisibleId)
+    );
+    let too_many = vec!["c-2"; 201];
+    assert_eq!(
+        ReconciledVisibleConversationMetadata::reconcile(&too_many, &response),
+        Err(ConversationListReconciliationError::TooManyVisibleConversations)
+    );
+}
+
+#[test]
+fn empty_rendered_rows_require_an_empty_observed_response() {
+    let response = ObservedConversationListResponse::parse("GET", URL, body())
+        .expect("valid synthetic list response");
+    assert_eq!(
+        ReconciledVisibleConversationMetadata::reconcile(&[], &response),
+        Err(ConversationListReconciliationError::UnexpectedObservedConversation)
+    );
+    let empty = ObservedConversationListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Code":1000,"Stale":0,"Total":0,"Conversations":[]}"#,
+    )
+    .expect("fresh empty provider list");
+    let matched = ReconciledVisibleConversationMetadata::reconcile(&[], &empty)
+        .expect("explicit empty and provider empty agree");
+    assert_eq!(matched.conversations().len(), 0);
 }
 
 static CONVERSATION_LIST_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());

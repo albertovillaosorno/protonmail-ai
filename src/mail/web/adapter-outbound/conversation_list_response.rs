@@ -42,6 +42,7 @@ const CONVERSATION_LIST_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/c
 const MAX_CONVERSATION_LIST_ITEMS: usize = 100;
 const MAX_CONVERSATION_ID_BYTES: usize = 512;
 const MAX_TRACKED_CONVERSATION_LIST_REQUESTS: usize = 128;
+const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConversationListRequestState {
@@ -430,6 +431,95 @@ impl fmt::Debug for ObservedConversationListResponse {
             .field("conversation_count", &self.conversations.len())
             .finish()
     }
+}
+
+/// A bounded diagnostic match between rendered IDs and response metadata.
+///
+/// Matching alone does not prove conversation render mode, a stable snapshot,
+/// request-to-page association, or provider-neutral thread ordering.
+#[derive(Clone, Eq, PartialEq)]
+pub struct ReconciledVisibleConversationMetadata {
+    conversations: Vec<ObservedConversationListMetadata>,
+}
+
+impl ReconciledVisibleConversationMetadata {
+    /// Matches already-stable rendered row IDs to one observed response.
+    ///
+    /// Preserves visible order and permits response-only prefetched rows. The
+    /// caller must separately establish that the rows belong to the same page
+    /// and remain settled across the observation; this is not a mode proof.
+    ///
+    /// # Errors
+    ///
+    /// Rejects oversized visible lists, empty/duplicate IDs, missing visible
+    /// metadata, and an explicitly empty visible page with response rows.
+    pub fn reconcile(
+        visible_ids: &[&str],
+        response: &ObservedConversationListResponse,
+    ) -> Result<Self, ConversationListReconciliationError> {
+        if visible_ids.len() > MAX_VISIBLE_CONVERSATIONS {
+            // jig-ignore-next-line: canonical rustfmt line.
+            return Err(ConversationListReconciliationError::TooManyVisibleConversations);
+        }
+        if visible_ids.is_empty() {
+            if response.conversations().is_empty() {
+                return Ok(Self {
+                    conversations: Vec::new(),
+                });
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            return Err(ConversationListReconciliationError::UnexpectedObservedConversation);
+        }
+        let mut seen = BTreeSet::new();
+        for id in visible_ids {
+            // jig-ignore-next-line: canonical rustfmt line.
+            if id.is_empty() || id.len() > MAX_CONVERSATION_ID_BYTES || !seen.insert(*id) {
+                // jig-ignore-next-line: canonical rustfmt line.
+                return Err(ConversationListReconciliationError::InvalidVisibleId);
+            }
+        }
+        let observed = response
+            .conversations()
+            .iter()
+            .map(|conversation| (conversation.id(), conversation))
+            .collect::<BTreeMap<_, _>>();
+        let mut conversations = Vec::with_capacity(visible_ids.len());
+        for id in visible_ids {
+            let metadata = observed
+                .get(id)
+                // jig-ignore-next-line: canonical rustfmt line.
+                .ok_or(ConversationListReconciliationError::MissingVisibleConversation)?;
+            conversations.push((*metadata).clone());
+        }
+        Ok(Self { conversations })
+    }
+
+    /// Returns matched provider metadata in rendered row order.
+    #[must_use]
+    pub fn conversations(&self) -> &[ObservedConversationListMetadata] {
+        &self.conversations
+    }
+}
+
+impl fmt::Debug for ReconciledVisibleConversationMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReconciledVisibleConversationMetadata")
+            .field("conversation_count", &self.conversations.len())
+            .finish()
+    }
+}
+
+/// Why bounded conversation-list metadata does not cover rendered IDs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConversationListReconciliationError {
+    /// More than 200 visible IDs were offered to this diagnostic boundary.
+    TooManyVisibleConversations,
+    /// A visible ID was empty, duplicated, or larger than the provider limit.
+    InvalidVisibleId,
+    /// The observed batch lacks at least one rendered conversation ID.
+    MissingVisibleConversation,
+    /// Response rows contradict an explicitly empty visible page.
+    UnexpectedObservedConversation,
 }
 
 /// Why a captured response cannot be treated as conversation-list metadata.

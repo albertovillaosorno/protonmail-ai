@@ -115,6 +115,12 @@ Ship useful read access before any mailbox mutation is enabled.
   retained. This intentionally does not interpret Page/Anchor continuation or
   claim snapshot/order compatibility for public `list_threads`/search; those
   provider-neutral semantics remain separate work.
+- The conversation-list response projector can now match stable visible row
+  IDs to one already-observed response, returning only ID, numeric Time,
+  provider Order, and message count in rendered order. Missing/duplicated
+  visible IDs, excessive rows, and contradictory empty-page evidence fail
+  closed. It does not by itself identify conversation render mode, tie a
+  request to an immutable page, or permit public list/search operations.
 - The managed browser now offers an explicitly passive, bounded wait for the
   next app-owned exact conversation-list GET. It checks ready Mail shell and
   origin before/after the capture, disables Network on success, timeout, or
