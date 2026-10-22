@@ -327,14 +327,11 @@ Ship useful read access before any mailbox mutation is enabled.
   optional `Code` remains compatible pending verified wire-schema evidence;
   browser tests cover the typed rejection without exposing message content.
 
-- Message metadata reconciliation now checks provider batch totals across
-  one visible-page read and rejects `Total>0` when the rendered page is
-  explicitly empty. This closes a mismatch with the existing conversation
-  diagnostic without treating equal totals as a snapshot guarantee.
-
-- Network-driven message-list batch collection now compares provider
-  totals before emitting the captured diagnostic. A changed total fails as
-  incompatible instead of reaching metadata reconciliation with mixed state.
+- Explicitly empty visible message pages now reject a positive *initial*
+  provider total even if the response row array is empty. The initial Total
+  is authoritative; anchored continuation totals may legitimately describe
+  a different result scope and are not compared to the initial batch.
+  This remains diagnostic and does not establish immutable pagination.
 
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`

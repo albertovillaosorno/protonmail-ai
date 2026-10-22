@@ -1162,11 +1162,10 @@ fn message_reconciliation_rejects_total_contradictions() {
         r#"{"Stale":0,"Total":3,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
     )
     .expect("parse changed-total synthetic batch");
-    assert_eq!(
-        // jig-ignore-next-line: canonical rustfmt line.
-        ReconciledVisibleMessageMetadata::reconcile(&["m-2", "m-1"], &[first, changed]),
-        Err(MessageListReconciliationError::InconsistentTotal),
-    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let continued = ReconciledVisibleMessageMetadata::reconcile(&["m-2", "m-1"], &[first, changed])
+        .expect("anchored continuation Total is scoped to the remainder");
+    assert_eq!(continued.messages().len(), 2);
     let zero =
         // jig-ignore-next-line: canonical rustfmt line.
         ObservedMessageListResponse::parse("GET", URL, r#"{"Stale":0,"Total":0,"Messages":[]}"#)

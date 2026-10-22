@@ -1322,7 +1322,7 @@ fn provider_rejected_message_list_body_disables_network_before_returning() {
 }
 
 #[test]
-fn browser_rejects_changed_total_across_valid_list_prefetch_batches() {
+fn browser_allows_distinct_continuation_totals_without_snapshot_claim() {
     let root = test_root("prefetch-total-changed");
     fs::create_dir_all(&root).expect("create isolated fake browser profile");
     let browser = fake_network_browser(
@@ -1354,10 +1354,10 @@ fn browser_rejects_changed_total_across_valid_list_prefetch_batches() {
         // jig-ignore-next-line: canonical rustfmt line.
         ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
     let page = managed.provider_page().expect("discover Mail page");
-    assert_eq!(
-        managed.observe_visible_message_metadata(&page),
-        Err(BrowserDriverError::MessageListBatchIncompatible)
-    );
+    let matched = managed
+        .observe_visible_message_metadata(&page)
+        .expect("anchor continuation total is not the initial total");
+    assert_eq!(matched.messages().len(), 1);
     managed
         .require_mail_shell(&page)
         .expect("same browser remains safe following batch-total drift");
