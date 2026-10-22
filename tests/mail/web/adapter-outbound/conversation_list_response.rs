@@ -1068,6 +1068,46 @@ fn managed_browser_visible_metadata_timeout_keeps_rows_unchanged() {
 }
 
 #[test]
+fn passive_conversation_list_capture_keeps_selector_bearing_get_diagnostic() {
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+    let _guard = CONVERSATION_LIST_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_list_browser_root("passive-selector-get");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_conversation_list_browser(&root, true, true, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    let with_selector = script.replace(
+        "?Page=0&PageSize=50&Limit=50",
+        "?Page=0&PageSize=50&Limit=50&BeginID=synthetic-only",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::write(&browser, with_selector).expect("install synthetic selector shape");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build synthetic plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail page");
+    let response = managed
+        .observe_passive_conversation_list(&page, Duration::from_secs(1))
+        .expect("capture unassociated app-owned diagnostic")
+        .expect("synthetic response should complete");
+    assert_eq!(response.total(), 2);
+    assert_eq!(response.conversations().len(), 2);
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-list-log.txt"))
+        .expect("read synthetic Network commands");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
+}
+
+#[test]
 fn managed_browser_rejects_request_page_mismatch_and_anchor() {
     use mail_web_adapter::BrowserDriverError;
     for (label, request_query, marker) in [

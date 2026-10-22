@@ -676,12 +676,11 @@ fn parse_request_page(
     {
         return Err(ConversationListNetworkError::InvalidPagination);
     }
-    let initial_page_shape =
-        page.is_some()
-            && page_size.is_some()
-            && page_size == limit
-            && !has_anchor
-            && !has_non_visible_selector;
+    let initial_page_shape = page.is_some()
+        && page_size.is_some()
+        && page_size == limit
+        && !has_anchor
+        && !has_non_visible_selector;
     Ok((page, has_anchor, initial_page_shape))
 }
 
