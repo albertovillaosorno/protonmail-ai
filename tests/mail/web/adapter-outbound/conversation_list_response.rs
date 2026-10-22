@@ -275,6 +275,77 @@ fn network_capture_ignores_neighbor_traffic_and_bounds_capacity() {
 }
 
 #[test]
+fn captured_conversation_request_ids_remain_terminal_after_consumption() {
+    for late in [
+        request_event("session-a", "list-1", "GET", URL),
+        request_event("session-a", "list-1", "POST", URL),
+        response_event("session-a", "list-1", URL, 200, "application/json"),
+        finished_event("session-a", "list-1"),
+        failed_event("session-a", "list-1"),
+    ] {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "list-1", "GET", URL))
+            .expect("capture app-owned initial GET");
+        capture
+            .observe(&response_event(
+                "session-a",
+                "list-1",
+                URL,
+                200,
+                "application/json",
+            ))
+            .expect("capture matching response");
+        capture
+            .observe(&finished_event("session-a", "list-1"))
+            .expect("complete response lifecycle");
+        assert_eq!(capture.take_finished_request_ids(), vec!["list-1"]);
+        assert_eq!(capture.tracked_request_count(), 0);
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+        assert_eq!(
+            capture.observe(&late),
+            Err(ConversationListNetworkError::InvalidSequence),
+        );
+    }
+}
+
+#[test]
+fn completed_conversation_request_markers_are_bounded_and_redacted() {
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    for index in 0u16..128 {
+        let id = format!("sensitive-request-{index}");
+        capture
+            .observe(&request_event("session-a", &id, "GET", URL))
+            .expect("start bounded app-owned request");
+        capture
+            .observe(&response_event(
+                "session-a",
+                &id,
+                URL,
+                200,
+                "application/json",
+            ))
+            .expect("receive bounded app-owned response");
+        capture
+            .observe(&finished_event("session-a", &id))
+            .expect("complete bounded app-owned response");
+        assert_eq!(capture.take_finished_request_ids(), vec![id]);
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    let debug = format!("{capture:?}");
+    assert!(!debug.contains("sensitive-request-"));
+    assert!(!debug.contains("SECRET"));
+    assert_eq!(
+        capture.observe(&request_event("session-a", "overflow", "GET", URL)),
+        Err(ConversationListNetworkError::CapacityExceeded),
+    );
+    assert_eq!(
+        capture.observe(&failed_event("session-a", "sensitive-request-0")),
+        Err(ConversationListNetworkError::InvalidSequence),
+    );
+}
+
+#[test]
 fn network_capture_rejects_redirects_and_repeated_lifecycle_events() {
     let mut redirected = ConversationListNetworkCapture::new("session-a");
     redirected
@@ -693,6 +764,46 @@ fn stale_conversation_list_disables_network_before_error() {
         .expect("read incomplete conversation log");
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove incomplete conversation root");
+}
+
+#[test]
+fn completed_conversation_id_replayed_during_disable_fails_closed() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    let _guard = CONVERSATION_LIST_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_list_browser_root("replayed-during-disable");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_conversation_list_browser(&root, true, true, true);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    assert!(script.contains("list-late"));
+    fs::write(&browser, script.replace("list-late", "list-1"))
+        .expect("install a repeated synthetic request ID");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build synthetic browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("discover Mail test page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_list(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::ConversationListNetwork(
+            ConversationListNetworkError::InvalidSequence,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("session remains synchronized after disable event failure");
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-list-log.txt"))
+        .expect("read synthetic Network log");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
 }
 
 #[test]

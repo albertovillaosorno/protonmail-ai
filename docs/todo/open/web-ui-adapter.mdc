@@ -526,6 +526,13 @@ web application without requiring Bridge or a third-party direct API identity.
   observer, also tears down the domain on a failed enable reply before any
   reload. A synthetic protocol-rejection fixture confirms no body read,
   explicit Network disable, and successful follow-up Mail-shell inspection.
+- Conversation-list Network capture now keeps a bounded set of consumed
+  request IDs after handing their sanitized paging evidence to the driver.
+  Repeated requests, responses, failures, or loading-finished events for a
+  completed ID are no longer silently ignored during body retrieval or
+  Network teardown. A 128-lifecycle cap bounds consumed and pending state;
+  tests cover each repeated event, cap exhaustion, redacted diagnostics, and
+  a replay during `Network.disable` followed by safe Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

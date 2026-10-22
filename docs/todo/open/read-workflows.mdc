@@ -162,6 +162,12 @@ Ship useful read access before any mailbox mutation is enabled.
   in the reviewed WebClients request path; rejecting their mixture prevents
   a false positive page match without interpreting any search/label text.
 
+- A consumed conversation-list CDP request ID remains terminal until the
+  observation ends. Bounded content-free completion markers prevent a late
+  replay/failure after the original request has been handed off from silently
+  bypassing lifecycle checks. This does not establish immutable result paging
+  or enable public thread search.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

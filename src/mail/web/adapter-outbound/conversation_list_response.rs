@@ -66,6 +66,7 @@ struct TrackedConversationListRequest {
 pub struct ConversationListNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedConversationListRequest>,
+    completed_ids: BTreeSet<String>,
     hashers: [RandomState; 2],
 }
 
@@ -76,6 +77,7 @@ impl ConversationListNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
             hashers: [RandomState::new(), RandomState::new()],
         }
     }
@@ -130,6 +132,9 @@ impl ConversationListNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != ConversationListRequestState::Finished);
+        for (request_id, _page, _anchor) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -160,6 +165,9 @@ impl ConversationListNetworkCapture {
             .and_then(Value::as_str)
             .ok_or(ConversationListNetworkError::MalformedEvent)?;
         let exact_get = method == "GET" && is_conversation_list_url(url);
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
         if self.requests.contains_key(request_id) {
             return if exact_get {
                 Err(ConversationListNetworkError::InvalidSequence)
@@ -176,7 +184,9 @@ impl ConversationListNetworkCapture {
         {
             return Err(ConversationListNetworkError::MalformedEvent);
         }
-        if self.requests.len() >= MAX_TRACKED_CONVERSATION_LIST_REQUESTS {
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_CONVERSATION_LIST_REQUESTS
+        {
             return Err(ConversationListNetworkError::CapacityExceeded);
         }
         let url_fingerprint = url_fingerprint(url, &self.hashers);
@@ -202,6 +212,9 @@ impl ConversationListNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(ConversationListNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -231,6 +244,9 @@ impl ConversationListNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), ConversationListNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -244,6 +260,9 @@ impl ConversationListNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&self, event: &Value) -> Result<(), ConversationListNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
         if self.requests.contains_key(request_id) {
             return Err(ConversationListNetworkError::RequestFailed);
         }
@@ -256,6 +275,7 @@ impl fmt::Debug for ConversationListNetworkCapture {
         f.debug_struct("ConversationListNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .field("url_fingerprints", &"<redacted>")
             .field("hashers", &"<redacted>")
             .finish()
