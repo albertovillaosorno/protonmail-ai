@@ -691,8 +691,8 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-only DOM rows, list metadata, detail identities, catalog IDs, event
   watermarks, and continuation anchors now reuse one private bounded opaque-ID
   validator. This removes duplicated route-component policy and gives future
-  normalization changes one auditable fail-closed implementation. Unit tests
-  cover the shared boundary; existing synthetic browser suites remain intact.
+  normalization changes one auditable fail-closed implementation. Synthetic
+  integration tests cover the boundary and browser lifecycle fixtures.
 - The shared bounded read-ID validator now rejects literal `%` escapes and
   invisible Unicode directional/formatting characters before opaque IDs can
   enter a read route, UI row, catalog cursor, or event watermark. Synthetic
