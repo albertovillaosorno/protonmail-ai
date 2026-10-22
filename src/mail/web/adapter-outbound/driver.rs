@@ -3376,6 +3376,7 @@ impl ManagedBrowser {
         session: &str,
         params: &Value,
     ) -> Result<(), BrowserDriverError> {
+        // jig-ignore-next-line: canonical rustfmt line.
         if let Err(error) = self.call_in_session(session, "Network.enable", params) {
             self.call_in_session(session, "Network.disable", &json!({}))?;
             return Err(error);

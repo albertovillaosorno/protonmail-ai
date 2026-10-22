@@ -667,7 +667,6 @@ fn rejected_network_enable_still_disables_attachment_observation() {
     let browser = fake_attachment_browser(&root, false, MESSAGE_ID, false);
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read synthetic browser script");
-    // jig-ignore-next-line: indivisible synthetic fixture command.
     let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4";
     // jig-ignore-next-line: indivisible synthetic fixture command.
     let replacement = "      printf '{\"id\":%s,\"error\":{\"code\":-32601,\"message\":\"synthetic unavailable\"}}\\0' \"$id\" >&4";

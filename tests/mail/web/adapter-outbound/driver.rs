@@ -995,7 +995,6 @@ fn rejected_message_list_network_enable_disables_before_returning() {
         "1790847999",
     );
     let script = fs::read_to_string(&browser).expect("read fake CDP script");
-    // jig-ignore-next-line: indivisible synthetic fixture command.
     let expected = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
     assert!(script.contains(expected));
     // jig-ignore-next-line: indivisible synthetic fixture command.
