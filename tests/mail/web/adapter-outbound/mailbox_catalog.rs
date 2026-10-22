@@ -1495,3 +1495,46 @@ fn catalog_identity_safety_preserves_arbitrary_display_names() {
     .expect("printable folder and parent IDs are accepted");
     assert_eq!(projected.items()[0].parent_id(), Some("parent+_~="));
 }
+
+#[test]
+fn unsafe_catalog_body_id_is_rejected_with_network_teardown() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock catalog browser fixtures");
+    let root = catalog_browser_root("unsafe-body-id");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_catalog_browser(&root, false, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake catalog browser script");
+    assert!(script.contains("label-safe"));
+    fs::write(&browser, script.replace("label-safe", "label/unsafe"))
+        .expect("install synthetic unsafe provider label ID");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build synthetic profile plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed
+        .provider_page()
+        .expect("discover synthetic Mail page");
+    assert_eq!(
+        managed.observe_mailbox_catalog(&page),
+        Err(BrowserDriverError::MailboxCatalogResponse(
+            MailboxCatalogResponseError::Malformed
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("same session remains usable after failed catalog projection");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("catalog-log.txt")).expect("read synthetic Network commands");
+    assert_eq!(log, "enable\nreload\nbody-folder\nbody-label\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
+}

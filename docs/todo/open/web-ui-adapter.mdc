@@ -680,6 +680,10 @@ web application without requiring Bridge or a third-party direct API identity.
   visible-list ID guard blocks content-bearing snapshots for slash-bearing or
   Unicode-whitespace IDs. It returns a typed list incompatibility before
   message content projection and permits subsequent safe Mail-shell access.
+- A fake-Chromium catalog fixture now injects an unsafe provider label ID
+  into an otherwise valid app-owned response. The managed browser rejects the
+  metadata, logs mandatory Network.disable, and safely inspects Mail afterward
+  without exposing the invalid ID or retrying through another provider path.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
