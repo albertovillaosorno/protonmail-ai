@@ -334,7 +334,9 @@ fn dedicated_profile_debug_does_not_reveal_absolute_data_home() {
 fn login_error_diagnostics_redact_local_paths_and_browser_executables() {
     use mail_web_adapter::WebLoginError;
 
+    // jig-ignore-next-line: canonical rustfmt line.
     let secret_path = PathBuf::from("/test-only/private-home/audit-credential-marker");
+    // jig-ignore-next-line: canonical rustfmt line.
     let secret_browser = String::from("/test-only/browser/audit-credential-marker");
     let sensitive = [
         WebLoginError::ProfileLink(secret_path.clone()),

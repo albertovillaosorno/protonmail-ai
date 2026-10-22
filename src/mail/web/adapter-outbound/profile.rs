@@ -204,6 +204,7 @@ impl fmt::Debug for WebLoginError {
             Self::BrowserUnavailable => f.write_str("BrowserUnavailable"),
             Self::ProfileLink(_) => f.write_str("ProfileLink(<redacted>)"),
             Self::ProjectLink(_) => f.write_str("ProjectLink(<redacted>)"),
+            // jig-ignore-next-line: canonical rustfmt line.
             Self::ProfileIsNotDirectory(_) => f.write_str("ProfileIsNotDirectory(<redacted>)"),
             Self::ProfileCreate(_) => f.write_str("ProfileCreate(<redacted>)"),
             Self::AutomationInUse => f.write_str("AutomationInUse"),
@@ -218,12 +219,14 @@ impl fmt::Display for WebLoginError {
         match self {
             Self::MissingDataHome => f.write_str("browser data unavailable"),
             Self::BrowserUnavailable => f.write_str("Chromium unavailable"),
+            // jig-ignore-next-line: canonical rustfmt line.
             Self::AutomationInUse => f.write_str("profile owned by managed automation"),
             Self::ProfileLink(_) => f.write_str("profile symlink"),
             Self::ProjectLink(_) => f.write_str("project symlink"),
             Self::ProfileIsNotDirectory(_) => {
                 f.write_str("browser profile path is not a directory")
             }
+            // jig-ignore-next-line: canonical rustfmt line.
             Self::ProfileCreate(_) => f.write_str("cannot create browser profile"),
             Self::BrowserLaunch(_) => f.write_str("cannot launch browser"),
             Self::LeaseInspect => f.write_str("cannot inspect profile lease"),
