@@ -1077,6 +1077,9 @@ fn valid_event_id(event_id: &str) -> bool {
     !event_id.is_empty()
         && event_id.len() <= MAX_EVENT_ID_BYTES
         && !event_id.contains(['/', '?', '#'])
+        && !event_id
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
 }
 
 fn project_mailbox_changes(

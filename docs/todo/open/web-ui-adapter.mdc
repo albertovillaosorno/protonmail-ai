@@ -590,6 +590,10 @@ web application without requiring Bridge or a third-party direct API identity.
   or dropped completion evidence without disallowing a failed unfinished
   provider attempt from being retried. Unit tests prove each finished request
   survives a contradictory failure and remains consumable afterward.
+- Event watermark projection now rejects ASCII whitespace and control bytes
+  in opaque IDs from the latest bootstrap, v5 response, or request URL before
+  they can become resumable cursor state. Synthetic tests cover tab, newline,
+  carriage return, space, and DEL while allowing printable opaque IDs.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

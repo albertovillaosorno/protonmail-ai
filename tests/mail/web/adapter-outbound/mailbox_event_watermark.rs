@@ -1827,3 +1827,39 @@ fn finished_mailbox_event_requests_cannot_fail_before_consumption() {
     assert_eq!(latest.take_finished_request_ids(), ["finished-latest"]);
     assert_eq!(events.take_finished_request_ids(), ["finished-v5"]);
 }
+
+#[test]
+fn control_and_whitespace_event_ids_never_enter_cursor_state() {
+    use serde_json::json;
+    let bootstrap = "https://mail.proton.me/api/core/v4/events/latest";
+    let bad = [
+        "event bad",
+        "event\tbad",
+        "event\nbad",
+        "event\rbad",
+        "event\u{7f}bad",
+    ];
+    for value in bad {
+        let latest_body = json!({"EventID": value}).to_string();
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedLatestMailboxEventWatermark::parse("GET", bootstrap, &latest_body),
+            Err(MailboxEventWatermarkError::Malformed)
+        );
+        let event_body = json!({"EventID": value, "More": 0u8}).to_string();
+        assert_eq!(
+            ObservedMailboxEventWatermark::parse("GET", URL, &event_body),
+            Err(MailboxEventWatermarkError::Malformed)
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let request_url = format!("https://mail.proton.me/api/core/v5/events/{value}");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedMailboxEventWatermark::parse("GET", &request_url, &event_body),
+            Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+        );
+    }
+    let good = json!({"EventID":"event-7+_~="}).to_string();
+    // jig-ignore-next-line: canonical rustfmt line.
+    assert!(ObservedLatestMailboxEventWatermark::parse("GET", bootstrap, &good).is_ok());
+}

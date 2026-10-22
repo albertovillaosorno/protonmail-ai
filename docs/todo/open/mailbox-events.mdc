@@ -35,6 +35,14 @@ bounded resource use.
   GET during Network disable, then prove the session can still be inspected
   without navigation, additional polling, or leaking event payload content.
 
+## Watermark input safety
+
+- Cursor-bound `EventID` values are now rejected when they contain ASCII
+  whitespace or control characters, whether read from the legacy latest
+  bootstrap, v5 poll responses, or the exact v5 request URL. Tests preserve
+  printable opaque IDs and reject synthetic spaces, tabs, line breaks, and
+  DEL before any event state can be persisted.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume
