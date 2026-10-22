@@ -1678,6 +1678,9 @@ fn conversation_continuation_anchor_time_must_be_bounded_decimal() {
     let base = "https://mail.proton.me/api/mail/v4/conversations";
     let huge = "9".repeat(512);
     for (index, invalid) in [
+        "00",
+        "007",
+        "000000",
         "",
         "abc",
         "-1",
@@ -1762,6 +1765,10 @@ fn malformed_conversation_continuation_during_enable_cleans_network() {
 #[test]
 fn conversation_numeric_page_and_limit_selectors_require_canonical_digits() {
     for (field, invalid) in [
+        ("Page", "00"),
+        ("Page", "01"),
+        ("PageSize", "050"),
+        ("Limit", "050"),
         ("Page", "+1"),
         ("Page", " 1"),
         ("Page", "%31"),

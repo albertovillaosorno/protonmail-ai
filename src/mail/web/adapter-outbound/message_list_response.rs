@@ -564,7 +564,10 @@ fn numeric_query_parameter(url: &str, name: &str) -> Result<Option<u64>, Message
     let Some(value) = raw_query_parameter(url, name)? else {
         return Ok(None);
     };
-    if value.len() > 20 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+    if value.len() > 20
+        || (value.len() > 1 && value.starts_with('0'))
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
         return Err(MessageListNetworkError::MalformedEvent);
     }
     value

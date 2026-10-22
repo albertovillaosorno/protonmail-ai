@@ -307,6 +307,10 @@ Ship useful read access before any mailbox mutation is enabled.
   representations, so a decoded catalog cannot be attributed to a loosely
   parsed category. Unsupported canonical numeric types remain unobserved.
 
+- Numeric list page and continuation shape validators now reject
+  leading-zero aliases, preventing noncanonical URLs from matching the same
+  rendered page or continuation timestamp during passive request capture.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -727,6 +727,11 @@ web application without requiring Bridge or a third-party direct API identity.
   into an app-owned GET request or only its response. Both paths fail before
   body retrieval, audit `Network.disable`, and preserve later safe same-session
   Mail-shell inspection. No account, navigation or provider call is used.
+- Message and conversation pagination now reject leading-zero aliases of
+  numeric `Page`, `PageSize`, `Limit`, time `Anchor`, and message-list `Desc`
+  while retaining the canonical literal `0`. This prevents different URL
+  spellings from being treated as equivalent bounded page-state evidence.
+  Synthetic tests cover each selector and established valid examples.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

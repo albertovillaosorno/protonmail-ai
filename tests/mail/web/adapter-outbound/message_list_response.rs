@@ -1054,6 +1054,12 @@ fn numeric_message_list_query_fields_require_bounded_decimal_evidence() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
     for (field, invalid) in [
+        ("Page", "00"),
+        ("Page", "01"),
+        ("PageSize", "050"),
+        ("Limit", "050"),
+        ("Desc", "01"),
+        ("Anchor", "007"),
         ("Page", "+1"),
         ("Page", " 1"),
         ("Page", "%31"),
