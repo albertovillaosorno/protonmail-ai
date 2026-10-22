@@ -1138,3 +1138,41 @@ fn explicitly_rejected_message_list_code_cannot_become_read_metadata() {
         assert_eq!(parsed.messages().len(), 0);
     }
 }
+
+#[test]
+fn message_reconciliation_rejects_total_contradictions() {
+    let empty_positive =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMessageListResponse::parse("GET", URL, r#"{"Stale":0,"Total":3,"Messages":[]}"#)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("fresh empty batch may be a continuation beyond current rows");
+    assert_eq!(
+        ReconciledVisibleMessageMetadata::reconcile(&[], &[empty_positive]),
+        Err(MessageListReconciliationError::UnexpectedObservedMessage)
+    );
+    let first = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-2","Time":2,"Order":2}]}"#,
+    )
+    .expect("parse first synthetic batch");
+    let changed = ObservedMessageListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Stale":0,"Total":3,"Messages":[{"ID":"m-1","Time":1,"Order":1}]}"#,
+    )
+    .expect("parse changed-total synthetic batch");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleMessageMetadata::reconcile(&["m-2", "m-1"], &[first, changed]),
+        Err(MessageListReconciliationError::InconsistentTotal),
+    );
+    let zero =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMessageListResponse::parse("GET", URL, r#"{"Stale":0,"Total":0,"Messages":[]}"#)
+            .expect("parse actually empty catalog");
+    let empty = ReconciledVisibleMessageMetadata::reconcile(&[], &[zero])
+        // jig-ignore-next-line: canonical rustfmt line.
+        .expect("explicit empty page with zero provider total remains consistent");
+    assert_eq!(empty.messages().len(), 0);
+}

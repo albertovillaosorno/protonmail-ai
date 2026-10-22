@@ -327,6 +327,11 @@ Ship useful read access before any mailbox mutation is enabled.
   optional `Code` remains compatible pending verified wire-schema evidence;
   browser tests cover the typed rejection without exposing message content.
 
+- Message metadata reconciliation now checks provider batch totals across
+  one visible-page read and rejects `Total>0` when the rendered page is
+  explicitly empty. This closes a mismatch with the existing conversation
+  diagnostic without treating equal totals as a snapshot guarantee.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

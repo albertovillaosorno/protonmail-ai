@@ -802,6 +802,11 @@ web application without requiring Bridge or a third-party direct API identity.
   a cursor. Missing `Code` remains backward-compatible, and `1000` succeeds.
   Fake Chromium fixtures for both flows prove typed provider refusal, Network
   disable, and subsequent safe same-session Mail-shell access.
+- Visible-message metadata reconciliation now refuses an explicitly empty
+  rendered page if any accepted list batch reports a positive `Total`, even
+  when that batch contains zero rows. Captured prefetch batches must also
+  agree on the provider total; mismatch returns typed `InconsistentTotal`.
+  These necessary consistency checks do not establish immutable pagination.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

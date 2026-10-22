@@ -836,6 +836,13 @@ impl ReconciledVisibleMessageMetadata {
         if visible_ids.len() > MAX_VISIBLE_MESSAGE_METADATA {
             return Err(MessageListReconciliationError::TooManyVisibleMessages);
         }
+        if let Some(first) = responses.first()
+            && responses
+                .iter()
+                .any(|response| response.total() != first.total())
+        {
+            return Err(MessageListReconciliationError::InconsistentTotal);
+        }
         let mut observed = BTreeMap::new();
         for response in responses {
             for message in response.messages() {
@@ -846,7 +853,8 @@ impl ReconciledVisibleMessageMetadata {
             }
         }
         if visible_ids.is_empty() {
-            if observed.is_empty() {
+            // jig-ignore-next-line: canonical rustfmt line.
+            if observed.is_empty() && responses.iter().all(|response| response.total() == 0) {
                 return Ok(Self {
                     messages: Vec::new(),
                 });
@@ -900,6 +908,8 @@ pub enum MessageListReconciliationError {
     InvalidVisibleId,
     /// Two observed provider batches overlap on the same message ID.
     DuplicateObservedId,
+    /// Provider batch totals disagree within one captured page observation.
+    InconsistentTotal,
     /// A stable visible message ID has no observed machine metadata.
     MissingVisibleMessage,
     /// An explicitly empty stable page conflicts with observed message data.
