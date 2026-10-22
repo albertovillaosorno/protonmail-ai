@@ -600,6 +600,11 @@ impl ManagedBrowser {
             .get("targetInfos")
             .and_then(Value::as_array)
             .ok_or(BrowserDriverError::Protocol)?;
+        // One dedicated browser profile should not expose an unbounded target
+        // catalog to a mail observer; fail before parsing page identities.
+        if infos.len() > MAX_DISCOVERABLE_TARGETS {
+            return Err(BrowserDriverError::Protocol);
+        }
         let mut selected = None;
         for info in infos {
             let Some(page) = provider_page_from_target(info)? else {
@@ -4230,6 +4235,10 @@ fn validate_cdp_notification(message: &Value) -> Result<(), BrowserDriverError> 
     Ok(())
 }
 
+// This catalog is only discovery metadata, not user inbox content.
+const MAX_DISCOVERABLE_TARGETS: usize = 128;
+const MAX_TARGET_URL_BYTES: usize = 16_384;
+
 // CDP target and session IDs are browser-owned opaque ASCII identifiers.
 // Refuse separators, hidden Unicode, empty IDs and oversized metadata before
 // reusing an identifier in a subsequent privileged browser command.
@@ -4256,6 +4265,9 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
         .get("url")
         .and_then(Value::as_str)
         .ok_or(BrowserDriverError::Protocol)?;
+    if raw_url.len() > MAX_TARGET_URL_BYTES {
+        return Err(BrowserDriverError::Protocol);
+    }
     let origin = trusted_origin(raw_url);
     if origin == PageOrigin::Other {
         return Ok(None);

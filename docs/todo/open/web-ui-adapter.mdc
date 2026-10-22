@@ -833,6 +833,11 @@ web application without requiring Bridge or a third-party direct API identity.
   command IDs and reply fields cannot masquerade as events. Five delayed
   private-pipe event fixtures prove typed fail-closed wait behavior, mandatory
   Network disable, and safe same-session shell inspection.
+- Dedicated Chromium provider-page discovery now bounds `Target.getTargets`
+  metadata to at most 128 targets and each page URL to 16 KiB before origin
+  selection. Synthetic tests prove both accepted boundary values and one-over
+  refusals. No page titles, URLs, or target handles are written to diagnostics,
+  and extra non-page targets remain ignored within the overall bound.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -1598,3 +1598,65 @@ fn matching_explicit_cdp_session_reply_is_accepted() {
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn dedicated_browser_target_discovery_is_bounded_before_selection() {
+    use serde_json::json;
+    for (label, extra_targets, expected) in [
+        ("at-bound", 127usize, Ok(PageOrigin::ProtonMail)),
+        ("over-bound", 128usize, Err(BrowserDriverError::Protocol)),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create test profile");
+        let mut targets = vec![json!({
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox"
+        })];
+        targets.extend(
+            (0..extra_targets)
+                // jig-ignore-next-line: canonical rustfmt line.
+                .map(|index| json!({"targetId":format!("other-{index}"),"type":"service_worker"})),
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let browser = fake_browser(&root, &json!(targets).to_string(), "mail.proton.me");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+        assert_eq!(managed.provider_page().map(|page| page.origin()), expected);
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn provider_target_url_metadata_has_a_bounded_ceiling() {
+    use serde_json::json;
+    let prefix = "https://mail.proton.me/";
+    for (label, size, accepted) in [
+        ("url-at-bound", 16_384usize, true),
+        ("url-over-bound", 16_385usize, false),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic browser profile");
+        let url = format!("{prefix}{}", "x".repeat(size - prefix.len()));
+        let targets = json!([{
+            "targetId":"page-1","type":"page","url":url
+        }]);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic Chromium");
+        if accepted {
+            assert_eq!(
+                managed.provider_page().map(|page| page.origin()),
+                Ok(PageOrigin::ProtonMail)
+            );
+        } else {
+            // jig-ignore-next-line: canonical rustfmt line.
+            assert_eq!(managed.provider_page(), Err(BrowserDriverError::Protocol));
+        }
+        drop(managed);
+        cleanup(&root);
+    }
+}
