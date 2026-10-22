@@ -519,6 +519,16 @@ destination_license=GPL-3.0-only
 modifications=original-rust-sort-and-readiness-fixtures
 
 [file]
+path=src/mail/web/adapter-outbound/opaque_read_id.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-rust-bounded-opaque-read-id-validation
+
+[file]
 path=src/mail/web/adapter-outbound/message_list_response.rs
 origin=fact-informed
 source_id=proton-webclients
