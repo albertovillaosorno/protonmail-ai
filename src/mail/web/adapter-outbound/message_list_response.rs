@@ -504,7 +504,15 @@ fn query_context_fingerprint(
             !matches!(key, "Page" | "PageSize" | "Limit" | "Anchor" | "AnchorID")
         })
         .collect::<Vec<_>>();
-    pairs.sort_unstable();
+    // Different query keys may be reordered by the app, but the order of
+    // repeated values for one key may affect which messages are selected.
+    // A stable key-only sort retains that sequence without storing the query.
+    pairs.sort_by(|left, right| {
+        let left_key = left.split_once('=').map_or(*left, |(key, _value)| key);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let right_key = right.split_once('=').map_or(*right, |(key, _value)| key);
+        left_key.cmp(right_key)
+    });
     let mut result = [0u64; 2];
     for (slot, state) in result.iter_mut().zip(hashers) {
         *slot = state.hash_one(&pairs);

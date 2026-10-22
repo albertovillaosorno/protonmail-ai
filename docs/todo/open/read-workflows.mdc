@@ -220,6 +220,11 @@ Ship useful read access before any mailbox mutation is enabled.
   non-network identities. This prevents synthetic fragment/query drift from
   being mistaken for app-owned list evidence without inventing public paging.
 
+- The bounded message-list query fingerprint now preserves the relative
+  order of repeated keys while canonicalizing distinct query-key placement.
+  This is a conservative identity check rather than provider search semantics;
+  unknown repeated filter values cannot reorder silently between batches.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

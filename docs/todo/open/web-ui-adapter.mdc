@@ -611,6 +611,12 @@ web application without requiring Bridge or a third-party direct API identity.
   Both list classifiers also reject fragment-bearing URLs rather than
   interpreting their fragments as real network query evidence. Unit tests
   cover the byte ceiling, response rejection, fragments, and redirects.
+- Message-list query-context fingerprints now use a stable key-only sort.
+  The observed app may reorder unrelated parameter keys across initial and
+  continuation requests, but repeated values for the same key retain their
+  original order so an unproven filter-sequence swap cannot appear identical.
+  A synthetic test covers both harmless key reordering and rejected repeated
+  filter drift without retaining or printing confidential query content.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

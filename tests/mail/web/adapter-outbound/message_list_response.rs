@@ -821,3 +821,46 @@ fn fragment_bearing_message_list_urls_are_not_exact_network_gets() {
         Err(MessageListNetworkError::RedirectedAway)
     );
 }
+
+#[test]
+fn repeated_message_list_filter_order_remains_part_of_query_identity() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let initial = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&",
+        "LabelID=alpha&LabelID=beta&Unread=1"
+    );
+    let continued = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Unread=1&Desc=1&Sort=Time&Limit=50&Anchor=7&AnchorID=m-50&",
+        "LabelID=alpha&LabelID=beta"
+    );
+    let reordered_values = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Unread=1&Desc=1&Sort=Time&Limit=50&Anchor=7&AnchorID=m-50&",
+        "LabelID=beta&LabelID=alpha"
+    );
+    let request = |id: &str, url: &str| {
+        json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":url}}
+        })
+    };
+    let mut safe = MessageListNetworkCapture::new("session-1");
+    safe.observe(&request("first", initial))
+        .expect("observe initial list");
+    safe.observe(&request("second", continued))
+        .expect("different key order preserves equivalent filter sequence");
+    let mut unsafe_capture = MessageListNetworkCapture::new("session-1");
+    unsafe_capture
+        .observe(&request("first", initial))
+        .expect("observe initial filtered list");
+    assert_eq!(
+        unsafe_capture.observe(&request("second", reordered_values)),
+        Err(MessageListNetworkError::QueryContextChanged)
+    );
+    for secret in ["LabelID", "alpha", "beta", "Unread"] {
+        assert!(!format!("{unsafe_capture:?}").contains(secret));
+    }
+}
