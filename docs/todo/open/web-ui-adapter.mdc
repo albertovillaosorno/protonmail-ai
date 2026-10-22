@@ -661,6 +661,11 @@ web application without requiring Bridge or a third-party direct API identity.
   validator rejects separator, whitespace, and control-character drift, while
   leaving filename and MIME sanitization separate. Synthetic tests cover
   capture, direct body projection, caller scope, and safe opaque identifiers.
+- Mailbox/label catalog projection now rejects unsafe opaque folder, label,
+  and parent-folder identifiers before they can enter typed snapshots. Names
+  remain arbitrary bounded user-facing text rather than route identifiers.
+  Synthetic tests confirm unsafe ID rejection and valid printable ID/name
+  preservation in the same bounded, content-minimized catalog path.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

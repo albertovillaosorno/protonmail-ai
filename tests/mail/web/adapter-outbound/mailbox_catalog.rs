@@ -1417,3 +1417,81 @@ fn catalog_finish_then_failure_during_reload_never_reads_provider_body() {
     assert_eq!(log, "enable\nreload\ndisable\n");
     fs::remove_dir_all(&root).expect("clean synthetic browser root");
 }
+
+#[test]
+fn mailbox_catalog_refuses_unsafe_label_and_folder_identifiers() {
+    for bad in [
+        "bad/id",
+        "bad?id",
+        "bad#id",
+        "bad\\id",
+        "bad id",
+        "bad\nid",
+        "bad\tid",
+        "bad\rid",
+        "bad\u{a0}id",
+        "bad\u{7f}id",
+    ] {
+        let label = json!({
+            "Code":1000u16,
+            "Labels":[{"ID":bad,"Name":"Safe name","Type":1u8,"Order":1i64}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedMailboxCatalogResponse::parse(
+                MailboxCatalogKind::Label,
+                "GET",
+                LABEL_URL,
+                &label
+            ),
+            Err(MailboxCatalogResponseError::Malformed)
+        );
+        let folder = json!({
+            "Code":1000u16,
+            // jig-ignore-next-line: canonical rustfmt line.
+            "Labels":[{"ID":"folder-1","Name":"Safe name","Type":3u8,"Order":1i64,
+                "ParentID":bad}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedMailboxCatalogResponse::parse(
+                MailboxCatalogKind::Folder,
+                "GET",
+                FOLDER_URL,
+                &folder
+            ),
+            Err(MailboxCatalogResponseError::Malformed)
+        );
+    }
+}
+
+#[test]
+fn catalog_identity_safety_preserves_arbitrary_display_names() {
+    let labels = json!({
+        "Code":1000u16,
+        "Labels":[{"ID":"label+_~=", "Name":"Name / ? # \n \u{a0} test",
+            "Type":1u8,"Order":2i64}]
+    })
+    .to_string();
+    let projected =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxCatalogResponse::parse(MailboxCatalogKind::Label, "GET", LABEL_URL, &labels)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("printable opaque ID with user-controlled name is accepted");
+    assert_eq!(projected.items()[0].id(), "label+_~=");
+    assert_eq!(projected.items()[0].name(), "Name / ? # \n \u{a0} test");
+    let folders = json!({
+        "Code":1000u16,
+        "Labels":[{"ID":"folder+_~=", "Name":"Project / Root", "Type":3u8,
+            "Order":2i64, "ParentID":"parent+_~="}]
+    })
+    .to_string();
+    let projected = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::Folder,
+        "GET",
+        FOLDER_URL,
+        &folders,
+    )
+    .expect("printable folder and parent IDs are accepted");
+    assert_eq!(projected.items()[0].parent_id(), Some("parent+_~="));
+}
