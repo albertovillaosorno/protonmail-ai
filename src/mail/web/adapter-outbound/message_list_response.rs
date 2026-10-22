@@ -577,7 +577,7 @@ fn bounded_query_parameter(
     let Some(value) = raw_query_parameter(url, name)? else {
         return Ok(None);
     };
-    if value.is_empty() || value.len() > max_bytes {
+    if !valid_list_id(value, max_bytes) {
         return Err(MessageListNetworkError::MalformedEvent);
     }
     Ok(Some(String::from(value)))

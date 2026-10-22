@@ -89,6 +89,10 @@ bounded resource use.
   same request are equality-compatible as before; the private URL fingerprints
   remain authoritative solely for validating request/response identity.
 
+- Event watermark, message-change, and conversation-change identifiers now
+  reject Unicode controls and whitespace, not just ASCII variants. Synthetic
+  tests cover NBSP, em-space, and C1 control characters without logging IDs.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

@@ -666,6 +666,11 @@ web application without requiring Bridge or a third-party direct API identity.
   remain arbitrary bounded user-facing text rather than route identifiers.
   Synthetic tests confirm unsafe ID rejection and valid printable ID/name
   preservation in the same bounded, content-minimized catalog path.
+- Event watermarks and normalized mailbox-change IDs now reject Unicode
+  whitespace and control characters as well as unsafe ASCII, closing a gap
+  between event ID parsing and other opaque read-identifier boundaries.
+  Message-list continuation `AnchorID` also uses safe route-component checks
+  rather than length alone. Synthetic tests cover both rules and valid anchors.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

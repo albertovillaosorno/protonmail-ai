@@ -1838,6 +1838,9 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
         "event\nbad",
         "event\rbad",
         "event\u{7f}bad",
+        "event\u{85}bad",
+        "event\u{a0}bad",
+        "event\u{2003}bad",
     ];
     for value in bad {
         let latest_body = json!({"EventID": value}).to_string();
@@ -1867,7 +1870,16 @@ fn control_and_whitespace_event_ids_never_enter_cursor_state() {
 #[test]
 fn malformed_mailbox_change_ids_are_not_exposed_from_event_projection() {
     use serde_json::json;
-    for bad in ["bad id", "bad\tid", "bad\nid", "bad\rid", "bad\u{7f}id"] {
+    for bad in [
+        "bad id",
+        "bad\tid",
+        "bad\nid",
+        "bad\rid",
+        "bad\u{7f}id",
+        "bad\u{85}id",
+        "bad\u{a0}id",
+        "bad\u{2003}id",
+    ] {
         for collection in ["Messages", "Conversations"] {
             let mut body = json!({"EventID":"event-8", "More":0u8});
             body[collection] = json!([{"ID":bad,"Action":1u8}]);

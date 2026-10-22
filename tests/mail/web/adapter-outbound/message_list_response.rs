@@ -988,3 +988,47 @@ fn visible_message_ids_are_checked_before_metadata_lookup() {
         Err(MessageListReconciliationError::InvalidVisibleId)
     );
 }
+
+#[test]
+fn message_list_anchor_id_rejects_unsafe_route_components() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let request = |url: &str| {
+        json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            // jig-ignore-next-line: canonical rustfmt line.
+            "params":{"requestId":"next-page","request":{"method":"GET","url":url}}
+        })
+    };
+    for bad in [
+        "bad/id",
+        "bad?id",
+        "bad\\id",
+        "bad id",
+        "bad\nid",
+        "bad\tid",
+        "bad\rid",
+        "bad\u{a0}id",
+        "bad\u{85}id",
+        "bad\u{2003}id",
+    ] {
+        let url = format!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&AnchorID={bad}&Sort=Time&Desc=1"
+        );
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&request(&url)),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+    let safe = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?Limit=50&Anchor=7&",
+        "AnchorID=opaque+_~=&Sort=Time&Desc=1"
+    );
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&request(safe))
+        .expect("safe opaque anchor remains valid");
+}

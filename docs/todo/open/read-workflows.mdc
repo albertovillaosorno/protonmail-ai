@@ -260,6 +260,10 @@ Ship useful read access before any mailbox mutation is enabled.
   Nested `ParentID` values receive the same checks; safe printable IDs and
   non-route display text continue to project without changing public tools.
 
+- Message-list continuation anchors are now checked as bounded safe opaque
+  IDs rather than length-only strings; malformed separators and Unicode
+  whitespace fail before a continuation can become list evidence.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
