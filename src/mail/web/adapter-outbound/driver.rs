@@ -2269,8 +2269,17 @@ impl ManagedBrowser {
             "maxTotalBufferSize": CONVERSATION_LIST_TOTAL_BUFFER_BYTES
         });
         let mut capture = ConversationListNetworkCapture::new(session);
-        // jig-ignore-next-line: canonical rustfmt line.
-        self.call_in_session_observing(session, "Network.enable", &network_params, &mut capture)?;
+        let enable = self.call_in_session_observing(
+            session,
+            "Network.enable",
+            &network_params,
+            &mut capture,
+        );
+        if let Err(error) = enable {
+            // Never abandon an enabled Network domain after lifecycle failure.
+            self.call_in_session(session, "Network.disable", &json!({}))?;
+            return Err(error);
+        }
         let deadline = Instant::now()
             .checked_add(wait)
             .ok_or(BrowserDriverError::ConversationListWaitTooLong)?;
@@ -3375,6 +3384,9 @@ impl ManagedBrowser {
         let id = self.allocate_id()?;
         self.send_request(id, session, method, params)?;
 
+        // Drain the command reply even when an observed Network event fails.
+        // This keeps the CDP stream synchronized for mandatory cleanup.
+        let mut observation_error = None;
         for _event in 0..MAX_UNSOLICITED {
             let frame = read_frame(&mut self.reader)?;
             let message: Value =
@@ -3382,18 +3394,24 @@ impl ManagedBrowser {
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let Some(response_id) = message.get("id").and_then(Value::as_u64) else {
-                if let Some(observer) = capture.as_deref_mut() {
-                    observer.observe_event(&message)?;
+                if observation_error.is_none()
+                    && let Some(observer) = capture.as_deref_mut()
+                {
+                    observation_error = observer.observe_event(&message).err();
                 }
                 continue;
             };
             if response_id != id || message.get("error").is_some() {
                 return Err(BrowserDriverError::Protocol);
             }
-            return message
+            let result = message
                 .get("result")
                 .cloned()
-                .ok_or(BrowserDriverError::Protocol);
+                .ok_or(BrowserDriverError::Protocol)?;
+            if let Some(error) = observation_error {
+                return Err(error);
+            }
+            return Ok(result);
         }
         Err(BrowserDriverError::Protocol)
     }

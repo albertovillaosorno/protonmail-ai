@@ -514,7 +514,6 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
     *'Network.enable'*)
       printf 'enable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4
       if [ '__EMIT_DETAIL__' = 'true' ]; then
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         url='https://mail.proton.me/api/mail/v4/conversations?Page=0&PageSize=50&Limit=50'
@@ -525,7 +524,8 @@ while IFS= read -r -d '' message <&3; do
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         finished='{"sessionId":"session-1","method":"Network.loadingFinished","params":{"requestId":"list-1"}}'
         printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
-      fi;;
+      fi
+      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *'Network.getResponseBody'*'"requestId":"list-1"'*)
       printf 'body\n' >> '__LOG__'
       if [ '__COMPLETE_BODY__' = 'true' ]; then
@@ -990,4 +990,68 @@ fn network_capture_rejects_malformed_conversation_page_selectors() {
         );
         assert_eq!(capture.tracked_request_count(), 0);
     }
+}
+
+#[test]
+fn malformed_request_during_enable_drains_reply_and_disables_network() {
+    use mail_web_adapter::BrowserDriverError;
+    let (observed, log) = observe_visible_case(
+        "bad-request-during-enable",
+        VisibleBrowserCase {
+            row_id: "conversation-2",
+            drift: false,
+            message_mode: false,
+            emits_response: true,
+            request_query: "?Page=invalid",
+            page_marker: None,
+        },
+    );
+    assert_eq!(
+        observed,
+        Err(BrowserDriverError::ConversationListNetwork(
+            ConversationListNetworkError::InvalidPagination,
+        ))
+    );
+    assert_eq!(log, "enable\ndisable\n");
+}
+
+#[test]
+fn malformed_request_during_enable_preserves_followup_inspection() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = CONVERSATION_LIST_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic conversation browser tests");
+    let root = conversation_list_browser_root("enable-recovery");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_conversation_list_browser(&root, true, true, false);
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let malformed = script.replace("?Page=0&PageSize=50&Limit=50", "?Page=not-a-number");
+    fs::write(&browser, malformed).expect("change synthetic request page");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build synthetic browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("find synthetic Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_list(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::ConversationListNetwork(
+            ConversationListNetworkError::InvalidPagination,
+        ))
+    );
+    let inspected = managed
+        .inspect_mailbox_list(&page)
+        .expect("CDP session remains synchronized after failed request");
+    assert_eq!(inspected.row_ids(), &[String::from("conversation-2")]);
+    drop(managed);
+    let log = fs::read_to_string(root.join("conversation-list-log.txt"))
+        .expect("read synthetic browser log");
+    assert_eq!(log, "enable\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic browser root");
 }

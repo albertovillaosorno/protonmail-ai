@@ -473,6 +473,12 @@ web application without requiring Bridge or a third-party direct API identity.
   absent request page, and anchor continuations are not promoted into a
   snapshot or public thread cursor. Synthetic browser tests cover matching
   pages and fail-closed page/anchor mismatches.
+- CDP command observation now drains the matching command reply after a
+  malformed network event instead of returning with unread response frames.
+  Conversation-list `Network.enable` failures perform explicit `Network.disable`
+  cleanup before surfacing the error. A fake Chromium that emits an invalid
+  page request before acknowledging Network activation verifies bounded
+  response draining, no provider body read, and network teardown.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
