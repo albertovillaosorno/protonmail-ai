@@ -493,6 +493,19 @@ fn event_cursor_tokens_are_confidential_authenticated_and_scoped() {
         Ok("synthetic-provider-event-secret")
     );
 
+    for invalid_state in [
+        "event\nunsafe",
+        "event\tunsafe",
+        "event unsafe",
+        "event\u{7f}unsafe",
+    ] {
+        let invalid_cursor = scope.clone().bind(String::from(invalid_state));
+        assert_eq!(
+            managed.encode_event_cursor(&invalid_cursor, &scope),
+            Err(WebEventCursorCodecError::InvalidCursor)
+        );
+    }
+
     let account_drift = managed
         .event_cursor_scope("synthetic-account-other")
         .expect("create account-drift scope");

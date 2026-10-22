@@ -48,6 +48,11 @@ bounded resource use.
   Synthetic tests prove these malformed IDs cannot escape the change
   projection while ordinary printable opaque IDs still round-trip.
 
+- The managed browser's authenticated event-cursor codec now has separate
+  synthetic coverage proving that manually constructed cursors with unsafe
+  watermark characters fail *before encryption* with InvalidCursor; valid
+  provider watermarks still round-trip with confidential, scope-bound tokens.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume
