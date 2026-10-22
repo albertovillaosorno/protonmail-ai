@@ -350,3 +350,58 @@ fn rendered_list_refuses_unsafe_row_identities_before_page_snapshot() {
     .expect("safe opaque route IDs remain eligible");
     assert_eq!(stable.row_ids(), ["opaque+_~="]);
 }
+
+#[test]
+fn rendered_page_marker_rejects_noncanonical_numeric_aliases() {
+    use serde_json::json;
+    let template: serde_json::Value =
+        // jig-ignore-next-line: canonical rustfmt line.
+        serde_json::from_str(ROWS).expect("decode synthetic settled mailbox list");
+    for (index, invalid) in [
+        "+2",
+        "002",
+        "00",
+        "0",
+        "-2",
+        "2.0",
+        "2e0",
+        "%32",
+        "4294967296",
+        "12345678901234567890",
+        "",
+        " 2",
+        "2 ",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut value = template.clone();
+        // jig-ignore-next-line: canonical rustfmt line.
+        value["currentTestId"] = json!(format!("pagination-row:go-to-page-{invalid}"));
+        assert_eq!(
+            inspect(
+                &format!("invalid-page-{index}"),
+                &value.to_string(),
+                VISIBLE_AX,
+                "mail.proton.me"
+            ),
+            Err(BrowserDriverError::MailboxListIncompatible)
+        );
+    }
+    for valid in ["1", "2", "4294967295"] {
+        let mut value = template.clone();
+        // jig-ignore-next-line: canonical rustfmt line.
+        value["currentTestId"] = json!(format!("pagination-row:go-to-page-{valid}"));
+        let result = inspect(
+            &format!("canonical-{valid}"),
+            &value.to_string(),
+            VISIBLE_AX,
+            "mail.proton.me",
+        )
+        .expect("canonical page marker accepted");
+        assert_eq!(
+            result.current_page(),
+            Some(valid.parse::<u32>().expect("test page"))
+        );
+    }
+}

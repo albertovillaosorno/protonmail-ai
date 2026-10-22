@@ -311,6 +311,10 @@ Ship useful read access before any mailbox mutation is enabled.
   leading-zero aliases, preventing noncanonical URLs from matching the same
   rendered page or continuation timestamp during passive request capture.
 
+- Content-free visible pagination indicators now use the same canonical
+  numeric page representation as Network list requests, so a noncanonical
+  DOM page marker cannot be reconciled with a different app-owned GET.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

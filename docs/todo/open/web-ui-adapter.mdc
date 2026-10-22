@@ -770,6 +770,10 @@ web application without requiring Bridge or a third-party direct API identity.
   blocker. Synthetic browser tests reject malformed trailing navigation,
   search, dialog, and alertdialog nodes, while valid multi-node landmark
   arrays remain ready without retaining accessible names or visible content.
+- Rendered pagination test IDs now require canonical ASCII-decimal one-based
+  page numbers, rejecting signed, zero-padded, encoded, fractional, and
+  overflowing alternatives before any content-free page evidence is retained.
+  Fake-browser tests cover malformed aliases and accepted maximum `u32` pages.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

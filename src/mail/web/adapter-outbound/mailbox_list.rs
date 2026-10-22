@@ -248,6 +248,13 @@ fn row_ids(value: &Value) -> Result<Vec<String>, ()> {
 
 fn parse_page(test_id: &str) -> Result<u32, ()> {
     let page = test_id.strip_prefix(PAGE_TEST_ID_PREFIX).ok_or(())?;
+    if page.is_empty()
+        || page.len() > 10
+        || (page.len() > 1 && page.starts_with('0'))
+        || !page.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(());
+    }
     let parsed = page.parse::<u32>().map_err(|_error| ())?;
     if parsed == 0 {
         return Err(());
