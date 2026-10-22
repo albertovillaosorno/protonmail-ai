@@ -608,3 +608,100 @@ fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
         );
     }
 }
+
+#[test]
+fn consumed_message_list_id_rejects_late_network_lifecycle_events() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let request = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{"requestId":"list-1","request":{"method":"GET","url":URL}}
+    });
+    let response = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceived",
+        "params":{"requestId":"list-1","response":{
+            "url":URL,"status":200u16,"mimeType":"application/json"}}
+    });
+    let finished = json!({
+        "sessionId":"session-1", "method":"Network.loadingFinished",
+        "params":{"requestId":"list-1"}
+    });
+    let failure = json!({
+        "sessionId":"session-1", "method":"Network.loadingFailed",
+        "params":{"requestId":"list-1"}
+    });
+    let changed_method = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"list-1","request":{"method":"POST","url":URL}}
+    });
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture.observe(&request).expect("observe exact request");
+    capture
+        .observe(&response)
+        .expect("observe matching response");
+    capture
+        .observe(&finished)
+        .expect("finish matching response");
+    assert_eq!(capture.take_finished_request_ids(), ["list-1"]);
+    let mut untouched = MessageListNetworkCapture::new("session-1");
+    untouched
+        .observe(&request)
+        .expect("observe still-pending request");
+    untouched
+        .observe(&response)
+        .expect("observe still-pending response");
+    assert_ne!(capture, untouched);
+    for late in [request, changed_method, response, finished, failure] {
+        assert_eq!(
+            capture.observe(&late),
+            Err(MessageListNetworkError::InvalidSequence)
+        );
+    }
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    assert!(!format!("{capture:?}").contains("list-1"));
+}
+
+#[test]
+fn completed_message_list_ids_are_bounded_across_consumption() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    for index in 0u16..128u16 {
+        let request_id = format!("sensitive-list-{index}");
+        let request = json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            // jig-ignore-next-line: canonical rustfmt line.
+            "params":{"requestId":request_id,"request":{"method":"GET","url":URL}}
+        });
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":request_id,"response":{
+                "url":URL,"status":200u16,"mimeType":"application/json"}}
+        });
+        let finished = json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":request_id}
+        });
+        capture
+            .observe(&request)
+            .expect("track bounded list request");
+        capture
+            .observe(&response)
+            .expect("match bounded list response");
+        capture
+            .observe(&finished)
+            .expect("finish bounded list response");
+        assert_eq!(capture.take_finished_request_ids(), [request_id]);
+    }
+    let overflow = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"overflow","request":{"method":"GET","url":URL}}
+    });
+    assert_eq!(
+        capture.observe(&overflow),
+        Err(MessageListNetworkError::CapacityExceeded)
+    );
+    assert!(!format!("{capture:?}").contains("sensitive-list-"));
+}

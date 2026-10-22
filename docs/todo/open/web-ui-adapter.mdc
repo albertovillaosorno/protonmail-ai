@@ -542,6 +542,13 @@ web application without requiring Bridge or a third-party direct API identity.
   attempts may still be retried with a new request. Per-boundary unit tests
   cover all late event types and capacity; synthetic browsers also confirm
   replay detection and subsequent safe Mail-shell access after teardown.
+- Message-list batch CDP capture also retains bounded terminal request IDs
+  after the response metadata is handed to the reload reader. The original
+  query-context fingerprint and sanitized sort/anchor checks remain intact;
+  subsequent replay/failure/ID reuse during `Network.disable` now fails closed
+  instead of passing as unrelated traffic. Synthetic tests cover all replay
+  event forms, 128 completed IDs, equality/redaction, and a reused ID during
+  cleanup with successful follow-up Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

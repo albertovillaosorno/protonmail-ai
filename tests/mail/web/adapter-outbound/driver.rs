@@ -1019,3 +1019,46 @@ fn rejected_message_list_network_enable_disables_before_returning() {
     assert_eq!(log, "enable\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn consumed_message_list_id_replay_during_disable_fails_closed() {
+    use mail_web_adapter::MessageListNetworkError;
+    let root = test_root("message-list-replayed-during-disable");
+    fs::create_dir_all(&root).expect("create synthetic network root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        true,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake browser script");
+    assert!(script.contains("list-3"));
+    fs::write(&browser, script.replace("list-3", "list-1"))
+        .expect("install reused completed request ID");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::MessageListNetwork(
+            MessageListNetworkError::InvalidSequence,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("the next content-free CDP read must remain synchronized");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network lifecycle");
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+    cleanup(&root);
+}

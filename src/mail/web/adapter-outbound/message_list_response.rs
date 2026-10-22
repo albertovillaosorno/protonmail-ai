@@ -85,6 +85,7 @@ struct TrackedMessageListRequest {
 pub struct MessageListNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedMessageListRequest>,
+    completed_ids: BTreeSet<String>,
     context_fingerprint: Option<[u64; 2]>,
     fingerprint_hashers: [RandomState; 2],
 }
@@ -99,6 +100,7 @@ impl PartialEq for MessageListNetworkCapture {
         let other_context_bound = other.context_fingerprint.is_some();
         self.session_id == other.session_id
             && self.requests == other.requests
+            && self.completed_ids == other.completed_ids
             && context_bound == other_context_bound
     }
 }
@@ -116,6 +118,7 @@ impl MessageListNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
             context_fingerprint: None,
             fingerprint_hashers: [RandomState::new(), RandomState::new()],
         }
@@ -218,6 +221,9 @@ impl MessageListNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != NetworkRequestState::Finished);
+        for (request_id, ..) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -241,6 +247,9 @@ impl MessageListNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         let tracked = self.requests.contains_key(request_id);
         let message_list_get = method == "GET" && is_message_list_url(url);
         if tracked && !message_list_get {
@@ -266,7 +275,9 @@ impl MessageListNetworkCapture {
             None => self.context_fingerprint = Some(context_fingerprint),
             Some(_) => {}
         }
-        if self.requests.len() >= MAX_TRACKED_MESSAGE_LIST_REQUESTS {
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_MESSAGE_LIST_REQUESTS
+        {
             return Err(MessageListNetworkError::CapacityExceeded);
         }
         self.requests.insert(
@@ -294,6 +305,9 @@ impl MessageListNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(MessageListNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         if !self.requests.contains_key(request_id) {
             return Ok(());
         }
@@ -307,6 +321,9 @@ impl MessageListNetworkCapture {
         // jig-ignore-next-line: canonical rustfmt line.
         let context_fingerprint = query_context_fingerprint(url, &self.fingerprint_hashers)
             .map_err(|_error| MessageListNetworkError::ResponseRejected)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -342,6 +359,9 @@ impl MessageListNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MessageListNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -355,6 +375,9 @@ impl MessageListNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&self, event: &Value) -> Result<(), MessageListNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
         if self.requests.contains_key(request_id) {
             return Err(MessageListNetworkError::RequestFailed);
         }
@@ -367,6 +390,7 @@ impl fmt::Debug for MessageListNetworkCapture {
         f.debug_struct("MessageListNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("requests", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .field("context_fingerprint", &"<redacted>")
             .field("fingerprint_hashers", &"<redacted>")
             .finish()
