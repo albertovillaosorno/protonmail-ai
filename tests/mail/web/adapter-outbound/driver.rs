@@ -1075,3 +1075,59 @@ fn consumed_message_list_id_replay_during_disable_fails_closed() {
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+// jig-ignore-next-line: canonical rustfmt line.
+fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() {
+    for (label, unsolicited) in [
+        ("bad-string-id", r#"{"id":"not-a-command","result":{}}"#),
+        ("null-id", r#"{"id":null,"result":{}}"#),
+        ("result-without-id", r#"{"result":{}}"#),
+        ("error-without-id", r#"{"error":{"code":-32601}}"#),
+        ("method-is-number", r#"{"method":7,"params":{}}"#),
+        ("array-envelope", "[]"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read CDP browser fixture");
+        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        assert!(script.contains(reply));
+        // jig-ignore-next-line: canonical rustfmt line.
+        let injected = format!("      printf '%s\\0' '{unsolicited}' >&4\n{reply}");
+        fs::write(&browser, script.replacen(reply, &injected, 1))
+            .expect("inject protocol-invalid unsolicited envelope");
+        let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+            .expect("launch isolated synthetic browser");
+        let page = managed.provider_page().expect("find Mail target");
+        assert_eq!(
+            managed.observe_message_list_response(&page),
+            Err(BrowserDriverError::Protocol),
+            "case {label} must fail closed"
+        );
+        managed
+            .require_mail_shell(&page)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("drained CDP command reply permits same-session inspection");
+        drop(managed);
+        let log = fs::read_to_string(root.join("network-log.txt"))
+            .expect("read synthetic Network commands");
+        assert_eq!(
+            log, "enable\ndisable\n",
+            "case {label} must disable Network"
+        );
+        cleanup(&root);
+    }
+}

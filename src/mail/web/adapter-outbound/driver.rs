@@ -3428,6 +3428,22 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            // Unsolicited CDP events have a method, but no command id or
+            // response/error object. A malformed reply must never be treated
+            // as ignorable background traffic. Keep draining our real reply
+            // so Network teardown can still synchronize the pipe.
+            if !message.is_object()
+                || (message.get("id").is_some()
+                    && message.get("id").and_then(Value::as_u64).is_none())
+                || (message.get("id").is_none()
+                    && (message.get("result").is_some()
+                        || message.get("error").is_some()
+                        // jig-ignore-next-line: canonical rustfmt line.
+                        || message.get("method").and_then(Value::as_str).is_none()))
+            {
+                observation_error.get_or_insert(BrowserDriverError::Protocol);
+                continue;
+            }
             // jig-ignore-next-line: canonical rustfmt line.
             let Some(response_id) = message.get("id").and_then(Value::as_u64) else {
                 if observation_error.is_none()

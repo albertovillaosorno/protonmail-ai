@@ -732,6 +732,13 @@ web application without requiring Bridge or a third-party direct API identity.
   while retaining the canonical literal `0`. This prevents different URL
   spellings from being treated as equivalent bounded page-state evidence.
   Synthetic tests cover each selector and established valid examples.
+- The CDP command reader now distinguishes unsolicited event frames from
+  malformed command envelopes, including nonnumeric or null IDs, result/error
+  objects without IDs, non-string methods, and non-object JSON. It remembers
+  the protocol error but drains the real command reply before mandatory
+  `Network.disable`, avoiding stream desynchronization. Six synthetic browser
+  variants prove cleanup and subsequent Mail-shell inspection; this adds no
+  provider request or capability authority.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
