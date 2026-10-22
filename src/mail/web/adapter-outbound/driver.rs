@@ -324,10 +324,19 @@ impl ManagedBrowserPlan {
 }
 
 /// One provider page discovered without exposing its title or full URL.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ProviderPage {
     origin: PageOrigin,
     target_id: String,
+}
+
+impl fmt::Debug for ProviderPage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProviderPage")
+            .field("origin", &self.origin)
+            .field("target_id", &"<redacted>")
+            .finish()
+    }
 }
 
 impl ProviderPage {
@@ -637,6 +646,7 @@ impl ManagedBrowser {
         result
             .get("sessionId")
             .and_then(Value::as_str)
+            .filter(|id| safe_cdp_endpoint_id(id))
             .map(String::from)
             .ok_or(BrowserDriverError::Protocol)
     }
@@ -4232,14 +4242,28 @@ fn read_frame(reader: &mut BufReader<UnixStream>) -> Result<Vec<u8>, BrowserDriv
     }
 }
 
+// CDP target and session IDs are browser-owned opaque ASCII identifiers.
+// Refuse separators, hidden Unicode, empty IDs and oversized metadata before
+// reusing an identifier in a subsequent privileged browser command.
+fn safe_cdp_endpoint_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 512
+        && id
+            .bytes()
+            // jig-ignore-next-line: canonical rustfmt line.
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
 // jig-ignore-next-line: canonical rustfmt line.
 fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, BrowserDriverError> {
     if info.get("type").and_then(Value::as_str) != Some("page") {
         return Ok(None);
     }
-    if info.get("targetId").and_then(Value::as_str).is_none() {
-        return Err(BrowserDriverError::Protocol);
-    }
+    let target_id = info
+        .get("targetId")
+        .and_then(Value::as_str)
+        .filter(|id| safe_cdp_endpoint_id(id))
+        .ok_or(BrowserDriverError::Protocol)?;
     let raw_url = info
         .get("url")
         .and_then(Value::as_str)
@@ -4250,11 +4274,7 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
     }
     Ok(Some(ProviderPage {
         origin,
-        target_id: String::from(
-            info.get("targetId")
-                .and_then(Value::as_str)
-                .ok_or(BrowserDriverError::Protocol)?,
-        ),
+        target_id: String::from(target_id),
     }))
 }
 

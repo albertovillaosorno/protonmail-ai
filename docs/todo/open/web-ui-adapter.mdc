@@ -814,6 +814,12 @@ web application without requiring Bridge or a third-party direct API identity.
   events are remembered as protocol failures while the authentic command
   reply is drained for mandatory Network disable. Private-pipe fixtures cover
   ordinary and observed activation and safe same-session shell recovery.
+- CDP target handles from `Target.getTargets` and attached session handles
+  from `Target.attachToTarget` now require 1–512 ASCII alphanumeric, hyphen,
+  or underscore bytes before any later browser command uses them. Fake-browser
+  tests refuse empty, oversized, separator, and invisible-character IDs and
+  accept exactly 512-byte handles. `ProviderPage` Debug now redacts target IDs
+  while still reporting safe origin classification; no real profile is used.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

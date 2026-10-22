@@ -362,6 +362,7 @@ fn managed_browser_uses_private_pipe_and_dedicated_profile() {
 
     let page = managed.provider_page().expect("discover Proton Mail page");
     assert_eq!(page.origin(), PageOrigin::ProtonMail);
+    assert!(!format!("{page:?}").contains("page-1"));
     assert_eq!(
         managed
             .verify_provider_origin(&page)
@@ -1383,5 +1384,122 @@ fn browser_allows_distinct_continuation_totals_without_snapshot_claim() {
         // jig-ignore-next-line: canonical rustfmt line.
         fs::read_to_string(root.join("network-log.txt")).expect("read synthetic CDP command log");
     assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+    cleanup(&root);
+}
+
+#[test]
+fn malformed_cdp_provider_target_ids_never_become_page_handles() {
+    use serde_json::json;
+    for (index, invalid) in [
+        String::new(),
+        String::from("bad id"),
+        String::from("bad/path"),
+        String::from("bad%2fid"),
+        String::from("bad.dot"),
+        String::from("bad\nnew"),
+        String::from("invisible\u{200b}id"),
+        "x".repeat(513),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let root = test_root(&format!("bad-target-{index}"));
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let targets = json!([{
+            "targetId": invalid,
+            "type": "page",
+            "url": "https://mail.proton.me/u/0/inbox"
+        }]);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+        assert_eq!(managed.provider_page(), Err(BrowserDriverError::Protocol));
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn malformed_attached_session_ids_fail_before_runtime_origin_evaluation() {
+    use serde_json::json;
+    for (index, invalid) in [
+        String::new(),
+        String::from("bad id"),
+        String::from("bad/session"),
+        String::from("bad%2fid"),
+        String::from("bad\ttab"),
+        String::from("invisible\u{2066}id"),
+        "y".repeat(513),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let root = test_root(&format!("bad-session-{index}"));
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let targets = json!([{
+            "targetId": "page-1",
+            "type": "page",
+            "url": "https://mail.proton.me/u/0/inbox"
+        }]);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+        let from = "\"sessionId\":\"session-1\"";
+        assert!(script.contains(from));
+        let to = format!("\"sessionId\":{}", json!(invalid));
+        fs::write(&browser, script.replace(from, &to))
+            .expect("replace attached CDP session result");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+        let page = managed.provider_page().expect("select eligible Mail page");
+        assert_eq!(
+            managed.verify_provider_origin(&page),
+            Err(BrowserDriverError::Protocol),
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn maximal_safe_cdp_target_and_session_handles_work_without_log_exposure() {
+    use serde_json::json;
+    let root = test_root("maximal-browser-handles");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::create_dir_all(&root).expect("create isolated synthetic browser profile");
+    let target_id = "t".repeat(512);
+    let session_id = "s".repeat(512);
+    let targets = json!([{
+        "targetId": target_id,
+        "type": "page",
+        "url": "https://mail.proton.me/u/0/inbox"
+    }]);
+    let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    let from = r#""sessionId":"session-1""#;
+    let to = format!(r#""sessionId":{}"#, json!(session_id));
+    assert!(script.contains(from));
+    fs::write(&browser, script.replace(from, &to))
+        .expect("install maximum-length synthetic session handle");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch dedicated fake browser");
+    let page = managed
+        .provider_page()
+        .expect("accept bounded synthetic target");
+    assert_eq!(page.origin(), PageOrigin::ProtonMail);
+    let debug = format!("{page:?}");
+    assert!(!debug.contains(&target_id));
+    assert!(debug.contains("<redacted>"));
+    assert_eq!(
+        managed.verify_provider_origin(&page),
+        Ok(PageOrigin::ProtonMail),
+    );
+    drop(managed);
     cleanup(&root);
 }
