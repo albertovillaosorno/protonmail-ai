@@ -144,6 +144,11 @@ Ship useful read access before any mailbox mutation is enabled.
   narrower than provider-neutral paginated list/search and carries no server
   snapshot consistency guarantee.
 
+- Explicitly empty visible conversation evidence now requires both an empty
+  provider row set and `Total=0`. A syntactically fresh response with zero
+  returned rows but positive provider total is treated as contradictory,
+  without inferring that a later page represents an empty mailbox.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

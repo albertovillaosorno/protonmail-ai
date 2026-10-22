@@ -495,7 +495,7 @@ impl ReconciledVisibleConversationMetadata {
             return Err(ConversationListReconciliationError::TooManyVisibleConversations);
         }
         if visible_ids.is_empty() {
-            if response.conversations().is_empty() {
+            if response.total() == 0 && response.conversations().is_empty() {
                 return Ok(Self {
                     conversations: Vec::new(),
                 });

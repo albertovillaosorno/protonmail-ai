@@ -426,6 +426,18 @@ fn empty_rendered_rows_require_an_empty_observed_response() {
     let matched = ReconciledVisibleConversationMetadata::reconcile(&[], &empty)
         .expect("explicit empty and provider empty agree");
     assert_eq!(matched.conversations().len(), 0);
+    let contradictory_total = ObservedConversationListResponse::parse(
+        "GET",
+        URL,
+        r#"{"Code":1000,"Stale":0,"Total":5,"Conversations":[]}"#,
+    )
+    // jig-ignore-next-line: canonical rustfmt line.
+    .expect("empty page with nonzero provider total can be syntactically valid");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        ReconciledVisibleConversationMetadata::reconcile(&[], &contradictory_total),
+        Err(ConversationListReconciliationError::UnexpectedObservedConversation)
+    );
 }
 
 static CONVERSATION_LIST_BROWSER_TEST_LOCK: Mutex<()> = Mutex::new(());
