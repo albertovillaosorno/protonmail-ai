@@ -3425,9 +3425,13 @@ impl ManagedBrowser {
         let mut observation_error = None;
         for _event in 0..MAX_UNSOLICITED {
             let frame = read_frame(&mut self.reader)?;
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            // Invalid JSON still occupies one bounded CDP frame. Remember
+            // the protocol failure, but drain the genuine command reply before
+            // Network cleanup rather than leaving the pipe out of sync.
+            let Ok(message) = serde_json::from_slice::<Value>(&frame) else {
+                observation_error.get_or_insert(BrowserDriverError::Protocol);
+                continue;
+            };
             // Unsolicited CDP events have a method, but no command id or
             // response/error object. A malformed reply must never be treated
             // as ignorable background traffic. Keep draining our real reply

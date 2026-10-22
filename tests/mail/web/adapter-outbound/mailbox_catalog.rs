@@ -1673,6 +1673,8 @@ fn malformed_cdp_envelope_during_observed_enable_cleans_catalog_network() {
         ("bad-id", r#"{"id":"fake-reply","result":{}}"#),
         ("reply-without-id", r#"{"result":{}}"#),
         ("method-without-string", r#"{"method":77,"params":{}}"#),
+        ("garbled-json", "not-json"),
+        ("truncated-json", "{\"method\":"),
     ] {
         let root = catalog_browser_root(label);
         fs::create_dir_all(&root).expect("create isolated synthetic directory");

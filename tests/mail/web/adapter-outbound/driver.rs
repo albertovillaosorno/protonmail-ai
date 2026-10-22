@@ -1091,6 +1091,12 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         ("error-without-id", r#"{"error":{"code":-32601}}"#),
         ("method-is-number", r#"{"method":7,"params":{}}"#),
         ("array-envelope", "[]"),
+        ("not-json", "not-json"),
+        ("partial-json", "{\"id\":"),
+        (
+            "trailing-json-bytes",
+            "{\"method\":\"Network.requestWillBeSent\"}bad",
+        ),
     ] {
         let root = test_root(label);
         fs::create_dir_all(&root).expect("create synthetic profile");

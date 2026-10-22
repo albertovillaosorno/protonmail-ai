@@ -750,6 +750,12 @@ web application without requiring Bridge or a third-party direct API identity.
   cleanup stays aligned. Synthetic browser fixtures exercise wrong IDs and a
   fake notification that copies the *current* command ID, then prove typed
   failure, Network disable, and subsequent same-session shell inspection.
+- A syntactically invalid yet NUL-delimited CDP JSON frame now records a
+  protocol error without abandoning its outstanding command reply. Invalid
+  and truncated JSON are injected into ordinary and observed Network.enable
+  fake-browser streams; both remain fail closed, disable Network, and permit
+  subsequent safe same-session Mail-shell inspection. Framing/size errors
+  remain terminal because synchronization cannot be established from them.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
