@@ -3451,6 +3451,7 @@ impl ManagedBrowser {
                             .is_some_and(|params| !params.is_object())
                         || message
                             .get("sessionId")
+                            // jig-ignore-next-line: canonical rustfmt event guard.
                             .is_some_and(|session| session.as_str().is_none_or(str::is_empty))))
             {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
