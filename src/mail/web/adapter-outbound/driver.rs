@@ -4391,6 +4391,21 @@ fn allowed_mail_runtime_expression(expression: &str) -> bool {
     .contains(&expression)
 }
 
+// Unsolicited CDP events use one Domain.method identifier. Empty domains,
+// disguised extra dots, oversized names, or non-ASCII method bytes fail closed.
+fn safe_cdp_notification_method(method: &str) -> bool {
+    if method.len() > 128 {
+        return false;
+    }
+    let Some((domain, event)) = method.split_once('.') else {
+        return false;
+    };
+    !domain.is_empty()
+        && !event.is_empty()
+        && domain.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        && event.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
 // Accept only a well-formed unsolicited notification. This shared check
 // covers the command reader and every passive observer wait, even when an
 // unrelated CDP method would otherwise be ignored by a specific classifier.
@@ -4403,14 +4418,7 @@ fn validate_cdp_notification(message: &Value) -> Result<(), BrowserDriverError> 
         || message
             .get("method")
             .and_then(Value::as_str)
-            .is_none_or(|method| {
-                method.is_empty()
-                    || method.len() > 128
-                    || !method
-                        .bytes()
-                        // jig-ignore-next-line: canonical rustfmt line.
-                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.')
-            })
+            .is_none_or(|method| !safe_cdp_notification_method(method))
         || message
             .get("params")
             .is_some_and(|params| !params.is_object())

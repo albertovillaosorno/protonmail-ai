@@ -33,6 +33,7 @@
 
 use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
 use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
+use super::safe_cdp_notification_method;
 // jig-ignore-next-line: canonical rustfmt line.
 use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runtime_expression};
 use serde_json::json;
@@ -289,4 +290,30 @@ fn audited_click_scripts_block_common_auth_inputs_before_any_activation() {
         assert!(!script.contains(".value"));
         assert!(allowed_mail_runtime_expression(script));
     }
+}
+
+#[test]
+fn unsolicited_method_shape_has_one_nonempty_domain_and_event() {
+    for accepted in [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.requestWillBeSentExtraInfo",
+        "Target.detachedFromTarget",
+    ] {
+        assert!(safe_cdp_notification_method(accepted));
+    }
+    for rejected in [
+        "",
+        "Network",
+        ".loadingFinished",
+        "Network.",
+        "Network..loadingFinished",
+        "Network/responseReceived",
+        "Network. responseReceived",
+        "Network.response_received",
+        "Network.responseReceived\u{200b}",
+    ] {
+        assert!(!safe_cdp_notification_method(rejected));
+    }
+    assert!(!safe_cdp_notification_method(&"x".repeat(129)));
 }

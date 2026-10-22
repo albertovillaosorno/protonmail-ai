@@ -1730,6 +1730,10 @@ fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
         ("long-method", json!({"method":"x".repeat(129)})),
         ("spaced-method", json!({"method":"Network loadingFinished"})),
         ("slash-method", json!({"method":"Network/loadingFinished"})),
+        ("missing-domain", json!({"method":"loadingFinished"})),
+        ("leading-dot", json!({"method":".loadingFinished"})),
+        ("trailing-dot", json!({"method":"Network."})),
+        ("extra-dot", json!({"method":"Network..loadingFinished"})),
         (
             "bad-session",
             json!({"method":"Network.loadingFinished","sessionId":"bad/id"}),

@@ -937,6 +937,11 @@ web application without requiring Bridge or a third-party direct API identity.
   its button action. Root-tree assertions prove the origin guard precedes
   every click, refusing selector lookalikes after navigation drift even if a
   prior origin/shell snapshot was ready. No additional CDP authority is added.
+- Unsolicited CDP method names now require exactly one dot between nonempty
+  alphanumeric domain and event components within the existing 128-byte
+  ceiling. This rejects disguised/extra separators even for otherwise ignored
+  notifications, while preserving standard Network/Target event forms.
+  Synthetic browser and private unit tests both cover the boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
