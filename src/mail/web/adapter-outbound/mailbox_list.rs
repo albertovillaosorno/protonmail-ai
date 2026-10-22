@@ -183,6 +183,7 @@ impl MailboxListEvidence {
             (true, Some(false)) => NextPageControl::Enabled,
             _ => return Err(()),
         };
+        // jig-ignore-next-line: canonical rustfmt guard line.
         if next_page == NextPageControl::Enabled && (empty_marker || current_page == Some(u32::MAX))
         {
             return Err(());
