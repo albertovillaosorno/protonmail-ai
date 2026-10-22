@@ -714,6 +714,10 @@ web application without requiring Bridge or a third-party direct API identity.
   encoded, decimal-point, and exponent representations before capturing a GET.
   Synthetic request-shape tests cover the malformed variants and preserve
   existing initial/continuation behavior for canonical numeric values.
+- Conversation-list `Page`, `PageSize`, and `Limit` selectors now accept
+  canonical ASCII-decimal values only, with separate size bounds and overflow
+  checks. The passive classifier rejects alternative encodings before binding
+  page evidence; synthetic tests cover malformed forms and maximum `u32` page.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

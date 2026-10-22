@@ -645,6 +645,10 @@ fn parse_request_page(
                 if page.is_some() {
                     return Err(ConversationListNetworkError::InvalidPagination);
                 }
+                // jig-ignore-next-line: canonical rustfmt line.
+                if value.len() > 10 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
                 let parsed = value
                     .parse::<u32>()
                     // jig-ignore-next-line: canonical rustfmt line.
@@ -699,6 +703,9 @@ fn parse_request_page(
 }
 
 fn bounded_page_size(value: &str) -> Result<u16, ConversationListNetworkError> {
+    if value.len() > 3 || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ConversationListNetworkError::InvalidPagination);
+    }
     let parsed = value
         .parse::<u16>()
         .map_err(|_error| ConversationListNetworkError::InvalidPagination)?;

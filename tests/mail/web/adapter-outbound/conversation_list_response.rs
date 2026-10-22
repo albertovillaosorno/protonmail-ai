@@ -1758,3 +1758,57 @@ fn malformed_conversation_continuation_during_enable_cleans_network() {
         assert_eq!(log, "enable\ndisable\n");
     }
 }
+
+#[test]
+fn conversation_numeric_page_and_limit_selectors_require_canonical_digits() {
+    for (field, invalid) in [
+        ("Page", "+1"),
+        ("Page", " 1"),
+        ("Page", "%31"),
+        ("Page", "1.0"),
+        ("Page", "4294967296"),
+        ("PageSize", "+50"),
+        ("PageSize", " 50"),
+        ("PageSize", "50.0"),
+        ("Limit", "+50"),
+        ("Limit", "50e0"),
+        ("Limit", "1000"),
+    ] {
+        let source = "Page=1&PageSize=50&Limit=50";
+        let before = match field {
+            "Page" => "Page=1",
+            "PageSize" => "PageSize=50",
+            _ => "Limit=50",
+        };
+        let query = source.replacen(before, &format!("{field}={invalid}"), 1);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("https://mail.proton.me/api/mail/v4/conversations?{query}");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            capture.observe(&request_event("session-a", "numeric", "GET", &url)),
+            Err(ConversationListNetworkError::InvalidPagination)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    let url =
+        // jig-ignore-next-line: canonical rustfmt line.
+        "https://mail.proton.me/api/mail/v4/conversations?Page=4294967295&PageSize=50&Limit=50";
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "max-page", "GET", url))
+        .expect("canonical u32 maximum is still accepted as request evidence");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "max-page",
+            url,
+            200,
+            "application/json",
+        ))
+        .expect("response identity preserved for accepted numeric page");
+    capture
+        .observe(&finished_event("session-a", "max-page"))
+        .expect("complete bounded request");
+    assert_eq!(capture.take_finished_request_ids(), ["max-page"]);
+}

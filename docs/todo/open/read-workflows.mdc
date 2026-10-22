@@ -299,6 +299,10 @@ Ship useful read access before any mailbox mutation is enabled.
   ASCII-decimal values, removing alternate encodings of page, size, direction,
   and time anchors before any visible-list request can be correlated.
 
+- Conversation-list page and size selectors now use the same decimal-only
+  shape policy as the message list, refusing ambiguous signed or encoded
+  numbers before a browser page may be associated with a Network response.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
