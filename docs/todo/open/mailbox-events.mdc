@@ -105,6 +105,11 @@ bounded resource use.
   Explicit non-success is typed `ProviderRejected`; synthetic CDP browsers
   prove the rejected body cannot become a resume cursor and Network is disabled.
 
+- A shared CDP notification envelope validator now applies during passive
+  mailbox-event waits as well as command reply draining. Synthetic delayed
+  malformed events fail closed without advancing a cursor and preserve
+  Network cleanup plus later same-session Mail-shell inspection.
+
 ## Acceptance criteria
 
 - Tests prove no duplicate or missing event across reconnect and cursor resume

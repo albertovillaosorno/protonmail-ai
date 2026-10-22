@@ -1004,9 +1004,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
         }
         Err(BrowserDriverError::MailboxCatalogUnavailable)
@@ -1805,9 +1803,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             if let Some(request_id) =
                 // jig-ignore-next-line: canonical rustfmt line.
@@ -1912,9 +1908,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             // jig-ignore-next-line: canonical rustfmt line.
             if let Some(request) = take_one_finished_mailbox_event_request(&mut capture.events)? {
@@ -1960,9 +1954,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::MailboxEventNetwork)?;
@@ -2018,9 +2010,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::MailboxEventNetwork)?;
@@ -2214,9 +2204,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::ConversationDetailNetwork)?;
@@ -2376,9 +2364,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::ConversationListNetwork)?;
@@ -2624,9 +2610,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::AttachmentMetadataNetwork)?;
@@ -2768,9 +2752,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::MessageDetailNetwork)?;
@@ -3020,9 +3002,7 @@ impl ManagedBrowser {
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
                 serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
-            if message.get("id").is_some() {
-                return Err(BrowserDriverError::Protocol);
-            }
+            validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
                 .map_err(BrowserDriverError::MessageListNetwork)?;
@@ -3442,45 +3422,17 @@ impl ManagedBrowser {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
             };
-            let bad_event_session = match message.get("sessionId") {
-                None => false,
-                Some(Value::String(value)) => value.is_empty(),
-                Some(_) => true,
-            };
-            // Unsolicited CDP events have a method, but no command id or
-            // response/error object. A malformed reply must never be treated
-            // as ignorable background traffic. Keep draining our real reply
-            // so Network teardown can still synchronize the pipe.
-            if !message.is_object()
-                || (message.get("id").is_some()
-                    && message.get("id").and_then(Value::as_u64).is_none())
-                || (message.get("id").is_none()
-                    && (message.get("result").is_some()
-                        || message.get("error").is_some()
-                        || message
-                            .get("method")
-                            .and_then(Value::as_str)
-                            .is_none_or(str::is_empty)
-                        || message
-                            .get("params")
-                            .is_some_and(|params| !params.is_object())
-                        || bad_event_session))
-            {
-                observation_error.get_or_insert(BrowserDriverError::Protocol);
-                continue;
-            }
             // jig-ignore-next-line: canonical rustfmt line.
             let Some(response_id) = message.get("id").and_then(Value::as_u64) else {
-                if observation_error.is_none()
+                if let Err(error) = validate_cdp_notification(&message) {
+                    observation_error.get_or_insert(error);
+                } else if observation_error.is_none()
                     && let Some(observer) = capture.as_deref_mut()
                 {
                     observation_error = observer.observe_event(&message).err();
                 }
                 continue;
             };
-            // A flattened CDP reply may carry the session it belongs to.
-            // If present, it must match the outstanding command; numeric IDs
-            // alone are not cross-session identity evidence.
             let wrong_reply_session = match message.get("sessionId") {
                 None => false,
                 Some(Value::String(actual)) => session != Some(actual.as_str()),
@@ -4249,6 +4201,33 @@ fn read_frame(reader: &mut BufReader<UnixStream>) -> Result<Vec<u8>, BrowserDriv
             return Ok(frame);
         }
     }
+}
+
+// Accept only a well-formed unsolicited notification. This shared check
+// covers the command reader and every passive observer wait, even when an
+// unrelated CDP method would otherwise be ignored by a specific classifier.
+// jig-ignore-next-line: canonical rustfmt line.
+fn validate_cdp_notification(message: &Value) -> Result<(), BrowserDriverError> {
+    if !message.is_object()
+        || message.get("id").is_some()
+        || message.get("result").is_some()
+        || message.get("error").is_some()
+        || message
+            .get("method")
+            .and_then(Value::as_str)
+            .is_none_or(str::is_empty)
+        || message
+            .get("params")
+            .is_some_and(|params| !params.is_object())
+        || match message.get("sessionId") {
+            None => false,
+            Some(Value::String(session)) => session.is_empty(),
+            Some(_) => true,
+        }
+    {
+        return Err(BrowserDriverError::Protocol);
+    }
+    Ok(())
 }
 
 // CDP target and session IDs are browser-owned opaque ASCII identifiers.

@@ -2387,3 +2387,73 @@ fn provider_rejected_event_body_never_yields_resumable_browser_cursor() {
         fs::remove_dir_all(&root).expect("remove isolated synthetic profile");
     }
 }
+
+#[test]
+fn malformed_unsolicited_event_during_passive_wait_fails_closed() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock event fake browsers");
+    for (index, notification) in [
+        r#"{"method":"Network.loadingFinished","params":null}"#,
+        r#"{"method":"Network.loadingFinished","params":[]}"#,
+        r#"{"method":"","params":{}}"#,
+        r#"{"method":"Network.loadingFinished","sessionId":false}"#,
+        r#"{"result":{}}"#,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let root = event_browser_root(&format!("malformed-passive-{index}"));
+        fs::create_dir_all(&root).expect("create isolated fake event profile");
+        let browser = fake_event_browser(&root, false, true);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
+        let enable_branch = "    *'Network.enable'*)";
+        // jig-ignore-next-line: canonical rustfmt line.
+        let branch_start = script.find(enable_branch).expect("find event subscription");
+        let (prefix, branch) = script.split_at(branch_start);
+        let delayed = "          sleep 0.02\n";
+        assert!(branch.contains(delayed));
+        // jig-ignore-next-line: canonical rustfmt line.
+        let injection = format!("{delayed}          printf '%s\\0' '{notification}' >&4\n");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let changed = format!("{prefix}{}", branch.replacen(delayed, &injection, 1));
+        let disable = "    *'Network.disable'*)";
+        let audited = format!(
+            "{disable}\n      printf 'disabled\\n' >> '{}'",
+            root.join("disabled.log").display()
+        );
+        fs::write(&browser, changed.replacen(disable, &audited, 1))
+            .expect("inject delayed malformed event and teardown audit");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic executable UTF-8"),
+            &root.join("data"),
+        )
+        .expect("build isolated fake browser plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = managed.provider_page().expect("discover fake Mail page");
+        assert_eq!(
+            managed
+                .observe_mailbox_event_sequence(&page, Duration::from_secs(1))
+                .map(|_page| ()),
+            Err(BrowserDriverError::Protocol),
+            "case {index} cannot be ignored during passive event wait"
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("Network cleanup keeps same-session shell inspectable");
+        drop(managed);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            fs::read_to_string(root.join("disabled.log")).expect("read Network.disable audit"),
+            "disabled\n"
+        );
+        fs::remove_dir_all(&root).expect("delete isolated test-only profile");
+    }
+}

@@ -827,6 +827,12 @@ web application without requiring Bridge or a third-party direct API identity.
   disabled, and later safe Mail-shell inspection succeeds. An explicit
   matching session also has a positive fake-browser test. Replies without a
   session field remain compatible with existing synthetic browser fixtures.
+- All passive CDP observer waits now share the same unsolicited-notification
+  envelope check as the command reader. A notification must have a nonempty
+  string method, optional object params and optional nonempty string session;
+  command IDs and reply fields cannot masquerade as events. Five delayed
+  private-pipe event fixtures prove typed fail-closed wait behavior, mandatory
+  Network disable, and safe same-session shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
