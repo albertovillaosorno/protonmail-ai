@@ -42,6 +42,8 @@ const CONVERSATION_LIST_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/c
 const MAX_CONVERSATION_LIST_ITEMS: usize = 100;
 const MAX_CONVERSATION_ID_BYTES: usize = 512;
 const MAX_TRACKED_CONVERSATION_LIST_REQUESTS: usize = 128;
+const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
+const MAX_CONVERSATION_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -166,6 +168,12 @@ impl ConversationListNetworkCapture {
         }
         if !exact_get {
             return Ok(());
+        }
+        if request_id.is_empty()
+            || request_id.len() > MAX_CDP_REQUEST_ID_BYTES
+            || url.len() > MAX_CONVERSATION_LIST_URL_BYTES
+        {
+            return Err(ConversationListNetworkError::MalformedEvent);
         }
         if self.requests.len() >= MAX_TRACKED_CONVERSATION_LIST_REQUESTS {
             return Err(ConversationListNetworkError::CapacityExceeded);

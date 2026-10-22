@@ -479,6 +479,11 @@ web application without requiring Bridge or a third-party direct API identity.
   cleanup before surfacing the error. A fake Chromium that emits an invalid
   page request before acknowledging Network activation verifies bounded
   response draining, no provider body read, and network teardown.
+- Conversation-list CDP capture now caps retained exact request IDs at 512
+  bytes and matching request URLs at 16 KiB before hashing or storing lifecycle
+  state. Empty/oversized exact request identifiers or URLs fail closed, while
+  oversized unrelated neighbor traffic remains ignored. Synthetic tests keep
+  such input out of tracked state and preserve content-redacted diagnostics.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

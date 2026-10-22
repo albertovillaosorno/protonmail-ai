@@ -963,6 +963,41 @@ fn managed_browser_accepts_matching_page_number_without_claiming_snapshot() {
 }
 
 #[test]
+fn matching_network_request_ids_and_urls_are_bounded() {
+    let exact = "https://mail.proton.me/api/mail/v4/conversations?Page=0";
+    for (index, request_id, url) in [
+        ("empty", String::new(), String::from(exact)),
+        ("oversized-id", "x".repeat(513), String::from(exact)),
+        (
+            "oversized-query",
+            String::from("valid-id"),
+            format!("{exact}&Keyword={}", "x".repeat(16_384)),
+        ),
+    ] {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            capture.observe(&request_event("session-a", &request_id, "GET", &url)),
+            Err(ConversationListNetworkError::MalformedEvent),
+            "{index} must be rejected without retaining content"
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+        assert_eq!(capture.take_finished_request_ids().len(), 0);
+    }
+    // Large unrelated request identifiers never become list-tracking state.
+    let mut ignored = ConversationListNetworkCapture::new("session-a");
+    ignored
+        .observe(&request_event(
+            "session-a",
+            &"x".repeat(1024),
+            "GET",
+            "https://mail.proton.me/api/mail/v4/conversations/count",
+        ))
+        .expect("unrelated neighbor traffic remains ignored");
+    assert_eq!(ignored.tracked_request_count(), 0);
+}
+
+#[test]
 fn network_capture_rejects_malformed_conversation_page_selectors() {
     for (index, query) in [
         "?Page=invalid",
