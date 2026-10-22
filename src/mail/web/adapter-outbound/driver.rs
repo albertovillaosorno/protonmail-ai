@@ -2957,7 +2957,8 @@ impl ManagedBrowser {
         }
         // jig-ignore-next-line: canonical rustfmt line.
         let second = self.read_message_list_body(session, &second_request, capture)?;
-        if second.messages().len() != expected_second
+        if second.total() != first.total()
+            || second.messages().len() != expected_second
             || !response_matches_declared_time_order(&second_request, &second)
             // jig-ignore-next-line: canonical rustfmt line.
             || !batch_boundary_matches_time_order(&first_request, &first, &second)

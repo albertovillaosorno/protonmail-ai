@@ -807,6 +807,11 @@ web application without requiring Bridge or a third-party direct API identity.
   when that batch contains zero rows. Captured prefetch batches must also
   agree on the provider total; mismatch returns typed `InconsistentTotal`.
   These necessary consistency checks do not establish immutable pagination.
+- Managed-browser message-list capture now rejects a second app-owned
+  prefetch batch when its `Total` differs from the first, even when its IDs,
+  time sort, and exact continuation anchor are otherwise valid. A fake Chrome
+  fixture verifies two body reads, typed batch incompatibility, mandatory
+  Network disable, and subsequent safe Mail-shell inspection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

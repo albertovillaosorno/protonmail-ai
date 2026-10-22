@@ -1320,3 +1320,51 @@ fn provider_rejected_message_list_body_disables_network_before_returning() {
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn browser_rejects_changed_total_across_valid_list_prefetch_batches() {
+    let root = test_root("prefetch-total-changed");
+    fs::create_dir_all(&root).expect("create isolated fake browser profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        true,
+        false,
+        false,
+        "m-1",
+        "0",
+        "2",
+        "1790847999",
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser fixture");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let second_branch = "    *'Network.getResponseBody'*'\"requestId\":\"list-2\"'*)";
+    let start = script
+        .find(second_branch)
+        .expect("find second list GET body branch");
+    let (before, second) = script.split_at(start);
+    let needle = r#"\"Total\":2,\"Messages\""#;
+    assert!(second.contains(needle));
+    let altered = second.replacen(needle, r#"\"Total\":3,\"Messages\""#, 1);
+    fs::write(&browser, format!("{before}{altered}"))
+        .expect("change only the second provider-reported list total");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.observe_visible_message_metadata(&page),
+        Err(BrowserDriverError::MessageListBatchIncompatible)
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("same browser remains safe following batch-total drift");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("network-log.txt")).expect("read synthetic CDP command log");
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+    cleanup(&root);
+}

@@ -332,6 +332,10 @@ Ship useful read access before any mailbox mutation is enabled.
   explicitly empty. This closes a mismatch with the existing conversation
   diagnostic without treating equal totals as a snapshot guarantee.
 
+- Network-driven message-list batch collection now compares provider
+  totals before emitting the captured diagnostic. A changed total fails as
+  incompatible instead of reaching metadata reconciliation with mixed state.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
