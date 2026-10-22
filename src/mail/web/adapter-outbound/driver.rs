@@ -3449,9 +3449,9 @@ impl ManagedBrowser {
                         || message
                             .get("params")
                             .is_some_and(|params| !params.is_object())
-                        || message.get("sessionId").is_some_and(|session| {
-                            session.as_str().is_none_or(str::is_empty)
-                        })))
+                        || message
+                            .get("sessionId")
+                            .is_some_and(|session| session.as_str().is_none_or(str::is_empty))))
             {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
