@@ -653,3 +653,46 @@ fn malformed_attachment_event_during_enable_disables_network() {
     assert_eq!(log, "enable\ndisable\n");
     fs::remove_dir_all(&root).expect("remove synthetic attachment root");
 }
+
+#[test]
+fn rejected_network_enable_still_disables_attachment_observation() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+
+    let _guard = ATTACHMENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic attachment browser tests");
+    let root = attachment_browser_root("rejected-enable");
+    fs::create_dir_all(&root).expect("create attachment browser root");
+    let browser = fake_attachment_browser(&root, false, MESSAGE_ID, false);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser script");
+    // jig-ignore-next-line: indivisible synthetic fixture command.
+    let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4";
+    // jig-ignore-next-line: indivisible synthetic fixture command.
+    let replacement = "      printf '{\"id\":%s,\"error\":{\"code\":-32601,\"message\":\"synthetic unavailable\"}}\\0' \"$id\" >&4";
+    assert!(script.contains(reply));
+    let updated = script.replacen(reply, replacement, 1);
+    fs::write(&browser, updated).expect("install synthetic CDP rejection");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser UTF-8 path"),
+        &root.join("data"),
+    )
+    .expect("build attachment test plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("discover fake Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_attachment_metadata(&page, MESSAGE_ID, Duration::from_secs(1),),
+        Err(BrowserDriverError::Protocol)
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("safe shell observation remains possible after enable error");
+    drop(managed);
+    let log = fs::read_to_string(root.join("attachment-log.txt"))
+        .expect("read synthetic Network lifecycle");
+    assert_eq!(log, "enable\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove synthetic attachment root");
+}
