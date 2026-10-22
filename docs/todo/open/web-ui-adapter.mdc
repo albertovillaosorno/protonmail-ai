@@ -739,6 +739,11 @@ web application without requiring Bridge or a third-party direct API identity.
   `Network.disable`, avoiding stream desynchronization. Six synthetic browser
   variants prove cleanup and subsequent Mail-shell inspection; this adds no
   provider request or capability authority.
+- An additional fake Chromium catalog test injects malformed CDP envelopes
+  into *observed* Network activation before its legitimate enable reply.
+  Three variants return typed Protocol, audit `Network.disable` without body
+  access, and then safely inspect the same Mail session. This confirms the
+  command-reply drain also works when capture observers are active.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

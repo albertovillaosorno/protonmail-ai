@@ -1660,3 +1660,52 @@ fn noncanonical_catalog_category_cleans_network_and_preserves_browser() {
         fs::remove_dir_all(&root).expect("remove synthetic profile and log");
     }
 }
+
+#[test]
+fn malformed_cdp_envelope_during_observed_enable_cleans_catalog_network() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    let _guard = CATALOG_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock fake catalog tests");
+    for (label, envelope) in [
+        ("bad-id", r#"{"id":"fake-reply","result":{}}"#),
+        ("reply-without-id", r#"{"result":{}}"#),
+        ("method-without-string", r#"{"method":77,"params":{}}"#),
+    ] {
+        let root = catalog_browser_root(label);
+        fs::create_dir_all(&root).expect("create isolated synthetic directory");
+        let browser = fake_catalog_browser(&root, false, false);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let script = fs::read_to_string(&browser).expect("read fake browser fixture");
+        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        assert!(script.contains(reply));
+        // jig-ignore-next-line: canonical rustfmt line.
+        let replacement = format!("      printf '%s\\0' '{envelope}' >&4\n{reply}");
+        fs::write(&browser, script.replacen(reply, &replacement, 1))
+            .expect("install malformed CDP event before enable reply");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("UTF-8 synthetic browser path"),
+            &root.join("data"),
+        )
+        .expect("create synthetic browser plan");
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake Chrome");
+        let page = managed.provider_page().expect("find Mail page");
+        assert_eq!(
+            managed.observe_mailbox_catalog(&page),
+            Err(BrowserDriverError::Protocol),
+            "{label} must fail closed"
+        );
+        managed
+            .require_mail_shell(&page)
+            // jig-ignore-next-line: canonical rustfmt line.
+            .expect("same session stays usable after failed Network activation");
+        drop(managed);
+        let log = fs::read_to_string(root.join("catalog-log.txt"))
+            .expect("read synthetic Network audit trail");
+        assert_eq!(log, "enable\ndisable\n", "{label} must disable Network");
+        fs::remove_dir_all(&root).expect("remove test-only browser profile");
+    }
+}
