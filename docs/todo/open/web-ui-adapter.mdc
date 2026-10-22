@@ -636,6 +636,11 @@ web application without requiring Bridge or a third-party direct API identity.
 - Fake Chromium now confirms bootstrap and v5 query-identity mismatches
   fail closed through the real managed-browser Network lifecycle, including
   mandatory disable and successful later Mail-shell inspection on that pipe.
+- Completed-but-unconsumed message- and conversation-list GETs now reject a
+  contradictory `Network.loadingFailed` as a lifecycle sequence error rather
+  than an ordinary request failure. The finished response remains available
+  for capture teardown and cannot be silently erased. Synthetic state tests
+  cover both list types and ensure debug diagnostics omit request IDs.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

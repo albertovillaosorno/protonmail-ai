@@ -275,7 +275,10 @@ impl ConversationListNetworkCapture {
         if self.completed_ids.contains(request_id) {
             return Err(ConversationListNetworkError::InvalidSequence);
         }
-        if self.requests.contains_key(request_id) {
+        if let Some(request) = self.requests.get(request_id) {
+            if request.state == ConversationListRequestState::Finished {
+                return Err(ConversationListNetworkError::InvalidSequence);
+            }
             return Err(ConversationListNetworkError::RequestFailed);
         }
         Ok(())

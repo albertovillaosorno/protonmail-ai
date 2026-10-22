@@ -229,6 +229,11 @@ Ship useful read access before any mailbox mutation is enabled.
   input ceiling for both messages and conversations; even standalone parser
   calls cannot interpret an overlong exact list endpoint as safe metadata.
 
+- Message-list and conversation-list observation now agree with the other
+  read captures: `loadingFailed` after `loadingFinished` is a lifecycle
+  contradiction, even before the completed request has been consumed. Pure
+  synthetic tests prove the completed request remains recoverable for cleanup.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

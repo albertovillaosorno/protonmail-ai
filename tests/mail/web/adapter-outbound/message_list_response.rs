@@ -888,3 +888,42 @@ fn direct_list_projector_refuses_oversized_request_urls() {
         Err(MessageListResponseError::UnexpectedEndpoint)
     );
 }
+
+#[test]
+// jig-ignore-next-line: canonical rustfmt line.
+fn completed_message_list_get_cannot_be_turned_into_failed_list_before_consumption() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            // jig-ignore-next-line: canonical rustfmt line.
+            "params":{"requestId":"done-secret","request":{"method":"GET","url":URL}}
+        }))
+        .expect("track app-owned GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"done-secret","response":{
+                "url":URL,"status":200u16,"mimeType":"application/json"
+            }}
+        }))
+        .expect("match exact list response");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":"done-secret"}
+        }))
+        .expect("complete app-owned GET");
+    assert_eq!(
+        capture.observe(&json!({
+            "sessionId":"session-1", "method":"Network.loadingFailed",
+            "params":{"requestId":"done-secret"}
+        })),
+        Err(MessageListNetworkError::InvalidSequence)
+    );
+    assert_eq!(capture.take_finished_request_ids(), ["done-secret"]);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    assert!(!format!("{capture:?}").contains("done-secret"));
+}

@@ -1489,3 +1489,31 @@ fn direct_list_projector_refuses_oversized_request_urls() {
         Err(ConversationListResponseError::UnexpectedEndpoint)
     );
 }
+
+#[test]
+// jig-ignore-next-line: canonical rustfmt line.
+fn completed_conversation_get_cannot_be_turned_into_failed_list_before_consumption() {
+    let mut capture = ConversationListNetworkCapture::new("session-1");
+    capture
+        .observe(&request_event("session-1", "done-secret", "GET", URL))
+        .expect("track app-owned GET");
+    capture
+        .observe(&response_event(
+            "session-1",
+            "done-secret",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("observe exact matching response");
+    capture
+        .observe(&finished_event("session-1", "done-secret"))
+        .expect("complete app-owned GET");
+    assert_eq!(
+        capture.observe(&failed_event("session-1", "done-secret")),
+        Err(ConversationListNetworkError::InvalidSequence)
+    );
+    assert_eq!(capture.take_finished_request_ids(), ["done-secret"]);
+    assert_eq!(capture.take_finished_request_ids().len(), 0);
+    assert!(!format!("{capture:?}").contains("done-secret"));
+}
