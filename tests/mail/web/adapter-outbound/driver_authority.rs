@@ -135,3 +135,103 @@ fn runtime_evaluation_must_prove_static_script_at_final_pipe_boundary() {
         &json!({"expression":location,"returnByValue":true})
     ));
 }
+
+#[test]
+fn transport_rejects_unsafe_cdps_parameter_shapes_in_every_authorized_method() {
+    let session = Some("session-a");
+    let accepted = [
+        (None, "Browser.getVersion", json!({})),
+        (None, "Browser.close", json!({})),
+        (None, "Target.getTargets", json!({})),
+        (
+            None,
+            "Target.attachToTarget",
+            json!({"targetId":"page-1","flatten":true}),
+        ),
+        (
+            None,
+            "Target.detachFromTarget",
+            json!({"sessionId":"session-a"}),
+        ),
+        (
+            session,
+            "DOM.getDocument",
+            json!({"depth":0i32,"pierce":false}),
+        ),
+        (
+            session,
+            "Accessibility.queryAXTree",
+            json!({"nodeId":1u64,"role":"search"}),
+        ),
+        (
+            session,
+            "Network.enable",
+            json!({
+                "maxPostDataSize":0u64,"maxResourceBufferSize":262_144u64,
+                "maxTotalBufferSize":1_048_576u64
+            }),
+        ),
+        (session, "Network.disable", json!({})),
+        (
+            session,
+            "Network.getResponseBody",
+            json!({"requestId":"12.37"}),
+        ),
+        (session, "Page.reload", json!({})),
+        (session, "Page.reload", json!({"ignoreCache":false})),
+    ];
+    for (scope, method, params) in accepted {
+        assert!(allowed_mail_cdp_request(scope, method, &params));
+    }
+    let refused = [
+        (None, "Browser.getVersion", json!({"danger":"secret"})),
+        (
+            None,
+            "Target.attachToTarget",
+            json!({"targetId":"page-1","flatten":false}),
+        ),
+        (
+            None,
+            "Target.detachFromTarget",
+            json!({"sessionId":"bad/session"}),
+        ),
+        (
+            session,
+            "DOM.getDocument",
+            json!({"depth":-1i32,"pierce":true}),
+        ),
+        (
+            session,
+            "Accessibility.queryAXTree",
+            json!({"nodeId":0u64,"role":"search"}),
+        ),
+        (
+            session,
+            "Accessibility.queryAXTree",
+            json!({"nodeId":1u64,"role":"button"}),
+        ),
+        (
+            session,
+            "Network.enable",
+            json!({
+                "maxPostDataSize":100u64,"maxResourceBufferSize":262_144u64,
+                "maxTotalBufferSize":1_048_576u64
+            }),
+        ),
+        (
+            session,
+            "Network.enable",
+            json!({
+                "maxPostDataSize":0u64,"maxResourceBufferSize":16_777_217u64,
+                "maxTotalBufferSize":16_777_217u64
+            }),
+        ),
+        (session, "Network.disable", json!({"requestId":"123"})),
+        (session, "Network.getResponseBody", json!({"requestId":""})),
+        (session, "Page.reload", json!({"ignoreCache":true})),
+        (Some(""), "Page.reload", json!({})),
+    ];
+    for (scope, method, params) in refused {
+        assert!(!allowed_mail_cdp_request(scope, method, &params));
+    }
+}

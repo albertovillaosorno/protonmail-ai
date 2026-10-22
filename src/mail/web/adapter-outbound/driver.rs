@@ -4275,11 +4275,16 @@ fn allowed_mail_cdp_method(session: Option<&str>, method: &str) -> bool {
 // bypass script authorization by calling send_request directly.
 // jig-ignore-next-line: canonical rustfmt line.
 fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value) -> bool {
-    if !allowed_mail_cdp_method(session, method) {
+    if !allowed_mail_cdp_method(session, method)
+        || session.is_some_and(|id| !safe_cdp_endpoint_id(id))
+    {
         return false;
     }
-    if method == "Runtime.evaluate" {
-        return params.as_object().is_some_and(|fields| {
+    let Some(fields) = params.as_object() else {
+        return false;
+    };
+    match method {
+        "Runtime.evaluate" => {
             fields.len() == 2
                 && fields
                     .get("expression")
@@ -4287,9 +4292,78 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
                     .is_some_and(allowed_mail_runtime_expression)
                 // jig-ignore-next-line: canonical rustfmt line.
                 && fields.get("returnByValue").and_then(Value::as_bool) == Some(true)
-        });
+        }
+        // jig-ignore-next-line: canonical rustfmt line.
+        "Browser.getVersion" | "Browser.close" | "Target.getTargets" | "Network.disable" => {
+            fields.is_empty()
+        }
+        "Target.attachToTarget" => {
+            fields.len() == 2
+                && fields.get("flatten").and_then(Value::as_bool) == Some(true)
+                && fields
+                    .get("targetId")
+                    .and_then(Value::as_str)
+                    .is_some_and(safe_cdp_endpoint_id)
+        }
+        "Target.detachFromTarget" => {
+            fields.len() == 1
+                && fields
+                    .get("sessionId")
+                    .and_then(Value::as_str)
+                    .is_some_and(safe_cdp_endpoint_id)
+        }
+        "DOM.getDocument" => {
+            fields.len() == 2
+                && fields.get("depth").and_then(Value::as_i64) == Some(0)
+                && fields.get("pierce").and_then(Value::as_bool) == Some(false)
+        }
+        "Accessibility.queryAXTree" => {
+            fields.len() == 2
+                && fields
+                    .get("nodeId")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|id| id > 0)
+                && matches!(
+                    fields.get("role").and_then(Value::as_str),
+                    Some("navigation" | "search" | "dialog" | "alertdialog")
+                )
+        }
+        "Network.enable" => {
+            // jig-ignore-next-line: canonical rustfmt line.
+            if fields.len() != 3 || fields.get("maxPostDataSize").and_then(Value::as_u64) != Some(0)
+            {
+                return false;
+            }
+            // jig-ignore-next-line: canonical rustfmt line.
+            let Some(resource) = fields.get("maxResourceBufferSize").and_then(Value::as_u64) else {
+                return false;
+            };
+            // jig-ignore-next-line: canonical rustfmt line.
+            let Some(total) = fields.get("maxTotalBufferSize").and_then(Value::as_u64) else {
+                return false;
+            };
+            resource > 0 && resource <= total && total <= 16_777_216
+        }
+        "Network.getResponseBody" => {
+            fields.len() == 1
+                && fields
+                    .get("requestId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| {
+                        !id.is_empty()
+                            && id.len() <= 512
+                            // jig-ignore-next-line: canonical rustfmt line.
+                            && !id.chars().any(|ch| ch.is_control() || ch.is_whitespace())
+                    })
+        }
+        "Page.reload" => {
+            fields.is_empty()
+                || (fields.len() == 1
+                    // jig-ignore-next-line: canonical rustfmt line.
+                    && fields.get("ignoreCache").and_then(Value::as_bool) == Some(false))
+        }
+        _ => false,
     }
-    true
 }
 
 // Runtime evaluations are limited to pre-audited, static UI observations and

@@ -888,6 +888,12 @@ web application without requiring Bridge or a third-party direct API identity.
   true, with no additional keys. This prevents later internal callers from
   bypassing script authorization by invoking the lower-level command path.
   Private unit tests live under the root `tests/` tree per Jig policy.
+- Final CDP serialization also validates typed argument shape for every
+  approved method. It requires exact attach/detach handles, positive AX node
+  IDs with one of four roles, non-piercing root DOM inspection, bounded
+  zero-post-data Network buffers, nonempty bounded response request IDs, and
+  safe reload/disable options. Mutation-capable parameters or unknown keys
+  fail before pipe writes; root-tree tests exercise allowed and denied shapes.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
