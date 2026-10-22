@@ -53,6 +53,7 @@ mod mailbox_pagination;
 mod mailbox_sort;
 mod message_detail;
 mod message_list_response;
+mod opaque_read_id;
 mod policy;
 mod profile;
 mod shell;

@@ -33,6 +33,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
 
 const MAILBOX_LIST_EXPRESSION: &str = concat!(
@@ -228,18 +229,6 @@ fn usize_field(value: &Value, key: &str) -> Result<usize, ()> {
     usize::try_from(raw).map_err(|_error| ())
 }
 
-/// Only route-safe opaque row IDs may escape an untrusted DOM observation.
-fn safe_row_id(id: &str) -> bool {
-    !id.is_empty()
-        && !matches!(id, "." | "..")
-        && id.len() <= MAX_ROW_ID_BYTES
-        && !id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
-        })
-}
-
 fn row_ids(value: &Value) -> Result<Vec<String>, ()> {
     let rows = value.get("rowIds").and_then(Value::as_array).ok_or(())?;
     if rows.len() > MAX_VISIBLE_ROWS {
@@ -249,7 +238,7 @@ fn row_ids(value: &Value) -> Result<Vec<String>, ()> {
     let mut ids = Vec::with_capacity(rows.len());
     for row in rows {
         let id = row.as_str().ok_or(())?;
-        if !safe_row_id(id) || !unique.insert(id) {
+        if !safe_read_id(id, MAX_ROW_ID_BYTES) || !unique.insert(id) {
             return Err(());
         }
         ids.push(String::from(id));

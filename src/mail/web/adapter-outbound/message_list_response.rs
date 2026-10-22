@@ -35,6 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
 
+use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -577,7 +578,7 @@ fn bounded_query_parameter(
     let Some(value) = raw_query_parameter(url, name)? else {
         return Ok(None);
     };
-    if !valid_list_id(value, max_bytes) {
+    if !safe_read_id(value, max_bytes) {
         return Err(MessageListNetworkError::MalformedEvent);
     }
     Ok(Some(String::from(value)))
@@ -724,7 +725,7 @@ impl ObservedMessageListResponse {
             let id = message
                 .get("ID")
                 .and_then(Value::as_str)
-                .filter(|id| valid_list_id(id, MAX_MESSAGE_LIST_ID_BYTES))
+                .filter(|id| safe_read_id(id, MAX_MESSAGE_LIST_ID_BYTES))
                 .ok_or(MessageListResponseError::Malformed)?;
             let time = message
                 .get("Time")
@@ -844,7 +845,7 @@ impl ReconciledVisibleMessageMetadata {
 
         let mut visible = BTreeSet::new();
         for id in visible_ids {
-            if !valid_list_id(id, MAX_MESSAGE_LIST_ID_BYTES) {
+            if !safe_read_id(id, MAX_MESSAGE_LIST_ID_BYTES) {
                 return Err(MessageListReconciliationError::InvalidVisibleId);
             }
             if !visible.insert(*id) {
@@ -912,18 +913,6 @@ pub enum MessageListResponseError {
     DuplicateMessageId,
     /// CDP returned an encoded body instead of decoded JSON text.
     UnsupportedEncoding,
-}
-
-/// Accept only bounded opaque identifiers safe to carry into detail routes.
-fn valid_list_id(id: &str, maximum: usize) -> bool {
-    !id.is_empty()
-        && !matches!(id, "." | "..")
-        && id.len() <= maximum
-        && !id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
-        })
 }
 
 fn is_message_list_url(url: &str) -> bool {

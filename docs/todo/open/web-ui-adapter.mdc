@@ -688,6 +688,11 @@ web application without requiring Bridge or a third-party direct API identity.
   path segments `.` and `..` before row projection, detail lookup, catalog
   snapshot, or event cursor construction. Synthetic boundary tests prove dot
   segments fail without weakening valid printable opaque IDs.
+- Read-only DOM rows, list metadata, detail identities, catalog IDs, event
+  watermarks, and continuation anchors now reuse one private bounded opaque-ID
+  validator. This removes duplicated route-component policy and gives future
+  normalization changes one auditable fail-closed implementation. Unit tests
+  cover the shared boundary; existing synthetic browser suites remain intact.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

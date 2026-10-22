@@ -35,6 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
 
+use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
 
@@ -624,7 +625,7 @@ impl ObservedLatestMailboxEventWatermark {
         let event_id = value
             .get("EventID")
             .and_then(Value::as_str)
-            .filter(|id| valid_event_id(id))
+            .filter(|id| safe_read_id(id, MAX_EVENT_ID_BYTES))
             .ok_or(MailboxEventWatermarkError::Malformed)?;
         Ok(Self {
             event_id: String::from(event_id),
@@ -763,7 +764,7 @@ impl ObservedMailboxEventWatermark {
 
     // jig-ignore-next-line: canonical rustfmt line.
     pub(crate) fn validate_event_id(event_id: &str) -> Result<(), MailboxEventWatermarkError> {
-        if valid_event_id(event_id) {
+        if safe_read_id(event_id, MAX_EVENT_ID_BYTES) {
             return Ok(());
         }
         Err(MailboxEventWatermarkError::Malformed)
@@ -795,7 +796,7 @@ impl ObservedMailboxEventWatermark {
         requested_event_id: &str,
         result: &Value,
     ) -> Result<Self, MailboxEventWatermarkError> {
-        if !valid_event_id(requested_event_id) {
+        if !safe_read_id(requested_event_id, MAX_EVENT_ID_BYTES) {
             return Err(MailboxEventWatermarkError::Malformed);
         }
         let encoded = result
@@ -825,7 +826,7 @@ impl ObservedMailboxEventWatermark {
         let response_event_id = value
             .get("EventID")
             .and_then(Value::as_str)
-            .filter(|id| valid_event_id(id))
+            .filter(|id| safe_read_id(id, MAX_EVENT_ID_BYTES))
             .ok_or(MailboxEventWatermarkError::Malformed)?;
         let more = match value.get("More").and_then(Value::as_u64) {
             Some(0) => false,
@@ -1188,21 +1189,10 @@ fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
     let Some(event_id) = path.strip_prefix(CORE_EVENT_URL_PREFIX) else {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     };
-    if !valid_event_id(event_id) {
+    if !safe_read_id(event_id, MAX_EVENT_ID_BYTES) {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     Ok(event_id)
-}
-
-fn valid_event_id(event_id: &str) -> bool {
-    !event_id.is_empty()
-        && !matches!(event_id, "." | "..")
-        && event_id.len() <= MAX_EVENT_ID_BYTES
-        && !event_id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
-        })
 }
 
 fn project_mailbox_changes(
@@ -1227,7 +1217,7 @@ fn project_mailbox_changes(
             let id = item
                 .get("ID")
                 .and_then(Value::as_str)
-                .filter(|id| valid_event_id(id))
+                .filter(|id| safe_read_id(id, MAX_EVENT_ID_BYTES))
                 .ok_or(MailboxEventWatermarkError::Malformed)?;
             let action = item
                 .get("Action")

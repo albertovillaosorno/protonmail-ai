@@ -274,6 +274,11 @@ Ship useful read access before any mailbox mutation is enabled.
   list, detail, catalog and visible-page evidence closes path normalization
   ambiguity before provider-neutral read or cursor processing.
 
+- The read-only adapter now centralizes route-bound opaque-ID validation in
+  a private, content-free module shared by list, message/conversation detail,
+  attachment metadata, catalog, event, and rendered-page evidence. This is
+  an internal defensive boundary, not a newly advertised public read feature.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

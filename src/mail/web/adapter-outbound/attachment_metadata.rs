@@ -38,6 +38,7 @@
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
 
@@ -390,7 +391,7 @@ impl ObservedAttachmentMetadataResponse {
         let attachment_id =
             // jig-ignore-next-line: canonical rustfmt line.
             bounded_required_string(attachment, "ID", MAX_ATTACHMENT_ID_BYTES, false)?;
-        if !valid_route_id(&attachment_id, MAX_ATTACHMENT_ID_BYTES) {
+        if !safe_read_id(&attachment_id, MAX_ATTACHMENT_ID_BYTES) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         if attachment_id != requested_attachment_id {
@@ -400,7 +401,7 @@ impl ObservedAttachmentMetadataResponse {
         let message_id =
             // jig-ignore-next-line: canonical rustfmt line.
             bounded_required_string(attachment, "MessageID", MAX_MESSAGE_ID_BYTES, false)?;
-        if !valid_route_id(&message_id, MAX_MESSAGE_ID_BYTES) {
+        if !safe_read_id(&message_id, MAX_MESSAGE_ID_BYTES) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         if message_id != expected_message_id {
@@ -439,7 +440,7 @@ impl ObservedAttachmentMetadataResponse {
         expected_message_id: &str,
         result: &Value,
     ) -> Result<Self, AttachmentMetadataResponseError> {
-        if !valid_route_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
+        if !safe_read_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
             return Err(AttachmentMetadataResponseError::UnexpectedEndpoint);
         }
         let encoded = result
@@ -493,18 +494,6 @@ pub enum AttachmentMetadataResponseError {
     UnsupportedEncoding,
 }
 
-/// Check an opaque ID before it can name a provider attachment or message.
-fn valid_route_id(id: &str, maximum: usize) -> bool {
-    !id.is_empty()
-        && !matches!(id, "." | "..")
-        && id.len() <= maximum
-        && !id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
-        })
-}
-
 #[expect(
     clippy::redundant_pub_crate,
     reason = "sibling driver module shares this private-module validator"
@@ -512,7 +501,7 @@ fn valid_route_id(id: &str, maximum: usize) -> bool {
 pub(crate) fn validate_expected_message_id(
     expected_message_id: &str,
 ) -> Result<(), AttachmentMetadataResponseError> {
-    if !valid_route_id(expected_message_id, MAX_MESSAGE_ID_BYTES) {
+    if !safe_read_id(expected_message_id, MAX_MESSAGE_ID_BYTES) {
         return Err(AttachmentMetadataResponseError::InvalidExpectedMessageId);
     }
     Ok(())
@@ -527,7 +516,7 @@ fn attachment_id_from_metadata_url(
     let Some(attachment_id) = suffix.strip_suffix("/metadata") else {
         return Ok(None);
     };
-    if !valid_route_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
+    if !safe_read_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
         return Err(AttachmentMetadataResponseError::UnexpectedEndpoint);
     }
     Ok(Some(attachment_id))

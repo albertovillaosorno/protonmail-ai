@@ -35,6 +35,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
 
 const LABELS_URL_PREFIX: &str = "https://mail.proton.me/api/core/v4/labels";
@@ -571,24 +572,12 @@ pub enum MailboxCatalogResponseError {
     UnsupportedEncoding,
 }
 
-/// Provider mailbox/label identity; user-visible names remain unrestricted.
-fn valid_catalog_id(id: &str) -> bool {
-    !id.is_empty()
-        && !matches!(id, "." | "..")
-        && id.len() <= MAX_CATALOG_ID_BYTES
-        && !id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '\\')
-        })
-}
-
 fn parse_item(
     kind: MailboxCatalogKind,
     value: &Value,
 ) -> Result<ObservedMailboxCatalogItem, MailboxCatalogResponseError> {
     let id = bounded_string(value, "ID", MAX_CATALOG_ID_BYTES)?;
-    if !valid_catalog_id(&id) {
+    if !safe_read_id(&id, MAX_CATALOG_ID_BYTES) {
         return Err(MailboxCatalogResponseError::Malformed);
     }
     let name = bounded_string(value, "Name", MAX_CATALOG_NAME_BYTES)?;
@@ -636,14 +625,14 @@ fn bounded_parent_id(value: Option<&Value>) -> Result<Option<String>, MailboxCat
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(parent)) => {
-            if !valid_catalog_id(parent) {
+            if !safe_read_id(parent, MAX_CATALOG_ID_BYTES) {
                 return Err(MailboxCatalogResponseError::Malformed);
             }
             Ok(Some(parent.clone()))
         }
         Some(Value::Number(parent)) if parent.is_i64() || parent.is_u64() => {
             let parent = parent.to_string();
-            if !valid_catalog_id(&parent) {
+            if !safe_read_id(&parent, MAX_CATALOG_ID_BYTES) {
                 return Err(MailboxCatalogResponseError::Malformed);
             }
             Ok(Some(parent))
