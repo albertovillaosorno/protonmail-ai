@@ -40,6 +40,7 @@ use serde_json::Value;
 // jig-ignore-next-line: canonical rustfmt line.
 const CONVERSATION_LIST_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/conversations";
 const MAX_CONVERSATION_LIST_ITEMS: usize = 100;
+const MAX_CONVERSATION_LIST_PAGE_SIZE: u16 = 100;
 const MAX_CONVERSATION_ID_BYTES: usize = 512;
 const MAX_TRACKED_CONVERSATION_LIST_REQUESTS: usize = 128;
 const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
@@ -590,6 +591,8 @@ fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationList
         return Ok((None, false));
     };
     let mut page = None;
+    let mut page_size = None;
+    let mut limit = None;
     let mut has_anchor = false;
     let mut has_anchor_id = false;
     for parameter in query.split('&') {
@@ -604,6 +607,16 @@ fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationList
                     // jig-ignore-next-line: canonical rustfmt line.
                     .map_err(|_error| ConversationListNetworkError::InvalidPagination)?;
                 page = Some(parsed);
+            }
+            "PageSize" => {
+                if page_size.replace(bounded_page_size(value)?).is_some() {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+            }
+            "Limit" => {
+                if limit.replace(bounded_page_size(value)?).is_some() {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
             }
             "Anchor" => {
                 if value.is_empty() || has_anchor {
@@ -624,6 +637,16 @@ fn parse_request_page(url: &str) -> Result<(Option<u32>, bool), ConversationList
         return Err(ConversationListNetworkError::InvalidPagination);
     }
     Ok((page, has_anchor))
+}
+
+fn bounded_page_size(value: &str) -> Result<u16, ConversationListNetworkError> {
+    let parsed = value
+        .parse::<u16>()
+        .map_err(|_error| ConversationListNetworkError::InvalidPagination)?;
+    if parsed == 0 || parsed > MAX_CONVERSATION_LIST_PAGE_SIZE {
+        return Err(ConversationListNetworkError::InvalidPagination);
+    }
+    Ok(parsed)
 }
 
 fn url_fingerprint(url: &str, hashers: &[RandomState; 2]) -> [u64; 2] {

@@ -1043,6 +1043,14 @@ fn network_capture_rejects_malformed_conversation_page_selectors() {
         "?Page=0&Anchor=123",
         "?Page=0&Anchor=123&Anchor=456&AnchorID=present",
         "?Page=0&Anchor=123&AnchorID=present&AnchorID=other",
+        "?Page=0&PageSize=0",
+        "?Page=0&PageSize=101",
+        "?Page=0&PageSize=not-a-number",
+        "?Page=0&PageSize=50&PageSize=50",
+        "?Page=0&Limit=0",
+        "?Page=0&Limit=101",
+        "?Page=0&Limit=-1",
+        "?Page=0&Limit=50&Limit=50",
     ]
     .iter()
     .enumerate()

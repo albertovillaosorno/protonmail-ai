@@ -489,6 +489,11 @@ web application without requiring Bridge or a third-party direct API identity.
   rendered row IDs remain unchanged. Both transitions fail closed rather than
   using previously captured list metadata, and the fake browser never invokes
   a navigation or mutation operation.
+- Conversation-list GET request validation now bounds explicit PageSize and
+  Limit to 1..=100 and rejects repeated, zero, oversized, or malformed values.
+  This supplements zero-based Page and anchor-pair validation without retaining
+  search, label, or other request query strings; tests exercise each malformed
+  selector and preserve the accepted initial-list query shape.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
