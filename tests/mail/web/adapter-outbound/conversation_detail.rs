@@ -608,3 +608,121 @@ fn conversation_started_during_network_disable_fails_closed() {
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove late conversation root");
 }
+
+#[test]
+fn consumed_detail_request_ids_reject_all_late_lifecycle_events() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "detail", "GET", URL))
+        .expect("start app-owned read");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "detail",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("observe exact read response");
+    capture
+        .observe(&finished_event("session-a", "detail"))
+        .expect("complete exact read response");
+    assert_eq!(
+        capture.take_finished_requests(),
+        vec![(String::from("detail"), String::from("conversation-1"))]
+    );
+    assert_eq!(capture.tracked_request_count(), 0);
+    let debug = format!("{capture:?}");
+    assert!(!debug.contains("detail"));
+    assert!(!debug.contains("conversation-1"));
+    for late in [
+        request_event("session-a", "detail", "GET", URL),
+        request_event("session-a", "detail", "POST", URL),
+        response_event("session-a", "detail", URL, 200, "application/json"),
+        finished_event("session-a", "detail"),
+        failed_event("session-a", "detail"),
+    ] {
+        assert_eq!(
+            capture.observe(&late),
+            Err(ConversationDetailNetworkError::InvalidSequence)
+        );
+    }
+    assert_eq!(capture.take_finished_requests().len(), 0);
+}
+
+#[test]
+fn consumed_detail_request_markers_count_toward_capacity() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-a");
+    for index in 0u8..16 {
+        let request_id = format!("sensitive-{index}");
+        capture
+            .observe(&request_event("session-a", &request_id, "GET", URL))
+            .expect("start bounded request");
+        capture
+            .observe(&response_event(
+                "session-a",
+                &request_id,
+                URL,
+                200,
+                "application/json",
+            ))
+            .expect("match completed response");
+        capture
+            .observe(&finished_event("session-a", &request_id))
+            .expect("finish bounded response");
+        assert_eq!(
+            capture.take_finished_requests(),
+            vec![(request_id, String::from("conversation-1"))]
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    assert!(!format!("{capture:?}").contains("sensitive-"));
+    assert_eq!(
+        capture.observe(&request_event("session-a", "overflow", "GET", URL)),
+        Err(ConversationDetailNetworkError::CapacityExceeded)
+    );
+}
+
+#[test]
+fn completed_detail_id_reused_during_disable_fails_closed() {
+    // jig-ignore-next-line: canonical rustfmt line.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    let _guard = CONVERSATION_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic browser fixture");
+    let root = conversation_browser_root("reused-during-disable");
+    fs::create_dir_all(&root).expect("create synthetic browser root");
+    let browser = fake_conversation_browser(&root, true, true, true);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read synthetic browser fixture");
+    assert!(script.contains("conversation-late"));
+    fs::write(
+        &browser,
+        script.replace("conversation-late", "conversation-1"),
+    )
+    .expect("install replayed synthetic CDP request ID");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build synthetic browser plan");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("discover fake Mail page");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        managed.observe_passive_conversation_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::ConversationDetailNetwork(
+            ConversationDetailNetworkError::InvalidSequence,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("safe Mail shell remains inspectable after replay rejection");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("conversation-log.txt")).expect("read Network lifecycle");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove synthetic browser root");
+}

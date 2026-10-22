@@ -533,6 +533,15 @@ web application without requiring Bridge or a third-party direct API identity.
   Network teardown. A 128-lifecycle cap bounds consumed and pending state;
   tests cover each repeated event, cap exhaustion, redacted diagnostics, and
   a replay during `Network.disable` followed by safe Mail-shell inspection.
+- Passive message-detail, complete-conversation, and attachment-metadata CDP
+  classifiers now remember consumed request IDs for the rest of one bounded
+  observation. Late failures, repeated responses, and duplicate request IDs
+  during `Network.disable` fail closed even after the original request was
+  removed from the pending map. A combined 16-request pending/completed limit
+  and redacted count-only diagnostics bound tombstones. Existing failed app
+  attempts may still be retried with a new request. Per-boundary unit tests
+  cover all late event types and capacity; synthetic browsers also confirm
+  replay detection and subsequent safe Mail-shell access after teardown.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

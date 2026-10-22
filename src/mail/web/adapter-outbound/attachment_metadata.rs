@@ -36,7 +36,7 @@
 //! Bounded Proton attachment metadata projection with parent-message binding.
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
@@ -68,6 +68,7 @@ struct TrackedAttachmentMetadataRequest {
 pub struct AttachmentMetadataNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedAttachmentMetadataRequest>,
+    completed_ids: BTreeSet<String>,
 }
 
 impl AttachmentMetadataNetworkCapture {
@@ -77,6 +78,7 @@ impl AttachmentMetadataNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
         }
     }
 
@@ -116,6 +118,9 @@ impl AttachmentMetadataNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != AttachmentMetadataRequestState::Finished);
+        for (request_id, _attachment_id) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -152,6 +157,9 @@ impl AttachmentMetadataNetworkCapture {
         } else {
             None
         };
+        if self.completed_ids.contains(request_id) {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         if let Some(existing) = self.requests.get(request_id) {
             if attachment_id != Some(existing.attachment_id.as_str()) {
                 return Err(AttachmentMetadataNetworkError::RedirectedAway);
@@ -161,7 +169,9 @@ impl AttachmentMetadataNetworkCapture {
         let Some(attachment_id) = attachment_id else {
             return Ok(());
         };
-        if self.requests.len() >= MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS {
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS
+        {
             return Err(AttachmentMetadataNetworkError::CapacityExceeded);
         }
         self.requests.insert(
@@ -183,6 +193,9 @@ impl AttachmentMetadataNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -214,6 +227,9 @@ impl AttachmentMetadataNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -227,6 +243,9 @@ impl AttachmentMetadataNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -237,6 +256,7 @@ impl Debug for AttachmentMetadataNetworkCapture {
         f.debug_struct("AttachmentMetadataNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .finish()
     }
 }

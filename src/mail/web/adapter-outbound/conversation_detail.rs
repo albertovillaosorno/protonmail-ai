@@ -62,6 +62,7 @@ struct TrackedConversationDetailRequest {
 pub struct ConversationDetailNetworkCapture {
     session_id: String,
     requests: BTreeMap<String, TrackedConversationDetailRequest>,
+    completed_ids: BTreeSet<String>,
 }
 
 impl ConversationDetailNetworkCapture {
@@ -71,6 +72,7 @@ impl ConversationDetailNetworkCapture {
         Self {
             session_id: String::from(session_id),
             requests: BTreeMap::new(),
+            completed_ids: BTreeSet::new(),
         }
     }
 
@@ -108,6 +110,9 @@ impl ConversationDetailNetworkCapture {
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
             .retain(|_id, request| request.state != ConversationDetailRequestState::Finished);
+        for (request_id, _conversation_id) in &finished {
+            self.completed_ids.insert(request_id.clone());
+        }
         finished
     }
 
@@ -144,6 +149,9 @@ impl ConversationDetailNetworkCapture {
         } else {
             None
         };
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationDetailNetworkError::InvalidSequence);
+        }
         if let Some(existing) = self.requests.get(request_id) {
             if conversation_id != Some(existing.conversation_id.as_str()) {
                 return Err(ConversationDetailNetworkError::RedirectedAway);
@@ -153,7 +161,9 @@ impl ConversationDetailNetworkCapture {
         let Some(conversation_id) = conversation_id else {
             return Ok(());
         };
-        if self.requests.len() >= MAX_TRACKED_CONVERSATION_DETAIL_REQUESTS {
+        if self.requests.len().saturating_add(self.completed_ids.len())
+            >= MAX_TRACKED_CONVERSATION_DETAIL_REQUESTS
+        {
             return Err(ConversationDetailNetworkError::CapacityExceeded);
         }
         self.requests.insert(
@@ -175,6 +185,9 @@ impl ConversationDetailNetworkCapture {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or(ConversationDetailNetworkError::MalformedEvent)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationDetailNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -206,6 +219,9 @@ impl ConversationDetailNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), ConversationDetailNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationDetailNetworkError::InvalidSequence);
+        }
         let Some(request) = self.requests.get_mut(request_id) else {
             return Ok(());
         };
@@ -219,6 +235,9 @@ impl ConversationDetailNetworkCapture {
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_failed(&mut self, event: &Value) -> Result<(), ConversationDetailNetworkError> {
         let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationDetailNetworkError::InvalidSequence);
+        }
         self.requests.remove(request_id);
         Ok(())
     }
@@ -229,6 +248,7 @@ impl fmt::Debug for ConversationDetailNetworkCapture {
         f.debug_struct("ConversationDetailNetworkCapture")
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
+            .field("completed_request_count", &self.completed_ids.len())
             .finish()
     }
 }

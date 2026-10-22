@@ -168,6 +168,12 @@ Ship useful read access before any mailbox mutation is enabled.
   bypassing lifecycle checks. This does not establish immutable result paging
   or enable public thread search.
 
+- The same bounded terminal-ID protection now covers complete conversation,
+  single-message detail, and attachment-metadata GET captures. Consumption
+  retains only the CDP request ID (not content), so late lifecycle events
+  cannot be mistaken for unrelated background traffic. Synthetic fake-browser
+  replay tests exercise each diagnostic without new provider action authority.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
