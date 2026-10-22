@@ -651,6 +651,11 @@ web application without requiring Bridge or a third-party direct API identity.
   whitespace, and control characters are rejected before future per-message
   reads can use those identifiers. Synthetic tests cover direct projection,
   CDP request classification, and bounded parent-member identity evidence.
+- Single-message detail GET metadata now validates all route-bound provider
+  IDs before retaining them: message, parent conversation, label, and optional
+  attachment descriptor identifiers. Separator, whitespace, or control-byte
+  drift fails closed without rejecting normal subject/address/MIME content.
+  Synthetic cases preserve printable opaque IDs and redacted body projection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

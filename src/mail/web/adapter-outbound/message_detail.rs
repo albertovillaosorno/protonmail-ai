@@ -531,12 +531,18 @@ impl ObservedMessageDetailResponse {
             .ok_or(MessageDetailResponseError::Malformed)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let id = bounded_required_string(message, "ID", MAX_MESSAGE_ID_BYTES, false)?;
+        if !valid_opaque_route_id(&id, MAX_MESSAGE_ID_BYTES) {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         if id != expected_id {
             return Err(MessageDetailResponseError::IdentityMismatch);
         }
         let conversation_id =
             // jig-ignore-next-line: canonical rustfmt line.
             bounded_required_string(message, "ConversationID", MAX_CONVERSATION_ID_BYTES, false)?;
+        if !valid_opaque_route_id(&conversation_id, MAX_CONVERSATION_ID_BYTES) {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         let subject = bounded_required_string(message, "Subject", MAX_SUBJECT_BYTES, true)?;
         let sender_value = message
@@ -587,7 +593,7 @@ impl ObservedMessageDetailResponse {
         message_id: &str,
         result: &Value,
     ) -> Result<Self, MessageDetailResponseError> {
-        if message_id.is_empty() || message_id.len() > MAX_MESSAGE_ID_BYTES {
+        if !valid_opaque_route_id(message_id, MAX_MESSAGE_ID_BYTES) {
             return Err(MessageDetailResponseError::UnexpectedEndpoint);
         }
         let encoded = result
@@ -678,8 +684,7 @@ fn parse_label_ids(value: Option<&Value>) -> Result<Vec<String>, MessageDetailRe
     for value in values {
         let label = value
             .as_str()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|value| !value.is_empty() && value.len() <= MAX_LABEL_ID_BYTES)
+            .filter(|value| valid_opaque_route_id(value, MAX_LABEL_ID_BYTES))
             .ok_or(MessageDetailResponseError::Malformed)?;
         if !seen.insert(label) {
             return Err(MessageDetailResponseError::DuplicateIdentifier);
@@ -706,6 +711,13 @@ fn parse_attachments(
             .ok_or(MessageDetailResponseError::Malformed)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let id = bounded_optional_nonempty_string(object, "ID", MAX_ATTACHMENT_ID_BYTES)?;
+        if id
+            .as_ref()
+            // jig-ignore-next-line: canonical rustfmt line.
+            .is_some_and(|id| !valid_opaque_route_id(id, MAX_ATTACHMENT_ID_BYTES))
+        {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         if let Some(id) = id.as_ref()
             && !seen.insert(id.clone())
         {
@@ -783,17 +795,23 @@ fn bounded_optional_string(
     }
 }
 
+/// Restrict projected provider identifiers to bounded safe route components.
+fn valid_opaque_route_id(id: &str, maximum: usize) -> bool {
+    !id.is_empty()
+        && id.len() <= maximum
+        && !id.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(character, '/' | '?' | '#' | '\\')
+        })
+}
+
 // jig-ignore-next-line: canonical rustfmt line.
 fn message_id_from_detail_url(url: &str) -> Result<Option<&str>, MessageDetailNetworkError> {
     let Some(message_id) = url.strip_prefix(MESSAGE_DETAIL_URL_PREFIX) else {
         return Ok(None);
     };
-    if message_id.is_empty()
-        || message_id.len() > MAX_MESSAGE_ID_BYTES
-        || message_id
-            .bytes()
-            .any(|byte| matches!(byte, b'/' | b'?' | b'#' | b'\\'))
-    {
+    if !valid_opaque_route_id(message_id, MAX_MESSAGE_ID_BYTES) {
         return Err(MessageDetailNetworkError::MalformedEvent);
     }
     Ok(Some(message_id))

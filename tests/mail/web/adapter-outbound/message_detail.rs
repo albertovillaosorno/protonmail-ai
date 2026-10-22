@@ -806,3 +806,73 @@ fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
     );
     assert_eq!(capture.take_finished_requests().len(), 0);
 }
+
+#[test]
+fn detail_projection_rejects_unsafe_route_bound_metadata_ids() {
+    for bad in [
+        "bad/id",
+        "bad?id",
+        "bad#id",
+        "bad\\id",
+        "bad id",
+        "bad\nid",
+        "bad\tid",
+        "bad\rid",
+        "bad\u{a0}id",
+        "bad\u{7f}id",
+    ] {
+        let mut conversation = detail_body();
+        conversation["Message"]["ConversationID"] = json!(bad);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &conversation.to_string()),
+            Err(MessageDetailResponseError::Malformed)
+        );
+        let mut labels = detail_body();
+        labels["Message"]["LabelIDs"] = json!([bad]);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &labels.to_string()),
+            Err(MessageDetailResponseError::Malformed)
+        );
+        let mut attachments = detail_body();
+        attachments["Message"]["Attachments"][0]["ID"] = json!(bad);
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &attachments.to_string()),
+            Err(MessageDetailResponseError::Malformed)
+        );
+        let url = format!("https://mail.proton.me/api/mail/v4/messages/{bad}");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt line.
+            ObservedMessageDetailResponse::parse("GET", &url, &detail_body().to_string()),
+            Err(MessageDetailResponseError::UnexpectedEndpoint)
+        );
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        assert_eq!(
+            capture.observe(&request_event("session-a", "bad", "GET", &url)),
+            Err(MessageDetailNetworkError::MalformedEvent)
+        );
+    }
+}
+
+#[test]
+fn detail_projection_keeps_printable_opaque_ids_and_content_fields() {
+    let mut body = detail_body();
+    body["Message"]["ID"] = json!("opaque+_~=");
+    body["Message"]["ConversationID"] = json!("parent+_~=");
+    body["Message"]["LabelIDs"] = json!(["label+_~="]);
+    body["Message"]["Attachments"][0]["ID"] = json!("attach+_~=");
+    let url = "https://mail.proton.me/api/mail/v4/messages/opaque+_~=";
+    // jig-ignore-next-line: canonical rustfmt line.
+    let projected = ObservedMessageDetailResponse::parse("GET", url, &body.to_string())
+        .expect("valid opaque detail identities remain available");
+    assert_eq!(projected.message().id(), "opaque+_~=");
+    assert_eq!(projected.message().conversation_id(), "parent+_~=");
+    assert_eq!(projected.message().label_ids(), ["label+_~="]);
+    assert_eq!(
+        projected.message().attachments()[0].id(),
+        Some("attach+_~=")
+    );
+    assert_eq!(projected.message().subject(), "Unicode \u{2713} subject");
+}

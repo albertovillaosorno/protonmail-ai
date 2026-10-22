@@ -245,6 +245,11 @@ Ship useful read access before any mailbox mutation is enabled.
   its projected IDs with bounded list-read route safety. Only synthetic
   identity metadata is retained; plaintext thread reading remains blocked.
 
+- Message-detail projection now rejects malformed exact message URL IDs,
+  unsafe parent conversation identifiers, label IDs, and attachment descriptor
+  IDs, while preserving content-bearing metadata and valid printable IDs.
+  This remains bounded metadata only; body decryption and headers are not read.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the
