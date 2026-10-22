@@ -319,3 +319,13 @@ fn active_automation_lease_blocks_visible_login_launch() {
     drop(lease);
     cleanup(&root);
 }
+
+#[test]
+fn dedicated_profile_debug_does_not_reveal_absolute_data_home() {
+    let root = test_root("private-profile-debug");
+    let profile = Profile::under_data_home(&root)
+        .expect("isolated absolute data home creates a fixed profile path");
+    let debug = format!("{profile:?}");
+    assert!(debug.contains("<redacted>"));
+    assert!(!debug.contains(&root.display().to_string()));
+}

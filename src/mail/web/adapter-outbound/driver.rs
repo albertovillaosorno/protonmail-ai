@@ -278,10 +278,19 @@ impl fmt::Debug for WebAdapterGeneration {
 }
 
 /// Immutable launch settings for one managed dedicated-profile browser.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ManagedBrowserPlan {
     browser: String,
     profile: DedicatedBrowserProfile,
+}
+
+impl fmt::Debug for ManagedBrowserPlan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ManagedBrowserPlan")
+            .field("browser", &"<redacted>")
+            .field("profile", &self.profile)
+            .finish()
+    }
 }
 
 impl ManagedBrowserPlan {
@@ -404,7 +413,6 @@ impl SortMenuActivation {
 }
 
 /// Managed Chromium process connected over private `DevTools` file descriptors.
-#[derive(Debug)]
 pub struct ManagedBrowser {
     child: Child,
     catalog_cursor_codec: WebCatalogCursorCodec,
@@ -416,6 +424,24 @@ pub struct ManagedBrowser {
     reader: BufReader<UnixStream>,
     writer: UnixStream,
     _lease: AutomationProfileLease,
+}
+
+impl fmt::Debug for ManagedBrowser {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ManagedBrowser")
+            .field("generation", &self.generation)
+            .field("cursor_codec", &self.cursor_codec)
+            .field("catalog_cursor_codec", &self.catalog_cursor_codec)
+            .field(
+                "mailbox_catalog_present",
+                &self.mailbox_catalog_snapshot.is_some(),
+            )
+            .field(
+                "label_catalog_present",
+                &self.label_catalog_snapshot.is_some(),
+            )
+            .finish_non_exhaustive()
+    }
 }
 
 trait CdpEventObserver {

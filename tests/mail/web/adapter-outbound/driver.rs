@@ -357,6 +357,9 @@ fn managed_browser_uses_private_pipe_and_dedicated_profile() {
     let browser = fake_browser(&root, targets, "mail.proton.me");
     let plan = plan(&root, &browser);
     let expected_profile = plan.profile_dir().to_path_buf();
+    let plan_debug = format!("{plan:?}");
+    assert!(!plan_debug.contains(&expected_profile.display().to_string()));
+    assert!(!plan_debug.contains(&browser.display().to_string()));
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&plan).expect("launch fake driver");
 
@@ -422,6 +425,8 @@ fn event_cursor_scope_rotates_across_managed_browser_restart() {
         let debug = format!("{managed:?}");
         assert!(debug.contains("<redacted-web-adapter-generation>"));
         assert!(debug.contains("WebEventCursorCodec([REDACTED])"));
+        assert!(!debug.contains(&root.display().to_string()));
+        assert!(!debug.contains("session-1"));
         (cursor, token)
     };
 

@@ -55,9 +55,17 @@ const BROWSER_CANDIDATES: [&str; 5] = [
 ];
 
 /// Fixed project-owned browser profile used by visible login and automation.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct DedicatedBrowserProfile {
     path: PathBuf,
+}
+
+impl fmt::Debug for DedicatedBrowserProfile {
+    fn fmt(&self, f: &mut Fmt<'_>) -> fmt::Result {
+        f.debug_struct("DedicatedBrowserProfile")
+            .field("path", &"<redacted>")
+            .finish()
+    }
 }
 
 impl DedicatedBrowserProfile {
@@ -101,10 +109,19 @@ impl DedicatedBrowserProfile {
 }
 
 /// Browser launch details that preserve a dedicated profile boundary.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct WebLoginPlan {
     browser: String,
     profile: DedicatedBrowserProfile,
+}
+
+impl fmt::Debug for WebLoginPlan {
+    fn fmt(&self, f: &mut Fmt<'_>) -> fmt::Result {
+        f.debug_struct("WebLoginPlan")
+            .field("browser", &"<redacted>")
+            .field("profile", &self.profile)
+            .finish()
+    }
 }
 
 impl WebLoginPlan {

@@ -843,6 +843,12 @@ web application without requiring Bridge or a third-party direct API identity.
   typed protocol incompatibility before Mail-shell readiness is granted.
   Synthetic fake-browser tests accept the exact 256-node bound and refuse
   257 nodes in every role without inspecting or retaining accessible names.
+- The dedicated profile, visible login plan, managed browser plan, and live
+  managed browser now use explicit redacted `Debug` projections. These omit
+  local browser binary/profile paths, lease/process pipe internals, session
+  handles and cursor state; only safe presence flags and already-redacted
+  generation/codec metadata remain. Fake-browser and profile-login tests check
+  synthetic local paths and target handles cannot escape through Debug.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
