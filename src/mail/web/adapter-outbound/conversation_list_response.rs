@@ -241,6 +241,9 @@ impl ConversationListNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(ConversationListNetworkError::MalformedEvent)?;
+        if url.len() > MAX_CONVERSATION_LIST_URL_BYTES {
+            return Err(ConversationListNetworkError::ResponseRejected);
+        }
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         if !is_conversation_list_url(url)

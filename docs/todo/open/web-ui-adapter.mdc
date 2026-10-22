@@ -698,6 +698,10 @@ web application without requiring Bridge or a third-party direct API identity.
   enter a read route, UI row, catalog cursor, or event watermark. Synthetic
   parsers and managed Chromium message-page fixtures reject encoded slash,
   encoded dot segments, and hidden direction controls without exposing IDs.
+- Conversation-list Network response URLs now obey the same 16 KiB
+  ceiling as their exact GET requests, rejecting oversized response metadata
+  before fingerprinting or changing lifecycle state. Synthetic tests cover the
+  inclusive boundary and a rejected oversized response with redacted debug.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -285,6 +285,11 @@ Ship useful read access before any mailbox mutation is enabled.
   never decodes or normalizes provider IDs; user-visible names and content
   fields retain their independent bounds.
 
+- Exact conversation-list response URLs are bounded at 16 KiB before any
+  private request-correlation hash is computed, matching the request limit.
+  Synthetic boundary checks prove the largest accepted URL and fail closed
+  on an oversized response without producing list metadata.
+
 - Header research found two distinct fields on the exact message-detail
   response. `Message.Header` is raw header text, while `Message.ParsedHeaders`
   maps names to either one string or an array of strings; WebClients reads the

@@ -1578,3 +1578,45 @@ fn visible_conversation_ids_are_checked_before_metadata_lookup() {
         );
     }
 }
+
+#[test]
+fn conversation_network_refuses_oversized_response_url_before_fingerprinting() {
+    const LIMIT: usize = 16_384;
+    let full = format!("{}{}", URL, "x".repeat(LIMIT - URL.len()));
+    let too_long = format!("{full}x");
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "bounded", "GET", &full))
+        .expect("accept exactly bounded request");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "bounded",
+            &full,
+            200,
+            "application/json",
+        ))
+        .expect("accept exact matching bounded response");
+    capture
+        .observe(&finished_event("session-a", "bounded"))
+        .expect("finish matching capped response");
+    assert_eq!(capture.take_finished_request_ids(), ["bounded"]);
+
+    let mut rejected = ConversationListNetworkCapture::new("session-a");
+    rejected
+        .observe(&request_event("session-a", "oversized", "GET", URL))
+        .expect("track valid bounded request");
+    assert_eq!(
+        rejected.observe(&response_event(
+            "session-a",
+            "oversized",
+            &too_long,
+            200,
+            "application/json"
+        )),
+        Err(ConversationListNetworkError::ResponseRejected)
+    );
+    assert_eq!(rejected.tracked_request_count(), 1);
+    assert_eq!(rejected.take_finished_request_ids().len(), 0);
+    assert!(!format!("{rejected:?}").contains(&too_long));
+}
