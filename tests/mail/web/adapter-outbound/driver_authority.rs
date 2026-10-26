@@ -530,3 +530,13 @@ fn current_page_evidence_must_be_visible_before_page_number_projection() {
     assert!(script.contains("current.closest('[aria-hidden="));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn selected_sort_state_cannot_come_from_hidden_menu_options() {
+    let script = MailboxSortOrder::expression();
+    assert!(script.contains("controls.some((node)=>"));
+    assert!(script.contains("node.getClientRects().length===0"));
+    assert!(script.contains("getComputedStyle(node).visibility"));
+    assert!(script.contains("node.closest('[aria-hidden="));
+    assert!(allowed_mail_runtime_expression(script));
+}

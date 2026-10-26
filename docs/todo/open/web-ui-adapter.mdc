@@ -1116,6 +1116,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Current-page selectors must also be visibly rendered and not inside
   ARIA-hidden ancestry before supplying page-number/pagination evidence;
   offscreen or hidden markers cannot authorize a Next transition.
+- Newest-first sort evidence now requires every sort option to be
+  visibly rendered, with nonhidden CSS and accessibility ancestry, before
+  trusting `aria-pressed`. Hidden menu options cannot establish ordering.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
