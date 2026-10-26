@@ -39,9 +39,11 @@ use serde_json::Value;
 const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(() => {",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const loading=document.querySelector('[data-testid=\"message-list-loading\"]');",
+    "const loadingNodes=[...document.querySelectorAll('[data-testid=\"message-list-loading\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const loaded=document.querySelector('[data-testid=\"message-list-loaded\"]');",
+    "const loadedNodes=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
+    "if(loadedNodes.length>1||loadingNodes.length>1){return null;}",
+    "const loading=loadingNodes[0],loaded=loadedNodes[0];",
     "const root=loaded||loading;",
     "if(!root){return {loading:false,loaded:false,rowIds:[],skeletonCount:0,",
     // jig-ignore-next-line: indivisible JavaScript query fragment.

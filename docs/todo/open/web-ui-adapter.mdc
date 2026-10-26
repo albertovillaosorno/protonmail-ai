@@ -1028,6 +1028,9 @@ web application without requiring Bridge or a third-party direct API identity.
   to be descendants of their respective row. Broken/global ARIA labels cannot
   project unrelated page titles; the static CDP script authority test enforces
   the containment guard without reading live message content.
+- Audited mailbox-list and row-content selectors now refuse multiple
+  matching loaded/list-loading roots instead of silently projecting only the
+  first DOM match. Static CDP authority tests enforce root uniqueness.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

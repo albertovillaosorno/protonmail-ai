@@ -50,8 +50,9 @@ const MAX_ADDRESSES_BYTES: usize = 16_384;
 const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "(() => {",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const root=document.querySelector('[data-testid=\"message-list-loaded\"]');",
-    "if(!root){return null;}",
+    "const roots=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
+    "if(roots.length!==1){return null;}",
+    "const root=roots[0];",
     "const base='[data-shortcut-target=\"item-container\"]',",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",

@@ -324,3 +324,14 @@ fn visible_row_projection_must_not_follow_labels_outside_the_row() {
     assert!(script.contains("subject:localHeading?"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn mailbox_list_projection_must_refuse_ambiguous_loaded_roots() {
+    let list = MailboxListEvidence::expression();
+    assert!(list.contains("loadedNodes.length>1"));
+    assert!(list.contains("loadingNodes.length>1"));
+    let rows = MailboxPageSnapshot::expression();
+    assert!(rows.contains("roots.length!==1"));
+    assert!(allowed_mail_runtime_expression(list));
+    assert!(allowed_mail_runtime_expression(rows));
+}
