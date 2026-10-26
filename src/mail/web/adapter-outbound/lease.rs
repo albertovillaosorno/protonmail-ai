@@ -38,8 +38,9 @@ use std::os::unix::fs::MetadataExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use nix::fcntl::{OFlag, open, openat};
-use nix::sys::stat::Mode;
+use nix::fcntl::{AtFlags, OFlag, open, openat};
+use nix::sys::stat::{Mode, SFlag, fstatat};
+use nix::unistd::{UnlinkatFlags, unlinkat};
 
 use crate::profile::{DedicatedBrowserProfile as Profile, WebLoginError};
 
@@ -57,6 +58,7 @@ fn lease_io<T>(_error: T) -> ProfileLeaseError {
 /// Exclusive ownership of one project browser profile for managed automation.
 pub struct AutomationProfileLease {
     _file: File,
+    parent: File,
     device: u64,
     inode: u64,
     path: PathBuf,
@@ -121,15 +123,39 @@ fn is_regular_file(file_type: fs::FileType) -> bool {
 )]
 impl Drop for AutomationProfileLease {
     fn drop(&mut self) {
-        let Ok(metadata) = fs::symlink_metadata(&self.path) else {
+        // The project name can change after acquisition. Never use it to
+        // unlink: even a hardlink to our inode could then be removed outside
+        // the dedicated directory through a substituted project symlink.
+        let Some(project) = self.path.parent() else {
             return;
         };
-        let file_type = metadata.file_type();
-        let same_file = is_regular_file(file_type)
-            && metadata.dev() == self.device
-            && metadata.ino() == self.inode;
-        if same_file {
-            let _ignored = fs::remove_file(&self.path);
+        let (Ok(held_parent), Ok(named_parent)) =
+            (self.parent.metadata(), fs::symlink_metadata(project))
+        else {
+            return;
+        };
+        if !named_parent.is_dir()
+            || named_parent.dev() != held_parent.dev()
+            || named_parent.ino() != held_parent.ino()
+        {
+            return;
+        }
+        let Ok(named) = fstatat(
+            &self.parent,
+            Path::new(AUTOMATION_LEASE),
+            AtFlags::AT_SYMLINK_NOFOLLOW,
+        ) else {
+            return;
+        };
+        // jig-ignore-next-line: canonical rustfmt line.
+        let regular = SFlag::from_bits_truncate(named.st_mode) & SFlag::S_IFMT == SFlag::S_IFREG;
+        // jig-ignore-next-line: canonical rustfmt line.
+        if regular && named.st_dev == self.device && named.st_ino == self.inode {
+            let _ignored = unlinkat(
+                &self.parent,
+                Path::new(AUTOMATION_LEASE),
+                UnlinkatFlags::NoRemoveDir,
+            );
         }
     }
 }
@@ -304,6 +330,7 @@ fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
     }
     Ok(AutomationProfileLease {
         _file: file,
+        parent,
         device: metadata.dev(),
         inode: metadata.ino(),
         path: path.to_path_buf(),

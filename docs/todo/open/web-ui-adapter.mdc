@@ -955,6 +955,10 @@ web application without requiring Bridge or a third-party direct API identity.
   filename to a held, no-follow dedicated-project directory descriptor.
   Synthetic lease tests reject a swapped project-directory symlink and verify
   that an explicitly chosen symlink data-home root remains usable.
+- Lease drop now checks the saved project directory descriptor and
+  unlinks only relative to that descriptor. A synthetic regression demonstrates
+  that moving the project and substituting a symlink to an external hardlink
+  cannot redirect cleanup, even when the external entry has the same inode.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -319,7 +319,7 @@ fn swapped_project_symlink_cannot_redirect_lease_acquisition() {
         Err(LeaseError::ProfileSetup(LoginError::ProjectLink(_)))
     ));
     assert_eq!(
-    // jig-ignore-next-line: canonical rustfmt line.
+        // jig-ignore-next-line: canonical rustfmt line.
         fs::read_to_string(moved.join(".automation-lease")).expect("original lease is untouched"),
         "v1 4294967295 1\n"
     );
@@ -341,5 +341,30 @@ fn symlinked_caller_selected_data_home_is_allowed() {
     assert!(lease_path(&profile).is_file());
     drop(lease);
     assert!(!lease_path(&profile).exists());
+    cleanup(&root);
+}
+
+#[test]
+fn drop_cannot_unlink_a_hardlinked_lease_through_a_replaced_project_path() {
+    let root = test_root("hardlinked-swapped-parent");
+    let profile = profile(&root);
+    let lease = acquire(&profile).expect("acquire original lease");
+    let original = lease_path(&profile);
+    let moved_project = root.join("moved-project");
+    let outside = root.join("outside");
+    fs::create_dir_all(&outside).expect("create outside directory");
+    let outside_lease = outside.join(".automation-lease");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::hard_link(&original, &outside_lease).expect("alias owned inode outside");
+    fs::rename(project_dir(&profile), &moved_project).expect("move project");
+    // jig-ignore-next-line: canonical rustfmt line.
+    symlink(&outside, project_dir(&profile)).expect("redirect project pathname");
+
+    drop(lease);
+    assert!(
+        outside_lease.is_file(),
+        "dropping a lease must not unlink through a replaced parent"
+    );
+    assert!(moved_project.join(".automation-lease").is_file());
     cleanup(&root);
 }
