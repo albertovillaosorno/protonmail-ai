@@ -417,3 +417,11 @@ fn visible_rows_require_unique_local_heading_and_sender_nodes() {
     assert!(!script.contains("document.getElementById"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn visible_row_projection_does_not_mutate_browser_global_state() {
+    let script = MailboxPageSnapshot::expression();
+    assert!(script.contains("const rows=[...root.querySelectorAll("));
+    assert!(!script.contains(";rows=["));
+    assert!(allowed_mail_runtime_expression(script));
+}

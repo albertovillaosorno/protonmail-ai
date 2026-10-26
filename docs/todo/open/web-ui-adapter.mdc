@@ -1079,6 +1079,10 @@ web application without requiring Bridge or a third-party direct API identity.
   candidate demonstrates the previously unintended browser fallback.
 - Synthetic login also verifies raw HOME bytes survive the XDG-unset
   fallback and reach Chromium unchanged; no replacement UTF-8 profile is made.
+- The content-bearing row expression now declares its row collection
+  lexically rather than assigning a browser-window global. A red-first
+  static authority test prevents read-only DOM inspection from mutating
+  page execution state through an undeclared JavaScript variable.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

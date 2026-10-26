@@ -58,7 +58,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const root=roots[0];",
     "const base='[data-shortcut-target=\"item-container\"]',",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
+    "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
     "if(rows.length>200){return null;}",
     "return rows.map((row)=>{",
     "const id=row.getAttribute('data-element-id');",
