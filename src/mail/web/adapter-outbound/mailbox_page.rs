@@ -59,9 +59,12 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const id=row.getAttribute('data-element-id');",
     "const labelled=row.getAttribute('aria-labelledby');",
     "const heading=labelled?document.getElementById(labelled):null;",
+    // An aria-labelledby link must never project unrelated page content.
+    "const localHeading=heading&&row.contains(heading)?heading:null;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const sender=row.querySelector('[data-testid=\"message-column:sender-address\"][title]');",
-    "return {id:id,subject:heading?(heading.getAttribute('title')??''):null,",
+    // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
+    "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
     "addresses:sender?sender.getAttribute('title'):null,",
     "unread:row.classList.contains('unread')};",
     "});",

@@ -1024,6 +1024,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Mailbox snapshots now revalidate the authenticated shell after bounded
   content projection. Synthetic mid-read login expiry with unchanged list IDs
   previously returned rows; it now fails as `MailShellNotReady` before release.
+- Audited visible-row content projection now requires aria-labelled headings
+  to be descendants of their respective row. Broken/global ARIA labels cannot
+  project unrelated page titles; the static CDP script authority test enforces
+  the containment guard without reading live message content.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

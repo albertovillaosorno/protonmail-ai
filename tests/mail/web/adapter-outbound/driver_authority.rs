@@ -316,3 +316,11 @@ fn unsolicited_method_shape_has_one_nonempty_domain_and_event() {
     }
     assert!(!safe_cdp_notification_method(&"x".repeat(129)));
 }
+
+#[test]
+fn visible_row_projection_must_not_follow_labels_outside_the_row() {
+    let script = MailboxPageSnapshot::expression();
+    assert!(script.contains("row.contains(heading)"));
+    assert!(script.contains("subject:localHeading?"));
+    assert!(allowed_mail_runtime_expression(script));
+}
