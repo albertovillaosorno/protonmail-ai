@@ -1119,6 +1119,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Newest-first sort evidence now requires every sort option to be
   visibly rendered, with nonhidden CSS and accessibility ancestry, before
   trusting `aria-pressed`. Hidden menu options cannot establish ordering.
+- Sort-menu toggle now checks all four option controls are uniquely and
+  visibly present immediately before closing; it will not reopen a menu
+  that vanished between read evidence and the toggle click. Opening also
+  rejects duplicate/partial option sets rather than counting first matches.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -540,3 +540,14 @@ fn selected_sort_state_cannot_come_from_hidden_menu_options() {
     assert!(script.contains("node.closest('[aria-hidden="));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn sort_menu_toggle_actions_require_unambiguous_current_menu_state() {
+    let open = MailboxSortOrder::open_expression();
+    assert!(open.contains("groups.every((group)=>group.length===1)"));
+    assert!(open.contains("groups.every((group)=>group.length===0)"));
+    let close = MailboxSortOrder::close_expression();
+    assert!(close.contains("menuNodes.every((group)=>group.length===1)"));
+    assert!(allowed_mail_runtime_expression(open));
+    assert!(allowed_mail_runtime_expression(close));
+}
