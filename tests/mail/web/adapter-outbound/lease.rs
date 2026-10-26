@@ -32,9 +32,12 @@
 
 use std::env;
 use std::fs;
+use std::io::ErrorKind;
 use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command};
+use std::thread;
+use std::time::Duration;
 
 use mail_web_adapter::AutomationProfileLease as Lease;
 use mail_web_adapter::DedicatedBrowserProfile as Profile;
@@ -131,10 +134,19 @@ fn fake_chrome_process(root: &Path) -> Child {
     // jig-ignore-next-line: canonical rustfmt line.
     fs::set_permissions(&prepared, permissions).expect("chmod synthetic Chrome");
     fs::rename(prepared, &chrome).expect("publish synthetic Chrome binary");
-    Command::new(chrome)
-        .arg("30")
-        .spawn()
-        .expect("spawn synthetic chrome")
+    // Some Linux filesystems briefly return ETXTBSY after a newly published
+    // executable inode. Retry only that transient fixture setup condition.
+    let mut attempt = 0u8;
+    loop {
+        match Command::new(&chrome).arg("30").spawn() {
+            Ok(child) => return child,
+            Err(error) if error.kind() == ErrorKind::ExecutableFileBusy && attempt < 4 => {
+                attempt = attempt.saturating_add(1);
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("spawn synthetic chrome: {error}"),
+        }
+    }
 }
 
 #[test]
@@ -604,4 +616,32 @@ fn malformed_lease_record_layout_is_not_reclaimed() {
         assert_eq!(fs::read_to_string(&path).expect("read record"), record);
         cleanup(&root);
     }
+}
+
+#[test]
+fn a_distinct_live_process_keeps_a_written_lease_busy() {
+    let root = test_root("external-live-owner");
+    fs::create_dir_all(&root).expect("create isolated root");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    fs::create_dir_all(project_dir(&profile)).expect("create project");
+    let mut other = fake_chrome_process(&root);
+    let stat = fs::read_to_string(format!("/proc/{}/stat", other.id()))
+        .expect("read synthetic owner start ticks");
+    let (_, tail) = stat.rsplit_once(") ").expect("split /proc/stat");
+    let ticks = tail.split_whitespace().nth(19).expect("start tick field");
+    let record = format!("v1 {} {ticks}\n", other.id());
+    fs::write(&path, &record).expect("write external owner record");
+
+    let busy = acquire(&profile);
+    assert_eq!(
+        busy.expect_err("external process owns lease"),
+        LeaseError::AutomationInUse
+    );
+    assert_eq!(fs::read_to_string(&path).expect("preserve owner"), record);
+    other.kill().expect("terminate isolated owner");
+    other.wait().expect("reap isolated owner");
+    let reclaimed = acquire(&profile).expect("reclaim stopped external owner");
+    drop(reclaimed);
+    cleanup(&root);
 }
