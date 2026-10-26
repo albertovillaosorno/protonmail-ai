@@ -1070,6 +1070,10 @@ web application without requiring Bridge or a third-party direct API identity.
   and exactly one rendered sender-address title, rather than projecting the
   first of multiple matches. It also enforces the 200-row cap before content
   mapping; static CDP authority tests reject global heading lookups.
+- Visible and managed browser launches now share a byte-preserving Unix
+  `--user-data-dir` argument builder. Non-UTF-8 XDG data-home paths remain
+  exact through environment resolution, profile setup, Chrome launch, and
+  managed lease custody; process-level synthetic tests inspect raw argv.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

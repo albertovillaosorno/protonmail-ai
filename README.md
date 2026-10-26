@@ -101,6 +101,10 @@ uses a separate exclusive lease and refuses to start while Chromium's
 An existing PID without an executable link (such as an unreaped process)
 is still treated as busy; only an absent local PID proves a stale lock.
 
+Profile launch arguments preserve the original Unix path bytes (including
+non-UTF-8 components). Chromium is never sent a lossy display rendering that
+could select a different profile from the one validated by the lease.
+
 The project never deletes Chromium's singleton lock. Its own lease contains only
 a PID and Linux process start-time tick value, so it carries no account/session
 material and can safely recover a dead owner.

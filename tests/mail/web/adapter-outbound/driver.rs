@@ -1894,3 +1894,32 @@ fn invisible_network_request_id_never_triggers_response_body_fetch() {
     assert!(!log.contains("body"));
     cleanup(&root);
 }
+
+#[test]
+fn managed_browser_uses_exact_non_utf8_profile_argument() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+    let root = test_root("raw-data-home");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root, "[]", "mail.proton.me");
+    let data_home = root.join(OsString::from_vec(b"data-\xff".to_vec()));
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("ASCII fake browser path"),
+        &data_home,
+    )
+    .expect("fixed synthetic project profile");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let mut expected = b"--user-data-dir=".to_vec();
+    let profile = data_home.join("protonmail-ai/browser-profile");
+    expected.extend_from_slice(profile.as_os_str().as_bytes());
+    // jig-ignore-next-line: canonical rustfmt line.
+    let args = fs::read(root.join("browser-args.txt")).expect("browser arguments");
+    assert!(
+        args.split(|byte| *byte == b'\n')
+            .any(|line| line == expected.as_slice())
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove synthetic browser tree");
+}

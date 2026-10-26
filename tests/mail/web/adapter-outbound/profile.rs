@@ -480,3 +480,26 @@ fn corrupt_automation_owner_blocks_visible_login() {
     );
     cleanup(&root);
 }
+
+#[test]
+fn non_utf8_data_home_preserves_exact_browser_argument() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+    let root = test_root("non-utf8-home");
+    fs::create_dir_all(&root).expect("create isolated test root");
+    let browser = fake_browser(&root);
+    let data_home = root.join(OsString::from_vec(b"data-\xff".to_vec()));
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(output.status.success());
+    let profile = profile_under(&data_home);
+    assert!(profile.is_dir());
+    let mut expected = b"--user-data-dir=".to_vec();
+    expected.extend_from_slice(profile.as_os_str().as_bytes());
+    let args = fs::read(root.join("browser-args.txt")).expect("browser args");
+    assert!(
+        args.split(|byte| *byte == b'\n')
+            .any(|line| line == expected.as_slice())
+    );
+    cleanup(&root);
+}

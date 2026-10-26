@@ -109,6 +109,7 @@ use crate::message_list_response::ObservedMessageListResponse;
 use crate::message_list_response::ObservedMessageMetadata;
 use crate::message_list_response::ReconciledVisibleMessageMetadata;
 use crate::policy::PageOrigin;
+use crate::profile::user_data_dir_argument;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
 
@@ -4172,8 +4173,7 @@ fn spawn_browser(
     child_read: UnixStream,
     child_write: UnixStream,
 ) -> Result<Child, BrowserDriverError> {
-    let profile = plan.profile.path().display();
-    let user_data = format!("--user-data-dir={profile}");
+    let user_data = user_data_dir_argument(plan.profile.path());
     let read_fd: OwnedFd = child_read.into();
     let write_fd: OwnedFd = child_write.into();
     let mut command = Command::new(&plan.browser);

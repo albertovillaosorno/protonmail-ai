@@ -33,6 +33,7 @@
 //! Dedicated user-controlled Proton Mail browser profile launcher.
 
 use std::env;
+use std::ffi::OsString;
 use std::fmt::{self, Formatter as Fmt};
 use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind};
@@ -45,6 +46,18 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::lease::AutomationProfileLease;
+
+// Browser arguments are OS strings: display() would lossy-convert an XDG
+// directory with non-UTF-8 bytes, launching a different unleased profile.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "shared OS argument helper belongs to sibling browser driver"
+)]
+pub(crate) fn user_data_dir_argument(profile: &Path) -> OsString {
+    let mut argument = OsString::from("--user-data-dir=");
+    argument.push(profile.as_os_str());
+    argument
+}
 
 const MAIL_URL: &str = "https://mail.proton.me/";
 const BROWSER_ENV: &str = "PROTONMAIL_AI_BROWSER";
@@ -165,8 +178,7 @@ impl WebLoginPlan {
         if AutomationProfileLease::is_active(&self.profile)? {
             return Err(WebLoginError::AutomationInUse);
         }
-        let profile = self.profile.path().display();
-        let user_data = format!("--user-data-dir={profile}");
+        let user_data = user_data_dir_argument(self.profile.path());
         Command::new(&self.browser)
             .arg(user_data)
             .arg("--no-first-run")
@@ -251,7 +263,9 @@ fn profile_dir_from_environment() -> Result<PathBuf, WebLoginError> {
 }
 
 fn absolute_env(key: &str) -> Option<PathBuf> {
-    let value = non_empty_env(key)?;
+    // Unix filesystem paths need not be UTF-8. Never silently fall back to a
+    // different project profile just because XDG_DATA_HOME contains raw bytes.
+    let value = env::var_os(key).filter(|value| !value.is_empty())?;
     let path = PathBuf::from(value);
     path.is_absolute().then_some(path)
 }
