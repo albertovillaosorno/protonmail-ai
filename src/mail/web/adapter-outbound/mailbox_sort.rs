@@ -43,6 +43,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "const groups=ids.map((id)=>[...document.querySelectorAll(",
@@ -54,6 +56,7 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return null;}",
+    "if(nodes[0].disabled){return null;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",
@@ -97,6 +100,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return false;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return false;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "const menuNodes=ids.map((id)=>[...document.querySelectorAll(",
@@ -109,6 +114,7 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return false;}",
+    "if(nodes[0].disabled){return false;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",

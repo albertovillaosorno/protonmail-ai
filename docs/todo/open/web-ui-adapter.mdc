@@ -1144,6 +1144,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Navigation receipts are also schema-bound: the sort toggle returns
   exactly two audited booleans, and Next-page activation returns exactly
   three. Unexpected response fields cannot authorize a successful UI click.
+- Audited sort toggle clicks reject disabled controls. All read-only
+  sort/pagination clicks now recheck for dialog or alertdialog overlays
+  within their final JavaScript task, closing a post-AX-check race.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

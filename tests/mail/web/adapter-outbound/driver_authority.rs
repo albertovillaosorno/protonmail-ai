@@ -660,3 +660,19 @@ fn ui_navigation_click_receipts_require_exact_audited_schema() {
     });
     assert!(NextPageActivation::from_value(&next_with_extra).is_err());
 }
+
+#[test]
+fn read_only_sort_clicks_must_refuse_disabled_or_modal_controls() {
+    for script in [
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        assert!(script.contains("nodes[0].disabled"));
+        assert!(script.contains("[role=\"dialog\"]"));
+        assert!(script.contains("[role=\"alertdialog\"]"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+    let next = NextPageActivation::expression();
+    assert!(next.contains("[role=\"dialog\"]"));
+    assert!(next.contains("[role=\"alertdialog\"]"));
+}
