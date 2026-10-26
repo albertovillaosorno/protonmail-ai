@@ -1044,6 +1044,9 @@ web application without requiring Bridge or a third-party direct API identity.
   code inputs before extracting list metadata or row content. This prevents
   an overlay-based login expiry from passing via residual Mail landmarks;
   the static expression test also proves no input values are queried.
+- A synthetic next-page navigation now proves that login expiry immediately
+  after clicking Next cannot return message rows. Read-only pagination obeys
+  the same post-projection authenticated-shell guard as initial page reads.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

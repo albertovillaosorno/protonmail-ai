@@ -322,3 +322,29 @@ fn origin_drift_after_click_fails_closed() {
         }
     );
 }
+
+#[test]
+fn login_expiry_after_next_click_cannot_return_message_rows() {
+    let root = test_root("post-click-expiry");
+    fs::create_dir_all(&root).expect("create isolated browser fixture");
+    let browser = fake(&root, SUCCESS);
+    let script = fs::read_to_string(&browser).expect("read fake browser");
+    let ready = format!("nodes='{VISIBLE_AX}'");
+    let late_expiry = format!(
+        // jig-ignore-next-line: indivisible synthetic shell fixture.
+        "nodes='{VISIBLE_AX}'; if [ \"$clicked\" -eq 1 ]; then nodes='[{{\"ignored\":true}}]'; fi"
+    );
+    assert!(script.contains(&ready));
+    fs::write(&browser, script.replace(&ready, &late_expiry))
+        .expect("install post-click auth expiry");
+    let browser_plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.read_next_visible_message_page(&page),
+        Err(BrowserDriverError::MailShellNotReady)
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove synthetic browser root");
+}
