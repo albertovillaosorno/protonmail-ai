@@ -1047,6 +1047,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - A synthetic next-page navigation now proves that login expiry immediately
   after clicking Next cannot return message rows. Read-only pagination obeys
   the same post-projection authenticated-shell guard as initial page reads.
+- Every audited read-only navigation/sort click now refuses controls with
+  no rendered layout rectangle or within an `aria-hidden` subtree. The
+  script-authority regression checks both guards precede each click.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

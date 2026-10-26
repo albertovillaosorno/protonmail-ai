@@ -53,6 +53,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return null;}",
+    "if(nodes[0].getClientRects().length===0||",
+    "nodes[0].closest('[aria-hidden=\"true\"]')){return null;}",
     "nodes[0].click();",
     "return {alreadyOpen:false,clicked:true};",
     "})()"
@@ -87,6 +89,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return false;}",
+    "if(nodes[0].getClientRects().length===0||",
+    "nodes[0].closest('[aria-hidden=\"true\"]')){return false;}",
     "nodes[0].click();return true;",
     "})()"
 );

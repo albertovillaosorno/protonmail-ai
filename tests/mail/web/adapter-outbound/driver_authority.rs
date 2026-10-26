@@ -364,3 +364,22 @@ fn mailbox_read_scripts_reject_authentication_challenge_inputs() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn audited_clicks_must_refuse_nonvisible_controls() {
+    for script in [
+        NextPageActivation::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        let geometry = script
+            .find("getClientRects().length===0")
+            .expect("click target must occupy a visible layout rect");
+        let aria = script
+            .find("closest('[aria-hidden=\"true\"]')")
+            .expect("click target cannot be inside an AX-hidden subtree");
+        let click = script.find(".click();").expect("audited click action");
+        assert!(geometry < click && aria < click);
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

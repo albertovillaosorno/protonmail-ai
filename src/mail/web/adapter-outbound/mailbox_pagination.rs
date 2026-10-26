@@ -47,6 +47,9 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "if(!(next instanceof HTMLButtonElement)){",
     "return {present:true,disabled:null,clicked:false};}",
     "if(next.disabled){return {present:true,disabled:true,clicked:false};}",
+    "if(next.getClientRects().length===0||",
+    "next.closest('[aria-hidden=\"true\"]')){",
+    "return {present:true,disabled:null,clicked:false};}",
     "next.click();",
     "return {present:true,disabled:false,clicked:true};",
     "})()"
