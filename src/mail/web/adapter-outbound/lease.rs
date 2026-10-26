@@ -245,27 +245,17 @@ fn local_hostname() -> LeaseResult<String> {
     Ok(String::from(hostname))
 }
 
-fn executable_name(path: &Path) -> Option<&str> {
-    let name = path.file_name()?.to_str()?;
-    // Linux marks a still-running executable whose inode was unlinked with
-    // this suffix, for example after a browser upgrade. It remains live.
-    Some(name.strip_suffix(" (deleted)").unwrap_or(name))
-}
-
+// A Chromium SingletonLock naming a local PID is not proof that the process
+// still has Chrome's executable basename. The process can be renamed, Chrome
+// can have a variant name, or a dead Chrome PID can have been reused. Treat
+// every verifiably live PID as busy, and only release a demonstrably dead one.
 fn chrome_process_active(pid: u32) -> LeaseResult<bool> {
     let path = PathBuf::from(format!("/proc/{pid}/exe"));
-    let executable = match fs::read_link(path) {
-        Ok(executable) => executable,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(false),
-        Err(_error) => return Err(ProfileLeaseError::LeaseIo),
-    };
-    let Some(name) = executable_name(&executable) else {
-        return Err(ProfileLeaseError::LeaseIo);
-    };
-    Ok(matches!(
-        name,
-        "chrome" | "chromium" | "msedge" | "chrome-headless-shell"
-    ))
+    match fs::read_link(path) {
+        Ok(_executable) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(_error) => Err(ProfileLeaseError::LeaseIo),
+    }
 }
 
 // The fixed lease entry must be relative to a real dedicated project dir,

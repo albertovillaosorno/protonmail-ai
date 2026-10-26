@@ -419,3 +419,27 @@ fn deleted_but_running_chromium_executable_keeps_profile_locked() {
         LeaseError::BrowserInUse
     );
 }
+
+#[test]
+fn unknown_live_process_at_singleton_pid_cannot_be_assumed_stale() {
+    let root = test_root("singleton-live-unknown-process");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let profile = profile(&root);
+    fs::create_dir_all(profile.path()).expect("create profile");
+    let mut process = Command::new("/bin/sleep")
+        .arg("30")
+        .spawn()
+        .expect("start synthetic unrelated process");
+    let target = format!("{}-{}", local_hostname(), process.id());
+    symlink(target, singleton_path(&profile)).expect("create singleton lock");
+
+    let result = acquire(&profile);
+    process.kill().expect("terminate synthetic process");
+    process.wait().expect("reap synthetic process");
+    assert_eq!(
+        result.expect_err("a live PID must not authorize a profile takeover"),
+        LeaseError::BrowserInUse
+    );
+    assert!(!lease_path(&profile).exists());
+    cleanup(&root);
+}

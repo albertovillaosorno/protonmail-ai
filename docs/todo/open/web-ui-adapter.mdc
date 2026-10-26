@@ -966,6 +966,10 @@ web application without requiring Bridge or a third-party direct API identity.
   whose `/proc/{pid}/exe` has Linux’s ` (deleted)` suffix as live; deleting
   the binary during an upgrade cannot free the profile for automation. A
   synthetic child process proves the previously missed active-owner case.
+- Local Chromium singleton PID checks now fail closed for any verifiably
+  live process, not just a short executable-basename allowlist. An unrelated
+  process can inherit a dead Chrome PID, and Chrome forks or alternate builds
+  can use different executable names; neither permits profile takeover.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
