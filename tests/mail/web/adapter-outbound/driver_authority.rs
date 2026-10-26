@@ -564,3 +564,18 @@ fn read_only_mode_and_sort_projections_refuse_auth_challenge_overlays() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn active_sort_evidence_refuses_unexpected_control_fields() {
+    let valid = json!({
+        "ready": true, "valid": true, "newest": true,
+        "oldest": false, "largest": false, "smallest": false
+    });
+    assert_eq!(
+        MailboxSortOrder::from_value(&valid),
+        Ok(Some(MailboxSortOrder::NewestFirst))
+    );
+    let mut extra = valid;
+    extra["shadowState"] = json!(true);
+    assert!(MailboxSortOrder::from_value(&extra).is_err());
+}

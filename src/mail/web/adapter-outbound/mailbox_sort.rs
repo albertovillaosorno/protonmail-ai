@@ -179,6 +179,11 @@ impl MailboxSortOrder {
         if !bool_field(value, "valid")? {
             return Err(());
         }
+        // The audited projection emits exactly readiness, validity, and the
+        // four mutually exclusive sort buttons. Refuse a changed response.
+        if value.as_object().is_none_or(|fields| fields.len() != 6) {
+            return Err(());
+        }
         let states = [
             bool_field(value, "newest")?,
             bool_field(value, "oldest")?,

@@ -1126,6 +1126,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Content-free message-mode and sort inspections now refuse password or
   one-time-code challenge overlays within their JavaScript reads, matching
   mailbox list/content and all audited click preconditions.
+- Valid sort observations must now have precisely the six fields owned by
+  the audited projection. Unknown extra state cannot be smuggled into a
+  successful sort-mode proof through malformed CDP results.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
