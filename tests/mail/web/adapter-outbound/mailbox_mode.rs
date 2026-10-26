@@ -98,3 +98,12 @@ fn decoded_search_replacement_char_never_proves_message_rows() {
     // That lossy decoding is not authoritative evidence of a search.
     assert!(MODE_SOURCE.contains("!==65533"));
 }
+
+#[test]
+fn forced_message_routes_require_exact_scoped_path_shape() {
+    // Nested or padded account routes must not inherit forced-message mode.
+    assert!(MODE_SOURCE.contains("parts.length===3"));
+    assert!(MODE_SOURCE.contains("parts.length===1"));
+    assert!(MODE_SOURCE.contains("location.pathname.includes('//')"));
+    assert!(MODE_SOURCE.contains("account.length<=10"));
+}
