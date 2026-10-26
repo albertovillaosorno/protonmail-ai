@@ -335,3 +335,11 @@ fn mailbox_list_projection_must_refuse_ambiguous_loaded_roots() {
     assert!(allowed_mail_runtime_expression(list));
     assert!(allowed_mail_runtime_expression(rows));
 }
+
+#[test]
+fn mailbox_list_projection_must_refuse_ambiguous_pagination_controls() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("nextNodes.length>1"));
+    assert!(script.contains("currentNodes.length>1"));
+    assert!(allowed_mail_runtime_expression(script));
+}

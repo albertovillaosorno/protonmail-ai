@@ -1031,6 +1031,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Audited mailbox-list and row-content selectors now refuse multiple
   matching loaded/list-loading roots instead of silently projecting only the
   first DOM match. Static CDP authority tests enforce root uniqueness.
+- Mailbox pagination evidence now rejects duplicate Next buttons or
+  concurrently active current-page markers, rather than taking the first
+  global DOM match. Static CDP authority tests prove selector uniqueness.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

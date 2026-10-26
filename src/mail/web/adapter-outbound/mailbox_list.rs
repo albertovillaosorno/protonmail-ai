@@ -55,9 +55,11 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const empty=!!root.querySelector('[data-testid=\"empty-view-placeholder--empty-title\"]');",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const next=document.querySelector('[data-testid=\"pagination-row:go-to-next-page\"]');",
+    "const nextNodes=[...document.querySelectorAll('[data-testid=\"pagination-row:go-to-next-page\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const current=document.querySelector('[data-testid^=\"pagination-row:go-to-page-\"][aria-current=\"true\"]');",
+    "const currentNodes=[...document.querySelectorAll('[data-testid^=\"pagination-row:go-to-page-\"][aria-current=\"true\"]')];",
+    "if(nextNodes.length>1||currentNodes.length>1){return null;}",
+    "const next=nextNodes[0],current=currentNodes[0];",
     "return {loading:!!loading,loaded:!!loaded,",
     "rowIds:real.map((row)=>row.getAttribute('data-element-id')),",
     "skeletonCount:skeleton.length,emptyMarker:empty,nextPresent:!!next,",
