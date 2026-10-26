@@ -2542,3 +2542,51 @@ fn mailbox_event_count_collections_are_all_validated_after_first_change() {
         Err(MailboxEventWatermarkError::Malformed)
     );
 }
+
+#[test]
+fn unchanged_settled_event_cannot_report_new_messages() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let changed = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/ev-1",
+        r#"{"EventID":"ev-1","More":0,"Messages":[{"ID":"new-1","Action":1}]}"#,
+    )
+    .expect("parse inconsistent provider page");
+    assert_eq!(
+        ObservedMailboxEventSequence::start(changed.clone()),
+        Err(MailboxEventSequenceError::NonAdvancingContinuation)
+    );
+    let first = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/ev-0",
+        r#"{"EventID":"ev-1","More":1}"#,
+    )
+    .expect("parse initial page");
+    let mut sequence =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventSequence::start(first).expect("start cursor sequence");
+    let before = sequence.clone();
+    assert_eq!(
+        sequence.push(changed),
+        Err(MailboxEventSequenceError::NonAdvancingContinuation)
+    );
+    assert_eq!(sequence, before);
+}
+
+#[test]
+fn unchanged_settled_event_with_count_changes_is_not_an_acknowledgment() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let changed = ObservedMailboxEventWatermark::parse(
+        "GET",
+        "https://mail.proton.me/api/core/v5/events/ev-1",
+        r#"{"EventID":"ev-1","More":0,"MessageCounts":[{"LabelID":"inbox"}]}"#,
+    )
+    .expect("parse count-only change");
+    assert!(changed.mailbox_changes());
+    assert_eq!(
+        ObservedMailboxEventSequence::start(changed),
+        Err(MailboxEventSequenceError::NonAdvancingContinuation)
+    );
+}

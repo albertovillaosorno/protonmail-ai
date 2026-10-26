@@ -984,6 +984,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Core event count collections are now independently shape-validated even
   when an earlier collection already reported mailbox changes; a malformed
   `ConversationCounts` cannot hide behind nonempty `MessageCounts`.
+- A settled event poll that keeps its requested watermark may only be
+  acknowledged when no mailbox or count change is reported. If an unchanged
+  watermark accompanies change signals, start and continuation reject it
+  rather than exposing changes with an unadvanced resumable cursor.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

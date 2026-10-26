@@ -928,7 +928,9 @@ impl ObservedMailboxEventSequence {
         if first.refresh {
             return Err(MailboxEventSequenceError::RefreshRequired);
         }
-        if first.more && first.requested_event_id == first.response_event_id {
+        if (first.more || first.mailbox_changes())
+            && first.requested_event_id == first.response_event_id
+        {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
         let seen_changes = first.changes.iter().cloned().collect();
@@ -972,7 +974,9 @@ impl ObservedMailboxEventSequence {
         if page.refresh {
             return Err(MailboxEventSequenceError::RefreshRequired);
         }
-        if page.more && page.requested_event_id == page.response_event_id {
+        if (page.more || page.mailbox_changes())
+            && page.requested_event_id == page.response_event_id
+        {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
         if page.response_event_id != page.requested_event_id
