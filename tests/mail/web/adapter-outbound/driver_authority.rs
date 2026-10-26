@@ -449,3 +449,15 @@ fn mailbox_dom_reads_require_mail_origin_within_projection_task() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn all_readonly_mode_and_sort_projections_bind_live_mail_origin() {
+    for script in [
+        MailboxModeEvidence::expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::closed_expression(),
+    ] {
+        assert!(script.contains("location.origin!=='https://mail.proton.me'"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

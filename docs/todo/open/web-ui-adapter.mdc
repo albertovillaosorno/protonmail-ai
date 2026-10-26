@@ -1089,6 +1089,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Both mailbox DOM read expressions now verify exact Proton Mail origin
   inside the same JavaScript task as row/list observation. This closes a
   short redirect race between CDP origin preflight and content projection.
+- Mailbox mode and both sort-evidence reads also verify exact live Mail
+  origin within their individual JS tasks. Off-origin evidence cannot imply
+  a mode, newest-first sort, or safely closed sort menu after redirects.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

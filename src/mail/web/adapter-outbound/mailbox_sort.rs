@@ -63,6 +63,7 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
 
 const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "(() => {",
+    "if(location.origin!=='https://mail.proton.me'){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "const nodes=ids.map((id)=>[...document.querySelectorAll(",
@@ -99,6 +100,7 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
 
 const SORT_MENU_CLOSED_EXPRESSION: &str = concat!(
     "(() => {",
+    "if(location.origin!=='https://mail.proton.me'){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "return ids.every((id)=>document.querySelector(",
