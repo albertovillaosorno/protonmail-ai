@@ -1018,6 +1018,9 @@ web application without requiring Bridge or a third-party direct API identity.
   individual-message pages, not only generic mailbox rows. A separate
   forced-message-mode fake Chromium test changes the subject mid-read and
   rejects the result without exposing a message snapshot.
+- Local automation lease records now require canonical single-line syntax,
+  including exact spaces and terminating newline. Noncanonical whitespace
+  remains a corrupt owner entry rather than a silently reclaimed lease.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

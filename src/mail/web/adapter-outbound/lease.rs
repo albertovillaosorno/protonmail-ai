@@ -463,7 +463,10 @@ fn canonical_decimal(value: &str, maximum_bytes: usize) -> bool {
 }
 
 fn parse_owner(content: &str) -> LeaseResult<LeaseOwner> {
-    let mut fields = content.split_whitespace();
+    let line = content
+        .strip_suffix('\n')
+        .ok_or(ProfileLeaseError::CorruptLease)?;
+    let mut fields = line.split(' ');
     if fields.next() != Some(LEASE_VERSION) {
         return Err(ProfileLeaseError::CorruptLease);
     }

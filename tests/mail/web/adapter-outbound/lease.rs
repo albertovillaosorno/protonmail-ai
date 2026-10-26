@@ -581,3 +581,27 @@ fn unreaped_process_pid_keeps_chromium_singleton_busy() {
     assert!(!lease_path(&profile).exists());
     cleanup(&root);
 }
+
+#[test]
+fn malformed_lease_record_layout_is_not_reclaimed() {
+    for (label, record) in [
+        ("missing-newline", "v1 4294967295 1"),
+        ("leading-space", " v1 4294967295 1\n"),
+        ("tabs", "v1\t4294967295\t1\n"),
+        ("extra-newline", "v1 4294967295 1\n\n"),
+        ("windows-newline", "v1 4294967295 1\r\n"),
+        ("double-space", "v1  4294967295 1\n"),
+    ] {
+        let root = test_root(label);
+        let profile = profile(&root);
+        let path = lease_path(&profile);
+        fs::create_dir_all(project_dir(&profile)).expect("create project");
+        fs::write(&path, record).expect("write synthetic owner record");
+        assert_eq!(
+            acquire(&profile).expect_err("noncanonical record must fail"),
+            LeaseError::CorruptLease
+        );
+        assert_eq!(fs::read_to_string(&path).expect("read record"), record);
+        cleanup(&root);
+    }
+}
