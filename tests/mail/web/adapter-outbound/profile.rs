@@ -503,3 +503,29 @@ fn non_utf8_data_home_preserves_exact_browser_argument() {
     );
     cleanup(&root);
 }
+
+#[test]
+fn non_utf8_browser_override_cannot_silently_select_a_fallback() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt as _;
+
+    let root = test_root("non-utf8-browser-override");
+    let bin = root.join("bin");
+    fs::create_dir_all(&bin).expect("create synthetic PATH");
+    let fallback = fake_browser(&root);
+    fs::rename(fallback, bin.join("google-chrome-stable"))
+        .expect("install synthetic fallback browser");
+    let args = root.join("browser-args.txt");
+    let output = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["auth", "login"])
+        .env("PROTONMAIL_AI_BROWSER", OsString::from_vec(vec![b'x', 255]))
+        .env(LOGIN_ARGS_FILE, &args)
+        .env("PATH", bin)
+        .env("HOME", root.join("home"))
+        .env("XDG_DATA_HOME", root.join("xdg-data"))
+        .output()
+        .expect("invoke synthetic login");
+    assert!(!output.status.success());
+    assert!(!args.exists());
+    cleanup(&root);
+}

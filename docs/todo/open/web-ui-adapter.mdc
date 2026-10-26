@@ -1074,6 +1074,9 @@ web application without requiring Bridge or a third-party direct API identity.
   `--user-data-dir` argument builder. Non-UTF-8 XDG data-home paths remain
   exact through environment resolution, profile setup, Chrome launch, and
   managed lease custody; process-level synthetic tests inspect raw argv.
+- An explicit non-UTF-8 browser override now fails closed rather than
+  silently discovering a different executable on PATH; a synthetic PATH
+  candidate demonstrates the previously unintended browser fallback.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

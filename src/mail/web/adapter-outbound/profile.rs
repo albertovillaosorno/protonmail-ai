@@ -271,18 +271,19 @@ fn absolute_env(key: &str) -> Option<PathBuf> {
 }
 
 fn browser_from_environment() -> Result<String, WebLoginError> {
-    if let Some(browser) = non_empty_env(BROWSER_ENV) {
-        return Ok(browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    if let Some(browser) = env::var_os(BROWSER_ENV).filter(|value| !value.is_empty()) {
+        // An explicit override must never silently fall back to another
+        // executable because its Unix path is not representable as UTF-8.
+        return browser
+            .into_string()
+            .map_err(|_error| WebLoginError::BrowserUnavailable);
     }
     BROWSER_CANDIDATES
         .iter()
         .find(|candidate| executable_on_path(candidate))
         .map(|candidate| String::from(*candidate))
         .ok_or(WebLoginError::BrowserUnavailable)
-}
-
-fn non_empty_env(key: &str) -> Option<String> {
-    env::var(key).ok().filter(|value| !value.is_empty())
 }
 
 fn executable_on_path(candidate: &str) -> bool {
