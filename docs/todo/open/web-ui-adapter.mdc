@@ -974,6 +974,9 @@ web application without requiring Bridge or a third-party direct API identity.
   rather than being mistaken for a departed browser. Lease owner records
   with zero PID or zero start ticks are corrupt and cannot be reclaimed;
   synthetic tests preserve malformed entries and refuse to launch.
+- Core event continuation now stages unique changes before committing any
+  sequence state. A 4,095-change regression proves an overflowing page
+  leaves both the change vector and deduplication set intact for retry.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -965,14 +965,22 @@ impl ObservedMailboxEventSequence {
         if page.more && page.requested_event_id == page.response_event_id {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
+        // Stage a complete page so a rejected continuation leaves state intact.
+        let mut new_changes = Vec::new();
+        let mut newly_seen = BTreeSet::new();
         for change in page.changes {
-            if self.seen_changes.insert(change.clone()) {
-                if self.changes.len() >= MAX_EVENT_SEQUENCE_CHANGES {
+            // jig-ignore-next-line: canonical rustfmt line.
+            if !self.seen_changes.contains(&change) && newly_seen.insert(change.clone()) {
+                if self.changes.len().saturating_add(new_changes.len())
+                    >= MAX_EVENT_SEQUENCE_CHANGES
+                {
                     return Err(MailboxEventSequenceError::TooManyChanges);
                 }
-                self.changes.push(change);
+                new_changes.push(change);
             }
         }
+        self.seen_changes.extend(newly_seen);
+        self.changes.extend(new_changes);
         self.count_changes |= page.count_changes;
         self.next_event_id = page.response_event_id;
         self.page_count = self

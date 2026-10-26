@@ -2457,3 +2457,46 @@ fn malformed_unsolicited_event_during_passive_wait_fails_closed() {
         fs::remove_dir_all(&root).expect("delete isolated test-only profile");
     }
 }
+
+#[test]
+fn oversized_event_continuation_is_atomic_and_retryable() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+    use serde_json::json;
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn page(from: usize, start: usize, count: usize, more: bool) -> ObservedMailboxEventWatermark {
+        // jig-ignore-next-line: canonical rustfmt line.
+        let url = format!("https://mail.proton.me/api/core/v5/events/event-{from}");
+        let messages = (start..start + count)
+            .map(|index| json!({"ID":format!("m-{index}"),"Action":1u8}))
+            .collect::<Vec<_>>();
+        let body = json!({
+            "EventID": format!("event-{}", from + 1),
+            "More": u8::from(more),
+            "Messages": messages,
+        });
+        ObservedMailboxEventWatermark::parse("GET", &url, &body.to_string())
+            .expect("valid synthetic event page")
+    }
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut sequence = ObservedMailboxEventSequence::start(page(0, 0, 511, true))
+        .expect("start near-capacity sequence");
+    for index in 1..8 {
+        sequence
+            .push(page(index, 511 + (index - 1) * 512, 512, true))
+            .expect("append within capacity");
+    }
+    assert_eq!(sequence.changes().len(), 4095);
+    let before = sequence.clone();
+    assert_eq!(
+        sequence.push(page(8, 4095, 2, false)),
+        Err(MailboxEventSequenceError::TooManyChanges)
+    );
+    assert_eq!(sequence, before, "failure must not consume partial changes");
+    sequence
+        .push(page(8, 4095, 1, false))
+        .expect("a valid continuation can still settle");
+    assert!(sequence.settled());
+    assert_eq!(sequence.changes().len(), 4096);
+}
