@@ -951,6 +951,10 @@ web application without requiring Bridge or a third-party direct API identity.
   cap rejects oversized lease data before parsing, with a second size bound
   during reading. Synthetic tests cover malformed bounded leases, oversized
   files, named pipes, symlinks, stale owners, and ordinary lease recovery.
+- Automation lease creation and existing-lease reads now anchor the fixed
+  filename to a held, no-follow dedicated-project directory descriptor.
+  Synthetic lease tests reject a swapped project-directory symlink and verify
+  that an explicitly chosen symlink data-home root remains usable.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

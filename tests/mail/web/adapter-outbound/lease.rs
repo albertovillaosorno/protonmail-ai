@@ -301,3 +301,45 @@ fn lease_at_exact_read_ceiling_still_rejects_unrecognized_version() {
     );
     cleanup(&root);
 }
+
+#[test]
+fn swapped_project_symlink_cannot_redirect_lease_acquisition() {
+    let root = test_root("project-swap");
+    let profile = profile(&root);
+    let project = project_dir(&profile);
+    let moved = root.join("moved-project");
+    fs::create_dir_all(project).expect("create project");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::write(lease_path(&profile), "v1 4294967295 1\n").expect("create stale lease");
+    fs::rename(project, &moved).expect("move project");
+    symlink(&moved, project).expect("replace project with symlink");
+
+    assert!(matches!(
+        acquire(&profile),
+        Err(LeaseError::ProfileSetup(LoginError::ProjectLink(_)))
+    ));
+    assert_eq!(
+    // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(moved.join(".automation-lease")).expect("original lease is untouched"),
+        "v1 4294967295 1\n"
+    );
+    cleanup(&root);
+}
+
+#[test]
+fn symlinked_caller_selected_data_home_is_allowed() {
+    let root = test_root("selected-home-symlink");
+    let physical = root.join("physical");
+    let selected = root.join("selected");
+    fs::create_dir_all(&physical).expect("create physical data home");
+    symlink(&physical, &selected).expect("symlink selected data home");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let profile = Profile::under_data_home(&selected).expect("absolute data home");
+
+    // jig-ignore-next-line: canonical rustfmt line.
+    let lease = acquire(&profile).expect("acquire in real project under selected home");
+    assert!(lease_path(&profile).is_file());
+    drop(lease);
+    assert!(!lease_path(&profile).exists());
+    cleanup(&root);
+}

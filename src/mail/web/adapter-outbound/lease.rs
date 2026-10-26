@@ -31,14 +31,14 @@
 //! Exclusive automation lease for the dedicated Proton Mail browser profile.
 
 use std::fmt;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind, Read as _, Write as _};
 use std::os::unix::fs::FileTypeExt as _;
-use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
+use std::os::unix::fs::MetadataExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
-use nix::fcntl::{OFlag, open};
+use nix::fcntl::{OFlag, open, openat};
 use nix::sys::stat::Mode;
 
 use crate::profile::{DedicatedBrowserProfile as Profile, WebLoginError};
@@ -238,6 +238,23 @@ fn chrome_process_active(pid: u32) -> LeaseResult<bool> {
     ))
 }
 
+// The fixed lease entry must be relative to a real dedicated project dir,
+// never a directory that became an intermediate symlink after preparation.
+fn open_lease_parent(path: &Path) -> Result<File, IoError> {
+    let project = path.parent().ok_or(ErrorKind::NotFound)?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = open(project, flags, Mode::empty()).map_err(IoError::from)?;
+    let directory = File::from(fd);
+    let held = directory.metadata()?;
+    let named = fs::symlink_metadata(project)?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    if !named.is_dir() || held.dev() != named.dev() || held.ino() != named.ino() {
+        return Err(IoError::from(ErrorKind::PermissionDenied));
+    }
+    Ok(directory)
+}
+
 fn acquire_local_lease(path: &Path) -> LeaseResult<AutomationProfileLease> {
     match create_lease(path) {
         Ok(lease) => Ok(lease),
@@ -257,14 +274,34 @@ fn acquire_local_lease(path: &Path) -> LeaseResult<AutomationProfileLease> {
 
 fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
     let owner = current_owner()?;
-    let mut file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .mode(0o600)
-        .open(path)?;
+    let parent = open_lease_parent(path)?;
+    let flags =
+        // jig-ignore-next-line: canonical rustfmt line.
+        OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = openat(
+        &parent,
+        Path::new(AUTOMATION_LEASE),
+        flags,
+        Mode::from_bits_truncate(0o600),
+    )
+    .map_err(IoError::from)?;
+    let mut file = File::from(fd);
     writeln!(file, "{LEASE_VERSION} {} {}", owner.pid, owner.start_ticks)?;
     file.sync_all()?;
     let metadata = file.metadata()?;
+    let parent_held = parent.metadata()?;
+    // jig-ignore-next-line: canonical rustfmt line.
+    let parent_named = fs::symlink_metadata(path.parent().ok_or(ErrorKind::NotFound)?)?;
+    let named = fs::symlink_metadata(path)?;
+    if !parent_named.is_dir()
+        || parent_named.dev() != parent_held.dev()
+        || parent_named.ino() != parent_held.ino()
+        || !is_regular_file(named.file_type())
+        || named.dev() != metadata.dev()
+        || named.ino() != metadata.ino()
+    {
+        return Err(IoError::from(ErrorKind::PermissionDenied));
+    }
     Ok(AutomationProfileLease {
         _file: file,
         device: metadata.dev(),
@@ -310,9 +347,9 @@ fn inspect_existing_lease(path: &Path) -> LeaseResult<ExistingLease> {
     // substituted FIFO, then verify it is still the name we inspected.
     // jig-ignore-next-line: canonical rustfmt line.
     let flags = OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_NONBLOCK | OFlag::O_CLOEXEC;
-    let fd =
-        // jig-ignore-next-line: canonical rustfmt line.
-        open(path, flags, Mode::empty()).map_err(|_error| ProfileLeaseError::UnsafeLeasePath)?;
+    let parent = open_lease_parent(path).map_err(lease_io)?;
+    let fd = openat(&parent, Path::new(AUTOMATION_LEASE), flags, Mode::empty())
+        .map_err(|_error| ProfileLeaseError::UnsafeLeasePath)?;
     let file = File::from(fd);
     let held = file.metadata().map_err(lease_io)?;
     if !is_regular_file(held.file_type())
