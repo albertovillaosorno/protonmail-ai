@@ -57,7 +57,7 @@ fn lease_io<T>(_error: T) -> ProfileLeaseError {
 
 /// Exclusive ownership of one project browser profile for managed automation.
 pub struct AutomationProfileLease {
-    _file: File,
+    file: File,
     parent: File,
     device: u64,
     inode: u64,
@@ -319,11 +319,25 @@ fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
         Mode::from_bits_truncate(0o600),
     )
     .map_err(IoError::from)?;
-    let mut file = File::from(fd);
-    writeln!(file, "{LEASE_VERSION} {} {}", owner.pid, owner.start_ticks)?;
-    file.sync_all()?;
+    let file = File::from(fd);
     let metadata = file.metadata()?;
-    let parent_held = parent.metadata()?;
+    // Establish the identity-bound cleanup guard immediately after O_EXCL.
+    // A failed write, sync, or final pathname check must not leave a broken
+    // lease which blocks every subsequent managed browser launch.
+    let mut lease = AutomationProfileLease {
+        file,
+        parent,
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        path: path.to_path_buf(),
+    };
+    writeln!(
+        lease.file,
+        "{LEASE_VERSION} {} {}",
+        owner.pid, owner.start_ticks
+    )?;
+    lease.file.sync_all()?;
+    let parent_held = lease.parent.metadata()?;
     // jig-ignore-next-line: canonical rustfmt line.
     let parent_named = fs::symlink_metadata(path.parent().ok_or(ErrorKind::NotFound)?)?;
     let named = fs::symlink_metadata(path)?;
@@ -336,13 +350,7 @@ fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
     {
         return Err(IoError::from(ErrorKind::PermissionDenied));
     }
-    Ok(AutomationProfileLease {
-        _file: file,
-        parent,
-        device: metadata.dev(),
-        inode: metadata.ino(),
-        path: path.to_path_buf(),
-    })
+    Ok(lease)
 }
 
 fn reclaim_or_reject_existing(path: &Path) -> LeaseResult<()> {

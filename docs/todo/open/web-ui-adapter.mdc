@@ -1009,6 +1009,11 @@ web application without requiring Bridge or a third-party direct API identity.
   rejecting null, scalar, or nested-array items before reducing the response
   to a content-free change-presence signal. Synthetic fixtures cover both
   `MessageCounts` and `ConversationCounts` without retaining their contents.
+- Lease creation now establishes its identity-bound cleanup guard
+  immediately after exclusive inode creation. Write/sync/finalization
+  errors now run the identity-bound `Drop` cleanup instead of stranding
+  a partially initialized owner record. Existing inode replacement tests
+  also guard cleanup from removing any unrelated final entry.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
