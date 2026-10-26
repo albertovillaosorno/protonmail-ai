@@ -38,6 +38,8 @@ use serde_json::Value;
 
 const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(() => {",
+    // Read content only in the proved Mail origin within this JavaScript task.
+    "if(location.origin!=='https://mail.proton.me'){return null;}",
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",

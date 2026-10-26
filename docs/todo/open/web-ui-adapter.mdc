@@ -1086,6 +1086,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Content-free list evidence now refuses simultaneous loading and loaded
   roots during React transitions instead of silently choosing the loaded
   tree and potentially exposing an unsettled mailbox snapshot.
+- Both mailbox DOM read expressions now verify exact Proton Mail origin
+  inside the same JavaScript task as row/list observation. This closes a
+  short redirect race between CDP origin preflight and content projection.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

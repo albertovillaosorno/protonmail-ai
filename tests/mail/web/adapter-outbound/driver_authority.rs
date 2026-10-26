@@ -432,3 +432,20 @@ fn loaded_list_cannot_be_treated_as_settled_while_loading_root_exists() {
     assert!(script.contains("if(loading&&loaded){return null;}"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn mailbox_dom_reads_require_mail_origin_within_projection_task() {
+    for script in [
+        MailboxListEvidence::expression(),
+        MailboxPageSnapshot::expression(),
+    ] {
+        let origin = script
+            .find("location.origin!=='https://mail.proton.me'")
+            .expect("Mail page origin must be checked inside the DOM read");
+        let query = script
+            .find("document.querySelector(")
+            .expect("browser read queries only an authorized DOM");
+        assert!(origin < query);
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}
