@@ -3339,7 +3339,12 @@ impl ManagedBrowser {
             None
         };
         let after = self.mailbox_list_in_session(session)?;
-        self.ensure_page_origin(page, session)?;
+        // Authentication can expire without changing visible row identities.
+        // Recheck the signed-in Mail shell before returning any row content.
+        let after_shell = self.inspect_mail_shell_in_session(page, session)?;
+        if !after_shell.ready() {
+            return Err(BrowserDriverError::MailShellNotReady);
+        }
         MailboxPageSnapshot::from_observations(
             &before,
             rows_value.as_ref(),

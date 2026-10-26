@@ -341,3 +341,31 @@ fn changing_addresses_or_unread_state_invalidates_page_snapshot() {
         fs::remove_dir_all(root).expect("remove isolated browser fixture");
     }
 }
+
+#[test]
+fn expired_mail_shell_after_projection_refuses_visible_page() {
+    let root = test_root("late-shell-expiry");
+    fs::create_dir_all(&root).expect("create fake Mail root");
+    let browser = fake_browser(&root, STABLE_LIST, STABLE_ROWS, STABLE_LIST);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let script = fs::read_to_string(&browser).expect("read fake browser script");
+    let ready = format!("nodes='{VISIBLE_AX}'");
+    let late_expiry = format!(
+        // jig-ignore-next-line: indivisible fake-browser shell fragment.
+        "nodes='{VISIBLE_AX}'; if [ \"$list_probe\" -gt 1 ]; then nodes='[{{\"ignored\":true}}]'; fi"
+    );
+    assert!(script.contains(&ready));
+    fs::write(&browser, script.replace(&ready, &late_expiry))
+        .expect("install late login expiry in synthetic browser");
+    let browser_plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch fake Chrome");
+    let page = managed.provider_page().expect("discover fake Mail page");
+    assert_eq!(
+        managed.read_visible_mailbox_page(&page),
+        Err(BrowserDriverError::MailShellNotReady),
+        "a signed-out Mail shell may not release projected content"
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove fake browser root");
+}

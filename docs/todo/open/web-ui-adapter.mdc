@@ -1021,6 +1021,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Local automation lease records now require canonical single-line syntax,
   including exact spaces and terminating newline. Noncanonical whitespace
   remains a corrupt owner entry rather than a silently reclaimed lease.
+- Mailbox snapshots now revalidate the authenticated shell after bounded
+  content projection. Synthetic mid-read login expiry with unchanged list IDs
+  previously returned rows; it now fails as `MailShellNotReady` before release.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
