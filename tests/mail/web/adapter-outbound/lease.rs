@@ -140,6 +140,7 @@ fn fake_chrome_process(root: &Path) -> Child {
     loop {
         match Command::new(&chrome).arg("30").spawn() {
             Ok(child) => return child,
+            // jig-ignore-next-line: canonical rustfmt guard line.
             Err(error) if error.kind() == ErrorKind::ExecutableFileBusy && attempt < 4 => {
                 attempt = attempt.saturating_add(1);
                 thread::sleep(Duration::from_millis(10));
