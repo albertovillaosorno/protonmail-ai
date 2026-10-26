@@ -313,6 +313,10 @@ fn parse_rows(value: &Value) -> Result<Vec<VisibleMailboxRow>, BrowserDriverErro
     let mut seen = HashSet::with_capacity(rows.len());
     let mut parsed = Vec::with_capacity(rows.len());
     for row in rows {
+        // The approved content projection emits exactly these four fields.
+        if row.as_object().is_none_or(|fields| fields.len() != 4) {
+            return Err(BrowserDriverError::MailboxPageIncompatible);
+        }
         let id = bounded_string(row, "id", MAX_ROW_ID_BYTES, false)?;
         if !seen.insert(id.clone()) {
             return Err(BrowserDriverError::MailboxPageIncompatible);

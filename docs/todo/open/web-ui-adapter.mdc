@@ -1138,6 +1138,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Message-mode CDP evidence must contain exactly the two audited booleans,
   with no unexpected fields. A red-first test rejects altered projections
   before they can grant message-row interpretation.
+- Each content-bearing mailbox-row projection now requires precisely
+  its four audited fields (`id`, `subject`, `addresses`, `unread`). Unknown
+  nested response fields cannot silently pass through visible-page reads.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

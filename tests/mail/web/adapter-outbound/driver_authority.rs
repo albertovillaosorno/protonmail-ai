@@ -30,6 +30,7 @@
 
 //! Tests for private, static CDP authority validation.
 
+use super::BrowserDriverError;
 use super::safe_cdp_notification_method;
 use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
 use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
@@ -611,4 +612,26 @@ fn message_mode_evidence_rejects_unrecognized_projection_fields() {
         "unrecognized":true
     });
     assert!(MailboxModeEvidence::from_value(&extra).is_err());
+}
+
+#[test]
+fn content_bearing_rows_reject_unrecognized_dom_fields() {
+    let before = MailboxListEvidence::from_runtime_value(&json!({
+        "loading":false,"loaded":true,"rowIds":["row-1"],
+        "skeletonCount":0u64,"emptyMarker":false,"nextPresent":false,
+        "nextDisabled":null,"currentTestId":null
+    }))
+    .expect("synthetic settled list");
+    let mut rows = json!([{"id":"row-1","subject":"subject",
+        "addresses":"contact@example.test","unread":false}]);
+    assert!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        MailboxPageSnapshot::from_observations(&before, Some(&rows), Some(&rows), &before).is_ok()
+    );
+    rows[0]["unrecognized"] = json!("secret-bearing-property");
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt line.
+        MailboxPageSnapshot::from_observations(&before, Some(&rows), Some(&rows), &before),
+        Err(BrowserDriverError::MailboxPageIncompatible)
+    );
 }
