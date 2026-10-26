@@ -460,3 +460,23 @@ fn explicitly_chosen_symlinked_data_home_still_isolates_project_components() {
     assert!(args.contains(alias_profile.to_str().expect("synthetic UTF-8 path")));
     cleanup(&root);
 }
+
+#[test]
+fn corrupt_automation_owner_blocks_visible_login() {
+    let root = test_root("corrupt-owner");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let data_home = root.join("xdg-data");
+    let dir = data_home.join("protonmail-ai");
+    fs::create_dir_all(&dir).expect("create project");
+    let lease = dir.join(".automation-lease");
+    fs::write(&lease, "v1 4294967295 1\n\n").expect("write fixture");
+    let browser = fake_browser(&root);
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(!output.status.success());
+    assert!(!root.join("browser-args.txt").exists());
+    assert_eq!(
+        fs::read_to_string(&lease).expect("read"),
+        "v1 4294967295 1\n\n"
+    );
+    cleanup(&root);
+}
