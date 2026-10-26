@@ -90,11 +90,22 @@ fn test_root(label: &str) -> PathBuf {
 }
 
 fn fake_browser(root: &Path, before: &str, rows: &str, after: &str) -> PathBuf {
+    fake_browser_with_rows(root, before, rows, rows, after)
+}
+
+fn fake_browser_with_rows(
+    root: &Path,
+    before: &str,
+    first_rows: &str,
+    second_rows: &str,
+    after: &str,
+) -> PathBuf {
     let script = root.join("fake-browser");
     let body = format!(
         r#"#!/usr/bin/env bash
 set -eu
 list_probe=0
+row_probe=0
 while IFS= read -r -d '' message <&3; do
   id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   case "$message" in
@@ -114,8 +125,11 @@ while IFS= read -r -d '' message <&3; do
       response+='"value":'"$value"'}}}}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
+      row_probe=$((row_probe + 1))
+      value='{first_rows}'
+      if [ "$row_probe" -gt 1 ]; then value='{second_rows}'; fi
       response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
-      response+='"value":{rows}}}}}}}'
+      response+='"value":'"$value"'}}}}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*)
       response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
@@ -269,4 +283,61 @@ fn oversized_visible_text_fails_closed() {
     let error = read("long-address", STABLE_LIST, &rows, STABLE_LIST)
         .expect_err("oversized addresses must fail closed");
     assert_eq!(error, BrowserDriverError::MailboxPageIncompatible);
+}
+
+#[test]
+fn changing_subject_with_stable_row_ids_invalidates_page_snapshot() {
+    let root = test_root("content-drift");
+    fs::create_dir_all(&root).expect("create isolated fake browser root");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let changed_subject = STABLE_ROWS.replace("Interview follow-up", "Changed subject");
+    let browser = fake_browser_with_rows(
+        &root,
+        STABLE_LIST,
+        STABLE_ROWS,
+        &changed_subject,
+        STABLE_LIST,
+    );
+    let plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("find synthetic Mail page");
+    assert_eq!(
+        managed.read_visible_mailbox_page(&page),
+        Err(BrowserDriverError::MailboxPageChanged),
+        "stable IDs alone must not hide changing row metadata"
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove fake browser root");
+}
+
+#[test]
+fn changing_addresses_or_unread_state_invalidates_page_snapshot() {
+    for (label, changed) in [
+        (
+            "address-drift",
+            STABLE_ROWS.replace("jobs@example.com", "changed@example.net"),
+        ),
+        (
+            "unread-drift",
+            STABLE_ROWS.replacen("\"unread\":true", "\"unread\":false", 1),
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create isolated browser fixture");
+        let browser =
+            // jig-ignore-next-line: canonical rustfmt line.
+            fake_browser_with_rows(&root, STABLE_LIST, STABLE_ROWS, &changed, STABLE_LIST);
+        let plan = plan(&root, &browser);
+        // jig-ignore-next-line: canonical rustfmt line.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake Mail");
+        let page = managed.provider_page().expect("find fake Mail page");
+        assert_eq!(
+            managed.read_visible_mailbox_page(&page),
+            Err(BrowserDriverError::MailboxPageChanged),
+            "{label} must invalidate the snapshot"
+        );
+        drop(managed);
+        fs::remove_dir_all(root).expect("remove isolated browser fixture");
+    }
 }

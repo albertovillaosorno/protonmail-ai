@@ -240,6 +240,7 @@ impl MailboxPageSnapshot {
     pub(crate) fn from_observations(
         before: &MailboxListEvidence,
         rows_value: Option<&Value>,
+        second_rows_value: Option<&Value>,
         after: &MailboxListEvidence,
     ) -> Result<Self, BrowserDriverError> {
         if before != after {
@@ -251,7 +252,7 @@ impl MailboxPageSnapshot {
                 Err(BrowserDriverError::MailboxPageNotSettled)
             }
             MailboxListState::SettledExplicitEmpty => {
-                if rows_value.is_some() {
+                if rows_value.is_some() || second_rows_value.is_some() {
                     return Err(BrowserDriverError::MailboxPageIncompatible);
                 }
                 Ok(Self {
@@ -264,6 +265,12 @@ impl MailboxPageSnapshot {
                 // jig-ignore-next-line: canonical rustfmt line.
                 let value = rows_value.ok_or(BrowserDriverError::MailboxPageIncompatible)?;
                 let rows = parse_rows(value)?;
+                let second =
+                    // jig-ignore-next-line: canonical rustfmt line.
+                    second_rows_value.ok_or(BrowserDriverError::MailboxPageIncompatible)?;
+                if rows != parse_rows(second)? {
+                    return Err(BrowserDriverError::MailboxPageChanged);
+                }
                 if !ids_match(before.row_ids(), &rows) {
                     return Err(BrowserDriverError::MailboxPageChanged);
                 }

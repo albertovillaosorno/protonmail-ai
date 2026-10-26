@@ -3329,10 +3329,23 @@ impl ManagedBrowser {
                 return Err(BrowserDriverError::MailboxPageNotSettled);
             }
         };
+        // Two consecutive read-only projections must agree on row content as
+        // well as identity; unchanged list IDs alone miss edits to a subject,
+        // correspondent address, or unread state during projection.
+        let second_rows_value = if rows_value.is_some() {
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some(self.runtime_value(session, MailboxPageSnapshot::expression())?)
+        } else {
+            None
+        };
         let after = self.mailbox_list_in_session(session)?;
         self.ensure_page_origin(page, session)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        MailboxPageSnapshot::from_observations(&before, rows_value.as_ref(), &after)
+        MailboxPageSnapshot::from_observations(
+            &before,
+            rows_value.as_ref(),
+            second_rows_value.as_ref(),
+            &after,
+        )
     }
 
     fn mailbox_list_in_session(

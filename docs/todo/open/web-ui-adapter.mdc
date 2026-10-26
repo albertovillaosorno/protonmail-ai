@@ -997,6 +997,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Local automation lease owners now share canonical decimal validation
   with Chromium singleton targets; signed and leading-zero PID/start-tick
   variants fail as corrupt entries instead of being silently reclaimed.
+- Stable visible row projection now re-reads the same bounded row fields
+  in one target session and refuses subject, correspondent, or unread drift
+  even when content-free list evidence retains identical row IDs. A fake
+  browser regression reproduces subject changes without any ID change.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -121,8 +121,10 @@ search must both be visible, while either dialog role blocks readiness.
 
 The first read-only mailbox slice now takes a stable snapshot of the currently
 visible Mail page. It requires a ready Mail shell, reads content-free list state
-before and after row projection, and returns data only when provider row IDs are
-unchanged in the same order. The snapshot contains only opaque row ID, visible
+before and after two consecutive row projections, and returns data only
+when provider row IDs and rendered row fields remain unchanged. This is a
+bounded UI consistency check, not an immutable server snapshot. The snapshot
+contains only opaque row ID, visible
 subject, displayed correspondent addresses, unread state, and observable paging
 state; it does not read message bodies or hidden React/Redux state.
 
