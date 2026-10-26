@@ -65,3 +65,12 @@ fn no_forced_signal_remains_unknown() {
     let evidence = MailboxModeEvidence::from_signals(false, false);
     assert_eq!(evidence.mode(), MailboxRenderMode::Unknown);
 }
+
+#[test]
+fn search_mode_numeric_evidence_does_not_accept_partial_integers() {
+    // JavaScript parseInt accepts e.g. 7junk, 0x10 and signed values. Such
+    // location fragments must not prove an individual-message render mode.
+    assert!(!MODE_SOURCE.contains("parseInt(value??'',10)"));
+    assert!(MODE_SOURCE.contains(r"/^\\d+$/"));
+    assert!(MODE_SOURCE.contains("value.length>20"));
+}

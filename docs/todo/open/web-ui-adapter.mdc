@@ -1059,6 +1059,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Observed Next controls and audited navigation/sort clicks also refuse
   CSS `visibility:hidden` elements that still have a layout rectangle;
   the static script tests guard this condition across all four expressions.
+- Message-mode location evidence now accepts only canonical bounded,
+  positive safe-integer search flags. Partial JavaScript `parseInt` matches
+  (like `7junk`) and oversized/hex/signed fragments cannot authorize the
+  individual-message interpretation of visible mailbox row IDs.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

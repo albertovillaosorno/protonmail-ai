@@ -49,8 +49,10 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const text=strings.some(",
     "(key)=>!!params.get(key));",
     "const numeric=numbers.some((key)=>{const value=params.get(key);",
-    "const parsed=parseInt(value??'',10);",
-    "return !Number.isNaN(parsed)&&parsed!==0;});",
+    "if(!value||value.length>20||!/^\\d+$/.test(value)){return false;}",
+    "if(value.length>1&&value.startsWith('0')){return false;}",
+    "const parsed=Number(value);",
+    "return Number.isSafeInteger(parsed)&&parsed>0;});",
     "return {forcedMessageRoute:forced,activeSearch:text||numeric};",
     "})()"
 );
