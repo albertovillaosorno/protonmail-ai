@@ -383,3 +383,12 @@ fn audited_clicks_must_refuse_nonvisible_controls() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn mailbox_list_next_page_evidence_requires_an_actionable_button() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("next instanceof HTMLButtonElement"));
+    assert!(script.contains("next.getClientRects().length===0"));
+    assert!(script.contains("next.closest('[aria-hidden=\"true\"]')"));
+    assert!(allowed_mail_runtime_expression(script));
+}
