@@ -1098,6 +1098,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Audited navigation and sort buttons also fail closed when computed
   CSS reports `pointer-events:none` or zero opacity, not just hidden
   visibility or missing rectangles; read-side Next evidence agrees.
+- A sort menu observation with `ready:false` must contain no selected
+  state or `valid` flags. Malformed closed-menu evidence now fails closed
+  rather than authorizing an extra UI click to reopen the controls.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

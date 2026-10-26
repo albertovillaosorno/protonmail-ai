@@ -475,3 +475,17 @@ fn navigation_controls_cannot_be_css_noninteractive_or_transparent() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn sort_menu_closed_evidence_rejects_contradictory_pressed_flags() {
+    assert!(MailboxSortOrder::from_value(&json!({"ready": false})).is_ok());
+    for invalid in [
+        json!({"ready": false, "valid": true}),
+        json!({"ready": false, "newest": true}),
+        json!({"ready": false, "oldest": false}),
+        json!({"ready": false, "largest": true}),
+        json!({"ready": false, "smallest": true}),
+    ] {
+        assert!(MailboxSortOrder::from_value(&invalid).is_err());
+    }
+}

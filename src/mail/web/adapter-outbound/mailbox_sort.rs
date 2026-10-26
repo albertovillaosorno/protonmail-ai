@@ -151,6 +151,11 @@ impl MailboxSortOrder {
     pub(crate) fn from_value(value: &Value) -> Result<Option<Self>, ()> {
         let ready = bool_field(value, "ready")?;
         if !ready {
+            // A closed menu may expose only readiness, not a purported
+            // selection. Contradictory flags cannot trigger a reopening click.
+            if value.as_object().is_none_or(|fields| fields.len() != 1) {
+                return Err(());
+            }
             return Ok(None);
         }
         if !bool_field(value, "valid")? {
