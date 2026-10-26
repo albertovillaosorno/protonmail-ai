@@ -1037,6 +1037,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Legacy mailbox event refresh handling now treats previously unknown
   non-contact refresh bits as cursor invalidation. Contacts-only bit `2`
   remains ignorable; synthetic unknown-bit fixtures refuse stale cursors.
+- Visible-page reads also re-observe list state after the final Mail-shell
+  check. Synthetic pagination/row drift during shell revalidation now fails
+  before a page snapshot is released, although this is not an immutable read.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -3345,11 +3345,17 @@ impl ManagedBrowser {
         if !after_shell.ready() {
             return Err(BrowserDriverError::MailShellNotReady);
         }
+        // Shell inspection takes time; reject lists which drift during that
+        // final authentication check instead of releasing stale row content.
+        let final_list = self.mailbox_list_in_session(session)?;
+        if after != final_list {
+            return Err(BrowserDriverError::MailboxPageChanged);
+        }
         MailboxPageSnapshot::from_observations(
             &before,
             rows_value.as_ref(),
             second_rows_value.as_ref(),
-            &after,
+            &final_list,
         )
     }
 

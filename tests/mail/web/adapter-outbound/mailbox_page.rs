@@ -369,3 +369,29 @@ fn expired_mail_shell_after_projection_refuses_visible_page() {
     drop(managed);
     fs::remove_dir_all(root).expect("remove fake browser root");
 }
+
+#[test]
+fn list_change_during_final_shell_recheck_invalidates_snapshot() {
+    let root = test_root("late-list-drift");
+    fs::create_dir_all(&root).expect("create fake browser root");
+    let browser = fake_browser(&root, STABLE_LIST, STABLE_ROWS, STABLE_LIST);
+    let script = fs::read_to_string(&browser).expect("read fake browser");
+    let marker = "      response='{";
+    let late_change =
+        // jig-ignore-next-line: indivisible fake-browser shell fragment.
+        format!("      if [ \"$list_probe\" -gt 2 ]; then value='{CHANGED_LIST}'; fi\n{marker}");
+    assert!(script.contains(marker));
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::write(&browser, script.replacen(marker, &late_change, 1)).expect("install late list drift");
+    let plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+    let page = managed.provider_page().expect("find synthetic Mail page");
+    assert_eq!(
+        managed.read_visible_mailbox_page(&page),
+        Err(BrowserDriverError::MailboxPageChanged),
+        "list drift after shell recheck cannot release a stale page"
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove fake browser fixture");
+}
