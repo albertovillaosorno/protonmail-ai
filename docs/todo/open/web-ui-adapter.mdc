@@ -1040,6 +1040,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Visible-page reads also re-observe list state after the final Mail-shell
   check. Synthetic pagination/row drift during shell revalidation now fails
   before a page snapshot is released, although this is not an immutable read.
+- Both audited read-only DOM expressions now refuse password or one-time
+  code inputs before extracting list metadata or row content. This prevents
+  an overlay-based login expiry from passing via residual Mail landmarks;
+  the static expression test also proves no input values are queried.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

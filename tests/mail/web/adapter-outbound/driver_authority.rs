@@ -343,3 +343,24 @@ fn mailbox_list_projection_must_refuse_ambiguous_pagination_controls() {
     assert!(script.contains("currentNodes.length>1"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn mailbox_read_scripts_reject_authentication_challenge_inputs() {
+    for script in [
+        MailboxListEvidence::expression(),
+        MailboxPageSnapshot::expression(),
+    ] {
+        let password = script
+            .find("input[type=\"password\"]")
+            .expect("read-only projection must reject password inputs");
+        let otp = script
+            .find("input[autocomplete=\"one-time-code\"]")
+            .expect("read-only projection must reject one-time codes");
+        let projection = script
+            .find("document.querySelectorAll(")
+            .expect("read expression inspects DOM structure");
+        assert!(password < projection && otp < projection);
+        assert!(!script.contains(".value"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}
