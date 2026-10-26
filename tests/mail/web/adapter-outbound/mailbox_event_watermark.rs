@@ -2529,3 +2529,16 @@ fn event_sequence_rejects_revisited_watermarks_without_losing_progress() {
         .expect("settled no-change response can keep its request watermark");
     assert!(sequence.settled());
 }
+
+#[test]
+fn mailbox_event_count_collections_are_all_validated_after_first_change() {
+    let body = r#"{
+        "EventID":"event-9","More":0,
+        "MessageCounts":[{"LabelID":"inbox","Total":1}],
+        "ConversationCounts":{"unexpected":"object"}
+    }"#;
+    assert_eq!(
+        ObservedMailboxEventWatermark::parse("GET", URL, body),
+        Err(MailboxEventWatermarkError::Malformed)
+    );
+}

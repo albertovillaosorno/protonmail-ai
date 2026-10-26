@@ -981,6 +981,9 @@ web application without requiring Bridge or a third-party direct API identity.
   whether an interim page says `More=1` or a final page says `More=0`.
   This refuses cursor cycles without changing the retained sequence and
   preserves a legitimate no-change final poll at the requested watermark.
+- Core event count collections are now independently shape-validated even
+  when an earlier collection already reported mailbox changes; a malformed
+  `ConversationCounts` cannot hide behind nonempty `MessageCounts`.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -846,7 +846,9 @@ impl ObservedMailboxEventWatermark {
         let count_changes = ["MessageCounts", "ConversationCounts"]
             .into_iter()
             .try_fold(false, |changed, key| {
-                Ok(changed || event_collection_nonempty(&value, key)?)
+                // Validate both collections even if the first reported changes.
+                let changed_here = event_collection_nonempty(&value, key)?;
+                Ok(changed || changed_here)
             })?;
         Ok(Self {
             requested_event_id: String::from(requested_event_id),
