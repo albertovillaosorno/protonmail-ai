@@ -511,3 +511,13 @@ fn explicit_empty_mailbox_requires_one_visible_placeholder() {
     assert!(script.contains("emptyNode.closest('[aria-hidden="));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn list_row_identifiers_must_come_from_visible_dom_rows() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("real.some((row)=>"));
+    assert!(script.contains("row.getClientRects().length===0"));
+    assert!(script.contains("getComputedStyle(row).visibility"));
+    assert!(script.contains("row.closest('[aria-hidden="));
+    assert!(allowed_mail_runtime_expression(script));
+}

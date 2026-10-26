@@ -1110,6 +1110,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - An explicit empty-list title counts as evidence only when it has a
   unique rendered node with visible computed CSS and no ARIA-hidden
   ancestor. Duplicate or hidden empty markers cannot report empty Mail.
+- List-row ID extraction now requires every loaded region to be visibly
+  rendered and not inside ARIA-hidden ancestry. A hidden duplicate/decoy
+  row cannot enter content-free list or pagination evidence.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

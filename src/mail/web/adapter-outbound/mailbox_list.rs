@@ -57,6 +57,10 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "emptyMarker:false,nextPresent:false,nextDisabled:null,currentTestId:null};}",
     "const base='[data-shortcut-target=\"item-container\"][data-element-id]';",
     "const real=[...root.querySelectorAll(base+'[role=\"region\"]')];",
+    "if(real.length>200||real.some((row)=>",
+    "row.getClientRects().length===0||",
+    "getComputedStyle(row).visibility!=='visible'||",
+    "row.closest('[aria-hidden=\"true\"]'))){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
