@@ -53,7 +53,7 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const text=strings.some((key)=>{const value=params.get(key);",
     "return !!value&&value.length<=2048&&value.trim().length>0&&",
     "[...value].every((c)=>c.codePointAt(0)>=32&&",
-    "c.codePointAt(0)!==127);});",
+    "c.codePointAt(0)!==127&&c.codePointAt(0)!==65533);});",
     "const numeric=numbers.some((key)=>{const value=params.get(key);",
     "if(!value||value.length>20||!/^\\d+$/.test(value)){return false;}",
     "if(value.length>1&&value.startsWith('0')){return false;}",

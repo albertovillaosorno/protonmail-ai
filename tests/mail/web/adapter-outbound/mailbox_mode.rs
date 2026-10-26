@@ -91,3 +91,10 @@ fn message_mode_refuses_malformed_or_unbounded_url_hash() {
     assert!(MODE_SOURCE.contains("raw.length>8192"));
     assert!(MODE_SOURCE.contains("/%(?![0-9a-fA-F]{2})/"));
 }
+
+#[test]
+fn decoded_search_replacement_char_never_proves_message_rows() {
+    // URLSearchParams replaces malformed UTF-8 percent sequences with U+FFFD.
+    // That lossy decoding is not authoritative evidence of a search.
+    assert!(MODE_SOURCE.contains("!==65533"));
+}

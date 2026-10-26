@@ -1101,6 +1101,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - A sort menu observation with `ready:false` must contain no selected
   state or `valid` flags. Malformed closed-menu evidence now fails closed
   rather than authorizing an extra UI click to reopen the controls.
+- Mailbox mode rejects replacement-character U+FFFD in decoded search
+  text; malformed UTF-8 percent encodings cannot masquerade as a
+  meaningful search through URLSearchParams' lossy decoding.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
