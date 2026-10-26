@@ -994,6 +994,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Chromium SingletonLock PID targets now require canonical positive decimal
   syntax before a local process liveness probe. Leading-zero and signed
   variants that might otherwise be mistaken for stale owners fail closed.
+- Local automation lease owners now share canonical decimal validation
+  with Chromium singleton targets; signed and leading-zero PID/start-tick
+  variants fail as corrupt entries instead of being silently reclaimed.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

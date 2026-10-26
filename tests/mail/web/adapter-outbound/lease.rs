@@ -520,3 +520,25 @@ fn noncanonical_singleton_pid_cannot_be_treated_as_stale() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn malformed_numeric_lease_owner_cannot_be_reclaimed() {
+    for (label, content) in [
+        ("pid-leading-zero", "v1 04294967295 1\n"),
+        ("pid-plus", "v1 +4294967295 1\n"),
+        ("ticks-leading-zero", "v1 4294967295 0001\n"),
+        ("ticks-plus", "v1 4294967295 +1\n"),
+    ] {
+        let root = test_root(label);
+        let profile = profile(&root);
+        let path = lease_path(&profile);
+        fs::create_dir_all(project_dir(&profile)).expect("create project");
+        fs::write(&path, content).expect("write synthetic malformed lease");
+        assert_eq!(
+            acquire(&profile).expect_err("malformed numeric owner fails"),
+            LeaseError::CorruptLease
+        );
+        assert_eq!(fs::read_to_string(&path).expect("preserve entry"), content);
+        cleanup(&root);
+    }
+}

@@ -226,11 +226,7 @@ fn chromium_profile_busy(path: &Path) -> Result<bool, ProfileLeaseError> {
     };
     // Chromium writes a canonical positive decimal PID. Leading zeros and
     // alternative numeric spellings are not proof of a stale browser.
-    if pid.is_empty()
-        || pid.len() > 10
-        || (pid.len() > 1 && pid.starts_with('0'))
-        || !pid.bytes().all(|byte| byte.is_ascii_digit())
-    {
+    if !canonical_decimal(pid, 10) {
         return Ok(true);
     }
     let Ok(pid) = pid.parse::<u32>() else {
@@ -441,20 +437,30 @@ fn remove_stale(path: &Path, expected: FileIdentity) -> LeaseResult<()> {
     .map_err(lease_io)
 }
 
+// These process identifiers are serialized as ordinary decimal numbers.
+// A noncanonical spelling cannot authenticate a local lease or browser lock.
+fn canonical_decimal(value: &str, maximum_bytes: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum_bytes
+        && (value.len() == 1 || !value.starts_with('0'))
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
 fn parse_owner(content: &str) -> LeaseResult<LeaseOwner> {
     let mut fields = content.split_whitespace();
     if fields.next() != Some(LEASE_VERSION) {
         return Err(ProfileLeaseError::CorruptLease);
     }
-    let pid = fields
-        .next()
-        .ok_or(ProfileLeaseError::CorruptLease)?
-        .parse()
+    let pid_text = fields.next().ok_or(ProfileLeaseError::CorruptLease)?;
+    let ticks_text = fields.next().ok_or(ProfileLeaseError::CorruptLease)?;
+    if !canonical_decimal(pid_text, 10) || !canonical_decimal(ticks_text, 20) {
+        return Err(ProfileLeaseError::CorruptLease);
+    }
+    let pid = pid_text
+        .parse::<u32>()
         .map_err(|_error| ProfileLeaseError::CorruptLease)?;
-    let start_ticks = fields
-        .next()
-        .ok_or(ProfileLeaseError::CorruptLease)?
-        .parse()
+    let start_ticks = ticks_text
+        .parse::<u64>()
         .map_err(|_error| ProfileLeaseError::CorruptLease)?;
     if pid == 0 || start_ticks == 0 || fields.next().is_some() {
         return Err(ProfileLeaseError::CorruptLease);
