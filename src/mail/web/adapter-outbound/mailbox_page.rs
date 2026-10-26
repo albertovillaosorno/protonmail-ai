@@ -72,6 +72,12 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const senders=[...row.querySelectorAll('[data-testid=\"message-column:sender-address\"][title]')];",
     "if(headingNodes.length!==1||senders.length!==1){return null;}",
     "const localHeading=headingNodes[0],sender=senders[0];",
+    "if(localHeading.getClientRects().length===0||",
+    "sender.getClientRects().length===0||",
+    "localHeading.closest('[aria-hidden=\"true\"]')||",
+    "sender.closest('[aria-hidden=\"true\"]')||",
+    "getComputedStyle(localHeading).visibility!=='visible'||",
+    "getComputedStyle(sender).visibility!=='visible'){return null;}",
     // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
     "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
     "addresses:sender?sender.getAttribute('title'):null,",

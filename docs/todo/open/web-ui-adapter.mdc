@@ -1104,6 +1104,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Mailbox mode rejects replacement-character U+FFFD in decoded search
   text; malformed UTF-8 percent encodings cannot masquerade as a
   meaningful search through URLSearchParams' lossy decoding.
+- Content-bearing row projection requires the chosen subject and sender
+  elements to have rendered layout, visible computed CSS, and no ARIA-hidden
+  ancestor. Hidden decoy metadata may not cross the read boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

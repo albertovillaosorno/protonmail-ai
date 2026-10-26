@@ -489,3 +489,15 @@ fn sort_menu_closed_evidence_rejects_contradictory_pressed_flags() {
         assert!(MailboxSortOrder::from_value(&invalid).is_err());
     }
 }
+
+#[test]
+fn row_subject_and_sender_evidence_must_be_visibly_rendered() {
+    let script = MailboxPageSnapshot::expression();
+    assert!(script.contains("localHeading.getClientRects().length===0"));
+    assert!(script.contains("sender.getClientRects().length===0"));
+    assert!(script.contains("localHeading.closest('[aria-hidden="));
+    assert!(script.contains("sender.closest('[aria-hidden="));
+    assert!(script.contains("getComputedStyle(localHeading).visibility"));
+    assert!(script.contains("getComputedStyle(sender).visibility"));
+    assert!(allowed_mail_runtime_expression(script));
+}
