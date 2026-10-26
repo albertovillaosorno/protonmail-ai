@@ -443,3 +443,42 @@ fn unknown_live_process_at_singleton_pid_cannot_be_assumed_stale() {
     assert!(!lease_path(&profile).exists());
     cleanup(&root);
 }
+
+#[test]
+fn zero_pid_chromium_singleton_fails_closed() {
+    let root = test_root("chromium-zero-pid");
+    let profile = profile(&root);
+    fs::create_dir_all(profile.path()).expect("create profile");
+    let target = format!("{}-0", local_hostname());
+    symlink(target, singleton_path(&profile)).expect("create malformed lock");
+    assert_eq!(
+        acquire(&profile).expect_err("PID zero is not a valid browser owner"),
+        LeaseError::BrowserInUse
+    );
+    assert!(!lease_path(&profile).exists());
+    cleanup(&root);
+}
+
+#[test]
+fn invalid_zero_lease_owner_values_cannot_be_reclaimed() {
+    for (label, contents) in [
+        ("zero-pid", "v1 0 1\n"),
+        ("zero-start", "v1 1 0\n"),
+        ("both-zero", "v1 0 0\n"),
+    ] {
+        let root = test_root(label);
+        let profile = profile(&root);
+        let path = lease_path(&profile);
+        fs::create_dir_all(project_dir(&profile)).expect("create project");
+        fs::write(&path, contents).expect("write invalid lease");
+        assert_eq!(
+            acquire(&profile).expect_err("zero fields must fail closed"),
+            LeaseError::CorruptLease
+        );
+        assert_eq!(
+            fs::read_to_string(&path).expect("invalid lease remains"),
+            contents
+        );
+        cleanup(&root);
+    }
+}

@@ -970,6 +970,10 @@ web application without requiring Bridge or a third-party direct API identity.
   live process, not just a short executable-basename allowlist. An unrelated
   process can inherit a dead Chrome PID, and Chrome forks or alternate builds
   can use different executable names; neither permits profile takeover.
+- Zero PID in Chromium singleton targets is now a malformed busy lock,
+  rather than being mistaken for a departed browser. Lease owner records
+  with zero PID or zero start ticks are corrupt and cannot be reclaimed;
+  synthetic tests preserve malformed entries and refuse to launch.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -229,6 +229,9 @@ fn chromium_profile_busy(path: &Path) -> Result<bool, ProfileLeaseError> {
     let Ok(pid) = pid.parse::<u32>() else {
         return Ok(true);
     };
+    if pid == 0 {
+        return Ok(true);
+    }
     if hostname != local_hostname()?.as_str() {
         return Ok(true);
     }
@@ -446,7 +449,7 @@ fn parse_owner(content: &str) -> LeaseResult<LeaseOwner> {
         .ok_or(ProfileLeaseError::CorruptLease)?
         .parse()
         .map_err(|_error| ProfileLeaseError::CorruptLease)?;
-    if fields.next().is_some() {
+    if pid == 0 || start_ticks == 0 || fields.next().is_some() {
         return Err(ProfileLeaseError::CorruptLease);
     }
     Ok(LeaseOwner { pid, start_ticks })
