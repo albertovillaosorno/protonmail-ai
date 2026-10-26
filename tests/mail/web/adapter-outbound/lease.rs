@@ -499,3 +499,24 @@ fn unix_socket_cannot_masquerade_as_an_automation_lease() {
     drop(socket);
     cleanup(&root);
 }
+
+#[test]
+fn noncanonical_singleton_pid_cannot_be_treated_as_stale() {
+    for (label, suffix) in [
+        ("leading-zero", "00004294967295"),
+        ("plus-sign", "+4294967295"),
+        ("leading-zero-live", "00"),
+    ] {
+        let root = test_root(label);
+        let profile = profile(&root);
+        fs::create_dir_all(profile.path()).expect("create isolated profile");
+        let target = format!("{}-{suffix}", local_hostname());
+        symlink(target, singleton_path(&profile)).expect("create lock fixture");
+        assert_eq!(
+            acquire(&profile).expect_err("malformed browser owner must block"),
+            LeaseError::BrowserInUse
+        );
+        assert!(!lease_path(&profile).exists());
+        cleanup(&root);
+    }
+}

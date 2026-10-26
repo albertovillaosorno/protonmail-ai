@@ -224,6 +224,15 @@ fn chromium_profile_busy(path: &Path) -> Result<bool, ProfileLeaseError> {
     let Some((hostname, pid)) = target.rsplit_once('-') else {
         return Ok(true);
     };
+    // Chromium writes a canonical positive decimal PID. Leading zeros and
+    // alternative numeric spellings are not proof of a stale browser.
+    if pid.is_empty()
+        || pid.len() > 10
+        || (pid.len() > 1 && pid.starts_with('0'))
+        || !pid.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Ok(true);
+    }
     let Ok(pid) = pid.parse::<u32>() else {
         return Ok(true);
     };

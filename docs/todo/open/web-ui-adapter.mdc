@@ -991,6 +991,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Lease entries are now positively classified as regular files. A
   synthetic UNIX socket at the fixed lease entry fails closed instead of
   being mistaken for a valid recoverable lease.
+- Chromium SingletonLock PID targets now require canonical positive decimal
+  syntax before a local process liveness probe. Leading-zero and signed
+  variants that might otherwise be mistaken for stale owners fail closed.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
