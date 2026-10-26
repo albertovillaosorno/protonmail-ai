@@ -482,3 +482,20 @@ fn invalid_zero_lease_owner_values_cannot_be_reclaimed() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn unix_socket_cannot_masquerade_as_an_automation_lease() {
+    use std::os::unix::net::UnixListener;
+
+    let root = test_root("unsafe-socket");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    fs::create_dir_all(project_dir(&profile)).expect("create project");
+    let socket = UnixListener::bind(&path).expect("bind synthetic socket");
+    assert_eq!(
+        acquire(&profile).expect_err("socket must not be parsed as a lease"),
+        LeaseError::UnsafeLeasePath
+    );
+    drop(socket);
+    cleanup(&root);
+}

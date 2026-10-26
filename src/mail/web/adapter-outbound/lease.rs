@@ -33,7 +33,6 @@
 use std::fmt;
 use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind, Read as _, Write as _};
-use std::os::unix::fs::FileTypeExt as _;
 use std::os::unix::fs::MetadataExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -105,13 +104,12 @@ impl AutomationProfileLease {
     }
 }
 
+#[expect(
+    clippy::filetype_is_file,
+    reason = "lease identity requires a regular file"
+)]
 fn is_regular_file(file_type: fs::FileType) -> bool {
-    !file_type.is_dir()
-        && !file_type.is_symlink()
-        && !file_type.is_block_device()
-        && !file_type.is_char_device()
-        && !file_type.is_fifo()
-        && !file_type.is_socket()
+    file_type.is_file()
 }
 
 #[expect(
