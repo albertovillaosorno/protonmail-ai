@@ -37,6 +37,8 @@ use serde_json::Value;
 const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "(() => {",
     "if(location.origin!=='https://mail.proton.me'){return null;}",
+    "if(document.querySelector('input[type=\"password\"],",
+    "input[autocomplete=\"one-time-code\"]')){return null;}",
     "const parts=location.pathname.split('/').filter(Boolean);",
     "let route=parts[0]||'';",
     "if(route==='u'&&/^\\d+$/.test(parts[1]||'')){",

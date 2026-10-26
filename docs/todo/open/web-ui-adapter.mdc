@@ -1123,6 +1123,9 @@ web application without requiring Bridge or a third-party direct API identity.
   visibly present immediately before closing; it will not reopen a menu
   that vanished between read evidence and the toggle click. Opening also
   rejects duplicate/partial option sets rather than counting first matches.
+- Content-free message-mode and sort inspections now refuse password or
+  one-time-code challenge overlays within their JavaScript reads, matching
+  mailbox list/content and all audited click preconditions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -551,3 +551,16 @@ fn sort_menu_toggle_actions_require_unambiguous_current_menu_state() {
     assert!(allowed_mail_runtime_expression(open));
     assert!(allowed_mail_runtime_expression(close));
 }
+
+#[test]
+fn read_only_mode_and_sort_projections_refuse_auth_challenge_overlays() {
+    for script in [
+        MailboxModeEvidence::expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::closed_expression(),
+    ] {
+        assert!(script.contains("input[type=\"password\"]"));
+        assert!(script.contains("input[autocomplete=\"one-time-code\"]"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}
