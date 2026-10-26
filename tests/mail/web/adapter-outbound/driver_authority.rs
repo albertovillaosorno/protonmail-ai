@@ -392,3 +392,17 @@ fn mailbox_list_next_page_evidence_requires_an_actionable_button() {
     assert!(script.contains("next.closest('[aria-hidden=\"true\"]')"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn click_and_next_evidence_refuse_css_visibility_hidden() {
+    for script in [
+        MailboxListEvidence::expression(),
+        NextPageActivation::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        assert!(script.contains("getComputedStyle("));
+        assert!(script.contains(".visibility!=='visible'"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

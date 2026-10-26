@@ -1056,6 +1056,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Content-free list pagination also requires Next controls to be rendered,
   AX-visible HTML buttons before reporting a next-page state. The existing
   audited navigation click uses the same control semantics.
+- Observed Next controls and audited navigation/sort clicks also refuse
+  CSS `visibility:hidden` elements that still have a layout rectangle;
+  the static script tests guard this condition across all four expressions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -65,6 +65,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "const next=nextNodes[0],current=currentNodes[0];",
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.getClientRects().length===0||",
+    "getComputedStyle(next).visibility!=='visible'||",
     "next.closest('[aria-hidden=\"true\"]'))){return null;}",
     "return {loading:!!loading,loaded:!!loaded,",
     "rowIds:real.map((row)=>row.getAttribute('data-element-id')),",
