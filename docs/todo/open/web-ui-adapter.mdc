@@ -1014,6 +1014,10 @@ web application without requiring Bridge or a third-party direct API identity.
   errors now run the identity-bound `Drop` cleanup instead of stranding
   a partially initialized owner record. Existing inode replacement tests
   also guard cleanup from removing any unrelated final entry.
+- The stricter two-projection content check also applies to proven
+  individual-message pages, not only generic mailbox rows. A separate
+  forced-message-mode fake Chromium test changes the subject mid-read and
+  rejects the result without exposing a message snapshot.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -79,10 +79,21 @@ fn test_root(label: &str) -> PathBuf {
 }
 
 fn fake(root: &Path, before: ModeSignals, after: ModeSignals) -> PathBuf {
+    fake_with_rows(root, before, after, STABLE_ROWS, STABLE_ROWS)
+}
+
+fn fake_with_rows(
+    root: &Path,
+    before: ModeSignals,
+    after: ModeSignals,
+    first_rows: &str,
+    second_rows: &str,
+) -> PathBuf {
     let script = root.join("fake-browser");
     let template = r#"#!/usr/bin/env bash
 set -eu
 mode_probe=0
+row_probe=0
 while IFS= read -r -d '' message <&3; do
   id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   case "$message" in
@@ -111,8 +122,11 @@ while IFS= read -r -d '' message <&3; do
       response+='"value":__STABLE_LIST__}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
+      row_probe=$((row_probe + 1))
+      rows='__ROWS_FIRST__'
+      if [ "$row_probe" -gt 1 ]; then rows='__ROWS_SECOND__'; fi
       response='{"id":'"$id"',"result":{"result":{"type":"object",'
-      response+='"value":__STABLE_ROWS__}}}'
+      response+='"value":'"$rows"'}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*)
       response='{"id":'"$id"',"result":{"result":{"type":"object",'
@@ -143,7 +157,8 @@ done
         .replace("__FORCED_AFTER__", bool_text(after.forced_route))
         .replace("__SEARCH_AFTER__", bool_text(after.active_search))
         .replace("__STABLE_LIST__", STABLE_LIST)
-        .replace("__STABLE_ROWS__", STABLE_ROWS)
+        .replace("__ROWS_FIRST__", first_rows)
+        .replace("__ROWS_SECOND__", second_rows)
         .replace("__VISIBLE_AX__", VISIBLE_AX)
         .replace("__ABSENT_AX__", ABSENT_AX);
     fs::write(&script, body).expect("write fake browser");
@@ -330,4 +345,28 @@ fn visible_message_page_refuses_unsafe_dom_ids_before_content_projection() {
         drop(managed);
         fs::remove_dir_all(&root).expect("remove isolated browser profile");
     }
+}
+
+#[test]
+fn proven_message_mode_still_rejects_unstable_row_metadata() {
+    let root = test_root("message-content-drift");
+    fs::create_dir_all(&root).expect("create synthetic browser fixture");
+    let changed = STABLE_ROWS.replace("Interview follow-up", "Changed subject");
+    let browser = fake_with_rows(
+        &root,
+        FORCED_MESSAGES,
+        FORCED_MESSAGES,
+        STABLE_ROWS,
+        &changed,
+    );
+    let plan = plan(&root, &browser);
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.read_visible_message_page(&page),
+        Err(BrowserDriverError::MailboxPageChanged)
+    );
+    drop(managed);
+    fs::remove_dir_all(root).expect("remove isolated browser fixture");
 }
