@@ -179,6 +179,11 @@ impl MailboxListEvidence {
     }
 
     pub(crate) fn from_runtime_value(value: &Value) -> Result<Self, ()> {
+        // Only accept the exact projection schema owned by the audited DOM
+        // expression, including when the list is still loading.
+        if value.as_object().is_none_or(|fields| fields.len() != 8) {
+            return Err(());
+        }
         let loading = bool_field(value, "loading")?;
         let loaded = bool_field(value, "loaded")?;
         if loading == loaded {

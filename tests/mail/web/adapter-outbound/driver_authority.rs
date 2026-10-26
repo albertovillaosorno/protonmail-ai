@@ -579,3 +579,25 @@ fn active_sort_evidence_refuses_unexpected_control_fields() {
     extra["shadowState"] = json!(true);
     assert!(MailboxSortOrder::from_value(&extra).is_err());
 }
+
+#[test]
+fn mailbox_list_parser_refuses_unexpected_projection_fields() {
+    let mut ready = json!({
+        "loading": false, "loaded": true, "rowIds": ["row-1"],
+        "skeletonCount": 0u64, "emptyMarker": false,
+        "nextPresent": false, "nextDisabled": null,
+        "currentTestId": null
+    });
+    assert!(MailboxListEvidence::from_runtime_value(&ready).is_ok());
+    ready["unexpected"] = json!(true);
+    assert!(MailboxListEvidence::from_runtime_value(&ready).is_err());
+    let mut loading = json!({
+        "loading": true, "loaded": false, "rowIds": [],
+        "skeletonCount": 0u64, "emptyMarker": false,
+        "nextPresent": false, "nextDisabled": null,
+        "currentTestId": null
+    });
+    assert!(MailboxListEvidence::from_runtime_value(&loading).is_ok());
+    loading["unexpected"] = json!(true);
+    assert!(MailboxListEvidence::from_runtime_value(&loading).is_err());
+}
