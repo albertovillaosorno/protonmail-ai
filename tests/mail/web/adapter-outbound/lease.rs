@@ -32,7 +32,7 @@
 
 use std::env;
 use std::fs;
-use std::os::unix::fs::{PermissionsExt as _, symlink};
+use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command};
 
@@ -366,5 +366,29 @@ fn drop_cannot_unlink_a_hardlinked_lease_through_a_replaced_project_path() {
         "dropping a lease must not unlink through a replaced parent"
     );
     assert!(moved_project.join(".automation-lease").is_file());
+    cleanup(&root);
+}
+
+#[test]
+fn stale_lease_recovery_keeps_external_hardlinks_intact() {
+    let root = test_root("stale-hardlink");
+    let profile = profile(&root);
+    let path = lease_path(&profile);
+    fs::create_dir_all(project_dir(&profile)).expect("create project");
+    fs::write(&path, "v1 4294967295 1\n").expect("create stale lease");
+    let outside = root.join("outside-lease");
+    fs::hard_link(&path, &outside).expect("link stale lease to outside");
+
+    let lease = acquire(&profile).expect("reclaim only the project lease name");
+    assert_eq!(
+        fs::read_to_string(&outside).expect("outside hardlink is intact"),
+        "v1 4294967295 1\n"
+    );
+    assert_ne!(
+        fs::metadata(&outside).expect("external inode").ino(),
+        fs::metadata(&path).expect("new lease inode").ino()
+    );
+    drop(lease);
+    assert!(outside.is_file());
     cleanup(&root);
 }

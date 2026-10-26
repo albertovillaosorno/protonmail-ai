@@ -959,6 +959,9 @@ web application without requiring Bridge or a third-party direct API identity.
   unlinks only relative to that descriptor. A synthetic regression demonstrates
   that moving the project and substituting a symlink to an external hardlink
   cannot redirect cleanup, even when the external entry has the same inode.
+- Stale-lease reclamation likewise checks inode identity and removes the
+  fixed entry via its verified project directory descriptor; synthetic
+  evidence preserves an external hardlink while replacing the stale entry.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

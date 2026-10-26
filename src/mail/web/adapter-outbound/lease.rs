@@ -38,6 +38,7 @@ use std::os::unix::fs::MetadataExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
 
+use nix::errno::Errno;
 use nix::fcntl::{AtFlags, OFlag, open, openat};
 use nix::sys::stat::{Mode, SFlag, fstatat};
 use nix::unistd::{UnlinkatFlags, unlinkat};
@@ -413,19 +414,28 @@ fn inspect_existing_lease(path: &Path) -> LeaseResult<ExistingLease> {
 }
 
 fn remove_stale(path: &Path, expected: FileIdentity) -> LeaseResult<()> {
-    let metadata = match fs::symlink_metadata(path) {
+    let parent = open_lease_parent(path).map_err(lease_io)?;
+    let metadata = match fstatat(
+        &parent,
+        Path::new(AUTOMATION_LEASE),
+        AtFlags::AT_SYMLINK_NOFOLLOW,
+    ) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(Errno::ENOENT) => return Ok(()),
         Err(_error) => return Err(ProfileLeaseError::LeaseIo),
     };
-    let current = FileIdentity {
-        device: metadata.dev(),
-        inode: metadata.ino(),
-    };
-    if !is_regular_file(metadata.file_type()) || current != expected {
+    // jig-ignore-next-line: canonical rustfmt line.
+    let regular = SFlag::from_bits_truncate(metadata.st_mode) & SFlag::S_IFMT == SFlag::S_IFREG;
+    // jig-ignore-next-line: canonical rustfmt line.
+    if !regular || metadata.st_dev != expected.device || metadata.st_ino != expected.inode {
         return Err(ProfileLeaseError::AutomationInUse);
     }
-    fs::remove_file(path).map_err(lease_io)
+    unlinkat(
+        &parent,
+        Path::new(AUTOMATION_LEASE),
+        UnlinkatFlags::NoRemoveDir,
+    )
+    .map_err(lease_io)
 }
 
 fn parse_owner(content: &str) -> LeaseResult<LeaseOwner> {
