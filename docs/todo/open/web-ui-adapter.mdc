@@ -962,6 +962,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Stale-lease reclamation likewise checks inode identity and removes the
   fixed entry via its verified project directory descriptor; synthetic
   evidence preserves an external hardlink while replacing the stale entry.
+- Chromium `SingletonLock` also treats a still-running Chrome executable
+  whose `/proc/{pid}/exe` has Linux’s ` (deleted)` suffix as live; deleting
+  the binary during an upgrade cannot free the profile for automation. A
+  synthetic child process proves the previously missed active-owner case.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -123,9 +123,14 @@ fn local_hostname() -> String {
 fn fake_chrome_process(root: &Path) -> Child {
     let source = Path::new("/bin/sleep");
     let chrome = root.join("chrome");
-    fs::copy(source, &chrome).expect("copy synthetic chrome executable");
+    let prepared = root.join("chrome-prepared");
+    // Avoid writing an executable path that a previous failed fixture may
+    // still be executing. Publish a fully written inode by rename instead.
+    fs::copy(source, &prepared).expect("prepare synthetic Chrome binary");
     let permissions = fs::Permissions::from_mode(0o700);
-    fs::set_permissions(&chrome, permissions).expect("chmod synthetic chrome");
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::set_permissions(&prepared, permissions).expect("chmod synthetic Chrome");
+    fs::rename(prepared, &chrome).expect("publish synthetic Chrome binary");
     Command::new(chrome)
         .arg("30")
         .spawn()
@@ -391,4 +396,26 @@ fn stale_lease_recovery_keeps_external_hardlinks_intact() {
     drop(lease);
     assert!(outside.is_file());
     cleanup(&root);
+}
+
+#[test]
+fn deleted_but_running_chromium_executable_keeps_profile_locked() {
+    let root = test_root("chromium-executable-deleted");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let profile = profile(&root);
+    fs::create_dir_all(profile.path()).expect("create synthetic profile");
+    let mut chrome = fake_chrome_process(&root);
+    // jig-ignore-next-line: canonical rustfmt line.
+    fs::remove_file(root.join("chrome")).expect("simulate a browser binary update");
+    let target = format!("{}-{}", local_hostname(), chrome.id());
+    symlink(target, singleton_path(&profile)).expect("create Chromium lock");
+
+    let result = acquire(&profile);
+    chrome.kill().expect("kill synthetic Chrome");
+    chrome.wait().expect("reap synthetic Chrome");
+    cleanup(&root);
+    assert_eq!(
+        result.expect_err("unlinked but live Chrome must hold profile"),
+        LeaseError::BrowserInUse
+    );
 }

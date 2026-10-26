@@ -246,7 +246,10 @@ fn local_hostname() -> LeaseResult<String> {
 }
 
 fn executable_name(path: &Path) -> Option<&str> {
-    path.file_name().and_then(|name| name.to_str())
+    let name = path.file_name()?.to_str()?;
+    // Linux marks a still-running executable whose inode was unlinked with
+    // this suffix, for example after a browser upgrade. It remains live.
+    Some(name.strip_suffix(" (deleted)").unwrap_or(name))
 }
 
 fn chrome_process_active(pid: u32) -> LeaseResult<bool> {
