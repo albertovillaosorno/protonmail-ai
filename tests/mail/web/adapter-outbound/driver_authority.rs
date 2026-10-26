@@ -635,3 +635,28 @@ fn content_bearing_rows_reject_unrecognized_dom_fields() {
         Err(BrowserDriverError::MailboxPageIncompatible)
     );
 }
+
+#[test]
+fn ui_navigation_click_receipts_require_exact_audited_schema() {
+    use super::SortMenuActivation;
+    let open = json!({"alreadyOpen":false,"clicked":true});
+    assert_eq!(
+        SortMenuActivation::from_value(&open),
+        Ok(SortMenuActivation::Opened)
+    );
+    // jig-ignore-next-line: canonical rustfmt line.
+    let open_with_extra = json!({"alreadyOpen":false,"clicked":true,"sideEffect":true});
+    assert_eq!(
+        SortMenuActivation::from_value(&open_with_extra),
+        Err(BrowserDriverError::MailboxSortIncompatible)
+    );
+    let next = json!({"present":true,"disabled":false,"clicked":true});
+    assert_eq!(
+        NextPageActivation::from_value(&next),
+        Ok(NextPageActivation::Clicked)
+    );
+    let next_with_extra = json!({
+        "present":true,"disabled":false,"clicked":true,"sideEffect":true
+    });
+    assert!(NextPageActivation::from_value(&next_with_extra).is_err());
+}

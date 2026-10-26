@@ -73,6 +73,9 @@ impl NextPageActivation {
     }
 
     pub(crate) fn from_value(value: &Value) -> Result<Self, ()> {
+        if value.as_object().is_none_or(|fields| fields.len() != 3) {
+            return Err(());
+        }
         let present = bool_field(value, "present")?;
         let clicked = bool_field(value, "clicked")?;
         let disabled = optional_bool(value, "disabled")?;

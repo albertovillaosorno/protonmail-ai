@@ -1141,6 +1141,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Each content-bearing mailbox-row projection now requires precisely
   its four audited fields (`id`, `subject`, `addresses`, `unread`). Unknown
   nested response fields cannot silently pass through visible-page reads.
+- Navigation receipts are also schema-bound: the sort toggle returns
+  exactly two audited booleans, and Next-page activation returns exactly
+  three. Unexpected response fields cannot authorize a successful UI click.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

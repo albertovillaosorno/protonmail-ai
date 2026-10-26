@@ -403,6 +403,9 @@ enum SortMenuActivation {
 
 impl SortMenuActivation {
     fn from_value(value: &Value) -> Result<Self, BrowserDriverError> {
+        if value.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(BrowserDriverError::MailboxSortIncompatible);
+        }
         let already_open = value.get("alreadyOpen").and_then(Value::as_bool);
         let clicked = value.get("clicked").and_then(Value::as_bool);
         match (already_open, clicked) {
