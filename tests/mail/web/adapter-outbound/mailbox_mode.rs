@@ -74,3 +74,12 @@ fn search_mode_numeric_evidence_does_not_accept_partial_integers() {
     assert!(MODE_SOURCE.contains(r"/^\\d+$/"));
     assert!(MODE_SOURCE.contains("value.length>20"));
 }
+
+#[test]
+fn search_mode_refuses_ambiguous_or_whitespace_only_query_evidence() {
+    // Duplicate search selectors and whitespace-only values must not prove
+    // Mail's individual-message mode when the rendered surface is unknown.
+    assert!(MODE_SOURCE.contains("params.getAll(key).length>1"));
+    assert!(MODE_SOURCE.contains("value.trim().length>0"));
+    assert!(MODE_SOURCE.contains("value.length<=2048"));
+}

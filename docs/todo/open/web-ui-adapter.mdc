@@ -1063,6 +1063,9 @@ web application without requiring Bridge or a third-party direct API identity.
   positive safe-integer search flags. Partial JavaScript `parseInt` matches
   (like `7junk`) and oversized/hex/signed fragments cannot authorize the
   individual-message interpretation of visible mailbox row IDs.
+- Message-mode search evidence now rejects duplicate recognized fragment
+  keys, whitespace-only input, control characters, and oversized search
+  text instead of granting message-row semantics from ambiguous URL values.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

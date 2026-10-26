@@ -46,14 +46,19 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const params=new URLSearchParams(raw);",
     "const strings=['address','from','keyword','to'];",
     "const numbers=['begin','end','wildcard'];",
-    "const text=strings.some(",
-    "(key)=>!!params.get(key));",
+    "const duplicate=[...strings,...numbers].some(",
+    "(key)=>params.getAll(key).length>1);",
+    "const text=strings.some((key)=>{const value=params.get(key);",
+    "return !!value&&value.length<=2048&&value.trim().length>0&&",
+    "[...value].every((c)=>c.codePointAt(0)>=32&&",
+    "c.codePointAt(0)!==127);});",
     "const numeric=numbers.some((key)=>{const value=params.get(key);",
     "if(!value||value.length>20||!/^\\d+$/.test(value)){return false;}",
     "if(value.length>1&&value.startsWith('0')){return false;}",
     "const parsed=Number(value);",
     "return Number.isSafeInteger(parsed)&&parsed>0;});",
-    "return {forcedMessageRoute:forced,activeSearch:text||numeric};",
+    "return {forcedMessageRoute:forced,",
+    "activeSearch:!duplicate&&(text||numeric)};",
     "})()"
 );
 
