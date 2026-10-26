@@ -83,3 +83,11 @@ fn search_mode_refuses_ambiguous_or_whitespace_only_query_evidence() {
     assert!(MODE_SOURCE.contains("value.trim().length>0"));
     assert!(MODE_SOURCE.contains("value.length<=2048"));
 }
+
+#[test]
+fn message_mode_refuses_malformed_or_unbounded_url_hash() {
+    // URLSearchParams tolerates malformed percent escapes, so syntactically
+    // ambiguous fragments must not authorize an individual-message list.
+    assert!(MODE_SOURCE.contains("raw.length>8192"));
+    assert!(MODE_SOURCE.contains("/%(?![0-9a-fA-F]{2})/"));
+}

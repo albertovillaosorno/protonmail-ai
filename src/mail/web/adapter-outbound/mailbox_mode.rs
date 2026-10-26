@@ -44,6 +44,7 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const forced=['drafts','all-drafts','sent','all-sent','deleted']",
     ".includes(route);",
     "const raw=location.hash.startsWith('#')?location.hash.slice(1):'';",
+    "if(raw.length>8192||/%(?![0-9a-fA-F]{2})/.test(raw)){return null;}",
     "const params=new URLSearchParams(raw);",
     "const strings=['address','from','keyword','to'];",
     "const numbers=['begin','end','wildcard'];",
