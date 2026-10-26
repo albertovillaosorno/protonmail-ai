@@ -55,6 +55,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "!(nodes[0] instanceof HTMLButtonElement)){return null;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
+    "getComputedStyle(nodes[0]).pointerEvents==='none'||",
+    "getComputedStyle(nodes[0]).opacity==='0'||",
     "nodes[0].closest('[aria-hidden=\"true\"]')){return null;}",
     "nodes[0].click();",
     "return {alreadyOpen:false,clicked:true};",
@@ -93,6 +95,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "!(nodes[0] instanceof HTMLButtonElement)){return false;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
+    "getComputedStyle(nodes[0]).pointerEvents==='none'||",
+    "getComputedStyle(nodes[0]).opacity==='0'||",
     "nodes[0].closest('[aria-hidden=\"true\"]')){return false;}",
     "nodes[0].click();return true;",
     "})()"

@@ -49,6 +49,8 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "if(next.disabled){return {present:true,disabled:true,clicked:false};}",
     "if(next.getClientRects().length===0||",
     "getComputedStyle(next).visibility!=='visible'||",
+    "getComputedStyle(next).pointerEvents==='none'||",
+    "getComputedStyle(next).opacity==='0'||",
     "next.closest('[aria-hidden=\"true\"]')){",
     "return {present:true,disabled:null,clicked:false};}",
     "next.click();",

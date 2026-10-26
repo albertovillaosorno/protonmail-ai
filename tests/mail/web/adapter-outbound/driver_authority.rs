@@ -461,3 +461,17 @@ fn all_readonly_mode_and_sort_projections_bind_live_mail_origin() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn navigation_controls_cannot_be_css_noninteractive_or_transparent() {
+    for script in [
+        MailboxListEvidence::expression(),
+        NextPageActivation::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        assert!(script.contains(".pointerEvents==='none'"));
+        assert!(script.contains(".opacity==='0'"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

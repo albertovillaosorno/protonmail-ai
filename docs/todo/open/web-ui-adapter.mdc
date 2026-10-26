@@ -1095,6 +1095,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Message-mode URL fragments now have an explicit 8192-character ceiling
   and reject malformed percent escapes before `URLSearchParams` can accept
   a partially decoded search that would otherwise prove message mode.
+- Audited navigation and sort buttons also fail closed when computed
+  CSS reports `pointer-events:none` or zero opacity, not just hidden
+  visibility or missing rectangles; read-side Next evidence agrees.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
