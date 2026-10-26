@@ -425,3 +425,10 @@ fn visible_row_projection_does_not_mutate_browser_global_state() {
     assert!(!script.contains(";rows=["));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn loaded_list_cannot_be_treated_as_settled_while_loading_root_exists() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("if(loading&&loaded){return null;}"));
+    assert!(allowed_mail_runtime_expression(script));
+}

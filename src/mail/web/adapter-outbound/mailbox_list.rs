@@ -47,6 +47,8 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "const loadedNodes=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
     "if(loadedNodes.length>1||loadingNodes.length>1){return null;}",
     "const loading=loadingNodes[0],loaded=loadedNodes[0];",
+    // A simultaneous transition cannot prove that the list is settled.
+    "if(loading&&loaded){return null;}",
     "const root=loaded||loading;",
     "if(!root){return {loading:false,loaded:false,rowIds:[],skeletonCount:0,",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
