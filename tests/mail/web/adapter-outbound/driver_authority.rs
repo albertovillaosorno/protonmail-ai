@@ -320,7 +320,8 @@ fn unsolicited_method_shape_has_one_nonempty_domain_and_event() {
 #[test]
 fn visible_row_projection_must_not_follow_labels_outside_the_row() {
     let script = MailboxPageSnapshot::expression();
-    assert!(script.contains("row.contains(heading)"));
+    assert!(script.contains("row.querySelectorAll('[id]')"));
+    assert!(script.contains("node.id===labelled"));
     assert!(script.contains("subject:localHeading?"));
     assert!(allowed_mail_runtime_expression(script));
 }
@@ -405,4 +406,14 @@ fn click_and_next_evidence_refuse_css_visibility_hidden() {
         assert!(script.contains(".visibility!=='visible'"));
         assert!(allowed_mail_runtime_expression(script));
     }
+}
+
+#[test]
+fn visible_rows_require_unique_local_heading_and_sender_nodes() {
+    let script = MailboxPageSnapshot::expression();
+    assert!(script.contains("headingNodes.length!==1"));
+    assert!(script.contains("senders.length!==1"));
+    assert!(script.contains("row.querySelectorAll('[id]')"));
+    assert!(!script.contains("document.getElementById"));
+    assert!(allowed_mail_runtime_expression(script));
 }

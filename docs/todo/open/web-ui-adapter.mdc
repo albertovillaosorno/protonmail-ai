@@ -1066,6 +1066,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Message-mode search evidence now rejects duplicate recognized fragment
   keys, whitespace-only input, control characters, and oversized search
   text instead of granting message-row semantics from ambiguous URL values.
+- Visible row projection now accepts exactly one row-local ARIA heading
+  and exactly one rendered sender-address title, rather than projecting the
+  first of multiple matches. It also enforces the 200-row cap before content
+  mapping; static CDP authority tests reject global heading lookups.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -59,14 +59,17 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const base='[data-shortcut-target=\"item-container\"]',",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
+    "if(rows.length>200){return null;}",
     "return rows.map((row)=>{",
     "const id=row.getAttribute('data-element-id');",
     "const labelled=row.getAttribute('aria-labelledby');",
-    "const heading=labelled?document.getElementById(labelled):null;",
-    // An aria-labelledby link must never project unrelated page content.
-    "const localHeading=heading&&row.contains(heading)?heading:null;",
+    // Only one heading within the row may supply visible subject text.
+    "const headingNodes=labelled?[...row.querySelectorAll('[id]')]",
+    ".filter((node)=>node.id===labelled):[];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const sender=row.querySelector('[data-testid=\"message-column:sender-address\"][title]');",
+    "const senders=[...row.querySelectorAll('[data-testid=\"message-column:sender-address\"][title]')];",
+    "if(headingNodes.length!==1||senders.length!==1){return null;}",
+    "const localHeading=headingNodes[0],sender=senders[0];",
     // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
     "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
     "addresses:sender?sender.getAttribute('title'):null,",
