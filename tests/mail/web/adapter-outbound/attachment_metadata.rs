@@ -978,3 +978,21 @@ fn metadata_identity_preserves_printable_opaque_identifiers() {
     assert_eq!(projected.metadata().message_id(), "parent+_~=");
     assert_eq!(projected.metadata().mime_type(), "application/pdf");
 }
+
+#[test]
+fn attachment_mime_rejects_controls_and_header_injection() {
+    for invalid in [
+        "text/plain\r\nX-Injected: yes",
+        "application/pdf\u{0}",
+        "image/\u{7f}png",
+        "text/plain\n",
+        "not-a-media-type",
+    ] {
+        let mut body = metadata_body();
+        body["Attachment"]["MIMEType"] = json!(invalid);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt metadata boundary call.
+            ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &body.to_string());
+        assert_eq!(observed, Err(AttachmentMetadataResponseError::Malformed));
+    }
+}

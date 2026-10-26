@@ -418,6 +418,9 @@ impl ObservedAttachmentMetadataResponse {
         let mime_type =
             // jig-ignore-next-line: canonical rustfmt line.
             bounded_required_string(attachment, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
+        if !safe_attachment_mime_type(&mime_type) {
+            return Err(AttachmentMetadataResponseError::Malformed);
+        }
         Ok(Self {
             metadata: ObservedAttachmentMetadata {
                 attachment_id,
@@ -471,6 +474,25 @@ impl Debug for ObservedAttachmentMetadataResponse {
             .field("metadata", &self.metadata)
             .finish()
     }
+}
+
+// Reject non-MIME media names and any raw header control characters.
+// Parameters are permitted only as printable ASCII without line breaks.
+fn safe_attachment_mime_type(value: &str) -> bool {
+    let printable = value.bytes().all(|byte| (32..=126).contains(&byte));
+    if value.trim() != value || !printable {
+        return false;
+    }
+    let essence = value.split(';').next().unwrap_or_default();
+    let Some((kind, subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    let valid_token_byte =
+        // jig-ignore-next-line: canonical rustfmt token validation closure.
+        |byte: u8| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte);
+    // jig-ignore-next-line: canonical rustfmt MIME token validator.
+    let token = |part: &str| !part.is_empty() && part.bytes().all(valid_token_byte);
+    token(kind) && token(subtype)
 }
 
 /// Why attachment metadata failed exact bounded projection.

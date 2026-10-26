@@ -1147,6 +1147,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Audited sort toggle clicks reject disabled controls. All read-only
   sort/pagination clicks now recheck for dialog or alertdialog overlays
   within their final JavaScript task, closing a post-AX-check race.
+- Attachment-metadata MIME projections now reject header controls and
+  invalid media-type essence (including missing type/subtype), before
+  returning a provider-declared MIME field to downstream read workflows.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
