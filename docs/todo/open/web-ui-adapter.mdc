@@ -1050,6 +1050,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Every audited read-only navigation/sort click now refuses controls with
   no rendered layout rectangle or within an `aria-hidden` subtree. The
   script-authority regression checks both guards precede each click.
+- Unknown core-event refresh bits are now also exercised on an in-flight
+  continuation: they reject the page without mutating the acknowledged
+  event cursor or prematurely settling the change sequence.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

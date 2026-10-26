@@ -2626,3 +2626,30 @@ fn unknown_refresh_bits_cannot_preserve_mailbox_cursor_authority() {
         );
     }
 }
+
+#[test]
+fn unknown_refresh_bit_during_continuation_preserves_prior_cursor() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    let first =
+        // jig-ignore-next-line: indivisible synthetic JSON event fixture.
+        ObservedMailboxEventWatermark::parse("GET", URL, r#"{"EventID":"event-8","More":1}"#)
+            .expect("parse initial non-final event page");
+    // jig-ignore-next-line: canonical rustfmt line.
+    let mut chain = ObservedMailboxEventSequence::start(first).expect("start valid event sequence");
+    let unchanged = chain.clone();
+    let next_url = URL.replace("event-7", "event-8");
+    let next = ObservedMailboxEventWatermark::parse(
+        "GET",
+        &next_url,
+        r#"{"EventID":"event-9","More":0,"Refresh":4}"#,
+    )
+    .expect("parse unknown typed refresh flag");
+    assert_eq!(
+        chain.push(next),
+        Err(MailboxEventSequenceError::RefreshRequired)
+    );
+    assert_eq!(chain, unchanged);
+    assert!(!chain.settled());
+    assert_eq!(chain.next_event_id(), "event-8");
+}
