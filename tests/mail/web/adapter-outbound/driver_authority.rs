@@ -521,3 +521,12 @@ fn list_row_identifiers_must_come_from_visible_dom_rows() {
     assert!(script.contains("row.closest('[aria-hidden="));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn current_page_evidence_must_be_visible_before_page_number_projection() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("current.getClientRects().length===0"));
+    assert!(script.contains("getComputedStyle(current).visibility"));
+    assert!(script.contains("current.closest('[aria-hidden="));
+    assert!(allowed_mail_runtime_expression(script));
+}

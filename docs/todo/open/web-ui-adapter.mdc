@@ -1113,6 +1113,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - List-row ID extraction now requires every loaded region to be visibly
   rendered and not inside ARIA-hidden ancestry. A hidden duplicate/decoy
   row cannot enter content-free list or pagination evidence.
+- Current-page selectors must also be visibly rendered and not inside
+  ARIA-hidden ancestry before supplying page-number/pagination evidence;
+  offscreen or hidden markers cannot authorize a Next transition.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
