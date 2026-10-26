@@ -2609,3 +2609,20 @@ fn malformed_event_count_items_cannot_be_treated_as_changes() {
         }
     }
 }
+
+#[test]
+fn unknown_refresh_bits_cannot_preserve_mailbox_cursor_authority() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    for refresh in [4u64, 8, 1u64 << 40u32] {
+        // jig-ignore-next-line: indivisible synthetic JSON event fixture.
+        let body = format!(r#"{{"EventID":"event-8","More":0,"Refresh":{refresh}}}"#);
+        let page = ObservedMailboxEventWatermark::parse("GET", URL, &body)
+            .expect("accept well-typed refresh bitmask");
+        assert_eq!(
+            ObservedMailboxEventSequence::start(page),
+            Err(MailboxEventSequenceError::RefreshRequired),
+            "unknown refresh bits cannot retain a stale Mail cursor"
+        );
+    }
+}

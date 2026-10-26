@@ -51,7 +51,7 @@ const MAX_EVENT_URL_BYTES: usize = 16_384;
 const MAX_PROJECTED_CHANGES: usize = 512;
 const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
 const MAX_EVENT_SEQUENCE_CHANGES: usize = 4096;
-const MAIL_REFRESH_BIT: u64 = 1;
+const CONTACTS_ONLY_REFRESH_BIT: u64 = 2;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum EventRequestState {
@@ -839,7 +839,9 @@ impl ObservedMailboxEventWatermark {
             None | Some(Value::Null) => false,
             Some(refresh) => refresh
                 .as_u64()
-                .map(|code| code & MAIL_REFRESH_BIT != 0)
+                // Only the documented contacts-only bit can be ignored for
+                // mailbox cursor custody. Unknown bits may invalidate Mail.
+                .map(|code| code & !CONTACTS_ONLY_REFRESH_BIT != 0)
                 .ok_or(MailboxEventWatermarkError::Malformed)?,
         };
         let changes = project_mailbox_changes(&value)?;

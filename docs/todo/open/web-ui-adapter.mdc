@@ -1034,6 +1034,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Mailbox pagination evidence now rejects duplicate Next buttons or
   concurrently active current-page markers, rather than taking the first
   global DOM match. Static CDP authority tests prove selector uniqueness.
+- Legacy mailbox event refresh handling now treats previously unknown
+  non-contact refresh bits as cursor invalidation. Contacts-only bit `2`
+  remains ignorable; synthetic unknown-bit fixtures refuse stale cursors.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
