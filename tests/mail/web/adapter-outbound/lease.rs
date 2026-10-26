@@ -542,3 +542,42 @@ fn malformed_numeric_lease_owner_cannot_be_reclaimed() {
         cleanup(&root);
     }
 }
+
+#[test]
+fn unreaped_process_pid_keeps_chromium_singleton_busy() {
+    use std::thread;
+    use std::time::Duration;
+
+    let root = test_root("singleton-unreaped-pid");
+    let profile = profile(&root);
+    fs::create_dir_all(profile.path()).expect("create private profile");
+    let mut child = Command::new("/bin/true")
+        .spawn()
+        .expect("spawn short-lived synthetic process");
+    let pid = child.id();
+    let status_path = format!("/proc/{pid}/status");
+    let mut unreaped = false;
+    for _attempt in 0..100u8 {
+        // jig-ignore-next-line: canonical rustfmt line.
+        if fs::read_to_string(&status_path).is_ok_and(|status| status.contains("State:\tZ")) {
+            unreaped = true;
+            break;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert!(unreaped, "synthetic process must exit without being reaped");
+    assert!(fs::read_link(format!("/proc/{pid}/exe")).is_err());
+    let target = format!("{}-{pid}", local_hostname());
+    symlink(target, singleton_path(&profile)).expect("install synthetic lock");
+
+    let result = acquire(&profile);
+    child
+        .wait()
+        .expect("reap synthetic process after lock inspection");
+    assert_eq!(
+        result.expect_err("existing PID without an exe is not proven dead"),
+        LeaseError::BrowserInUse
+    );
+    assert!(!lease_path(&profile).exists());
+    cleanup(&root);
+}

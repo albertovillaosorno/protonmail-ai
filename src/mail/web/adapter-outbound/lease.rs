@@ -256,10 +256,18 @@ fn local_hostname() -> LeaseResult<String> {
 // can have a variant name, or a dead Chrome PID can have been reused. Treat
 // every verifiably live PID as busy, and only release a demonstrably dead one.
 fn chrome_process_active(pid: u32) -> LeaseResult<bool> {
-    let path = PathBuf::from(format!("/proc/{pid}/exe"));
-    match fs::read_link(path) {
+    let proc_path = PathBuf::from(format!("/proc/{pid}"));
+    match fs::read_link(proc_path.join("exe")) {
         Ok(_executable) => Ok(true),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            // Zombies and kernel threads can still own a PID without an exe
+            // link. Only an absent /proc PID proves the lock owner departed.
+            match fs::symlink_metadata(&proc_path) {
+                Ok(_metadata) => Ok(true),
+                Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+                Err(_error) => Err(ProfileLeaseError::LeaseIo),
+            }
+        }
         Err(_error) => Err(ProfileLeaseError::LeaseIo),
     }
 }

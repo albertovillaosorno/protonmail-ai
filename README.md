@@ -98,6 +98,9 @@ executable; otherwise a supported Chromium-family executable is discovered on
 This command currently launches the safe login surface only. Managed automation
 uses a separate exclusive lease and refuses to start while Chromium's
 `SingletonLock` identifies any live local process or foreign host.
+An existing PID without an executable link (such as an unreaped process)
+is still treated as busy; only an absent local PID proves a stale lock.
+
 The project never deletes Chromium's singleton lock. Its own lease contains only
 a PID and Linux process start-time tick value, so it carries no account/session
 material and can safely recover a dead owner.

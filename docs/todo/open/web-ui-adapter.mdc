@@ -1001,6 +1001,10 @@ web application without requiring Bridge or a third-party direct API identity.
   in one target session and refuses subject, correspondent, or unread drift
   even when content-free list evidence retains identical row IDs. A fake
   browser regression reproduces subject changes without any ID change.
+- A local Chromium singleton PID is stale only if `/proc/PID` itself is
+  absent. Existing zombie PIDs with no `/proc/PID/exe` now keep ownership
+  conservatively busy; synthetic unreaped-process evidence reproduces the
+  former false-stale case without launching a real browser.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
