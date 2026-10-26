@@ -601,3 +601,14 @@ fn mailbox_list_parser_refuses_unexpected_projection_fields() {
     loading["unexpected"] = json!(true);
     assert!(MailboxListEvidence::from_runtime_value(&loading).is_err());
 }
+
+#[test]
+fn message_mode_evidence_rejects_unrecognized_projection_fields() {
+    let valid = json!({"forcedMessageRoute":true,"activeSearch":false});
+    assert!(MailboxModeEvidence::from_value(&valid).is_ok());
+    let extra = json!({
+        "forcedMessageRoute":true,"activeSearch":false,
+        "unrecognized":true
+    });
+    assert!(MailboxModeEvidence::from_value(&extra).is_err());
+}

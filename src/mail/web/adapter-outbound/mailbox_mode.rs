@@ -124,6 +124,10 @@ impl MailboxModeEvidence {
     }
 
     pub(crate) fn from_value(value: &Value) -> Result<Self, MailboxModeError> {
+        // The audited script projects exactly two non-content booleans.
+        if value.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(MailboxModeError::InvalidEvidence);
+        }
         let forced = value
             .get("forcedMessageRoute")
             .and_then(Value::as_bool)

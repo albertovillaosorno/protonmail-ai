@@ -1135,6 +1135,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Mailbox-list CDP values now require exactly the eight fields emitted
   by the audited list expression, even for loading states. Extra unknown
   fields cannot silently enter settled or loading evidence.
+- Message-mode CDP evidence must contain exactly the two audited booleans,
+  with no unexpected fields. A red-first test rejects altered projections
+  before they can grant message-row interpretation.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
