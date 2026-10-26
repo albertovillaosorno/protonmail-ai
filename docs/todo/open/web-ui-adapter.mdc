@@ -1005,6 +1005,10 @@ web application without requiring Bridge or a third-party direct API identity.
   absent. Existing zombie PIDs with no `/proc/PID/exe` now keep ownership
   conservatively busy; synthetic unreaped-process evidence reproduces the
   former false-stale case without launching a real browser.
+- Legacy event count-change arrays now require object-shaped entries,
+  rejecting null, scalar, or nested-array items before reducing the response
+  to a content-free change-presence signal. Synthetic fixtures cover both
+  `MessageCounts` and `ConversationCounts` without retaining their contents.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

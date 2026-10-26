@@ -2590,3 +2590,22 @@ fn unchanged_settled_event_with_count_changes_is_not_an_acknowledgment() {
         Err(MailboxEventSequenceError::NonAdvancingContinuation)
     );
 }
+
+#[test]
+fn malformed_event_count_items_cannot_be_treated_as_changes() {
+    for key in ["MessageCounts", "ConversationCounts"] {
+        for bad_item in ["null", "true", "7", "\"unexpected\"", "[]"] {
+            // jig-ignore-next-line: canonical rustfmt line.
+            let body = format!(r#"{{"EventID":"ev-2","More":0,"{key}":[{bad_item}]}}"#);
+            assert_eq!(
+                ObservedMailboxEventWatermark::parse(
+                    "GET",
+                    "https://mail.proton.me/api/core/v5/events/ev-1",
+                    &body
+                ),
+                Err(MailboxEventWatermarkError::Malformed),
+                "a count-change collection requires object entries"
+            );
+        }
+    }
+}

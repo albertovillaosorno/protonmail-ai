@@ -1297,7 +1297,8 @@ fn project_mailbox_changes(
 fn event_collection_nonempty(value: &Value, key: &str) -> Result<bool, MailboxEventWatermarkError> {
     match value.get(key) {
         None | Some(Value::Null) => Ok(false),
-        Some(Value::Array(items)) => Ok(!items.is_empty()),
+        // jig-ignore-next-line: canonical rustfmt line.
+        Some(Value::Array(items)) if items.iter().all(Value::is_object) => Ok(!items.is_empty()),
         Some(_) => Err(MailboxEventWatermarkError::Malformed),
     }
 }
