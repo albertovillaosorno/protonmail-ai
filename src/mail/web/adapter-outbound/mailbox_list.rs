@@ -60,7 +60,13 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const empty=!!root.querySelector('[data-testid=\"empty-view-placeholder--empty-title\"]');",
+    "const emptyNodes=[...root.querySelectorAll('[data-testid=\"empty-view-placeholder--empty-title\"]')];",
+    "if(emptyNodes.length>1){return null;}",
+    "const emptyNode=emptyNodes[0];",
+    "if(emptyNode&&(emptyNode.getClientRects().length===0||",
+    "getComputedStyle(emptyNode).visibility!=='visible'||",
+    "emptyNode.closest('[aria-hidden=\"true\"]'))){return null;}",
+    "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const nextNodes=[...document.querySelectorAll('[data-testid=\"pagination-row:go-to-next-page\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.

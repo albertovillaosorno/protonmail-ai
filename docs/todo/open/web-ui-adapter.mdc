@@ -1107,6 +1107,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Content-bearing row projection requires the chosen subject and sender
   elements to have rendered layout, visible computed CSS, and no ARIA-hidden
   ancestor. Hidden decoy metadata may not cross the read boundary.
+- An explicit empty-list title counts as evidence only when it has a
+  unique rendered node with visible computed CSS and no ARIA-hidden
+  ancestor. Duplicate or hidden empty markers cannot report empty Mail.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -501,3 +501,13 @@ fn row_subject_and_sender_evidence_must_be_visibly_rendered() {
     assert!(script.contains("getComputedStyle(sender).visibility"));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn explicit_empty_mailbox_requires_one_visible_placeholder() {
+    let script = MailboxListEvidence::expression();
+    assert!(script.contains("emptyNodes.length>1"));
+    assert!(script.contains("emptyNode.getClientRects().length===0"));
+    assert!(script.contains("getComputedStyle(emptyNode).visibility"));
+    assert!(script.contains("emptyNode.closest('[aria-hidden="));
+    assert!(allowed_mail_runtime_expression(script));
+}
