@@ -676,3 +676,15 @@ fn read_only_sort_clicks_must_refuse_disabled_or_modal_controls() {
     assert!(next.contains("[role=\"dialog\"]"));
     assert!(next.contains("[role=\"alertdialog\"]"));
 }
+
+#[test]
+fn preopened_sort_menu_requires_visible_option_controls() {
+    let script = MailboxSortOrder::open_expression();
+    let menu_marker = "const menuOptions=groups.map((group)=>group[0]);";
+    assert!(script.contains(menu_marker));
+    assert!(script.contains("menuOptions.some((node)=>"));
+    assert!(script.contains("node.getClientRects().length===0"));
+    assert!(script.contains("getComputedStyle(node).visibility"));
+    assert!(script.contains("node.closest('[aria-hidden="));
+    assert!(allowed_mail_runtime_expression(script));
+}

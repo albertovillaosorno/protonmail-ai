@@ -1150,6 +1150,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Attachment-metadata MIME projections now reject header controls and
   invalid media-type essence (including missing type/subtype), before
   returning a provider-declared MIME field to downstream read workflows.
+- A pre-opened sort menu is now recognized only if all four unique option
+  controls have visible layout and are not in ARIA-hidden ancestry. Hidden
+  duplicate/stale menus cannot masquerade as an interactive sort state.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
