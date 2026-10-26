@@ -909,6 +909,7 @@ pub struct ObservedMailboxEventSequence {
     next_event_id: String,
     changes: Vec<ObservedMailboxChange>,
     seen_changes: BTreeSet<ObservedMailboxChange>,
+    visited_watermarks: BTreeSet<String>,
     count_changes: bool,
     page_count: usize,
     settled: bool,
@@ -929,11 +930,18 @@ impl ObservedMailboxEventSequence {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
         let seen_changes = first.changes.iter().cloned().collect();
+        let visited_watermarks = [
+            first.requested_event_id.clone(),
+            first.response_event_id.clone(),
+        ]
+        .into_iter()
+        .collect();
         Ok(Self {
             start_event_id: first.requested_event_id,
             next_event_id: first.response_event_id,
             changes: first.changes,
             seen_changes,
+            visited_watermarks,
             count_changes: first.count_changes,
             page_count: 1,
             settled: !first.more,
@@ -965,6 +973,11 @@ impl ObservedMailboxEventSequence {
         if page.more && page.requested_event_id == page.response_event_id {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
+        if page.response_event_id != page.requested_event_id
+            && self.visited_watermarks.contains(&page.response_event_id)
+        {
+            return Err(MailboxEventSequenceError::RepeatedWatermark);
+        }
         // Stage a complete page so a rejected continuation leaves state intact.
         let mut new_changes = Vec::new();
         let mut newly_seen = BTreeSet::new();
@@ -982,6 +995,8 @@ impl ObservedMailboxEventSequence {
         self.seen_changes.extend(newly_seen);
         self.changes.extend(new_changes);
         self.count_changes |= page.count_changes;
+        self.visited_watermarks
+            .insert(page.response_event_id.clone());
         self.next_event_id = page.response_event_id;
         self.page_count = self
             .page_count
@@ -1050,6 +1065,7 @@ impl fmt::Debug for ObservedMailboxEventSequence {
             .field("next_event_id", &"<redacted>")
             .field("change_count", &self.changes.len())
             .field("seen_changes", &self.seen_changes.len())
+            .field("visited_watermark_count", &self.visited_watermarks.len())
             .field("count_changes", &self.count_changes)
             .field("page_count", &self.page_count)
             .field("settled", &self.settled)
@@ -1149,6 +1165,8 @@ pub enum MailboxEventSequenceError {
     CursorGap,
     /// Provider requested another page without advancing its watermark.
     NonAdvancingContinuation,
+    /// A response reused an earlier watermark and cannot advance safely.
+    RepeatedWatermark,
     /// Provider requested a refresh that invalidates resumable event state.
     RefreshRequired,
     /// A page was supplied after the sequence had already settled.

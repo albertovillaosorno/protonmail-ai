@@ -977,6 +977,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Core event continuation now stages unique changes before committing any
   sequence state. A 4,095-change regression proves an overflowing page
   leaves both the change vector and deduplication set intact for retry.
+- Exact core event sequences now reject a repeated earlier watermark,
+  whether an interim page says `More=1` or a final page says `More=0`.
+  This refuses cursor cycles without changing the retained sequence and
+  preserves a legitimate no-change final poll at the requested watermark.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

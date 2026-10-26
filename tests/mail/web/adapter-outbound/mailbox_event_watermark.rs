@@ -2500,3 +2500,32 @@ fn oversized_event_continuation_is_atomic_and_retryable() {
     assert!(sequence.settled());
     assert_eq!(sequence.changes().len(), 4096);
 }
+
+#[test]
+fn event_sequence_rejects_revisited_watermarks_without_losing_progress() {
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    fn page(from: &str, to: &str, more: u8) -> ObservedMailboxEventWatermark {
+        let url = format!("https://mail.proton.me/api/core/v5/events/{from}");
+        let body = format!(r#"{{"EventID":"{to}","More":{more}}}"#);
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventWatermark::parse("GET", &url, &body).expect("parse synthetic watermark")
+    }
+
+    let mut sequence =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ObservedMailboxEventSequence::start(page("ev-0", "ev-1", 1)).expect("start event sequence");
+    sequence.push(page("ev-1", "ev-2", 1)).expect("advance");
+    let before = sequence.clone();
+    for more in [0u8, 1u8] {
+        assert_eq!(
+            sequence.push(page("ev-2", "ev-0", more)),
+            Err(MailboxEventSequenceError::RepeatedWatermark)
+        );
+        assert_eq!(sequence, before, "a rejected cursor preserves state");
+    }
+    sequence
+        .push(page("ev-2", "ev-2", 0))
+        .expect("settled no-change response can keep its request watermark");
+    assert!(sequence.settled());
+}
