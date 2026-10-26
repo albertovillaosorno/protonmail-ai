@@ -529,3 +529,34 @@ fn non_utf8_browser_override_cannot_silently_select_a_fallback() {
     assert!(!args.exists());
     cleanup(&root);
 }
+
+#[test]
+fn non_utf8_home_fallback_keeps_exact_profile_bytes() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+    let root = test_root("raw-home-fallback");
+    fs::create_dir_all(&root).expect("create isolated root");
+    let browser = fake_browser(&root);
+    let home = root.join(OsString::from_vec(b"home-\xff".to_vec()));
+    let args_file = root.join("browser-args.txt");
+    let output = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["auth", "login"])
+        .env("PROTONMAIL_AI_BROWSER", browser)
+        .env(LOGIN_ARGS_FILE, &args_file)
+        .env_remove("XDG_DATA_HOME")
+        .env("HOME", &home)
+        .output()
+        .expect("run synthetic login");
+    assert!(output.status.success());
+    let profile = profile_under(&home.join(".local/share"));
+    assert!(profile.is_dir());
+    let mut expected = b"--user-data-dir=".to_vec();
+    expected.extend_from_slice(profile.as_os_str().as_bytes());
+    let args = fs::read(args_file).expect("read recorded argv");
+    assert!(
+        args.split(|byte| *byte == b'\n')
+            .any(|line| line == expected.as_slice())
+    );
+    cleanup(&root);
+}

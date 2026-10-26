@@ -1077,6 +1077,8 @@ web application without requiring Bridge or a third-party direct API identity.
 - An explicit non-UTF-8 browser override now fails closed rather than
   silently discovering a different executable on PATH; a synthetic PATH
   candidate demonstrates the previously unintended browser fallback.
+- Synthetic login also verifies raw HOME bytes survive the XDG-unset
+  fallback and reach Chromium unchanged; no replacement UTF-8 profile is made.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
