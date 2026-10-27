@@ -68,8 +68,14 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     ".filter((value)=>value!==null);",
     "const numberValues=numbers.map((key)=>params.get(key))",
     ".filter((value)=>value!==null);",
+    // Invisible formatting, C1 controls and bidi overrides cannot prove a
+    // visible user search, even when decoded URLSearchParams retains them.
+    "const hiddenText=/[\\u0080-\\u009f\\u00ad\\u034f\\u061c\\u180e",
+    "\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u206f\\ufeff",
+    "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
     "const validText=(value)=>!!value&&value.length<=2048&&",
-    "value.trim().length>0&&[...value].every((c)=>",
+    "value.trim().length>0&&!hiddenText.test(value)&&",
+    "[...value].every((c)=>",
     "c.codePointAt(0)>=32&&c.codePointAt(0)!==127&&",
     "c.codePointAt(0)!==65533);",
     "const validNumeric=(value)=>{",

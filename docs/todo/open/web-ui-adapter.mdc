@@ -1244,6 +1244,9 @@ web application without requiring Bridge or a third-party direct API identity.
   text and numeric selector has a valid value. Valid `keyword` evidence
   cannot mask malformed `begin`, `end`, `from`, or `to` values; Node tests
   cover mixed valid/invalid and multiple legitimate filters.
+- Decoded search selectors reject hidden formatting characters,
+  bidirectional overrides, and unsafe control code points as mode proofs.
+  Synthetic regressions still accept legitimate Unicode search terms.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
