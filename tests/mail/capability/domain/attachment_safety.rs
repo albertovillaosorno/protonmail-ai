@@ -273,6 +273,20 @@ fn relative_destination_bounds_component_path_and_depth_before_io() {
     assert!(AttachmentRelativePath::new(&allowed_unicode).is_ok());
     let allowed_depth = format!("{}report.pdf", "dir/".repeat(63));
     assert!(AttachmentRelativePath::new(&allowed_depth).is_ok());
+    let rejected_depth = format!("{}report.pdf", "dir/".repeat(64));
+    assert_eq!(
+        AttachmentRelativePath::new(&rejected_depth),
+        Err(AttachmentPathError::UnsupportedSyntax),
+    );
+    let prefix = vec!["a".repeat(254); 16].join("/");
+    let exact_total = format!("{prefix}/{}", "x".repeat(16));
+    assert_eq!(exact_total.len(), 4_096);
+    assert!(AttachmentRelativePath::new(&exact_total).is_ok());
+    let oversized = format!("{exact_total}x");
+    assert_eq!(
+        AttachmentRelativePath::new(&oversized),
+        Err(AttachmentPathError::UnsupportedSyntax),
+    );
 }
 
 #[test]
