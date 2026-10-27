@@ -585,8 +585,8 @@ fn network_capture_ignores_other_sessions_and_non_event_traffic() {
 
 #[test]
 fn network_capture_rejects_redirect_failure_and_bad_response() {
-    // jig-ignore-next-line: indivisible synthetic JSON fixture.
-    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
     use serde_json::json;
 
     let request = |id: &str| {
@@ -2670,12 +2670,80 @@ fn cdp_event_envelopes_refuse_unexpected_fields() {
     let mut event = json!({
         "body":"{\"EventID\":\"event-7\",\"More\":0}","base64Encoded":false
     });
-    // jig-ignore-next-line: canonical rustfmt CDP envelope parser call.
-    let first = ObservedMailboxEventWatermark::parse_cdp_body("event-7", &event);
+    let requested = "event-7";
+    // jig-ignore-next-line: canonical rustfmt event parser call.
+    let first = ObservedMailboxEventWatermark::parse_cdp_body(requested, &event);
     assert!(first.is_ok());
     event["unexpected"] = json!("synthetic-untrusted-field");
     assert_eq!(
         ObservedMailboxEventWatermark::parse_cdp_body("event-7", &event),
         Err(MailboxEventWatermarkError::Malformed)
     );
+}
+
+#[test]
+fn event_count_query_flags_cannot_silently_disable_mailbox_signals() {
+    let body = r#"{"EventID":"event-7","More":0}"#;
+    let endpoint = "https://mail.proton.me/api/core/v5/events/event-7";
+    for query in [
+        "MessageCounts=0",
+        "ConversationCounts=0",
+        "MessageCounts=1&MessageCounts=0",
+        "MessageCounts=1&ConversationCounts=0",
+        "%4DessageCounts=1",
+        "messagecounts=1",
+    ] {
+        let url = format!("{endpoint}?{query}");
+        assert_eq!(
+            ObservedMailboxEventWatermark::parse("GET", &url, body),
+            Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+        );
+    }
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    let body = r#"{"EventID":"event-bootstrap"}"#;
+    let bad = format!("{latest}?MessageCounts=0");
+    assert_eq!(
+        ObservedLatestMailboxEventWatermark::parse("GET", &bad, body),
+        Err(MailboxEventWatermarkError::UnexpectedEndpoint)
+    );
+}
+
+#[test]
+fn canonical_event_count_queries_remain_observable() {
+    let endpoint = "https://mail.proton.me/api/core/v5/events/event-7";
+    let body = r#"{"EventID":"event-8","More":0}"#;
+    for query in [
+        "MessageCounts=1",
+        "ConversationCounts=1&MessageCounts=1",
+        "CalledFrom=Foreground&MessageCounts=1",
+        "MessageCounts=1&ConversationCounts=1&CalledFrom=Foreground",
+    ] {
+        let url = format!("{endpoint}?{query}");
+        let parsed = ObservedMailboxEventWatermark::parse("GET", &url, body);
+        assert!(parsed.is_ok());
+    }
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    let latest_body = r#"{"EventID":"event-bootstrap"}"#;
+    let url = format!("{latest}?CalledFrom=Foreground&MessageCounts=1");
+    let parse_latest = ObservedLatestMailboxEventWatermark::parse;
+    let parsed = parse_latest("GET", &url, latest_body);
+    assert!(parsed.is_ok());
+}
+
+#[test]
+fn disabled_count_flags_fail_before_network_capture() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    let endpoint = "https://mail.proton.me/api/core/v5/events/event-7";
+    for query in ["MessageCounts=0", "ConversationCounts=0"] {
+        let url = format!("{endpoint}?{query}");
+        let mut capture = MailboxEventNetworkCapture::new("session-1");
+        let method = "Network.requestWillBeSent";
+        let event = cdp_lifecycle_event(method, "poll", &url);
+        assert_eq!(
+            capture.observe(&event),
+            Err(MailboxEventNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
 }

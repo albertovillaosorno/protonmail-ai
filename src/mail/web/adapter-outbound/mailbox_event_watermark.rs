@@ -1232,15 +1232,48 @@ fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {
         .ok_or(MailboxEventNetworkError::MalformedEvent)
 }
 
+// A count flag set to zero can silently omit mailbox cursor changes.
+// Accept only canonical positive count selectors when those flags appear.
+fn count_flags_preserve_mailbox_signals(url: &str) -> bool {
+    let Some((_path, query)) = url.split_once('?') else {
+        return true;
+    };
+    if query.is_empty() {
+        return false;
+    }
+    let mut seen = BTreeSet::new();
+    for pair in query.split('&') {
+        let Some((key, value)) = pair.split_once('=') else {
+            return false;
+        };
+        if key.contains('%') {
+            return false;
+        }
+        for name in ["MessageCounts", "ConversationCounts"] {
+            if name.eq_ignore_ascii_case(key) {
+                let unsafe_count = key != name || value != "1";
+                if unsafe_count || !seen.insert(name) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
 fn is_latest_event_url(url: &str) -> bool {
     if url.contains('#') {
         return false;
     }
     url.split_once('?').map_or(url, |(path, _query)| path) == LATEST_EVENT_URL
+        && count_flags_preserve_mailbox_signals(url)
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
-    if url.len() > MAX_EVENT_URL_BYTES || url.contains('#') {
+    if url.len() > MAX_EVENT_URL_BYTES
+        || url.contains('#')
+        || !count_flags_preserve_mailbox_signals(url)
+    {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     let path = url.split_once('?').map_or(url, |(path, _query)| path);

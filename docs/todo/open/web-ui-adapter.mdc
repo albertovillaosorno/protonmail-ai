@@ -1277,6 +1277,10 @@ web application without requiring Bridge or a third-party direct API identity.
   elements and `aria-modal` overlays as well as explicit dialog roles.
   Synthetic Node regressions verify new native dialogs interrupt visible
   message content, list state, sort state, and mode observations.
+- Event-watermark bootstrap and polling now reject malformed
+  `MessageCounts`/`ConversationCounts` query flags, especially values that
+  silently disable a stream. Positive canonical count flags remain accepted;
+  network capture rejects malformed event selectors before tracking them.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
