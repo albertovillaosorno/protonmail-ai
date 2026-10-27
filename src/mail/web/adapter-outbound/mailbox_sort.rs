@@ -90,6 +90,8 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return null;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
     "for(let depth=0;depth<64;depth++){",
@@ -171,6 +173,8 @@ const SORT_MENU_CLOSED_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "return ids.every((id)=>document.querySelector(",

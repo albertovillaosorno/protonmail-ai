@@ -810,7 +810,7 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
-let idValue='row-a';
+let idValue='row-a',modal=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
@@ -825,7 +825,8 @@ const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   parentElement:ancestor,classList:{contains:()=>true}};
 heading.parentElement=row;sender.parentElement=row;
 const root={querySelectorAll:()=>[row]};
-globalThis.document={querySelector:()=>null,querySelectorAll:()=>[root]};
+globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+ querySelectorAll:()=>[root]};
 const projected=eval(script);
 if(!Array.isArray(projected)||projected.length!==1||
  projected[0].id!=='row-a'||projected[0].subject!=='synthetic subject'||
@@ -859,6 +860,8 @@ addressValue='y'.repeat(16385);
 if(eval(script)[0]!==null){throw Error('oversized addresses crossed CDP');}
 addressValue='sender@example.test';idValue='z'.repeat(513);
 if(eval(script)[0]!==null){throw Error('oversized row ID crossed CDP');}
+idValue='row-a';modal=true;
+if(eval(script)!==null){throw Error('modal exposed content rows');}
 ",
     );
     let result = Command::new("node")
@@ -893,6 +896,7 @@ globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
+let modal=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
@@ -910,7 +914,7 @@ next.closest=()=>null;
 next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
 const current={getClientRects:()=>[{}],closest:()=>null,
  getAttribute:()=>pageId};
-globalThis.document={querySelector:()=>null,
+globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
    (showLoading?[{querySelectorAll:()=>[]}]:[]):
    q.includes('message-list-loaded')?[loaded]:
@@ -967,6 +971,8 @@ if(eval(expression)!==null){
 pointerBlocked=false;
 next.getClientRects=()=>[];
 if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
+next.getClientRects=()=>[{}];modal=true;
+if(eval(expression)!==null){throw Error('modal exposed list state');}
 ",
     );
     let output = Command::new("node")
@@ -1165,6 +1171,43 @@ if(eval(script)!==null||clicks!==1){
     assert!(
         output.status.success(),
         "audited Next click violated synthetic control state: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn read_only_mode_and_sort_evidence_refuse_new_modal_dialogs() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let expressions = [
+        MailboxModeEvidence::expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::closed_expression(),
+    ];
+    let serialized = serde_json::to_string(&expressions);
+    let json = serialized.expect("audited expressions");
+    let mut source = format!("const expressions={json};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me',
+ pathname:'/u/0/inbox',hash:'#keyword=synthetic'};
+globalThis.document={querySelector:(q)=>
+ q.includes('dialog')?{}:null,querySelectorAll:()=>[]};
+for(const expression of expressions){
+ if(eval(expression)!==null){throw Error('modal did not block a read');}
+}
+",
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("run synthetic modal read test");
+    assert!(
+        output.status.success(),
+        "read-only state was projected through a modal: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }

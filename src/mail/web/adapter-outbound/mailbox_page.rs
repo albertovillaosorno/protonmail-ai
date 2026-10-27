@@ -54,6 +54,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const roots=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
     "if(roots.length!==1){return null;}",

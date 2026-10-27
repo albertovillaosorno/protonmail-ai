@@ -1232,6 +1232,10 @@ web application without requiring Bridge or a third-party direct API identity.
   before serializing results to the CDP pipe. Subject and sender text use
   the Rust byte ceilings (16 KiB), and list/content row IDs use 512 UTF-8
   bytes; page selectors must match the bounded canonical page ID pattern.
+- The remaining content-free mode, list, sort, and content-bearing row
+  expressions now recheck for a newly mounted dialog/alertdialog inside the
+  same JavaScript task. Node-based tests prove no content or mode signal
+  crosses a modal even after an earlier Mail-shell AX validation.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

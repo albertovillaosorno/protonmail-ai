@@ -43,6 +43,8 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\"],",
+    "[role=\"alertdialog\"]')){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const loadingNodes=[...document.querySelectorAll('[data-testid=\"message-list-loading\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
