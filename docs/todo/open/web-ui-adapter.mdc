@@ -1185,6 +1185,12 @@ web application without requiring Bridge or a third-party direct API identity.
   10 ms intervals, while retaining its exclusive profile lease; persistent
   text-busy and other launch errors remain fail-closed. Synthetic tests
   prove temporary recovery and failure/lease cleanup after exhaustion.
+- A Node-executed synthetic list DOM now checks settled row IDs, current
+  page, loaded/loading overlap, hidden rows, and ARIA-disabled pagination.
+  This exposed a last-page bug: a genuinely disabled Next button with CSS
+  `pointer-events:none` was rejected as incompatible. The content-free read
+  now recognizes it as disabled, while enabled noninteractive controls
+  remain incompatible and no click authorization is broadened.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

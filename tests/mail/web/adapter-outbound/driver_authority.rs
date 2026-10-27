@@ -837,3 +837,68 @@ if(!Array.isArray(hidden)||hidden.length!==1||hidden[0]!==null){
         "visible row JS failed synthetic DOM"
     );
 }
+
+#[test]
+fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let encoded = serde_json::to_string(MailboxListEvidence::expression())
+        .expect("encode audited list expression");
+    let mut source = format!("const expression={encoded};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ pointerEvents:node===next&&nextDisabled?'none':'auto',opacity:'1'});
+globalThis.HTMLButtonElement=class {};
+let rowHidden=false, showLoading=false, nextDisabled=false;
+const row={getAttribute:()=> 'synthetic-row',
+ getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
+const loaded={querySelectorAll:(q)=>q.includes(':not(')?[]:
+ q.includes('empty-view-placeholder')?[]:[row]};
+const next=new HTMLButtonElement();
+next.disabled=false;
+next.getClientRects=()=>[{}];
+next.closest=()=>null;
+next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
+const current={getClientRects:()=>[{}],closest:()=>null,
+ getAttribute:()=> 'pagination-row:go-to-page-2'};
+globalThis.document={querySelector:()=>null,
+ querySelectorAll:(q)=>q.includes('message-list-loading')?
+   (showLoading?[{querySelectorAll:()=>[]}]:[]):
+   q.includes('message-list-loaded')?[loaded]:
+   q.includes('go-to-next-page')?[next]:
+   q.includes('go-to-page-')?[current]:[]};
+const ready=eval(expression);
+if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
+ 'pagination-row:go-to-page-2'||ready.nextDisabled!==false){
+ throw Error('visible list projection was not complete');
+}
+rowHidden=true;
+if(eval(expression)!==null){throw Error('hidden row was accepted');}
+rowHidden=false;
+showLoading=true;
+if(eval(expression)!==null){throw Error('two active roots were accepted');}
+showLoading=false;
+nextDisabled=true;
+if(eval(expression).nextDisabled!==true){
+ throw Error('disabled Next with pointer-events none must remain observable');
+}
+nextDisabled=false;
+next.getClientRects=()=>[];
+if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
+",
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("run synthetic list projection");
+    assert!(
+        output.status.success(),
+        "audited list projection rejected synthetic DOM: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
