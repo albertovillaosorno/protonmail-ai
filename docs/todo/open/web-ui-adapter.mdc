@@ -1191,6 +1191,15 @@ web application without requiring Bridge or a third-party direct API identity.
   `pointer-events:none` was rejected as incompatible. The content-free read
   now recognizes it as disabled, while enabled noninteractive controls
   remain incompatible and no click authorization is broadened.
+- A real-JavaScript synthetic sort-menu test verifies exactly one click
+  per open/close transition and refuses clicks through disabled controls,
+  hidden menu options, or modal overlays.
+- Loading-list evidence now validates the types and bounds of all eight
+  audited projection fields before discarding partial rows and pagination.
+  A valid transient loading state still exposes no row IDs or page grants.
+- Active search only proves message-row mode on an explicit set of known
+  mailbox views. Unknown or unrelated Mail routes with valid search hashes
+  remain unproven, including routes whose URL structure otherwise looks valid.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

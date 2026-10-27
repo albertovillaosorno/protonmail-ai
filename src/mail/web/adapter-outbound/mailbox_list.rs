@@ -192,6 +192,13 @@ impl MailboxListEvidence {
             return Err(());
         }
         let empty_marker = bool_field(value, "emptyMarker")?;
+        // Loading evidence can carry transitional rows and pagination state.
+        // It may discard their values, but never their shape validation.
+        let row_ids = row_ids(value)?;
+        let skeleton_count = usize_field(value, "skeletonCount")?;
+        let next_present = bool_field(value, "nextPresent")?;
+        let next_disabled = optional_bool_field(value, "nextDisabled")?;
+        let current_test_id = optional_str_field(value, "currentTestId")?;
         if loading {
             if empty_marker {
                 return Err(());
@@ -204,11 +211,6 @@ impl MailboxListEvidence {
             });
         }
 
-        let row_ids = row_ids(value)?;
-        let skeleton_count = usize_field(value, "skeletonCount")?;
-        let next_present = bool_field(value, "nextPresent")?;
-        let next_disabled = optional_bool_field(value, "nextDisabled")?;
-        let current_test_id = optional_str_field(value, "currentTestId")?;
         if skeleton_count != 0 || (empty_marker && !row_ids.is_empty()) {
             return Err(());
         }

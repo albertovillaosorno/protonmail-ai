@@ -34,6 +34,7 @@ use super::BrowserDriverError;
 use super::safe_cdp_notification_method;
 use super::{LOCATION_EXPRESSION, MailboxSortOrder, NextPageActivation};
 use super::{MailboxListEvidence, MailboxModeEvidence, MailboxPageSnapshot};
+use crate::MailboxListState;
 // jig-ignore-next-line: canonical rustfmt line.
 use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runtime_expression};
 use serde_json::json;
@@ -754,6 +755,8 @@ fn live_javascript_search_mode_rejects_malformed_routes() {
 globalThis.document={querySelector:()=>null};
 for(const [path,hash,expected] of [
   ['/u/0/inbox','#keyword=valid',true],
+  ['/u/0/unknown','#keyword=valid',false],
+  ['/unknown','#keyword=valid',false],
   ['/u/00/inbox','#keyword=valid',null],
   ['/u/0/inbox/nested','#keyword=valid',null],
   ['/inbox/extra','#keyword=valid',null],
@@ -901,4 +904,101 @@ if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
         "audited list projection rejected synthetic DOM: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn live_javascript_sort_menu_clicks_only_safe_visible_controls() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let scripts = [
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ];
+    let script_json = serde_json::to_string(&scripts);
+    let encoded = script_json.expect("audited sort scripts");
+    let mut source = format!("const [open,close]={encoded};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.HTMLButtonElement=class {};
+let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
+const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
+ 'toolbar:sort-desc','toolbar:sort-asc'];
+const option={getClientRects:()=>hidden?[]:[{}],closest:()=>null};
+const toggle=new HTMLButtonElement();
+toggle.getClientRects=()=>[{}];toggle.closest=()=>null;
+toggle.getAttribute=()=>disabled?'true':null;
+toggle.click=()=>{clicks++;isOpen=!isOpen;};
+Object.defineProperty(toggle,'disabled',{get:()=>disabled});
+globalThis.getComputedStyle=()=>({
+ visibility:'visible',pointerEvents:'auto',opacity:'1'});
+globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+ querySelectorAll:(q)=>q.includes('filter-dropdown:show-filters')?[toggle]:
+ ids.some(id=>q.includes(id))?(isOpen?[option]:[]):[]};
+const opened=eval(open);
+if(!opened.clicked||opened.alreadyOpen||clicks!==1){
+ throw Error('opening did not perform exactly one click');
+}
+const alreadyOpen=eval(open);
+if(!alreadyOpen.alreadyOpen||alreadyOpen.clicked||clicks!==1){
+ throw Error('open menu triggered a second click');
+}
+hidden=true;
+if(eval(close)!==false||clicks!==1){
+ throw Error('hidden sort options triggered close');
+}
+hidden=false;
+if(eval(close)!==true||clicks!==2||isOpen){
+ throw Error('closing did not perform exactly one click');
+}
+disabled=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('disabled control was clicked');
+}
+disabled=false;modal=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('modal allowed a sort click');
+}
+",
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("run sort control JS");
+    assert!(
+        output.status.success(),
+        "sort click JS crossed a read-only boundary: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn loading_list_rejects_malformed_ignored_projection_fields() {
+    let valid = json!({
+        "loading":true,"loaded":false,"rowIds":["partial-row"],
+        "skeletonCount":3u64,"emptyMarker":false,
+        "nextPresent":true,"nextDisabled":true,
+        "currentTestId":"pagination-row:go-to-page-1"
+    });
+    assert_eq!(
+        MailboxListEvidence::from_runtime_value(&valid)
+            .expect("valid partial loading projection")
+            .state(),
+        MailboxListState::Loading
+    );
+    for (key, invalid) in [
+        ("rowIds", json!("opaque-not-array")),
+        ("rowIds", json!([17i64])),
+        ("skeletonCount", json!("three")),
+        ("nextPresent", json!(0i64)),
+        ("nextDisabled", json!([])),
+        ("currentTestId", json!(false)),
+    ] {
+        let mut evidence = valid.clone();
+        evidence[key] = invalid;
+        assert!(MailboxListEvidence::from_runtime_value(&evidence).is_err());
+    }
 }

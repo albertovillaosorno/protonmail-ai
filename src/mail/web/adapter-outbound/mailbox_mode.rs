@@ -51,6 +51,8 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const route=scoped?parts[2]:parts[0];",
     "const forced=['drafts','all-drafts','sent','all-sent','deleted']",
     ".includes(route);",
+    "const searchable=forced||['inbox','archive','spam','starred',",
+    "'all-mail','search'].includes(route);",
     "const raw=location.hash.startsWith('#')?location.hash.slice(1):'';",
     "if(raw.length>8192||/%(?![0-9a-fA-F]{2})/.test(raw)){return null;}",
     "const params=new URLSearchParams(raw);",
@@ -68,7 +70,7 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const parsed=Number(value);",
     "return Number.isSafeInteger(parsed)&&parsed>0;});",
     "return {forcedMessageRoute:forced,",
-    "activeSearch:!duplicate&&(text||numeric)};",
+    "activeSearch:searchable&&!duplicate&&(text||numeric)};",
     "})()"
 );
 
