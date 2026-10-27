@@ -115,9 +115,9 @@ impl AttachmentRelativePath {
     ///
     /// # Errors
     ///
-    /// Rejects empty/absolute destinations, parent traversal, backslashes,
-    /// NUL/control, hidden Unicode formatting, Windows device components,
-    /// trailing dots/spaces, and drive or alternate-stream colon syntax.
+    /// Rejects empty/absolute destinations, traversal, nonportable Windows
+    /// path punctuation, NUL/control, hidden Unicode formatting, device
+    /// components, trailing dots/spaces, and drive/stream colon syntax.
     /// Destinations must also fit 4,096 total bytes, 64 path components,
     /// and 255 bytes per path component.
     pub fn new(untrusted: &str) -> Result<Self, AttachmentPathError> {
@@ -128,8 +128,7 @@ impl AttachmentRelativePath {
             return Err(AttachmentPathError::UnsupportedSyntax);
         }
         if untrusted.chars().any(|character| {
-            character == '\\'
-                || character == ':'
+            matches!(character, '\\' | ':' | '?' | '*' | '"' | '<' | '>' | '|')
                 || character.is_control()
                 || unsafe_filename_format(character)
         }) {

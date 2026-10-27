@@ -378,6 +378,11 @@ Ship useful read access before any mailbox mutation is enabled.
   a misleading path leaf to cross the portable relative-path boundary.
   Synthetic tests prove rejection and preserve ordinary Unicode directories.
 
+- Caller-supplied output paths now refuse Windows-forbidden punctuation
+  (`?`, `*`, quotes, angle brackets, `|`) in every component, aligning their
+  portable syntax with provider filename sanitization. Synthetic regression
+  evidence proved each was previously accepted.
+
 - Caller-supplied attachment relative output paths now have enforced 4,096-byte
   total size, 255-byte per-component size, and 64-component depth limits before
   any filesystem work. A red-first synthetic regression covers ASCII and UTF-8
