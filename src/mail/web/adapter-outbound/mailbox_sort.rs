@@ -43,9 +43,9 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return null;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
     "for(let depth=0;depth<64;depth++){",
@@ -67,7 +67,7 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
-    "node.closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return null;}",
+    "node.closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return null;}",
     "return {alreadyOpen:true,clicked:false};}",
     "if(!groups.every((group)=>group.length===0)){return null;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
@@ -75,14 +75,15 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return null;}",
     "if(nodes[0].matches(':disabled')||nodes[0].disabled||",
-    "nodes[0].getAttribute('aria-disabled')==='true'){return null;}",
+    // jig-ignore-next-line: indivisible audited ARIA state check.
+    "nodes[0].getAttribute('aria-disabled')?.toLowerCase()==='true'){return null;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",
     "getComputedStyle(nodes[0]).opacity==='0'||",
     "!visibleTree(nodes[0])||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
-    "nodes[0].closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]')){return null;}",
+    "nodes[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]')){return null;}",
     "nodes[0].click();",
     "return {alreadyOpen:false,clicked:true};",
     "})()"
@@ -93,9 +94,9 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return null;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
     "for(let depth=0;depth<64;depth++){",
@@ -119,7 +120,7 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
-    "node.closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return null;}",
+    "node.closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return null;}",
     "const pressed=(node)=>{const value=node.getAttribute('aria-pressed');",
     "return value==='true'?true:value==='false'?false:null;};",
     "const values=nodes.map((group)=>pressed(group[0]));",
@@ -136,9 +137,9 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return false;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return false;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return false;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
     "for(let depth=0;depth<64;depth++){",
@@ -158,20 +159,21 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "getComputedStyle(group[0]).opacity==='0'||",
     "!visibleTree(group[0])||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
-    "group[0].closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return false;}",
+    "group[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return false;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",
     "!(nodes[0] instanceof HTMLButtonElement)){return false;}",
     "if(nodes[0].matches(':disabled')||nodes[0].disabled||",
-    "nodes[0].getAttribute('aria-disabled')==='true'){return false;}",
+    // jig-ignore-next-line: indivisible audited ARIA state check.
+    "nodes[0].getAttribute('aria-disabled')?.toLowerCase()==='true'){return false;}",
     "if(nodes[0].getClientRects().length===0||",
     "getComputedStyle(nodes[0]).visibility!=='visible'||",
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",
     "getComputedStyle(nodes[0]).opacity==='0'||",
     "!visibleTree(nodes[0])||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
-    "nodes[0].closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]')){return false;}",
+    "nodes[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]')){return false;}",
     "nodes[0].click();return true;",
     "})()"
 );
@@ -181,9 +183,9 @@ const SORT_MENU_CLOSED_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",
     "return ids.every((id)=>document.querySelector(",

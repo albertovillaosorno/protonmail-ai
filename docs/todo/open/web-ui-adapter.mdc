@@ -1417,3 +1417,12 @@ web application without requiring Bridge or a third-party direct API identity.
   U+180B–U+180E invisible-selector range. The shared Rust route-ID guard agrees;
   red-first Node-executed and Rust synthetic regressions show this invisible
   character can no longer prove search mode or pass as an opaque row ID.
+
+- Mailbox list, row, mode, pagination, and sort evidence now compare protective
+  `role` and `aria-*` selector values without ASCII case sensitivity. Chromium
+  treats these attribute values as case-sensitive CSS selectors by default;
+  uppercase modal/hidden/disabled values could otherwise bypass the adapter's
+  DOM safety checks. Native button-disabled checks remain authoritative and
+  explicit `aria-disabled` reads now treat uppercase `TRUE` as disabling.
+  Synthetic Node regressions first reproduced modal and button bypasses, then
+  verified case-variant dialog, hidden-subtree, pagination, and sort guards.

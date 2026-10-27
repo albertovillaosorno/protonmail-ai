@@ -43,9 +43,9 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const loadingNodes=[...document.querySelectorAll('[data-testid=\"message-list-loading\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -81,7 +81,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(row).visibility!=='visible'||",
     "getComputedStyle(row).opacity==='0'||",
     "!visibleTree(row)||",
-    "row.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    "row.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -92,31 +92,31 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(emptyNode).visibility!=='visible'||",
     "getComputedStyle(emptyNode).opacity==='0'||",
     "!visibleTree(emptyNode)||",
-    "emptyNode.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    "emptyNode.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const nextNodes=[...document.querySelectorAll('[data-testid=\"pagination-row:go-to-next-page\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
-    "const currentNodes=[...document.querySelectorAll('[data-testid^=\"pagination-row:go-to-page-\"][aria-current=\"true\"]')];",
+    "const currentNodes=[...document.querySelectorAll('[data-testid^=\"pagination-row:go-to-page-\"][aria-current=\"true\" i]')];",
     "if(nextNodes.length>1||currentNodes.length>1){return null;}",
     "const next=nextNodes[0],current=currentNodes[0];",
     "if(current&&(current.getClientRects().length===0||",
     "getComputedStyle(current).visibility!=='visible'||",
     "getComputedStyle(current).opacity==='0'||",
     "!visibleTree(current)||",
-    "current.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    "current.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     "const inheritedDisabled=next?",
-    "!!next.closest('[aria-disabled=\"true\"]'):false;",
+    "!!next.closest('[aria-disabled=\"true\" i]'):false;",
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.getClientRects().length===0||",
     "getComputedStyle(next).visibility!=='visible'||",
     "(!next.matches(':disabled')&&!next.disabled&&",
-    "next.getAttribute('aria-disabled')!=='true'&&",
+    "next.getAttribute('aria-disabled')?.toLowerCase()!=='true'&&",
     "!inheritedDisabled&&",
     "getComputedStyle(next).pointerEvents==='none')||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
-    "next.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    "next.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f",
@@ -138,7 +138,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "skeletonCount:skeleton.length,emptyMarker:empty,nextPresent:!!next,",
     "nextDisabled:next?(next.matches(':disabled')||",
     "!!next.disabled||inheritedDisabled||",
-    "next.getAttribute('aria-disabled')==='true'):null,",
+    "next.getAttribute('aria-disabled')?.toLowerCase()==='true'):null,",
     "currentTestId:page};",
     "})()"
 );

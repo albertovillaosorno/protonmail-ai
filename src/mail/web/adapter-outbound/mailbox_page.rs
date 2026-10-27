@@ -55,9 +55,9 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"],dialog[open],",
-    "[aria-modal=\"true\"]')){return null;}",
+    "if(document.querySelector('[role=\"dialog\" i],",
+    "[role=\"alertdialog\" i],dialog[open],",
+    "[aria-modal=\"true\" i]')){return null;}",
     // An active loading root makes a content projection transitional, even
     // if a previously loaded list is still mounted in the same browser task.
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -105,8 +105,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const localHeading=headingNodes[0],sender=senders[0];",
     "if(localHeading.getClientRects().length===0||",
     "sender.getClientRects().length===0||",
-    "localHeading.closest('[aria-hidden=\"true\"],[inert]')||",
-    "sender.closest('[aria-hidden=\"true\"],[inert]')||",
+    "localHeading.closest('[aria-hidden=\"true\" i],[inert]')||",
+    "sender.closest('[aria-hidden=\"true\" i],[inert]')||",
     "getComputedStyle(localHeading).visibility!=='visible'||",
     "getComputedStyle(sender).visibility!=='visible'||",
     "getComputedStyle(localHeading).opacity==='0'||",

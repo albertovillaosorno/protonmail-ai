@@ -500,7 +500,7 @@ fn audited_clicks_must_refuse_nonvisible_controls() {
             .expect("click target cannot be inside an AX-hidden subtree");
         let click = script.find(".click();").expect("audited click action");
         assert!(geometry < click && aria < click);
-        assert!(script.contains("[aria-disabled=\"true\"]"));
+        assert!(script.contains("[aria-disabled=\"true\" i]"));
         assert!(allowed_mail_runtime_expression(script));
     }
 }
@@ -510,7 +510,8 @@ fn mailbox_list_next_page_evidence_requires_an_actionable_button() {
     let script = MailboxListEvidence::expression();
     assert!(script.contains("next instanceof HTMLButtonElement"));
     assert!(script.contains("next.getClientRects().length===0"));
-    assert!(script.contains("next.closest('[aria-hidden=\"true\"],[inert]')"));
+    // jig-ignore-next-line: exact audited selector fixture.
+    assert!(script.contains("next.closest('[aria-hidden=\"true\" i],[inert]')"));
     assert!(allowed_mail_runtime_expression(script));
 }
 
@@ -787,13 +788,13 @@ fn read_only_sort_clicks_must_refuse_disabled_or_modal_controls() {
         MailboxSortOrder::close_expression(),
     ] {
         assert!(script.contains("nodes[0].disabled"));
-        assert!(script.contains("[role=\"dialog\"]"));
-        assert!(script.contains("[role=\"alertdialog\"]"));
+        assert!(script.contains("[role=\"dialog\" i]"));
+        assert!(script.contains("[role=\"alertdialog\" i]"));
         assert!(allowed_mail_runtime_expression(script));
     }
     let next = NextPageActivation::expression();
-    assert!(next.contains("[role=\"dialog\"]"));
-    assert!(next.contains("[role=\"alertdialog\"]"));
+    assert!(next.contains("[role=\"dialog\" i]"));
+    assert!(next.contains("[role=\"alertdialog\" i]"));
 }
 
 #[test]
@@ -958,6 +959,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
+let ariaHiddenUpper=false;
 let duplicateRows=false,titleReads=0,invalidSecondRow=false;
 let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
@@ -966,10 +968,12 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
 const heading={id:'heading-id',
  getAttribute:()=>{titleReads++;return subjectValue;},
   getClientRects:()=>[{}],
-  closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
+  closest:(q)=>(ancestorInert&&q.includes('[inert]')||
+  ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const sender={getAttribute:()=>{titleReads++;return addressValue;},
   getClientRects:()=>[{}],
-  closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
+  closest:(q)=>(ancestorInert&&q.includes('[inert]')||
+  ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const ancestor={parentElement:null};
 const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   key==='aria-labelledby'?'heading-id':null,
@@ -1059,6 +1063,10 @@ if(eval(script)!==null){throw Error('native dialog exposed content');}
 nativeDialog=false;
 modal=false;ancestorInert=true;
 if(eval(script)!==null){throw Error('inert ancestor exposed content');}
+ancestorInert=false;ariaHiddenUpper=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('uppercase aria-hidden ancestor exposed content');
+}
 ",
     );
     let result = Command::new("node")
@@ -1097,14 +1105,17 @@ let fieldsetDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let modal=false,rootInert=false,nextParentDisabled=false;
+let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
  getClientRects:()=>rowHidden?[]:[{}],
- closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null};
+ closest:(q)=>(rootInert&&q.includes('[inert]')||
+ rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
 const empty={getClientRects:()=>[{}],
- closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null};
+ closest:(q)=>(rootInert&&q.includes('[inert]')||
+ rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
 const loaded={parentElement:ancestor,querySelectorAll:(q)=>
  q.includes(':not(')?[]:
  q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
@@ -1115,7 +1126,8 @@ next.disabled=false;
 next.getClientRects=()=>[{}];
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
  nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
-next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
+next.getAttribute=(key)=>key==='aria-disabled'&&
+ (nextDisabled||nextAriaUpper)?(nextAriaUpper?'TRUE':'true'):null;
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 const current={getClientRects:()=>[{}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
@@ -1133,6 +1145,15 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
  'pagination-row:go-to-page-2'||ready.nextDisabled!==false){
  throw Error('visible list projection was not complete');
 }
+nextAriaUpper=true;
+if(eval(expression)?.nextDisabled!==true){
+ throw Error('uppercase ARIA-disabled Next was reported enabled');
+}
+nextAriaUpper=false;rootAriaHiddenUpper=true;
+if(eval(expression)!==null){
+ throw Error('uppercase aria-hidden list row was serialized');
+}
+rootAriaHiddenUpper=false;
 duplicateRows=true;
 if(eval(expression)!==null){throw Error('duplicate list IDs accepted');}
 duplicateRows=false;
@@ -1243,6 +1264,7 @@ globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
+let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
 let optionParentDisabled=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
@@ -1257,7 +1279,8 @@ toggle.parentElement=toggleParent;
 toggle.getClientRects=()=>[{}];
 toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?toggleParent:null;
-toggle.getAttribute=()=>disabled?'true':null;
+toggle.getAttribute=()=>(disabled||ariaOnlyDisabled)?
+ (uppercaseAriaDisabled?'TRUE':'true'):null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
 toggle.matches=(q)=>q===':disabled'&&fieldsetDisabled;
@@ -1318,7 +1341,11 @@ fieldsetDisabled=false;disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
 }
-disabled=false;modal=true;
+disabled=false;ariaOnlyDisabled=true;uppercaseAriaDisabled=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('uppercase ARIA-disabled sort toggle was clicked');
+}
+ariaOnlyDisabled=false;uppercaseAriaDisabled=false;modal=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('modal allowed a sort click');
 }
@@ -1382,6 +1409,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
     source.push_str(
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
+let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
@@ -1389,7 +1417,8 @@ globalThis.HTMLButtonElement=class {};
 const parent={parentElement:null};
 const next=new HTMLButtonElement();
 next.parentElement=parent;
-next.getAttribute=(key)=>key==='aria-disabled'&&disabled?'true':null;
+next.getAttribute=(key)=>key==='aria-disabled'&&(disabled||ariaOnlyDisabled)?
+ (uppercaseAriaDisabled?'TRUE':'true'):null;
 next.getClientRects=()=>hidden?[]:[{}];
 next.closest=(q)=>(parentInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
@@ -1407,7 +1436,11 @@ disabled=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('ARIA-disabled Next was clicked');
 }
-disabled=false;parentOpacity='0';
+disabled=false;ariaOnlyDisabled=true;uppercaseAriaDisabled=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('uppercase ARIA-disabled Next was clicked');
+}
+ariaOnlyDisabled=false;uppercaseAriaDisabled=false;parentOpacity='0';
 if(eval(script).clicked||clicks!==1){
  throw Error('transparent Next parent permitted a click');
 }
@@ -1446,6 +1479,58 @@ if(eval(script)!==null||clicks!==1){
     assert!(
         output.status.success(),
         "audited Next click violated synthetic control state: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn uppercase_aria_modal_or_dialog_role_blocks_audited_dom_actions() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let scripts = [
+        MailboxModeEvidence::expression(),
+        MailboxListEvidence::expression(),
+        MailboxPageSnapshot::expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+        MailboxSortOrder::closed_expression(),
+        NextPageActivation::expression(),
+    ];
+    // jig-ignore-next-line: canonical synthetic script source.
+    let encoded = serde_json::to_string(&scripts).expect("encode audited scripts");
+    let source = format!(
+        r#"const scripts={encoded};
+globalThis.location={{origin:'https://mail.proton.me',
+ pathname:'/u/0/inbox',hash:'#keyword=synthetic'}};
+let blocker='';
+globalThis.document={{querySelector:(selector)=>{{
+  if(blocker==='role'&&selector.includes('[role="dialog" i]')){{return {{}};}}
+  if(blocker==='modal'&&
+ selector.includes('[aria-modal="true" i]')){{return {{}};}}
+  return null;
+}}}};
+for (const type of ['role','modal']){{
+ blocker=type;
+ for(const script of scripts){{
+  const result=eval(script);
+  if(result!==null&&result!==false){{
+   throw Error('case-variant blocker escaped '+type);
+  }}
+ }}
+}}
+"#,
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("run uppercase modal fixture");
+    assert!(
+        output.status.success(),
+        "case-variant modal failed closed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 }
