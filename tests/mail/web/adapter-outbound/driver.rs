@@ -1049,6 +1049,56 @@ fn rejected_message_list_network_enable_disables_before_returning() {
 }
 
 #[test]
+fn redirected_in_list_capture_cleans_network_without_fetching_body() {
+    use mail_web_adapter::MessageListNetworkError;
+
+    let root = test_root("redirected-in-list");
+    fs::create_dir_all(&root).expect("create synthetic driver root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
+    let original = "      printf '%s\\0' \"$request\" >&4";
+    let from = script.find("&Sort=Time&Desc=1").expect("find list request");
+    let suffix = script.get(from..).expect("find UTF-8 boundary");
+    let offset = from + suffix.find(original).expect("find event emission");
+    let injection = concat!(
+        "      request=\"${request%??}\"\n",
+        "      request+=',\"redirectResponse\":{\"url\":",
+        "\"https://mail.proton.me/other\"}}}'\n",
+    );
+    let mut patched = script.clone();
+    patched.insert_str(offset, injection);
+    install_script(&browser, patched).expect("install redirected-in response");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = managed.provider_page().expect("discover Mail target");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::MessageListNetwork(
+            MessageListNetworkError::RedirectedAway,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("keep CDP synchronized");
+    drop(managed);
+    let log_path = root.join("network-log.txt");
+    let log = fs::read_to_string(log_path).expect("read Network trace");
+    assert_eq!(log, "enable\nreload\ndisable\n");
+    cleanup(&root);
+}
+
+#[test]
 fn consumed_message_list_id_replay_during_disable_fails_closed() {
     use mail_web_adapter::MessageListNetworkError;
     let root = test_root("message-list-replayed-during-disable");

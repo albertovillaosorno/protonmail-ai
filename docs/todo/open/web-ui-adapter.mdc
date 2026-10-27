@@ -1378,3 +1378,7 @@ web application without requiring Bridge or a third-party direct API identity.
   refuse redirected-in GETs, preventing an ignored source endpoint from being
   treated as newly proven mailbox cursor evidence. A synthetic regression
   exercises both state machines.
+
+- A synthetic DevTools-pipe browser regression now injects a redirected-in
+  message-list GET on reload and proves typed refusal, Network cleanup before
+  any body fetch, and a still-usable CDP session.
