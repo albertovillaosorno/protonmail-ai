@@ -40,6 +40,7 @@ use crate::driver::BrowserDriverError;
 use crate::message_list_response::MessageListReconciliationError;
 use crate::message_list_response::ObservedMessageListResponse;
 use crate::message_list_response::ReconciledVisibleMessageMetadata;
+use crate::opaque_read_id::safe_read_id;
 // jig-ignore-next-line: canonical rustfmt line.
 use crate::mailbox_list::{MailboxListEvidence, MailboxListState, NextPageControl};
 
@@ -346,7 +347,7 @@ fn parse_rows(value: &Value) -> Result<Vec<VisibleMailboxRow>, BrowserDriverErro
             return Err(BrowserDriverError::MailboxPageIncompatible);
         }
         let id = bounded_string(row, "id", MAX_ROW_ID_BYTES, false)?;
-        if !seen.insert(id.clone()) {
+        if !safe_read_id(&id, MAX_ROW_ID_BYTES) || !seen.insert(id.clone()) {
             return Err(BrowserDriverError::MailboxPageIncompatible);
         }
         let subject = bounded_string(row, "subject", MAX_SUBJECT_BYTES, true)?;
@@ -389,3 +390,8 @@ fn ids_match(expected: &[String], rows: &[VisibleMailboxRow]) -> bool {
             .zip(rows)
             .all(|(expected_id, row)| expected_id == row.id())
 }
+
+#[cfg(test)]
+// jig-ignore-next-line: required root-tree private projection test include.
+#[path = "../../../../tests/mail/web/adapter-outbound/mailbox_page_projection.rs"]
+mod projection_tests;
