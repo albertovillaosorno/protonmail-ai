@@ -317,6 +317,7 @@ fn rendered_list_refuses_unsafe_row_identities_before_page_snapshot() {
         "combining\u{34f}joiner",
         "mongolian\u{180e}separator",
         "mongolian\u{180f}variation",
+        "replacement\u{fffd}id",
         "invisible\u{2061}function",
         "deprecated\u{206a}direction",
         "unicode\u{e0020}tag",

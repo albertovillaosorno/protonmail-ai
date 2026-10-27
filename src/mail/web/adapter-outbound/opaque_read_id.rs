@@ -46,6 +46,8 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
             character.is_control()
                 || character.is_whitespace()
                 || matches!(character, '/' | '?' | '#' | '%' | '\\')
+                // U+FFFD cannot prove the original exact route identity.
+                || character == '\u{fffd}'
                 || is_invisible_format(character)
         })
 }

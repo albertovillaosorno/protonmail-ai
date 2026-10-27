@@ -1432,3 +1432,8 @@ web application without requiring Bridge or a third-party direct API identity.
   A fallback role list can expose a dialog in the accessibility tree while an
   exact CSS selector misses it; synthetic modal evidence now requires the
   case-insensitive token selector to block all audited DOM reads and clicks.
+
+- Opaque read IDs and audited rendered-list/row JS expressions now reject
+  U+FFFD, the Unicode replacement character, before a lossy provider ID
+  can be used for an exact route or exposed in CDP metadata. Synthetic
+  red-first tests preserve ordinary Unicode identity support.

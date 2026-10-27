@@ -85,7 +85,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f",
     "\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f",
-    "\\u2800\\u3164\\ufe00-\\ufe0f\\ufeff\\uffa0",
+    "\\u2800\\u3164\\ufe00-\\ufe0f\\ufeff\\uffa0\\ufffd",
     "\\u{e0001}\\u{e0020}-\\u{e007f}\\u{e0100}-\\u{e01ef}]/u;",
     "const ids=rows.map((row)=>row.getAttribute('data-element-id'));",
     "if(ids.some((id)=>typeof id!=='string'||id.length===0||",

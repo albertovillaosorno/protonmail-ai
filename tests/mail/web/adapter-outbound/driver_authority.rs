@@ -1049,7 +1049,8 @@ idValue='row-a';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
- 'braille\\u2800blank', 'tag\\u{e0100}selector']){
+ 'braille\\u2800blank', 'tag\\u{e0100}selector',
+ 'lossy\\ufffdid']){
  idValue=invalidId;titleReads=0;
  if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
  if(titleReads!==0){throw Error('invalid ID caused a content read');}
@@ -1203,7 +1204,8 @@ rowId='synthetic-row';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
- 'braille\\u2800blank', 'tag\\u{e0100}selector']){
+ 'braille\\u2800blank', 'tag\\u{e0100}selector',
+ 'lossy\\ufffdid']){
  rowId=invalidId;
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
 }
