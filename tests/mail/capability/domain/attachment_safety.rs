@@ -99,6 +99,8 @@ fn attachment_filename_sanitization_neutralizes_superscript_devices() {
         ("com\u{b2}", "_com\u{b2}"),
         ("LPT\u{b3}.pdf", "_LPT\u{b3}.pdf"),
         ("LPT0.txt", "LPT0.txt"),
+        ("CONIN$", "_CONIN$"),
+        ("conout$.txt", "_conout$.txt"),
     ] {
         assert_eq!(SanitizedAttachmentFilename::new(input).as_str(), expected);
     }
@@ -189,6 +191,8 @@ fn relative_destination_refuses_windows_aliasing_components() {
         "exports/COM\u{b9}.txt",
         "exports/com\u{b2}.txt",
         "exports/LPT\u{b3}",
+        "exports/CONIN$",
+        "exports/conout$.txt",
         "exports/com3.pdf",
         "lpt1/archive.pdf",
         "exports/folder./report.txt",

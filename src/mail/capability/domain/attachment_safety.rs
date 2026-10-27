@@ -236,8 +236,10 @@ fn windows_reserved_filename(filename: &str) -> bool {
         .map_or(filename, |(before_extension, _extension)| before_extension)
         .trim_end_matches([' ', '.']);
     let uppercase = stem.to_ascii_uppercase();
-    matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        || reserved_numbered_device(&uppercase, "COM")
+    matches!(
+        uppercase.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || reserved_numbered_device(&uppercase, "COM")
         || reserved_numbered_device(&uppercase, "LPT")
 }
 

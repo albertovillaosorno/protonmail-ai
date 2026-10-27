@@ -378,6 +378,12 @@ Ship useful read access before any mailbox mutation is enabled.
   a misleading path leaf to cross the portable relative-path boundary.
   Synthetic tests prove rejection and preserve ordinary Unicode directories.
 
+- Windows console device leaves `CONIN$` and `CONOUT$` are now handled
+  alongside classical DOS devices for both provider-sanitized filenames and
+  caller-relative destinations. Synthetic red-first regressions cover case
+  folding and extension aliases, informed by Microsoft Console CreateFile
+  documentation without copying implementation from upstream.
+
 - Caller-supplied output paths now refuse Windows-forbidden punctuation
   (`?`, `*`, quotes, angle brackets, `|`) in every component, aligning their
   portable syntax with provider filename sanitization. Synthetic regression
