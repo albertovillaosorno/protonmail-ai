@@ -58,11 +58,19 @@ fn filename_sanitization_neutralizes_spoofing_format_controls() {
         ("hidden\u{feff}.txt", "hidden_.txt"),
         ("test\u{3164}.txt", "test_.txt"),
         ("filename\u{180f}hidden.pdf", "filename_hidden.pdf"),
+        ("file\u{00a0}name.pdf", "file_name.pdf"),
+        ("report\u{2007}copy.txt", "report_copy.txt"),
+        ("hidden\u{202f}space.txt", "hidden_space.txt"),
+        ("note\u{3000}draft.pdf", "note_draft.pdf"),
     ] {
         let safe = SanitizedAttachmentFilename::new(untrusted);
         assert_eq!(safe.as_str(), expected);
     }
     let normal = "r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert_eq!(
+        SanitizedAttachmentFilename::new("my report.pdf").as_str(),
+        "my report.pdf"
+    );
     assert_eq!(SanitizedAttachmentFilename::new(normal).as_str(), normal);
 }
 
@@ -240,6 +248,10 @@ fn relative_destination_rejects_hidden_unicode_path_components() {
         "exports\u{2066}/report\u{2069}.pdf",
         "exports/\u{3164}/report.pdf",
         "exports/report\u{180f}.pdf",
+        "exports/CON\u{00a0}.txt",
+        "exports/report\u{2007}.pdf",
+        "exports/folder\u{202f}name/report.pdf",
+        "exports/report\u{3000}.pdf",
     ] {
         assert_eq!(
             AttachmentRelativePath::new(input),
@@ -247,6 +259,7 @@ fn relative_destination_rejects_hidden_unicode_path_components() {
         );
     }
     let visible = "exports/r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert!(AttachmentRelativePath::new("exports/my report.pdf").is_ok());
     assert_eq!(
         AttachmentRelativePath::new(visible)
             .expect("ordinary Unicode remains portable")

@@ -363,6 +363,11 @@ Ship useful read access before any mailbox mutation is enabled.
   Network cleanup, and continued same-session CDP readiness without exposing
   the malformed detail metadata.
 
+- Non-ASCII Unicode spacing characters (including nonbreaking, figure,
+  narrow and ideographic spaces) now fail the portable destination
+  boundary and are replaced with `_` in provider-supplied filenames.
+  Red-first tests also retain ordinary ASCII spaces in filenames.
+
 - Mongolian Free Variation Selector Four (U+180F) now receives the same
   neutralization as the other invisible filename modifiers; provider
   filenames replace it with `_`, while caller-supplied output paths
