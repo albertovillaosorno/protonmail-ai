@@ -380,10 +380,11 @@ fn audited_clicks_must_refuse_nonvisible_controls() {
             .find("getClientRects().length===0")
             .expect("click target must occupy a visible layout rect");
         let aria = script
-            .find("closest('[aria-hidden=\"true\"],[inert]')")
+            .find("closest('[aria-hidden=")
             .expect("click target cannot be inside an AX-hidden subtree");
         let click = script.find(".click();").expect("audited click action");
         assert!(geometry < click && aria < click);
+        assert!(script.contains("[aria-disabled=\"true\"]"));
         assert!(allowed_mail_runtime_expression(script));
     }
 }
@@ -913,7 +914,7 @@ globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
-let modal=false,rootInert=false;
+let modal=false,rootInert=false,nextParentDisabled=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
@@ -929,7 +930,8 @@ row.parentElement=loaded;
 const next=new HTMLButtonElement();
 next.disabled=false;
 next.getClientRects=()=>[{}];
-next.closest=(q)=>rootInert&&q.includes('[inert]')?loaded:null;
+next.closest=(q)=>(rootInert&&q.includes('[inert]')||
+ nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
 const current={getClientRects:()=>[{}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
@@ -976,7 +978,11 @@ nextDisabled=true;
 if(eval(expression).nextDisabled!==true){
  throw Error('disabled Next with pointer-events none must remain observable');
 }
-nextDisabled=false;
+nextDisabled=false;nextParentDisabled=true;
+if(eval(expression).nextDisabled!==true){
+ throw Error('inherited disabled Next was reported enabled');
+}
+nextParentDisabled=false;
 rowId='A'.repeat(513);
 if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
 rowId='\\u00e9'.repeat(260);
@@ -1028,7 +1034,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
-let sortInert=false;
+let sortInert=false,parentAriaDisabled=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
@@ -1039,7 +1045,8 @@ const option={getClientRects:()=>hidden?[]:[{}],
 const toggle=new HTMLButtonElement();
 toggle.parentElement=toggleParent;
 toggle.getClientRects=()=>[{}];
-toggle.closest=(q)=>sortInert&&q.includes('[inert]')?toggleParent:null;
+toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
+ parentAriaDisabled&&q.includes('[aria-disabled'))?toggleParent:null;
 toggle.getAttribute=()=>disabled?'true':null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
@@ -1084,7 +1091,11 @@ if(eval(open)!==null||clicks!==2){
 toggleParentOpacity='1';
 sortInert=true;
 if(eval(open)!==null||clicks!==2){throw Error('inert sort menu clicked');}
-sortInert=false;disabled=true;
+sortInert=false;parentAriaDisabled=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('ARIA-disabled sort parent permitted a click');
+}
+parentAriaDisabled=false;disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
 }
@@ -1147,7 +1158,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
     source.push_str(
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
-let parentOpacity='1',parentInert=false;
+let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 const parent={parentElement:null};
@@ -1155,7 +1166,8 @@ const next=new HTMLButtonElement();
 next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&disabled?'true':null;
 next.getClientRects=()=>hidden?[]:[{}];
-next.closest=(q)=>parentInert&&q.includes('[inert]')?parent:null;
+next.closest=(q)=>(parentInert&&q.includes('[inert]')||
+ parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
 next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
@@ -1175,7 +1187,11 @@ if(eval(script).clicked||clicks!==1){
 }
 parentOpacity='1';parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
-parentInert=false;hidden=true;
+parentInert=false;parentAriaDisabled=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('ARIA-disabled parent permitted a click');
+}
+parentAriaDisabled=false;hidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('layout-hidden Next was clicked');
 }

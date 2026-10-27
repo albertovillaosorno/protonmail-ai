@@ -1247,6 +1247,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Decoded search selectors reject hidden formatting characters,
   bidirectional overrides, and unsafe control code points as mode proofs.
   Synthetic regressions still accept legitimate Unicode search terms.
+- Next-page observation now honors an `aria-disabled` ancestor,
+  including when CSS also makes the control noninteractive. The related
+  click guards refuse inherited disabled state for Next and sort toggles.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
