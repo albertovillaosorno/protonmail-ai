@@ -2080,3 +2080,43 @@ fn unexpected_continuation_on_exact_final_page_fails_closed() {
     );
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
 }
+
+#[test]
+fn repeated_provider_ids_across_initial_and_prefetched_batches_fail_closed() {
+    let root = test_root("duplicate-prefetch-id");
+    fs::create_dir_all(&root).expect("create isolated synthetic browser root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        true,
+        false,
+        false,
+        "m-1",
+        "0",
+        "2",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read synthetic browser");
+    let branch = r#"    *'Network.getResponseBody'*'"requestId":"list-2"'*)"#;
+    let index = script.find(branch).expect("find second list response");
+    let (prefix, suffix) = script.split_at(index);
+    let original = r#"\"ID\":\"m-2\""#;
+    assert!(suffix.contains(original));
+    let altered = suffix.replacen(original, r#"\"ID\":\"m-1\""#, 1);
+    install_script(&browser, format!("{prefix}{altered}"))
+        .expect("install duplicate provider ID fixture");
+    let browser_plan = plan(&root, &browser);
+    let launched = ManagedBrowser::launch(&browser_plan);
+    let mut managed = launched.expect("launch fake browser");
+    let page = managed.provider_page().expect("find synthetic page");
+    assert_eq!(
+        managed.observe_visible_message_metadata(&page),
+        Err(BrowserDriverError::MessageListBatchIncompatible)
+    );
+    drop(managed);
+    let audit = fs::read_to_string(root.join("network-log.txt"));
+    let log = audit.expect("read synthetic network log");
+    assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
+    cleanup(&root);
+}

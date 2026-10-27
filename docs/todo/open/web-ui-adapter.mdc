@@ -1336,6 +1336,11 @@ web application without requiring Bridge or a third-party direct API identity.
   proves the observed page boundary. A simultaneously observed extra request
   still fails closed as ambiguous. Synthetic full-CDP integration regressions
   cover both cases, and fixture routing distinguishes list from content tasks.
+- Captured anchored message-list continuations now reject provider IDs
+  already present in the initial batch, even though prefetched continuation
+  rows cannot satisfy visible current-page coverage. A red-first complete
+  synthetic CDP transcript exposed an accepted duplicate that first-batch
+  reconciliation never examined.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
