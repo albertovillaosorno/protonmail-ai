@@ -1311,6 +1311,10 @@ web application without requiring Bridge or a third-party direct API identity.
   Chromium: empty row IDs, zero skeleton count, no empty marker, and no
   pagination state. A mutated loading response with transitional fields
   fails closed instead of quietly discarding the unauthorized values.
+- Browser-owned Time sorting now rejects an equal-Time, equal-Order
+  pair of distinct message IDs. Such a pair lacks a proven stable tie-break
+  and cannot establish deterministic batch or page ordering until an
+  independently validated provider-ID normalization is available.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

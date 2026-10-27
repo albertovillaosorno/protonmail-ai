@@ -1398,3 +1398,21 @@ if(!result||!result.loading||result.loaded||
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn equal_time_and_order_cannot_prove_deterministic_message_sort() {
+    use crate::message_list_response::ObservedMessageListResponse;
+    use super::metadata_pair_matches_time_order;
+
+    let url = "https://mail.proton.me/api/mail/v4/messages";
+    let body = concat!(
+        r#"{"Stale":0,"Total":2,"Messages":[{"ID":"m-1","Time":10,"Order":4},"#,
+        r#"{"ID":"m-2","Time":10,"Order":4}]}"#,
+    );
+    let observed = ObservedMessageListResponse::parse("GET", url, body)
+        .expect("parse synthetic tied metadata");
+    let left = &observed.messages()[0];
+    let right = &observed.messages()[1];
+    assert!(!metadata_pair_matches_time_order(left, right, true));
+    assert!(!metadata_pair_matches_time_order(left, right, false));
+}

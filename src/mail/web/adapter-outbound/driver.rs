@@ -4041,10 +4041,12 @@ fn metadata_pair_matches_time_order(
 ) -> bool {
     let primary = left.time().cmp(&right.time());
     let tie = left.order().cmp(&right.order());
+    // Equal Time+Order gives no stable order for distinct provider IDs.
+    // Refuse that batch until an exact ID tie-break is independently proven.
     if descending {
-        primary.is_gt() || (primary.is_eq() && !tie.is_lt())
+        primary.is_gt() || (primary.is_eq() && tie.is_gt())
     } else {
-        primary.is_lt() || (primary.is_eq() && !tie.is_gt())
+        primary.is_lt() || (primary.is_eq() && tie.is_lt())
     }
 }
 
