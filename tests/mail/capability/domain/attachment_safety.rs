@@ -57,6 +57,7 @@ fn filename_sanitization_neutralizes_spoofing_format_controls() {
         ("file\u{2066}name\u{2069}.pdf", "file_name_.pdf"),
         ("hidden\u{feff}.txt", "hidden_.txt"),
         ("test\u{3164}.txt", "test_.txt"),
+        ("filename\u{180f}hidden.pdf", "filename_hidden.pdf"),
     ] {
         let safe = SanitizedAttachmentFilename::new(untrusted);
         assert_eq!(safe.as_str(), expected);
@@ -238,6 +239,7 @@ fn relative_destination_rejects_hidden_unicode_path_components() {
         "exports/hidden\u{200b}segment/report.pdf",
         "exports\u{2066}/report\u{2069}.pdf",
         "exports/\u{3164}/report.pdf",
+        "exports/report\u{180f}.pdf",
     ] {
         assert_eq!(
             AttachmentRelativePath::new(input),

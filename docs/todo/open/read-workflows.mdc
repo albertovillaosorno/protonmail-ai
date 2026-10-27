@@ -363,6 +363,11 @@ Ship useful read access before any mailbox mutation is enabled.
   Network cleanup, and continued same-session CDP readiness without exposing
   the malformed detail metadata.
 
+- Mongolian Free Variation Selector Four (U+180F) now receives the same
+  neutralization as the other invisible filename modifiers; provider
+  filenames replace it with `_`, while caller-supplied output paths
+  reject it. Synthetic red-first tests establish both boundaries.
+
 - Provider-neutral attachment filename sanitization now replaces Unicode
   line separators, bidirectional and invisible formatting controls, and
   blank-looking filler characters with underscores. Red-first pure-domain
