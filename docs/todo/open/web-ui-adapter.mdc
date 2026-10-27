@@ -1299,6 +1299,10 @@ web application without requiring Bridge or a third-party direct API identity.
   a whole-page-aligned offset. Malformed mid-page offsets cannot reissue
   overlapping catalog items even if a cursor were decoded from an unexpected
   state. Synthetic tests retain valid aligned offsets and reject gaps.
+- Message metadata reconciliation now accepts at most the two supported
+  browser-owned list batches (initial page plus one anchored continuation).
+  A synthetic zero-row three-batch chain previously escaped as a valid
+  empty page, despite lacking audited pagination/snapshot evidence.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

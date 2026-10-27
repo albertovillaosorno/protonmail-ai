@@ -847,6 +847,11 @@ impl ReconciledVisibleMessageMetadata {
         if visible_ids.len() > MAX_VISIBLE_MESSAGE_METADATA {
             return Err(MessageListReconciliationError::TooManyVisibleMessages);
         }
+        // This adapter observes at most the initial page and one anchored
+        // continuation. A larger collection is not a proven page chain.
+        if responses.len() > 2 {
+            return Err(MessageListReconciliationError::TooManyObservedBatches);
+        }
         let mut observed = BTreeMap::new();
         for response in responses {
             for message in response.messages() {
@@ -905,6 +910,8 @@ impl fmt::Debug for ReconciledVisibleMessageMetadata {
 /// Why observed list batches cannot prove metadata for stable visible rows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MessageListReconciliationError {
+    /// More than the two audited initial/continuation batches were supplied.
+    TooManyObservedBatches,
     /// Stable visible evidence contains too many message IDs.
     TooManyVisibleMessages,
     /// Stable visible evidence repeats or contains an empty message ID.

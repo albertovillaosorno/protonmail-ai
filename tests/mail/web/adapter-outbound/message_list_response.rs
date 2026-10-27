@@ -1250,3 +1250,17 @@ fn explicit_empty_reconciliation_rejects_later_positive_total() {
     let rejected = MessageListReconciliationError::UnexpectedObservedMessage;
     assert_eq!(result, Err(rejected));
 }
+
+#[test]
+fn message_metadata_reconciliation_rejects_unbounded_batch_chain() {
+    let body = r#"{"Stale":0,"Total":0,"Messages":[]}"#;
+    let parsed = ObservedMessageListResponse::parse("GET", URL, body);
+    let response = parsed.expect("parse synthetic empty batch");
+    let responses = [response.clone(), response.clone(), response];
+    // jig-ignore-next-line: canonical rustfmt bounded-batch call.
+    let reconciled = ReconciledVisibleMessageMetadata::reconcile(&[], &responses);
+    assert_eq!(
+        reconciled,
+        Err(MessageListReconciliationError::TooManyObservedBatches)
+    );
+}
