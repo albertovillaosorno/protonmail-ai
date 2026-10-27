@@ -2653,3 +2653,29 @@ fn unknown_refresh_bit_during_continuation_preserves_prior_cursor() {
     assert!(!chain.settled());
     assert_eq!(chain.next_event_id(), "event-8");
 }
+
+#[test]
+fn cdp_event_envelopes_refuse_unexpected_fields() {
+    use serde_json::json;
+    let mut latest = json!({
+        "body":"{\"EventID\":\"event-bootstrap\"}","base64Encoded":false
+    });
+    let first = ObservedLatestMailboxEventWatermark::parse_cdp_body(&latest);
+    assert!(first.is_ok());
+    latest["unexpected"] = json!("synthetic-untrusted-field");
+    assert_eq!(
+        ObservedLatestMailboxEventWatermark::parse_cdp_body(&latest),
+        Err(MailboxEventWatermarkError::Malformed)
+    );
+    let mut event = json!({
+        "body":"{\"EventID\":\"event-7\",\"More\":0}","base64Encoded":false
+    });
+    // jig-ignore-next-line: canonical rustfmt CDP envelope parser call.
+    let first = ObservedMailboxEventWatermark::parse_cdp_body("event-7", &event);
+    assert!(first.is_ok());
+    event["unexpected"] = json!("synthetic-untrusted-field");
+    assert_eq!(
+        ObservedMailboxEventWatermark::parse_cdp_body("event-7", &event),
+        Err(MailboxEventWatermarkError::Malformed)
+    );
+}

@@ -456,6 +456,10 @@ impl ObservedConversationDetailResponse {
         if !safe_read_id(conversation_id, MAX_CONVERSATION_ID_BYTES) {
             return Err(ConversationDetailResponseError::UnexpectedEndpoint);
         }
+        // Only accept the exact decoded CDP envelope owned by our request.
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(ConversationDetailResponseError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)

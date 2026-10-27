@@ -430,6 +430,10 @@ impl ObservedMailboxCatalogResponse {
         kind: MailboxCatalogKind,
         result: &Value,
     ) -> Result<Self, MailboxCatalogResponseError> {
+        // Only accept the exact decoded CDP envelope owned by our request.
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(MailboxCatalogResponseError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)

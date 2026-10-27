@@ -882,3 +882,17 @@ fn complete_conversation_detail_endpoint_refuses_unsafe_route_ids() {
         Err(ConversationDetailResponseError::UnexpectedEndpoint)
     );
 }
+
+#[test]
+fn cdp_detail_envelope_refuses_unexpected_fields() {
+    let mut envelope = json!({
+        "body": conversation_body().to_string(), "base64Encoded": false
+    });
+    // jig-ignore-next-line: canonical rustfmt CDP envelope parser call.
+    let first = ObservedConversationDetailResponse::parse_cdp_body("conversation-1", &envelope);
+    assert!(first.is_ok());
+    envelope["unexpected"] = json!("synthetic-untrusted-field");
+    // jig-ignore-next-line: canonical rustfmt CDP envelope parser call.
+    let changed = ObservedConversationDetailResponse::parse_cdp_body("conversation-1", &envelope);
+    assert_eq!(changed, Err(ConversationDetailResponseError::Malformed));
+}

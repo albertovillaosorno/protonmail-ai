@@ -1819,3 +1819,15 @@ fn conversation_numeric_page_and_limit_selectors_require_canonical_digits() {
         .expect("complete bounded request");
     assert_eq!(capture.take_finished_request_ids(), ["max-page"]);
 }
+
+#[test]
+fn cdp_conversation_list_envelope_refuses_unexpected_fields() {
+    let mut envelope = json!({"body":body(),"base64Encoded":false});
+    let first = ObservedConversationListResponse::parse_cdp_body(&envelope);
+    assert!(first.is_ok());
+    envelope["unexpected"] = json!("synthetic-untrusted-field");
+    assert_eq!(
+        ObservedConversationListResponse::parse_cdp_body(&envelope),
+        Err(ConversationListResponseError::Malformed)
+    );
+}

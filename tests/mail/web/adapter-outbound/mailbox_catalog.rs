@@ -1801,3 +1801,17 @@ fn maximum_bounded_custom_folder_chain_rejects_late_cycle() {
         Err(MailboxCatalogResponseError::Malformed)
     );
 }
+
+#[test]
+fn cdp_catalog_envelope_refuses_unexpected_fields() {
+    let mut envelope = json!({
+        "body":"{\"Code\":1000,\"Labels\":[]}","base64Encoded":false
+    });
+    let kind = MailboxCatalogKind::Folder;
+    let first = ObservedMailboxCatalogResponse::parse_cdp_body(kind, &envelope);
+    assert!(first.is_ok());
+    envelope["unexpected"] = json!("synthetic-untrusted-field");
+    // jig-ignore-next-line: canonical rustfmt CDP envelope parser call.
+    let changed = ObservedMailboxCatalogResponse::parse_cdp_body(kind, &envelope);
+    assert_eq!(changed, Err(MailboxCatalogResponseError::Malformed));
+}

@@ -1207,6 +1207,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - A Node-executed Next-page click test now verifies an enabled control
   receives exactly one click. Disabled, hidden, duplicated, modal-blocked,
   and off-origin controls never trigger an interaction.
+- All eight decoded CDP `Network.getResponseBody` projections now demand
+  exactly the owned `body` and `base64Encoded` fields, including conversation
+  list/detail, catalog, and bootstrap/poll event response bodies. Extra CDP
+  response fields fail closed rather than silently expanding metadata scope.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

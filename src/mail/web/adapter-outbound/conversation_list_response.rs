@@ -471,6 +471,10 @@ impl ObservedConversationListResponse {
     /// [`Self::parse`].
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse_cdp_body(result: &Value) -> Result<Self, ConversationListResponseError> {
+        // Only accept the exact decoded CDP envelope owned by our request.
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(ConversationListResponseError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)

@@ -641,6 +641,10 @@ impl ObservedLatestMailboxEventWatermark {
     /// invalid bootstrap event watermarks.
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse_cdp_body(result: &Value) -> Result<Self, MailboxEventWatermarkError> {
+        // Only accept the exact decoded CDP envelope owned by our request.
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(MailboxEventWatermarkError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)
@@ -798,6 +802,10 @@ impl ObservedMailboxEventWatermark {
         result: &Value,
     ) -> Result<Self, MailboxEventWatermarkError> {
         if !safe_read_id(requested_event_id, MAX_EVENT_ID_BYTES) {
+            return Err(MailboxEventWatermarkError::Malformed);
+        }
+        // Only accept the exact decoded CDP envelope owned by our request.
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
             return Err(MailboxEventWatermarkError::Malformed);
         }
         let encoded = result
