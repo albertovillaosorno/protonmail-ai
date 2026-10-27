@@ -391,6 +391,11 @@ fn visible_ax_landmark_cannot_hide_malformed_trailing_nodes() {
             r#"[{"ignored":false},{"ignored":"false"}]"#,
         ),
         ("null-node", r#"[{"ignored":false},null]"#),
+        (
+            "late-conflicting-role",
+            // jig-ignore-next-line: indivisible synthetic AX role fixture.
+            r#"[{"ignored":false},{"ignored":false,"role":{"type":"role","value":"button"}}]"#,
+        ),
     ] {
         for (role_name, roles) in [
             (
