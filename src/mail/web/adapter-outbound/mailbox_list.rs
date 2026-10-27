@@ -75,7 +75,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(row).visibility!=='visible'||",
     "getComputedStyle(row).opacity==='0'||",
     "!visibleTree(row)||",
-    "row.closest('[aria-hidden=\"true\"]'))){return null;}",
+    "row.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -86,7 +86,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(emptyNode).visibility!=='visible'||",
     "getComputedStyle(emptyNode).opacity==='0'||",
     "!visibleTree(emptyNode)||",
-    "emptyNode.closest('[aria-hidden=\"true\"]'))){return null;}",
+    "emptyNode.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
     "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const nextNodes=[...document.querySelectorAll('[data-testid=\"pagination-row:go-to-next-page\"]')];",
@@ -98,7 +98,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(current).visibility!=='visible'||",
     "getComputedStyle(current).opacity==='0'||",
     "!visibleTree(current)||",
-    "current.closest('[aria-hidden=\"true\"]'))){return null;}",
+    "current.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.getClientRects().length===0||",
     "getComputedStyle(next).visibility!=='visible'||",
@@ -106,7 +106,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(next).pointerEvents==='none')||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
-    "next.closest('[aria-hidden=\"true\"]'))){return null;}",
+    "next.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
     // Preflight projected IDs and page selectors before CDP serialization.
     "const ids=real.map((row)=>row.getAttribute('data-element-id'));",
     "if(ids.some((id)=>typeof id!=='string'||id.length===0||",

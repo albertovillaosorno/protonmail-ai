@@ -380,7 +380,7 @@ fn audited_clicks_must_refuse_nonvisible_controls() {
             .find("getClientRects().length===0")
             .expect("click target must occupy a visible layout rect");
         let aria = script
-            .find("closest('[aria-hidden=\"true\"]')")
+            .find("closest('[aria-hidden=\"true\"],[inert]')")
             .expect("click target cannot be inside an AX-hidden subtree");
         let click = script.find(".click();").expect("audited click action");
         assert!(geometry < click && aria < click);
@@ -393,7 +393,7 @@ fn mailbox_list_next_page_evidence_requires_an_actionable_button() {
     let script = MailboxListEvidence::expression();
     assert!(script.contains("next instanceof HTMLButtonElement"));
     assert!(script.contains("next.getClientRects().length===0"));
-    assert!(script.contains("next.closest('[aria-hidden=\"true\"]')"));
+    assert!(script.contains("next.closest('[aria-hidden=\"true\"],[inert]')"));
     assert!(allowed_mail_runtime_expression(script));
 }
 
@@ -810,14 +810,16 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
-let idValue='row-a',modal=false;
+let idValue='row-a',modal=false,ancestorInert=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',getAttribute:()=>subjectValue,
-  getClientRects:()=>[{}],closest:()=>null};
+  getClientRects:()=>[{}],
+  closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
 const sender={getAttribute:()=>addressValue,
-  getClientRects:()=>[{}],closest:()=>null};
+  getClientRects:()=>[{}],
+  closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
 const ancestor={parentElement:null};
 const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   key==='aria-labelledby'?'heading-id':null,
@@ -862,6 +864,8 @@ addressValue='sender@example.test';idValue='z'.repeat(513);
 if(eval(script)[0]!==null){throw Error('oversized row ID crossed CDP');}
 idValue='row-a';modal=true;
 if(eval(script)!==null){throw Error('modal exposed content rows');}
+modal=false;ancestorInert=true;
+if(eval(script)[0]!==null){throw Error('inert ancestor exposed content');}
 ",
     );
     let result = Command::new("node")
@@ -896,12 +900,14 @@ globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
-let modal=false;
+let modal=false,rootInert=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
- getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
-const empty={getClientRects:()=>[{}],closest:()=>null};
+ getClientRects:()=>rowHidden?[]:[{}],
+ closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null};
+const empty={getClientRects:()=>[{}],
+ closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null};
 const loaded={parentElement:ancestor,querySelectorAll:(q)=>
  q.includes(':not(')?[]:
  q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
@@ -910,9 +916,10 @@ row.parentElement=loaded;
 const next=new HTMLButtonElement();
 next.disabled=false;
 next.getClientRects=()=>[{}];
-next.closest=()=>null;
+next.closest=(q)=>rootInert&&q.includes('[inert]')?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
-const current={getClientRects:()=>[{}],closest:()=>null,
+const current={getClientRects:()=>[{}],
+ closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
@@ -971,7 +978,9 @@ if(eval(expression)!==null){
 pointerBlocked=false;
 next.getClientRects=()=>[];
 if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
-next.getClientRects=()=>[{}];modal=true;
+next.getClientRects=()=>[{}];rootInert=true;
+if(eval(expression)!==null){throw Error('inert list was exposed');}
+rootInert=false;modal=true;
 if(eval(expression)!==null){throw Error('modal exposed list state');}
 ",
     );
@@ -1006,15 +1015,18 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
+let sortInert=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
 const toggleParent={parentElement:null};
 const option={getClientRects:()=>hidden?[]:[{}],
- closest:()=>null,parentElement:optionParent};
+ closest:(q)=>sortInert&&q.includes('[inert]')?optionParent:null,
+ parentElement:optionParent};
 const toggle=new HTMLButtonElement();
 toggle.parentElement=toggleParent;
-toggle.getClientRects=()=>[{}];toggle.closest=()=>null;
+toggle.getClientRects=()=>[{}];
+toggle.closest=(q)=>sortInert&&q.includes('[inert]')?toggleParent:null;
 toggle.getAttribute=()=>disabled?'true':null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
@@ -1057,7 +1069,9 @@ if(eval(open)!==null||clicks!==2){
  throw Error('transparent toggle parent was clicked');
 }
 toggleParentOpacity='1';
-disabled=true;
+sortInert=true;
+if(eval(open)!==null||clicks!==2){throw Error('inert sort menu clicked');}
+sortInert=false;disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
 }
@@ -1120,7 +1134,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
     source.push_str(
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
-let parentOpacity='1';
+let parentOpacity='1',parentInert=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 const parent={parentElement:null};
@@ -1128,7 +1142,7 @@ const next=new HTMLButtonElement();
 next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&disabled?'true':null;
 next.getClientRects=()=>hidden?[]:[{}];
-next.closest=()=>null;
+next.closest=(q)=>parentInert&&q.includes('[inert]')?parent:null;
 next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
@@ -1146,7 +1160,9 @@ disabled=false;parentOpacity='0';
 if(eval(script).clicked||clicks!==1){
  throw Error('transparent Next parent permitted a click');
 }
-parentOpacity='1';hidden=true;
+parentOpacity='1';parentInert=true;
+if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
+parentInert=false;hidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('layout-hidden Next was clicked');
 }

@@ -1236,6 +1236,10 @@ web application without requiring Bridge or a third-party direct API identity.
   expressions now recheck for a newly mounted dialog/alertdialog inside the
   same JavaScript task. Node-based tests prove no content or mode signal
   crosses a modal even after an earlier Mail-shell AX validation.
+- Audited content reads and read-only controls now also reject `inert`
+  ancestors (in addition to aria-hidden, geometry, and computed styling).
+  Synthetic Node DOM cases prove inert mailbox rows, Next, and sort controls
+  cannot be read or clicked during a disabled background transition.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
