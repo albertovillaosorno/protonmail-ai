@@ -551,6 +551,9 @@ impl ObservedMessageDetailResponse {
         }
         // jig-ignore-next-line: canonical rustfmt line.
         let subject = bounded_required_string(message, "Subject", MAX_SUBJECT_BYTES, true)?;
+        if subject.chars().any(unsafe_display_character) {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         let sender_value = message
             .get("Sender")
             .ok_or(MessageDetailResponseError::Malformed)?;
@@ -670,13 +673,18 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
     let address = bounded_required_string(object, "Address", MAX_RECIPIENT_ADDRESS_BYTES, false)?;
     // Names and addresses may eventually be reused in a reply composer.
     // Reject raw header controls before exposing provider recipient values.
-    if name.chars().any(char::is_control)
-        || address.chars().any(char::is_control)
+    if name.chars().any(unsafe_display_character)
+        || address.chars().any(unsafe_display_character)
         || address.trim() != address
     {
         return Err(MessageDetailResponseError::Malformed);
     }
     Ok(ObservedMessageRecipient { name, address })
+}
+
+// Match the visible-row boundary before exposing text for later read or reply.
+const fn unsafe_display_character(character: char) -> bool {
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
 fn parse_recipients(

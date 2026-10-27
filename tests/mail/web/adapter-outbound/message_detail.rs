@@ -965,6 +965,31 @@ fn message_recipient_fields_reject_control_character_injection() {
 }
 
 #[test]
+fn message_subject_and_recipient_display_text_reject_line_spoofing() {
+    let project = ObservedMessageDetailResponse::parse;
+    for (pointer, value) in [
+        ("/Message/Subject", "Subject\r\nBcc: decoy@example.test"),
+        ("/Message/Subject", "Subject\u{2028}injected line"),
+        ("/Message/Subject", "Subject\u{2029}injected paragraph"),
+        ("/Message/Sender/Name", "Sender\u{2028}another sender"),
+        ("/Message/ToList/0/Address", "to@example.test\u{2029}hidden"),
+    ] {
+        let mut body = detail_body();
+        let field = body.pointer_mut(pointer).expect("synthetic display field");
+        *field = json!(value);
+        let raw = body.to_string();
+        let result = project("GET", MESSAGE_URL, &raw);
+        assert_eq!(result, Err(MessageDetailResponseError::Malformed));
+    }
+    let mut body = detail_body();
+    body["Message"]["Subject"] = json!("Hello, \u{65c5}\u{884c}!");
+    body["Message"]["Sender"]["Name"] = json!("\u{00c9}lodie");
+    let raw = body.to_string();
+    let valid = project("GET", MESSAGE_URL, &raw);
+    assert!(valid.is_ok());
+}
+
+#[test]
 fn message_detail_body_envelope_rejects_unexpected_cdp_fields() {
     let mut result = json!({
         "body":detail_body().to_string(),"base64Encoded":false

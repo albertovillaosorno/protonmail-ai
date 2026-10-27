@@ -353,6 +353,11 @@ Ship useful read access before any mailbox mutation is enabled.
   body projection must remain passive and prove completeness before mapping this
   surface to provider-neutral message body semantics.
 
+- Exact message-detail projection now rejects C0/C1 controls and Unicode
+  line/paragraph separators in subjects and recipient display fields, agreeing
+  with the visible-row boundary before later public read or reply mapping.
+  Synthetic red-first fixtures preserve ordinary Unicode metadata.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.
