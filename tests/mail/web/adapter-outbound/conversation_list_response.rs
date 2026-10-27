@@ -1831,3 +1831,16 @@ fn cdp_conversation_list_envelope_refuses_unexpected_fields() {
         Err(ConversationListResponseError::Malformed)
     );
 }
+
+#[test]
+fn encoded_conversation_query_key_aliases_fail_closed() {
+    for alias in ["%50age=1", "Pa%67e=1", "%41nchorID=decoy", "%53ort=Size"] {
+        let url = format!("{URL}&{alias}");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let request = request_event("session-a", "encoded-key", "GET", &url);
+        let result = capture.observe(&request);
+        let rejected = Err(ConversationListNetworkError::InvalidPagination);
+        assert_eq!(result, rejected);
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+}

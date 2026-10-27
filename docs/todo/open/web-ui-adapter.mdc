@@ -1250,6 +1250,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Next-page observation now honors an `aria-disabled` ancestor,
   including when CSS also makes the control noninteractive. The related
   click guards refuse inherited disabled state for Next and sort toggles.
+- Captured conversation-list request parsing now refuses percent-encoded
+  query keys. Encoded `Page`, `Sort`, or anchor aliases cannot be interpreted
+  differently by the provider and the local pagination observer.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -644,6 +644,11 @@ fn parse_request_page(
     let mut has_non_visible_selector = false;
     for parameter in query.split('&') {
         let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
+        // Encoded keys can become provider pagination/sort aliases after
+        // URL decoding even when this raw parser sees an unrelated selector.
+        if key.contains('%') {
+            return Err(ConversationListNetworkError::InvalidPagination);
+        }
         match key {
             "Page" => {
                 if page.is_some() {
