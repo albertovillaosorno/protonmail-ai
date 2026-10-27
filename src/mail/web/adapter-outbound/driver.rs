@@ -30,8 +30,10 @@
 
 //! Managed Chromium `DevTools` pipe for the dedicated Proton Mail profile.
 
+use nix::errno::Errno;
+
 use std::fmt;
-use std::io::{BufRead as _, BufReader, ErrorKind, Write as _};
+use std::io::{BufRead as _, BufReader, Error as IoError, ErrorKind, Write as _};
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -123,6 +125,7 @@ const DEVTOOLS_WRITE_FD: i32 = 4;
 const MAX_FRAME_BYTES: usize = 1_048_576;
 const MAX_UNSOLICITED: u16 = 128;
 const PIPE_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_TEXT_BUSY_RETRIES: u8 = 12;
 const SHUTDOWN_DELAY: Duration = Duration::from_millis(20);
 const SHUTDOWN_POLLS: u16 = 100;
 const PAGE_ADVANCE_DELAY: Duration = Duration::from_millis(50);
@@ -4171,6 +4174,10 @@ const fn pagination_changed() -> BrowserDriverError {
     BrowserDriverError::MailboxPaginationChanged
 }
 
+fn executable_text_busy(error: &IoError) -> bool {
+    error.raw_os_error().map(Errno::from_raw) == Some(Errno::ETXTBSY)
+}
+
 fn spawn_browser(
     plan: &ManagedBrowserPlan,
     child_read: UnixStream,
@@ -4201,9 +4208,20 @@ fn spawn_browser(
             },
         ])
         .map_err(|_error| BrowserDriverError::PipeSetup)?;
-    command
-        .spawn()
-        .map_err(|_error| BrowserDriverError::BrowserLaunch)
+    // execve can return ETXTBSY when a just-replaced browser executable
+    // is briefly held writable. No child was started in that case; retry
+    // only this precise errno with a finite budget while keeping the lease.
+    for attempt in 0u8..=MAX_TEXT_BUSY_RETRIES {
+        let can_retry = attempt < MAX_TEXT_BUSY_RETRIES;
+        match command.spawn() {
+            Ok(child) => return Ok(child),
+            Err(error) if can_retry && executable_text_busy(&error) => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(_error) => return Err(BrowserDriverError::BrowserLaunch),
+        }
+    }
+    Err(BrowserDriverError::BrowserLaunch)
 }
 
 fn read_frame_waiting(

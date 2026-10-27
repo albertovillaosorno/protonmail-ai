@@ -32,6 +32,7 @@
 
 use std::env;
 use std::fs;
+use std::io::{self, Write as _};
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -44,6 +45,18 @@ use mail_web_adapter::{PageOrigin, ProviderPage};
 fn test_root(label: &str) -> PathBuf {
     let name = format!("protonmail-ai-driver-{label}-{}", process::id());
     env::temp_dir().join(name)
+}
+
+// Never overwrite an executable inode in place: parallel synthetic browser
+// launches can otherwise hit Linux ETXTBSY before Chromium-like CDP starts.
+fn install_script(path: &Path, body: impl AsRef<[u8]>) -> io::Result<()> {
+    let staged = path.with_extension("staging");
+    let mut file = fs::File::create(&staged)?;
+    file.write_all(body.as_ref())?;
+    file.sync_all()?;
+    drop(file);
+    fs::set_permissions(&staged, fs::Permissions::from_mode(0o700))?;
+    fs::rename(&staged, path)
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -76,9 +89,7 @@ done
         target_infos = target_infos,
         runtime_host = runtime_host,
     );
-    fs::write(&script, body).expect("write fake browser");
-    let permissions = fs::Permissions::from_mode(0o700);
-    fs::set_permissions(&script, permissions).expect("chmod fake browser");
+    install_script(&script, body).expect("install fake browser atomically");
     script
 }
 
@@ -282,10 +293,8 @@ done
         .replace("__ROW_IDS__", row_ids)
         .replace("__ROWS__", rows)
         .replace("__VISIBLE_ID__", visible_id);
-    fs::write(&script, body).expect("write fake network browser");
-    let permissions = fs::Permissions::from_mode(0o700);
-    let permission_result = fs::set_permissions(&script, permissions);
-    permission_result.expect("chmod fake network browser");
+    let installed = install_script(&script, body);
+    installed.expect("install fake network browser atomically");
     script
 }
 
@@ -1019,7 +1028,7 @@ fn rejected_message_list_network_enable_disables_before_returning() {
     // jig-ignore-next-line: indivisible synthetic fixture command.
     let rejected = "      printf '{\"id\":%s,\"error\":{\"code\":-32601}}\\0' \"$id\" >&4;;";
     let modified = script.replacen(expected, rejected, 1);
-    fs::write(&browser, modified).expect("install synthetic error reply");
+    install_script(&browser, modified).expect("install synthetic error reply");
     let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
         .expect("launch synthetic message-list driver");
     let page = managed
@@ -1059,7 +1068,7 @@ fn consumed_message_list_id_replay_during_disable_fails_closed() {
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read fake browser script");
     assert!(script.contains("list-3"));
-    fs::write(&browser, script.replace("list-3", "list-1"))
+    install_script(&browser, script.replace("list-3", "list-1"))
         .expect("install reused completed request ID");
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1141,7 +1150,7 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         assert!(script.contains(reply));
         // jig-ignore-next-line: canonical rustfmt line.
         let injected = format!("      printf '%s\\0' '{unsolicited}' >&4\n{reply}");
-        fs::write(&browser, script.replacen(reply, &injected, 1))
+        install_script(&browser, script.replacen(reply, &injected, 1))
             .expect("inject protocol-invalid unsolicited envelope");
         let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
             .expect("launch isolated synthetic browser");
@@ -1190,7 +1199,7 @@ fn hybrid_cdp_frame_with_matching_command_id_does_not_spoof_success() {
         // jig-ignore-next-line: canonical rustfmt line.
         "      printf '{{\"id\":%s,\"method\":\"Network.responseReceived\",\"result\":{{}}}}\\0' \"$id\" >&4\n{expected}"
     );
-    fs::write(&browser, script.replacen(expected, &injected, 1))
+    install_script(&browser, script.replacen(expected, &injected, 1))
         .expect("inject ambiguous matching-id notification before valid reply");
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1241,7 +1250,7 @@ fn malformed_cdp_result_shapes_never_enable_network_capture() {
         let invalid =
             // jig-ignore-next-line: canonical rustfmt line.
             format!("      printf '{{\"id\":%s,\"result\":{result_json}}}\\0' \"$id\" >&4;;");
-        fs::write(&browser, script.replacen(reply, &invalid, 1))
+        install_script(&browser, script.replacen(reply, &invalid, 1))
             .expect("inject invalid success payload into Network.enable");
         let mut managed =
             // jig-ignore-next-line: canonical rustfmt line.
@@ -1284,7 +1293,7 @@ fn invalid_utf8_cdp_frame_drains_real_enable_reply_before_cleanup() {
     let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
     assert!(script.contains(reply));
     let injected = format!("      printf '\\377\\0' >&4\n{reply}");
-    fs::write(&browser, script.replacen(reply, &injected, 1))
+    install_script(&browser, script.replacen(reply, &injected, 1))
         .expect("insert NUL-delimited invalid UTF-8 CDP frame");
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake browser");
@@ -1323,7 +1332,7 @@ fn provider_rejected_message_list_body_disables_network_before_returning() {
     let script = fs::read_to_string(&browser).expect("read synthetic CDP script");
     let success_code = r#"\"Code\":1000"#;
     assert!(script.contains(success_code));
-    fs::write(&browser, script.replace(success_code, r#"\"Code\":2001"#))
+    install_script(&browser, script.replace(success_code, r#"\"Code\":2001"#))
         .expect("inject explicit unsuccessful provider response code");
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
@@ -1371,7 +1380,7 @@ fn browser_allows_distinct_continuation_totals_without_snapshot_claim() {
     let needle = r#"\"Total\":2,\"Messages\""#;
     assert!(second.contains(needle));
     let altered = second.replacen(needle, r#"\"Total\":3,\"Messages\""#, 1);
-    fs::write(&browser, format!("{before}{altered}"))
+    install_script(&browser, format!("{before}{altered}"))
         .expect("change only the second provider-reported list total");
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1455,7 +1464,7 @@ fn malformed_attached_session_ids_fail_before_runtime_origin_evaluation() {
         let from = "\"sessionId\":\"session-1\"";
         assert!(script.contains(from));
         let to = format!("\"sessionId\":{}", json!(invalid));
-        fs::write(&browser, script.replace(from, &to))
+        install_script(&browser, script.replace(from, &to))
             .expect("replace attached CDP session result");
         let mut managed =
             // jig-ignore-next-line: canonical rustfmt line.
@@ -1489,7 +1498,7 @@ fn maximal_safe_cdp_target_and_session_handles_work_without_log_exposure() {
     let from = r#""sessionId":"session-1""#;
     let to = format!(r#""sessionId":{}"#, json!(session_id));
     assert!(script.contains(from));
-    fs::write(&browser, script.replace(from, &to))
+    install_script(&browser, script.replace(from, &to))
         .expect("install maximum-length synthetic session handle");
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1539,7 +1548,7 @@ fn wrong_session_reply_with_current_command_id_cannot_spoof_enable() {
             // jig-ignore-next-line: canonical rustfmt line.
             "      printf '{{\"id\":%s,{session_json},\"result\":{{}}}}\\0' \"$id\" >&4\n{reply}"
         );
-        fs::write(&browser, script.replacen(reply, &unsolicited, 1))
+        install_script(&browser, script.replacen(reply, &unsolicited, 1))
             .expect("install cross-session reply ahead of actual reply");
         let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
             .expect("launch private-pipe fake Chrome");
@@ -1583,7 +1592,7 @@ fn matching_explicit_cdp_session_reply_is_accepted() {
         // jig-ignore-next-line: canonical rustfmt line.
         "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"result\":{}}\\0' \"$id\" >&4;;";
     assert!(script.contains(original));
-    fs::write(&browser, script.replacen(original, explicit, 1))
+    install_script(&browser, script.replacen(original, explicit, 1))
         // jig-ignore-next-line: canonical rustfmt line.
         .expect("add matching explicit session to Network.enable acknowledgement");
     let mut managed =
@@ -1765,7 +1774,7 @@ fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
         let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
         assert!(script.contains(reply));
         let inserted = format!("      printf '%s\\0' '{frame}' >&4\n{reply}");
-        fs::write(&browser, script.replacen(reply, &inserted, 1))
+        install_script(&browser, script.replacen(reply, &inserted, 1))
             .expect("inject malformed CDP event before authentic enable reply");
         let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
             .expect("launch isolated synthetic browser");
@@ -1806,13 +1815,14 @@ fn malformed_chromium_handshake_releases_owned_profile_for_retry() {
         let product = r#""product":"FakeChrome/1""#;
         assert!(script.contains(product));
         let invalid_product = format!("\"product\":{invalid}");
-        fs::write(&browser, script.replace(product, &invalid_product))
+        install_script(&browser, script.replace(product, &invalid_product))
             .expect("inject malformed browser version result");
         assert!(matches!(
             ManagedBrowser::launch(&plan),
             Err(BrowserDriverError::Protocol)
         ));
-        fs::write(&browser, &script).expect("restore valid isolated browser");
+        let restored = install_script(&browser, &script);
+        restored.expect("restore valid isolated browser");
         let mut resumed = ManagedBrowser::launch(&plan)
             // jig-ignore-next-line: canonical rustfmt line.
             .expect("malformed handshake must release the dedicated-profile lease");
@@ -1838,7 +1848,7 @@ fn bounded_chromium_product_marker_is_accepted_at_the_boundary() {
     let product = r#""product":"FakeChrome/1""#;
     assert!(script.contains(product));
     let bounded = format!("\"product\":{}", json!("P".repeat(256)));
-    fs::write(&browser, script.replace(product, &bounded))
+    install_script(&browser, script.replace(product, &bounded))
         .expect("install exact maximum-length product marker");
     let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
         .expect("bounded browser product marker is valid");
@@ -1871,7 +1881,7 @@ fn invisible_network_request_id_never_triggers_response_body_fetch() {
     let script = fs::read_to_string(&browser).expect("read synthetic Network fixture");
     assert!(script.contains("list-1"));
     let disguised = "list-\u{200b}1";
-    fs::write(&browser, script.replace("list-1", disguised))
+    install_script(&browser, script.replace("list-1", disguised))
         .expect("inject hidden-Unicode ID in a matching list lifecycle");
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1922,4 +1932,91 @@ fn managed_browser_uses_exact_non_utf8_profile_argument() {
     );
     drop(managed);
     fs::remove_dir_all(root).expect("remove synthetic browser tree");
+}
+
+#[test]
+fn synthetic_browser_rewrite_does_not_execute_an_open_writer_inode() {
+    use std::fs::OpenOptions;
+
+    let root = test_root("script-writer-atomicity");
+    fs::create_dir_all(&root).expect("create isolated synthetic browser root");
+    let browser = fake_browser(
+        &root,
+        r#"[{"targetId":"p","type":"page","url":"https://mail.proton.me/"}]"#,
+        "mail.proton.me",
+    );
+    let old_writer = OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("keep previous executable inode open for writing");
+    let script = fs::read(&browser).expect("read synthetic source bytes");
+    install_script(&browser, script).expect("rewrite executable test fixture");
+    let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
+        .expect("synthetic executable must not be text-busy");
+    assert_eq!(
+        managed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(managed);
+    drop(old_writer);
+    cleanup(&root);
+}
+
+#[test]
+fn transient_executable_text_busy_recovers_after_writer_closes() {
+    use std::fs::OpenOptions;
+    use std::thread;
+    use std::time::Duration;
+
+    let root = test_root("transient-text-busy");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    // jig-ignore-next-line: indivisible synthetic target fixture.
+    let targets = r#"[{"targetId":"p","type":"page","url":"https://mail.proton.me/"}]"#;
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let writer = OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("keep synthetic executable temporarily text-busy");
+    let release = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(45));
+        drop(writer);
+    });
+    let attempt = ManagedBrowser::launch(&plan(&root, &browser));
+    release.join().expect("synthetic writer released");
+    let mut managed = attempt.expect("text-busy launch must recover");
+    assert_eq!(
+        managed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
+fn permanently_text_busy_browser_fails_closed_and_releases_lease() {
+    use std::fs::OpenOptions;
+
+    let root = test_root("permanent-text-busy");
+    fs::create_dir_all(&root).expect("create synthetic busy root");
+    // jig-ignore-next-line: indivisible synthetic Mail target fixture.
+    let targets = r#"[{"targetId":"p","type":"page","url":"https://mail.proton.me/"}]"#;
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let writer = OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("hold executable writable for entire retry budget");
+    let plan = plan(&root, &browser);
+    assert!(matches!(
+        ManagedBrowser::launch(&plan),
+        Err(BrowserDriverError::BrowserLaunch)
+    ));
+    drop(writer);
+    let mut resumed = ManagedBrowser::launch(&plan)
+        .expect("exhausted startup retries must release the profile lease");
+    assert_eq!(
+        resumed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(resumed);
+    cleanup(&root);
 }

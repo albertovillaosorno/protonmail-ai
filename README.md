@@ -114,6 +114,10 @@ private `--remote-debugging-pipe`, inherited only as child file descriptors 3
 and 4. It never opens a remote-debugging TCP port. Responses are bounded and
 timed out, and provider discovery accepts exactly one Proton Mail/Account page.
 
+Transient Linux executable `ETXTBSY` launch failures can be retried with a
+strictly bounded budget. Other launch errors fail immediately. The exclusive
+profile lease remains held through each launch attempt.
+
 The driver re-checks that page from its execution context by evaluating only
 `location.protocol`, `location.hostname`, and `location.port`; it never requests
 storage, cookies, message data, or authentication values for this check. A

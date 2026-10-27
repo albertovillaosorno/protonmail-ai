@@ -1178,6 +1178,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - Pagination and sort clicks now refuse ARIA-disabled controls.
 - Node DOM test confirms visible row projection and hidden-heading refusal.
 - Three Network body-envelope decoders now reject unrecognized fields.
+- Synthetic Chromium fixtures now install through synchronized staged files
+  and atomic replacement, never opening the executable inode for writing.
+  A deterministic test previously reproduced Linux `ETXTBSY` under a held
+  writer. Managed launch retries only that exact OS errno for at most twelve
+  10 ms intervals, while retaining its exclusive profile lease; persistent
+  text-busy and other launch errors remain fail-closed. Synthetic tests
+  prove temporary recovery and failure/lease cleanup after exhaustion.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
