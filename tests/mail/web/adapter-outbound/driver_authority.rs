@@ -807,7 +807,9 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
     source.push_str(
         "
 globalThis.location={origin:'https://mail.proton.me'};
-globalThis.getComputedStyle=()=>({visibility:'visible'});
+let subjectOpacity='1', senderOpacity='1';
+globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ opacity:node===heading?subjectOpacity:node===sender?senderOpacity:'1'});
 const heading={id:'heading-id',getAttribute:()=> 'synthetic subject',
   getClientRects:()=>[{}],closest:()=>null};
 const sender={getAttribute:()=> 'sender@example.test',
@@ -829,6 +831,11 @@ const hidden=eval(script);
 if(!Array.isArray(hidden)||hidden.length!==1||hidden[0]!==null){
  throw Error('hidden subject remained readable');
 }
+heading.getClientRects=()=>[{}];
+subjectOpacity='0';
+if(eval(script)[0]!==null){throw Error('opacity-zero heading exposed');}
+subjectOpacity='1';senderOpacity='0';
+if(eval(script)[0]!==null){throw Error('opacity-zero sender exposed');}
 ",
     );
     let result = Command::new("node")
@@ -856,14 +863,18 @@ fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  pointerEvents:node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
- opacity:'1'});
+ opacity:node===row?rowOpacity:node===current?currentOpacity:
+ node===empty?emptyOpacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
-let pointerBlocked=false;
+let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
+let showEmpty=false,emptyOpacity='1';
 const row={getAttribute:()=> 'synthetic-row',
  getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
+const empty={getClientRects:()=>[{}],closest:()=>null};
 const loaded={querySelectorAll:(q)=>q.includes(':not(')?[]:
- q.includes('empty-view-placeholder')?[]:[row]};
+ q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
+ (showEmpty?[]:[row])};
 const next=new HTMLButtonElement();
 next.disabled=false;
 next.getClientRects=()=>[{}];
@@ -885,6 +896,19 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
 rowHidden=true;
 if(eval(expression)!==null){throw Error('hidden row was accepted');}
 rowHidden=false;
+rowOpacity='0';
+if(eval(expression)!==null){throw Error('opacity-zero row was accepted');}
+rowOpacity='1';
+currentOpacity='0';
+if(eval(expression)!==null){throw Error('invisible page was accepted');}
+currentOpacity='1';
+showEmpty=true;nextDisabled=true;
+if(eval(expression).emptyMarker!==true){
+ throw Error('visible explicit-empty title was not detected');
+}
+emptyOpacity='0';
+if(eval(expression)!==null){throw Error('invisible empty title was accepted');}
+emptyOpacity='1';showEmpty=false;nextDisabled=false;
 showLoading=true;
 if(eval(expression)!==null){throw Error('two active roots were accepted');}
 showLoading=false;
@@ -932,6 +956,7 @@ fn live_javascript_sort_menu_clicks_only_safe_visible_controls() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
+let optionOpacity='1';
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const option={getClientRects:()=>hidden?[]:[{}],closest:()=>null};
@@ -940,8 +965,9 @@ toggle.getClientRects=()=>[{}];toggle.closest=()=>null;
 toggle.getAttribute=()=>disabled?'true':null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
-globalThis.getComputedStyle=()=>({
- visibility:'visible',pointerEvents:'auto',opacity:'1'});
+globalThis.getComputedStyle=(node)=>({
+ visibility:'visible',pointerEvents:'auto',
+ opacity:node===option?optionOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:(q)=>q.includes('filter-dropdown:show-filters')?[toggle]:
  ids.some(id=>q.includes(id))?(isOpen?[option]:[]):[]};
@@ -958,6 +984,11 @@ if(eval(close)!==false||clicks!==1){
  throw Error('hidden sort options triggered close');
 }
 hidden=false;
+optionOpacity='0';
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('opacity-zero sort option was actionable');
+}
+optionOpacity='1';
 if(eval(close)!==true||clicks!==2||isOpen){
  throw Error('closing did not perform exactly one click');
 }

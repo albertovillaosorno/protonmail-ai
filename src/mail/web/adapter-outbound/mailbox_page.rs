@@ -77,7 +77,9 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "localHeading.closest('[aria-hidden=\"true\"]')||",
     "sender.closest('[aria-hidden=\"true\"]')||",
     "getComputedStyle(localHeading).visibility!=='visible'||",
-    "getComputedStyle(sender).visibility!=='visible'){return null;}",
+    "getComputedStyle(sender).visibility!=='visible'||",
+    "getComputedStyle(localHeading).opacity==='0'||",
+    "getComputedStyle(sender).opacity==='0'){return null;}",
     // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
     "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
     "addresses:sender?sender.getAttribute('title'):null,",

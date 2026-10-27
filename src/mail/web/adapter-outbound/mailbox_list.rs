@@ -60,6 +60,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(real.length>200||real.some((row)=>",
     "row.getClientRects().length===0||",
     "getComputedStyle(row).visibility!=='visible'||",
+    "getComputedStyle(row).opacity==='0'||",
     "row.closest('[aria-hidden=\"true\"]'))){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
@@ -69,6 +70,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "const emptyNode=emptyNodes[0];",
     "if(emptyNode&&(emptyNode.getClientRects().length===0||",
     "getComputedStyle(emptyNode).visibility!=='visible'||",
+    "getComputedStyle(emptyNode).opacity==='0'||",
     "emptyNode.closest('[aria-hidden=\"true\"]'))){return null;}",
     "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -79,6 +81,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "const next=nextNodes[0],current=currentNodes[0];",
     "if(current&&(current.getClientRects().length===0||",
     "getComputedStyle(current).visibility!=='visible'||",
+    "getComputedStyle(current).opacity==='0'||",
     "current.closest('[aria-hidden=\"true\"]'))){return null;}",
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.getClientRects().length===0||",

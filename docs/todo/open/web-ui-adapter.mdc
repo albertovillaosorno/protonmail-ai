@@ -1211,6 +1211,10 @@ web application without requiring Bridge or a third-party direct API identity.
   exactly the owned `body` and `base64Encoded` fields, including conversation
   list/detail, catalog, and bootstrap/poll event response bodies. Extra CDP
   response fields fail closed rather than silently expanding metadata scope.
+- Opacity-zero decoy controls/content are now rejected by subject and
+  sender row projections, loaded list rows, explicit-empty markers, current
+  page markers, and sort selections. Node-executed synthetic DOM fixtures
+  exercise opacity-based hiding independently from layout and ARIA hiding.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
