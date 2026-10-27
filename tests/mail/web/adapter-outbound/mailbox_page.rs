@@ -117,17 +117,17 @@ while IFS= read -r -d '' message <&3; do
       printf '{{"id":%s,"result":{{"targetInfos":%s}}}}\0' "$id" "$target" >&4;;
     *'Target.attachToTarget'*)
       printf '{{"id":%s,"result":{{"sessionId":"session-1"}}}}\0' "$id" >&4;;
-    *'Runtime.evaluate'*'message-list-loading'*)
-      list_probe=$((list_probe + 1))
-      value='{before}'
-      if [ "$list_probe" -gt 1 ]; then value='{after}'; fi
-      response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
-      response+='"value":'"$value"'}}}}}}'
-      printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
       row_probe=$((row_probe + 1))
       value='{first_rows}'
       if [ "$row_probe" -gt 1 ]; then value='{second_rows}'; fi
+      response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
+      response+='"value":'"$value"'}}}}}}'
+      printf '%s\0' "$response" >&4;;
+    *'Runtime.evaluate'*'message-list-loading'*)
+      list_probe=$((list_probe + 1))
+      value='{before}'
+      if [ "$list_probe" -gt 1 ]; then value='{after}'; fi
       response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
       response+='"value":'"$value"'}}}}}}'
       printf '%s\0' "$response" >&4;;
@@ -381,8 +381,15 @@ fn list_change_during_final_shell_recheck_invalidates_snapshot() {
         // jig-ignore-next-line: indivisible fake-browser shell fragment.
         format!("      if [ \"$list_probe\" -gt 2 ]; then value='{CHANGED_LIST}'; fi\n{marker}");
     assert!(script.contains(marker));
-    // jig-ignore-next-line: canonical rustfmt line.
-    fs::write(&browser, script.replacen(marker, &late_change, 1)).expect("install late list drift");
+    // The content branch also constructs CDP result frames. Inject only
+    // after the list branch, not at the first generic response constructor.
+    let branch = script
+        .find("*'Runtime.evaluate'*'message-list-loading'*)")
+        .expect("synthetic list branch");
+    let (prefix, suffix) = script.split_at(branch);
+    let changed = suffix.replacen(marker, &late_change, 1);
+    let updated = format!("{prefix}{changed}");
+    fs::write(&browser, updated).expect("install late list drift");
     let plan = plan(&root, &browser);
     // jig-ignore-next-line: canonical rustfmt line.
     let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");

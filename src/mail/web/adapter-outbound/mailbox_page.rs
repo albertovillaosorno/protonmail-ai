@@ -58,6 +58,11 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "if(document.querySelector('[role=\"dialog\"],",
     "[role=\"alertdialog\"],dialog[open],",
     "[aria-modal=\"true\"]')){return null;}",
+    // An active loading root makes a content projection transitional, even
+    // if a previously loaded list is still mounted in the same browser task.
+    // jig-ignore-next-line: indivisible JavaScript query fragment.
+    "const loadingRoots=[...document.querySelectorAll('[data-testid=\"message-list-loading\"]')];",
+    "if(loadingRoots.length!==0){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const roots=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
     "if(roots.length!==1){return null;}",

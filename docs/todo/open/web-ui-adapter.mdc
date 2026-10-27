@@ -1325,6 +1325,12 @@ web application without requiring Bridge or a third-party direct API identity.
   from entering CDP on an ultimately rejected read. Content-free list
   projections reject duplicate IDs in Chromium before serialization too.
   Node-backed red-first regressions check non-exposure in both cases.
+- Atomic content-bearing row projection now refuses a concurrently
+  mounted `message-list-loading` subtree before touching message text,
+  even if an old loaded list remains in the DOM. A red-first Node fixture
+  verifies it does not read headings under the loading overlay, and the
+  synthetic browser harness separates row and list expression branches so
+  the final-shell list-drift regression keeps testing the correct boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

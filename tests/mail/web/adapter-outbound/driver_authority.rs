@@ -834,6 +834,7 @@ let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let duplicateRows=false,titleReads=0,invalidSecondRow=false;
+let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
@@ -861,7 +862,8 @@ const root={querySelectorAll:()=>duplicateRows?[row,row]:
 globalThis.document={querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
- querySelectorAll:()=>[root]};
+ querySelectorAll:(q)=>q.includes('message-list-loading')?
+ (loadingOverlay?[{}]:[]):[root]};
 const projected=eval(script);
 if(!Array.isArray(projected)||projected.length!==1||
  projected[0].id!=='row-a'||projected[0].subject!=='synthetic subject'||
@@ -871,7 +873,10 @@ if(!Array.isArray(projected)||projected.length!==1||
 duplicateRows=true;titleReads=0;
 if(eval(script)!==null){throw Error('duplicate IDs were projected');}
 if(titleReads!==0){throw Error('duplicate IDs caused content reads');}
-duplicateRows=false;invalidSecondRow=true;
+duplicateRows=false;loadingOverlay=true;titleReads=0;
+if(eval(script)!==null){throw Error('loading overlay leaked content');}
+if(titleReads!==0){throw Error('loading overlay caused title access');}
+loadingOverlay=false;invalidSecondRow=true;
 if(eval(script)!==null){
  throw Error('partial content released despite invalid row');
 }
