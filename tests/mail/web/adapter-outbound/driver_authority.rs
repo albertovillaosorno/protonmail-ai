@@ -855,9 +855,11 @@ fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
         "
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
- pointerEvents:node===next&&nextDisabled?'none':'auto',opacity:'1'});
+ pointerEvents:node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
+ opacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
+let pointerBlocked=false;
 const row={getAttribute:()=> 'synthetic-row',
  getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
 const loaded={querySelectorAll:(q)=>q.includes(':not(')?[]:
@@ -891,6 +893,11 @@ if(eval(expression).nextDisabled!==true){
  throw Error('disabled Next with pointer-events none must remain observable');
 }
 nextDisabled=false;
+pointerBlocked=true;
+if(eval(expression)!==null){
+ throw Error('enabled Next with pointer-events none was accepted');
+}
+pointerBlocked=false;
 next.getClientRects=()=>[];
 if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
 ",
@@ -1001,4 +1008,66 @@ fn loading_list_rejects_malformed_ignored_projection_fields() {
         evidence[key] = invalid;
         assert!(MailboxListEvidence::from_runtime_value(&evidence).is_err());
     }
+}
+
+#[test]
+fn live_javascript_next_click_requires_one_actionable_control() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let expression = NextPageActivation::expression();
+    let encoded_json = serde_json::to_string(expression);
+    let encoded = encoded_json.expect("static next-page source");
+    let mut source = format!("const script={encoded};\n");
+    source.push_str(
+        "
+let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.HTMLButtonElement=class {};
+const next=new HTMLButtonElement();
+next.getAttribute=(key)=>key==='aria-disabled'&&disabled?'true':null;
+next.getClientRects=()=>hidden?[]:[{}];
+next.closest=()=>null;
+next.click=()=>{clicks++;};
+Object.defineProperty(next,'disabled',{get:()=>disabled});
+globalThis.getComputedStyle=()=>({visibility:'visible',
+ pointerEvents:'auto',opacity:'1'});
+globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+ querySelectorAll:()=>duplicate?[next,next]:[next]};
+if(eval(script).clicked!==true||clicks!==1){
+ throw Error('enabled Next did not click exactly once');
+}
+disabled=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('ARIA-disabled Next was clicked');
+}
+disabled=false;hidden=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('layout-hidden Next was clicked');
+}
+hidden=false;duplicate=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('ambiguous Next was clicked');
+}
+duplicate=false;modal=true;
+if(eval(script)!==null||clicks!==1){
+ throw Error('modal allowed Next interaction');
+}
+modal=false;globalThis.location.origin='https://mail.evil.test';
+if(eval(script)!==null||clicks!==1){
+ throw Error('foreign origin allowed Next interaction');
+}
+",
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("evaluate synthetic Next click");
+    assert!(
+        output.status.success(),
+        "audited Next click violated synthetic control state: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
