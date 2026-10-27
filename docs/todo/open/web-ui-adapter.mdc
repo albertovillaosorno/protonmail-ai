@@ -1172,6 +1172,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - The eight audited read-and-sort JavaScript scripts are compiled and
   denied on foreign origins by a Node-backed regression when available;
   minimal Rust-only environments may skip the optional Node check.
+- The exact message-list Network diagnostic rejects percent-encoded
+  query keys, including raw aliases of `Sort`, `Page`, and `BeginID`.
+  Provider and adapter cannot disagree about critical selector names.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

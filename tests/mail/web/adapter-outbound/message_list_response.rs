@@ -1181,3 +1181,22 @@ fn message_reconciliation_rejects_total_contradictions() {
         .expect("explicit empty page with zero provider total remains consistent");
     assert_eq!(empty.messages().len(), 0);
 }
+
+#[test]
+fn encoded_query_key_aliases_cannot_establish_provider_sort_evidence() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+    // jig-ignore-next-line: canonical alias fixture.
+    let aliases = ["%53ort=Size", "So%72t=Size", "%42eginID=hidden", "Pa%67e=2"];
+    for alias in aliases {
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let url = format!("{URL}&{alias}");
+        let result = capture.observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"synthetic",
+                "request":{"method":"GET","url":url}}
+        }));
+        assert_eq!(result, Err(MessageListNetworkError::MalformedEvent));
+    }
+}

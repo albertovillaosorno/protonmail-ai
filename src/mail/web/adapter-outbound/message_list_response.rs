@@ -601,6 +601,9 @@ fn raw_query_parameter<'url>(
     let mut found = None;
     for pair in query.split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+        if key.contains('%') {
+            return Err(MessageListNetworkError::MalformedEvent);
+        }
         if key != name {
             continue;
         }
