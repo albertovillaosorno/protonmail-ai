@@ -363,6 +363,12 @@ Ship useful read access before any mailbox mutation is enabled.
   Network cleanup, and continued same-session CDP readiness without exposing
   the malformed detail metadata.
 
+- Provider-neutral attachment filename sanitization now replaces Unicode
+  line separators, bidirectional and invisible formatting controls, and
+  blank-looking filler characters with underscores. Red-first pure-domain
+  regressions cover extension-spoofing names while preserving real Unicode
+  letters in otherwise safe filenames.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.

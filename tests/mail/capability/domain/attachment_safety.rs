@@ -48,6 +48,24 @@ fn filename_sanitization_preserves_unicode_but_removes_path_semantics() {
 }
 
 #[test]
+fn filename_sanitization_neutralizes_spoofing_format_controls() {
+    for (untrusted, expected) in [
+        ("photo\u{202e}gpj.exe", "photo_gpj.exe"),
+        ("report\u{2028}other.pdf", "report_other.pdf"),
+        ("account\u{2029}hidden.txt", "account_hidden.txt"),
+        ("word\u{200b}joiner.md", "word_joiner.md"),
+        ("file\u{2066}name\u{2069}.pdf", "file_name_.pdf"),
+        ("hidden\u{feff}.txt", "hidden_.txt"),
+        ("test\u{3164}.txt", "test_.txt"),
+    ] {
+        let safe = SanitizedAttachmentFilename::new(untrusted);
+        assert_eq!(safe.as_str(), expected);
+    }
+    let normal = "r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert_eq!(SanitizedAttachmentFilename::new(normal).as_str(), normal);
+}
+
+#[test]
 fn filename_sanitization_handles_empty_hidden_and_reserved_names() {
     assert_eq!(SanitizedAttachmentFilename::new("").as_str(), "attachment");
     assert_eq!(
