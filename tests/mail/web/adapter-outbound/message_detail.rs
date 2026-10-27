@@ -588,6 +588,43 @@ fn managed_browser_passively_observes_detail_without_navigation() {
 }
 
 #[test]
+fn malformed_display_subject_disables_passive_capture() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic browser fixture");
+    let root = detail_browser_root("line-separator-subject");
+    fs::create_dir_all(&root).expect("create synthetic detail root");
+    let browser = fake_detail_browser(&root, true, false);
+    let script = fs::read_to_string(&browser).expect("read synthetic fixture");
+    let original = "\"Subject\":\"subject\",";
+    assert!(script.contains(original));
+    let unsafe_subject = "\"Subject\":\"subject\u{2028}injected\",";
+    fs::write(&browser, script.replace(original, unsafe_subject))
+        .expect("install injected metadata fixture");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build isolated browser plan");
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch browser");
+    let page = managed.provider_page().expect("find Mail page");
+    assert_eq!(
+        managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::MessageDetailResponse(
+            MessageDetailResponseError::Malformed,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("CDP is still synchronized");
+    drop(managed);
+    let log_path = root.join("detail-log.txt");
+    let log = fs::read_to_string(log_path).expect("read Network lifecycle");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("clean synthetic fixture");
+}
+
+#[test]
 fn managed_browser_passive_detail_timeout_performs_no_provider_action() {
     let _guard = DETAIL_BROWSER_TEST_LOCK
         .lock()

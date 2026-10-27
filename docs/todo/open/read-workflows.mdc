@@ -358,6 +358,11 @@ Ship useful read access before any mailbox mutation is enabled.
   with the visible-row boundary before later public read or reply mapping.
   Synthetic red-first fixtures preserve ordinary Unicode metadata.
 
+- A complete fake-browser message-detail regression now injects a Unicode
+  line separator into the provider subject and verifies projection refusal,
+  Network cleanup, and continued same-session CDP readiness without exposing
+  the malformed detail metadata.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.
