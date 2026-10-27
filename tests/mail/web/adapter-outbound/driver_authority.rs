@@ -920,6 +920,7 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  node===empty?emptyOpacity:node===ancestor?ancestorOpacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
+let fieldsetDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let modal=false,rootInert=false,nextParentDisabled=false;
@@ -941,6 +942,7 @@ next.getClientRects=()=>[{}];
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
  nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
+next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 const current={getClientRects:()=>[{}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
@@ -990,7 +992,11 @@ nextDisabled=false;nextParentDisabled=true;
 if(eval(expression).nextDisabled!==true){
  throw Error('inherited disabled Next was reported enabled');
 }
-nextParentDisabled=false;
+nextParentDisabled=false;fieldsetDisabled=true;
+if(eval(expression).nextDisabled!==true){
+ throw Error('fieldset-disabled Next reported enabled');
+}
+fieldsetDisabled=false;
 rowId='A'.repeat(513);
 if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
 rowId='synthetic-row';
@@ -1033,6 +1039,7 @@ if(eval(expression)!==null){throw Error('modal exposed list state');}
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "synthetic sort DOM state matrix")]
 fn live_javascript_sort_menu_clicks_only_safe_visible_controls() {
     use std::process::Command;
 
@@ -1052,7 +1059,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
-let sortInert=false,parentAriaDisabled=false;
+let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
@@ -1068,6 +1075,7 @@ toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
 toggle.getAttribute=()=>disabled?'true':null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
+toggle.matches=(q)=>q===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({
  visibility:'visible',pointerEvents:'auto',
  opacity:node===option?optionOpacity:
@@ -1113,7 +1121,11 @@ sortInert=false;parentAriaDisabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('ARIA-disabled sort parent permitted a click');
 }
-parentAriaDisabled=false;disabled=true;
+parentAriaDisabled=false;fieldsetDisabled=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('fieldset-disabled sort toggle permitted click');
+}
+fieldsetDisabled=false;disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
 }
@@ -1177,6 +1189,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
+let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 const parent={parentElement:null};
@@ -1188,6 +1201,7 @@ next.closest=(q)=>(parentInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
 next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
+next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  pointerEvents:'auto',opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
@@ -1209,7 +1223,11 @@ parentInert=false;parentAriaDisabled=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('ARIA-disabled parent permitted a click');
 }
-parentAriaDisabled=false;hidden=true;
+parentAriaDisabled=false;fieldsetDisabled=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('fieldset-disabled Next permitted a click');
+}
+fieldsetDisabled=false;hidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('layout-hidden Next was clicked');
 }

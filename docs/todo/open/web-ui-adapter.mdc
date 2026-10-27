@@ -1263,6 +1263,10 @@ web application without requiring Bridge or a third-party direct API identity.
   characters, encoded path separators, invisible formatting, and dot-only
   aliases before they can traverse CDP. Synthetic Node tests cover both
   rejected aliases and valid Unicode IDs; Rust repeats the ID checks.
+- Native HTML fieldset disabling is now observed via `:disabled`,
+  not only a button's own `disabled` or ARIA state. The Next-page evidence,
+  navigation click, and sort-menu click all refuse inherited disabled
+  fieldsets, with red-first synthetic live-JavaScript regressions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
