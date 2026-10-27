@@ -738,3 +738,40 @@ fn audited_dom_expressions_parse_and_reject_foreign_origins_in_node() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn live_javascript_search_mode_rejects_malformed_routes() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let encoded = serde_json::to_string(MailboxModeEvidence::expression())
+        .expect("serialize audited mode expression");
+    let mut source = format!("const expression={encoded};\n");
+    source.push_str(
+        "
+globalThis.document={querySelector:()=>null};
+for(const [path,hash,expected] of [
+  ['/u/0/inbox','#keyword=valid',true],
+  ['/u/00/inbox','#keyword=valid',null],
+  ['/u/0/inbox/nested','#keyword=valid',null],
+  ['/inbox/extra','#keyword=valid',null],
+  ['/u/0/sent','',true],
+  ['/u/0/inbox','',false],
+  ['/sent','',true],
+  ['/','',null]
+]){
+  globalThis.location={origin:'https://mail.proton.me',pathname:path,hash};
+  const result=eval(expression);
+ const actual=result===null?null:result.forcedMessageRoute||result.activeSearch;
+  if(actual!==expected){throw Error('invalid mode proof for '+path);}
+}
+",
+    );
+    let result = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("execute synthetic mode proof");
+    assert!(result.status.success(), "synthetic mode proof failed");
+}

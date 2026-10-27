@@ -107,3 +107,8 @@ fn forced_message_routes_require_exact_scoped_path_shape() {
     assert!(MODE_SOURCE.contains("location.pathname.includes('//')"));
     assert!(MODE_SOURCE.contains("account.length<=10"));
 }
+
+#[test]
+fn malformed_mail_routes_cannot_authorize_search_message_mode() {
+    assert!(MODE_SOURCE.contains("if(!validRoute){return null;}"));
+}

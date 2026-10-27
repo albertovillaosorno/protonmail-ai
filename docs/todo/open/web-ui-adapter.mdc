@@ -1166,6 +1166,12 @@ web application without requiring Bridge or a third-party direct API identity.
   expressions in Node and confirmed that each denies foreign origins. A
   synthetic DOM then proved visible subject/sender projection and rejection
   of hidden headings; this complements (not replaces) Chromium acceptance.
+- Message-mode proof now requires exact valid Mail route structure
+  even when a recognized search fragment is present. Node synthetic
+  cases cover padded and nested account paths plus valid routes.
+- The eight audited read-and-sort JavaScript scripts are compiled and
+  denied on foreign origins by a Node-backed regression when available;
+  minimal Rust-only environments may skip the optional Node check.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
