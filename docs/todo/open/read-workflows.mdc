@@ -373,6 +373,11 @@ Ship useful read access before any mailbox mutation is enabled.
   now have synthetic regressions proving that bidi-spoofed provider filenames
   retain only a neutralized saved-name leaf, while Debug remains redacted.
 
+- Caller-supplied attachment output destinations now reject the same invisible
+  Unicode and direction controls as provider filenames, rather than allowing
+  a misleading path leaf to cross the portable relative-path boundary.
+  Synthetic tests prove rejection and preserve ordinary Unicode directories.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.

@@ -114,17 +114,18 @@ impl AttachmentRelativePath {
     /// # Errors
     ///
     /// Rejects empty/absolute destinations, parent traversal, backslashes,
-    /// NUL/control characters, and colon syntax that could become a Windows
-    /// drive or alternate-data-stream path on another supported platform.
+    /// NUL/control and hidden Unicode formatting characters, and colon
+    /// syntax that could form Windows drives or alternate-data-stream paths.
     pub fn new(untrusted: &str) -> Result<Self, AttachmentPathError> {
         if untrusted.is_empty() {
             return Err(AttachmentPathError::Empty);
         }
-        if untrusted
-            .chars()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .any(|character| character == '\\' || character == ':' || character.is_control())
-        {
+        if untrusted.chars().any(|character| {
+            character == '\\'
+                || character == ':'
+                || character.is_control()
+                || unsafe_filename_format(character)
+        }) {
             return Err(AttachmentPathError::UnsupportedSyntax);
         }
 
@@ -188,14 +189,22 @@ const fn unsafe_filename_character(character: char) -> bool {
         || matches!(
             character,
             '/' | '\\' | '<' | '>' | ':' | '"' | '|' | '?' | '*'
-                | '\u{00ad}' | '\u{034f}' | '\u{061c}'
-                | '\u{115f}' | '\u{1160}' | '\u{180b}'..='\u{180e}'
-                | '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}'
-                | '\u{2060}'..='\u{206f}' | '\u{2800}' | '\u{3164}'
-                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
-                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
-                | '\u{e0100}'..='\u{e01ef}'
         )
+        || unsafe_filename_format(character)
+}
+
+// Unicode formatting characters can disguise file extensions or path leaves.
+const fn unsafe_filename_format(character: char) -> bool {
+    matches!(
+        character,
+        '\u{00ad}' | '\u{034f}' | '\u{061c}'
+            | '\u{115f}' | '\u{1160}' | '\u{180b}'..='\u{180e}'
+            | '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}'
+            | '\u{2060}'..='\u{206f}' | '\u{2800}' | '\u{3164}'
+            | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
+            | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+            | '\u{e0100}'..='\u{e01ef}'
+    )
 }
 
 fn windows_reserved_filename(filename: &str) -> bool {

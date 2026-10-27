@@ -141,6 +141,29 @@ fn relative_destination_rejects_traversal_absolute_and_portability_hazards() {
 }
 
 #[test]
+fn relative_destination_rejects_hidden_unicode_path_components() {
+    for input in [
+        "exports/bill\u{202e}fdp.exe",
+        "exports/split\u{2028}line.pdf",
+        "exports/hidden\u{200b}segment/report.pdf",
+        "exports\u{2066}/report\u{2069}.pdf",
+        "exports/\u{3164}/report.pdf",
+    ] {
+        assert_eq!(
+            AttachmentRelativePath::new(input),
+            Err(AttachmentPathError::UnsupportedSyntax)
+        );
+    }
+    let visible = "exports/r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert_eq!(
+        AttachmentRelativePath::new(visible)
+            .expect("ordinary Unicode remains portable")
+            .as_path(),
+        Path::new(visible)
+    );
+}
+
+#[test]
 fn inline_attachment_boundary_is_exactly_thirty_two_kibibytes() {
     let limit = u64::from(MAX_INLINE_ATTACHMENT_BYTES);
     assert!(attachment_fits_inline(0));
