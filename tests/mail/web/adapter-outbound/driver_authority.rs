@@ -788,13 +788,13 @@ fn read_only_sort_clicks_must_refuse_disabled_or_modal_controls() {
         MailboxSortOrder::close_expression(),
     ] {
         assert!(script.contains("nodes[0].disabled"));
-        assert!(script.contains("[role=\"dialog\" i]"));
-        assert!(script.contains("[role=\"alertdialog\" i]"));
+        assert!(script.contains("[role~=\"dialog\" i]"));
+        assert!(script.contains("[role~=\"alertdialog\" i]"));
         assert!(allowed_mail_runtime_expression(script));
     }
     let next = NextPageActivation::expression();
-    assert!(next.contains("[role=\"dialog\" i]"));
-    assert!(next.contains("[role=\"alertdialog\" i]"));
+    assert!(next.contains("[role~=\"dialog\" i]"));
+    assert!(next.contains("[role~=\"alertdialog\" i]"));
 }
 
 #[test]
@@ -1508,7 +1508,7 @@ globalThis.location={{origin:'https://mail.proton.me',
  pathname:'/u/0/inbox',hash:'#keyword=synthetic'}};
 let blocker='';
 globalThis.document={{querySelector:(selector)=>{{
-  if(blocker==='role'&&selector.includes('[role="dialog" i]')){{return {{}};}}
+  if(blocker==='role'&&selector.includes('[role~="dialog" i]')){{return {{}};}}
   if(blocker==='modal'&&
  selector.includes('[aria-modal="true" i]')){{return {{}};}}
   return null;

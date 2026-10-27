@@ -43,8 +43,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
@@ -94,8 +94,8 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
@@ -137,8 +137,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     // Refuse common auth challenge fields immediately before a UI click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return false;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return false;}",
     // Refuse controls hidden by CSS opacity on a parent, not only the node.
     "const visibleTree=(node)=>{let current=node;",
@@ -183,8 +183,8 @@ const SORT_MENU_CLOSED_EXPRESSION: &str = concat!(
     "if(location.origin!=='https://mail.proton.me'){return null;}",
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
     "const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',",
     "'toolbar:sort-desc','toolbar:sort-asc'];",

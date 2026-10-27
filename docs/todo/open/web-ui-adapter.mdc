@@ -1426,3 +1426,9 @@ web application without requiring Bridge or a third-party direct API identity.
   explicit `aria-disabled` reads now treat uppercase `TRUE` as disabling.
   Synthetic Node regressions first reproduced modal and button bypasses, then
   verified case-variant dialog, hidden-subtree, pagination, and sort guards.
+
+- Protective dialog and alertdialog checks now match individual whitespace-
+  delimited ARIA role tokens rather than requiring exact `role` equality.
+  A fallback role list can expose a dialog in the accessibility tree while an
+  exact CSS selector misses it; synthetic modal evidence now requires the
+  case-insensitive token selector to block all audited DOM reads and clicks.

@@ -39,8 +39,8 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     // Refuse common authentication challenge controls immediately before click.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
     "const visibleTree=(node)=>{let current=node;",
     "for(let depth=0;depth<64;depth++){",

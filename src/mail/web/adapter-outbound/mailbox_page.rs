@@ -55,8 +55,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // Do not project mailbox content into a page showing a login challenge.
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
-    "if(document.querySelector('[role=\"dialog\" i],",
-    "[role=\"alertdialog\" i],dialog[open],",
+    "if(document.querySelector('[role~=\"dialog\" i],",
+    "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
     // An active loading root makes a content projection transitional, even
     // if a previously loaded list is still mounted in the same browser task.
