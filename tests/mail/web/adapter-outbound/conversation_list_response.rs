@@ -346,6 +346,28 @@ fn completed_conversation_request_markers_are_bounded_and_redacted() {
 }
 
 #[test]
+fn redirected_into_exact_conversation_list_get_is_rejected() {
+    let mut capture = ConversationListNetworkCapture::new("session-1");
+    capture
+        .observe(&request_event(
+            "session-1",
+            "from-unrelated",
+            "GET",
+            "https://mail.proton.me/other-resource",
+        ))
+        .expect("ignore the first unrelated request hop");
+    let mut redirected = request_event("session-1", "from-unrelated", "GET", URL);
+    redirected["params"]["redirectResponse"] = json!({
+        "url": "https://mail.proton.me/other-resource"
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(ConversationListNetworkError::RedirectedAway)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn network_capture_rejects_redirects_and_repeated_lifecycle_events() {
     let mut redirected = ConversationListNetworkCapture::new("session-a");
     redirected

@@ -163,6 +163,10 @@ impl ConversationDetailNetworkCapture {
         let Some(conversation_id) = conversation_id else {
             return Ok(());
         };
+        // CDP reuses the request ID when an untracked URL redirects here.
+        if params.get("redirectResponse").is_some() {
+            return Err(ConversationDetailNetworkError::RedirectedAway);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
             return Err(ConversationDetailNetworkError::MalformedEvent);

@@ -189,6 +189,10 @@ impl ConversationListNetworkCapture {
         if !exact_get {
             return Ok(());
         }
+        // A redirect may enter the exact endpoint from an ignored request.
+        if params.get("redirectResponse").is_some() {
+            return Err(ConversationListNetworkError::RedirectedAway);
+        }
         if request_id.is_empty()
             || request_id.len() > MAX_CDP_REQUEST_ID_BYTES
             || url.len() > MAX_CONVERSATION_LIST_URL_BYTES

@@ -1365,3 +1365,7 @@ web application without requiring Bridge or a third-party direct API identity.
   the earlier URL was never tracked: CDP reuses request IDs across redirect
   hops, so a redirected GET cannot prove a fresh provider list. A synthetic
   regression covers that previously accepted lifecycle.
+
+- Conversation-list and exact conversation-detail Network observers now also
+  reject redirected-in GETs whose original URL was ignored by the tracker.
+  Synthetic lifecycle tests reproduce both previously accepted hops.

@@ -298,6 +298,28 @@ fn network_capture_tracks_only_exact_unparameterized_get() {
 }
 
 #[test]
+fn redirected_into_exact_conversation_detail_get_is_rejected() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-1");
+    capture
+        .observe(&request_event(
+            "session-1",
+            "from-unrelated",
+            "GET",
+            "https://mail.proton.me/other-resource",
+        ))
+        .expect("ignore the first unrelated request hop");
+    let mut redirected = request_event("session-1", "from-unrelated", "GET", URL);
+    redirected["params"]["redirectResponse"] = json!({
+        "url": "https://mail.proton.me/other-resource"
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(ConversationDetailNetworkError::RedirectedAway)
+    );
+    assert!(capture.take_finished_requests().is_empty());
+}
+
+#[test]
 fn network_capture_allows_failed_app_retry_and_rejects_redirect() {
     let mut capture = ConversationDetailNetworkCapture::new("session-a");
     capture
