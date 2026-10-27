@@ -2120,3 +2120,72 @@ fn repeated_provider_ids_across_initial_and_prefetched_batches_fail_closed() {
     assert_eq!(log, "enable\nreload\nbody\nbody\ndisable\n");
     cleanup(&root);
 }
+
+#[test]
+fn enabled_next_page_cannot_conflict_with_proven_final_provider_total() {
+    let root = test_root("impossible-final-next-page");
+    fs::create_dir_all(&root).expect("create isolated synthetic browser root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser);
+    let source = script.expect("read fake browser script");
+    let original = r#"nextPresent":false,"nextDisabled":null"#;
+    assert!(source.contains(original));
+    let next_enabled = r#"nextPresent":true,"nextDisabled":false"#;
+    let modified = source.replace(original, next_enabled);
+    let installed = install_script(&browser, modified);
+    installed.expect("install impossible Next fixture");
+    let browser_plan = plan(&root, &browser);
+    let launched = ManagedBrowser::launch(&browser_plan);
+    let mut browser_driver = launched.expect("launch synthetic browser");
+    let page = browser_driver.provider_page().expect("find synthetic page");
+    let result = browser_driver.observe_visible_message_metadata(&page);
+    assert_eq!(result, Err(BrowserDriverError::MessageListPageMismatch));
+    drop(browser_driver);
+    cleanup(&root);
+}
+
+#[test]
+fn enabled_next_page_is_consistent_with_remaining_provider_total() {
+    let root = test_root("remaining-next-page");
+    fs::create_dir_all(&root).expect("create isolated synthetic browser root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        true,
+        false,
+        false,
+        "m-1",
+        "0",
+        "2",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser);
+    let source = script.expect("read fake browser script");
+    let original = r#"nextPresent":false,"nextDisabled":null"#;
+    assert!(source.contains(original));
+    let next_enabled = r#"nextPresent":true,"nextDisabled":false"#;
+    let modified = source.replace(original, next_enabled);
+    install_script(&browser, modified).expect("install remaining-page fixture");
+    let browser_plan = plan(&root, &browser);
+    let launched = ManagedBrowser::launch(&browser_plan);
+    let mut browser_driver = launched.expect("launch synthetic browser");
+    let page = browser_driver.provider_page().expect("find synthetic page");
+    let metadata = browser_driver
+        .observe_visible_message_metadata(&page)
+        .expect("Next can remain enabled while provider has more messages");
+    assert_eq!(metadata.messages().len(), 1);
+    drop(browser_driver);
+    cleanup(&root);
+}

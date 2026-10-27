@@ -1341,6 +1341,11 @@ web application without requiring Bridge or a third-party direct API identity.
   rows cannot satisfy visible current-page coverage. A red-first complete
   synthetic CDP transcript exposed an accepted duplicate that first-batch
   reconciliation never examined.
+- Visible Next-page evidence now must agree with an exact provider
+  message-list Total: an enabled Next button when `Total` has already
+  exhausted the current request page fails closed rather than publishing a
+  misleading cursor. Synthetic tests cover the contradictory final-page
+  state and retain an enabled Next when provider Total proves more rows.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

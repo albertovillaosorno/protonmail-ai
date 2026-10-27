@@ -2882,6 +2882,16 @@ impl ManagedBrowser {
             .responses
             .first()
             .ok_or(BrowserDriverError::Protocol)?;
+        let limit = u64::try_from(observed.initial_limit)
+            .map_err(|_error| BrowserDriverError::MessageListPageMismatch)?;
+        let page_end = (u64::from(observed.initial_page) + 1)
+            .checked_mul(limit)
+            .ok_or(BrowserDriverError::MessageListPageMismatch)?;
+        let total_exhausted = first.total() <= page_end;
+        let next_enabled = snapshot.next_page() == NextPageControl::Enabled;
+        if total_exhausted && next_enabled {
+            return Err(BrowserDriverError::MessageListPageMismatch);
+        }
         snapshot
             .reconcile_metadata(from_ref(first))
             .map_err(BrowserDriverError::MessageListReconciliation)
