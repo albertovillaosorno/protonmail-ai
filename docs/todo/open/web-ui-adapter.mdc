@@ -1369,3 +1369,7 @@ web application without requiring Bridge or a third-party direct API identity.
 - Conversation-list and exact conversation-detail Network observers now also
   reject redirected-in GETs whose original URL was ignored by the tracker.
   Synthetic lifecycle tests reproduce both previously accepted hops.
+
+- Exact message-detail, attachment-metadata, and mailbox/label catalog GET
+  observations likewise refuse CDP requests redirected from an ignored URL.
+  Synthetic retry/capture suites now cover the redirected-in ambiguity.

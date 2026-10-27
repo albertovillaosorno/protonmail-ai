@@ -171,6 +171,10 @@ impl AttachmentMetadataNetworkCapture {
         let Some(attachment_id) = attachment_id else {
             return Ok(());
         };
+        // A redirect from an ignored URL cannot establish fresh GET evidence.
+        if params.get("redirectResponse").is_some() {
+            return Err(AttachmentMetadataNetworkError::RedirectedAway);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
             return Err(AttachmentMetadataNetworkError::MalformedEvent);

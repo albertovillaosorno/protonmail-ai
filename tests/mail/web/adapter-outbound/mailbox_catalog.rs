@@ -287,6 +287,29 @@ fn network_capture_tracks_only_exact_mail_category_gets() {
 }
 
 #[test]
+fn redirected_into_exact_mailbox_catalog_get_is_rejected() {
+    let id = "redirected";
+    let mut capture = MailboxCatalogNetworkCapture::new("session-1");
+    capture
+        .observe(&request(
+            "session-1",
+            id,
+            "GET",
+            "https://mail.proton.me/other-resource",
+        ))
+        .expect("ignore initial unrelated request");
+    let mut redirected = request("session-1", id, "GET", LABEL_URL);
+    redirected["params"]["redirectResponse"] = json!({
+        "url": "https://mail.proton.me/other-resource"
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(MailboxCatalogNetworkError::RedirectedAway)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn network_capture_rejects_response_type_drift_and_allows_app_retry() {
     let mut drift = MailboxCatalogNetworkCapture::new("session-a");
     drift

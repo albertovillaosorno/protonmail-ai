@@ -197,6 +197,10 @@ impl MailboxCatalogNetworkCapture {
         let Some(kind) = kind else {
             return Ok(());
         };
+        // A redirect from an ignored URL cannot establish fresh GET evidence.
+        if params.get("redirectResponse").is_some() {
+            return Err(MailboxCatalogNetworkError::RedirectedAway);
+        }
         if tracked {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }

@@ -176,6 +176,10 @@ impl MessageDetailNetworkCapture {
         let Some(message_id) = message_id else {
             return Ok(());
         };
+        // A redirect from an ignored URL cannot establish fresh GET evidence.
+        if params.get("redirectResponse").is_some() {
+            return Err(MessageDetailNetworkError::RedirectedAway);
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
             return Err(MessageDetailNetworkError::MalformedEvent);

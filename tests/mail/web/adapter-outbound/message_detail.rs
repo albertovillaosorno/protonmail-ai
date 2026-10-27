@@ -308,6 +308,29 @@ fn detail_network_capture_tracks_only_exact_get_lifecycle() {
 }
 
 #[test]
+fn redirected_into_exact_message_detail_get_is_rejected() {
+    let id = "redirected";
+    let mut capture = MessageDetailNetworkCapture::new("session-1");
+    capture
+        .observe(&request_event(
+            "session-1",
+            id,
+            "GET",
+            "https://mail.proton.me/other-resource",
+        ))
+        .expect("ignore initial unrelated request");
+    let mut redirected = request_event("session-1", id, "GET", MESSAGE_URL);
+    redirected["params"]["redirectResponse"] = json!({
+        "url": "https://mail.proton.me/other-resource"
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(MessageDetailNetworkError::RedirectedAway)
+    );
+    assert!(capture.take_finished_requests().is_empty());
+}
+
+#[test]
 fn detail_network_capture_rejects_redirect_and_allows_app_retry() {
     let mut capture = MessageDetailNetworkCapture::new("session-a");
     capture
