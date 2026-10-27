@@ -581,7 +581,7 @@ while IFS= read -r -d '' message <&3; do
             value='{"loading":false,"loaded":true,"rowIds":[],"skeletonCount":0,"emptyMarker":true,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
           elif [ "$view" = '__LOADING__' ]; then
             # jig-ignore-next-line: indivisible synthetic shell fixture.
-            value='{"loading":true,"loaded":false,"rowIds":[],"skeletonCount":1,"emptyMarker":false,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
+            value='{"loading":true,"loaded":false,"rowIds":[],"skeletonCount":0,"emptyMarker":false,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'
           else
             # jig-ignore-next-line: indivisible synthetic shell fixture.
             value='{"loading":false,"loaded":true,"rowIds":["'"$view"'"],"skeletonCount":0,"emptyMarker":false,"nextPresent":false,"nextDisabled":null,"currentTestId":null}'

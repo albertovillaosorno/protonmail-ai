@@ -57,7 +57,7 @@ const EMPTY_LIST: &str = r#"{
   "currentTestId":null
 }"#;
 const LOADING_LIST: &str = r#"{
-  "loading":true,"loaded":false,"rowIds":["partial"],"skeletonCount":2,
+  "loading":true,"loaded":false,"rowIds":[],"skeletonCount":0,
   "emptyMarker":false,"nextPresent":false,"nextDisabled":null,
   "currentTestId":null
 }"#;

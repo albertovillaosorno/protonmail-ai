@@ -439,6 +439,16 @@ destination_license=GPL-3.0-only
 modifications=original-rust-visible-row-projection-from-observable-ui-contracts
 
 [file]
+path=tests/mail/web/adapter-outbound/mailbox_page_projection.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-private-rust-visible-row-id-and-text-safety-tests
+
+[file]
 path=tests/mail/web/adapter-outbound/mailbox_page.rs
 origin=fact-informed
 source_id=proton-webclients
