@@ -1379,6 +1379,10 @@ web application without requiring Bridge or a third-party direct API identity.
   navigation, search, or dialog visibility. They retain compatibility with
   Chromium results omitting the optional role field. A red-first fake-CDP
   suite proves rejection without projecting accessible names or mailbox data.
+- Search-mode proof now rejects Mongolian and presentation variation
+  selectors, including supplementary selector range U+E0100-U+E01EF.
+  Node-executed red-first URL fragment fixtures show these visually blank
+  values previously established search mode despite no visible query text.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
