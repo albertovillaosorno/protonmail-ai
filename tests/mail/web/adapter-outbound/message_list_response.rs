@@ -1200,3 +1200,18 @@ fn encoded_query_key_aliases_cannot_establish_provider_sort_evidence() {
         assert_eq!(result, Err(MessageListNetworkError::MalformedEvent));
     }
 }
+
+#[test]
+fn message_list_body_envelope_rejects_unexpected_cdp_fields() {
+    use serde_json::json;
+    let mut response = json!({
+        "body":r#"{"Stale":0,"Total":0,"Messages":[]}"#,
+        "base64Encoded":false
+    });
+    assert!(ObservedMessageListResponse::parse_cdp_body(&response).is_ok());
+    response["unrecognized"] = json!(true);
+    assert_eq!(
+        ObservedMessageListResponse::parse_cdp_body(&response),
+        Err(MessageListResponseError::Malformed)
+    );
+}

@@ -996,3 +996,21 @@ fn attachment_mime_rejects_controls_and_header_injection() {
         assert_eq!(observed, Err(AttachmentMetadataResponseError::Malformed));
     }
 }
+
+#[test]
+fn attachment_metadata_body_envelope_rejects_unexpected_cdp_fields() {
+    let mut result = json!({
+        "body":metadata_body().to_string(),"base64Encoded":false
+    });
+    assert!(
+        // jig-ignore-next-line: canonical rustfmt envelope test.
+        ObservedAttachmentMetadataResponse::parse_cdp_body("attachment-1", MESSAGE_ID, &result)
+            .is_ok()
+    );
+    result["unrecognized"] = json!(true);
+    assert_eq!(
+        // jig-ignore-next-line: canonical rustfmt envelope test.
+        ObservedAttachmentMetadataResponse::parse_cdp_body("attachment-1", MESSAGE_ID, &result),
+        Err(AttachmentMetadataResponseError::Malformed)
+    );
+}

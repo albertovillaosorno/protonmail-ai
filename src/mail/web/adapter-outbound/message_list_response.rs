@@ -778,6 +778,9 @@ impl ObservedMessageListResponse {
     /// response accepted by [`Self::parse`].
     // jig-ignore-next-line: canonical rustfmt line.
     pub fn parse_cdp_body(result: &Value) -> Result<Self, MessageListResponseError> {
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(MessageListResponseError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)

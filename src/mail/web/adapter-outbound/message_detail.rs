@@ -601,6 +601,9 @@ impl ObservedMessageDetailResponse {
         if !safe_read_id(message_id, MAX_MESSAGE_ID_BYTES) {
             return Err(MessageDetailResponseError::UnexpectedEndpoint);
         }
+        if result.as_object().is_none_or(|fields| fields.len() != 2) {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         let encoded = result
             .get("base64Encoded")
             .and_then(Value::as_bool)

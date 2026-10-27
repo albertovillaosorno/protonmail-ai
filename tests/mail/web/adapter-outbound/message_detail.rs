@@ -940,3 +940,17 @@ fn message_recipient_fields_reject_control_character_injection() {
         assert_eq!(observed, Err(MessageDetailResponseError::Malformed));
     }
 }
+
+#[test]
+fn message_detail_body_envelope_rejects_unexpected_cdp_fields() {
+    let mut result = json!({
+        "body":detail_body().to_string(),"base64Encoded":false
+    });
+    // jig-ignore-next-line: canonical rustfmt detail envelope test.
+    assert!(ObservedMessageDetailResponse::parse_cdp_body("message-1", &result).is_ok());
+    result["unrecognized"] = json!(true);
+    assert_eq!(
+        ObservedMessageDetailResponse::parse_cdp_body("message-1", &result),
+        Err(MessageDetailResponseError::Malformed)
+    );
+}
