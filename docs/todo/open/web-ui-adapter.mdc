@@ -1360,3 +1360,8 @@ web application without requiring Bridge or a third-party direct API identity.
   prove independently safe `list_threads` semantics for grouping-capable
   locations, add composer/mutation workflows and remaining control-level drift
   fixtures, and capture the opted-in Free-account acceptance transcript.
+
+- Message-list observation refuses a redirected-in exact endpoint even when
+  the earlier URL was never tracked: CDP reuses request IDs across redirect
+  hops, so a redirected GET cannot prove a fresh provider list. A synthetic
+  regression covers that previously accepted lifecycle.

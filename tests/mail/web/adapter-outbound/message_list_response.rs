@@ -88,6 +88,30 @@ fn mutation_and_neighbor_endpoints_are_rejected() {
 }
 
 #[test]
+fn redirected_into_exact_message_list_get_is_not_fresh_evidence() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    // Chromium reuses a request ID when an unrelated GET redirects into the
+    // exact list URL. The intermediate request may have been ignored.
+    let redirected = json!({
+        "sessionId":"session-1",
+        "method":"Network.requestWillBeSent",
+        "params":{
+            "requestId":"redirected-list",
+            "request":{"method":"GET","url":URL},
+            "redirectResponse":{"url":"https://mail.proton.me/elsewhere","status":302u16}
+        }
+    });
+    assert_eq!(
+        capture.observe(&redirected),
+        Err(MessageListNetworkError::RedirectedAway)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn malformed_or_duplicate_metadata_fails_closed() {
     for body in [
         r#"{"Stale":0,"Total":1,"Messages":[{"ID":"","Time":1,"Order":1}]}"#,

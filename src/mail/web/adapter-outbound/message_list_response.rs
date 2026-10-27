@@ -261,6 +261,10 @@ impl MessageListNetworkCapture {
         if !message_list_get {
             return Ok(());
         }
+        // CDP reuses requestId across redirects, including from untracked URLs.
+        if params.get("redirectResponse").is_some() {
+            return Err(MessageListNetworkError::RedirectedAway);
+        }
         if tracked {
             return Err(MessageListNetworkError::InvalidSequence);
         }
