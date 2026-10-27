@@ -1401,8 +1401,8 @@ if(!result||!result.loading||result.loaded||
 
 #[test]
 fn equal_time_and_order_cannot_prove_deterministic_message_sort() {
-    use crate::message_list_response::ObservedMessageListResponse;
     use super::metadata_pair_matches_time_order;
+    use crate::message_list_response::ObservedMessageListResponse;
 
     let url = "https://mail.proton.me/api/mail/v4/messages";
     let body = concat!(
@@ -1415,4 +1415,38 @@ fn equal_time_and_order_cannot_prove_deterministic_message_sort() {
     let right = &observed.messages()[1];
     assert!(!metadata_pair_matches_time_order(left, right, true));
     assert!(!metadata_pair_matches_time_order(left, right, false));
+}
+
+#[test]
+fn message_time_sort_requires_proven_primary_or_secondary_order() {
+    use super::metadata_pair_matches_time_order;
+    use crate::message_list_response::ObservedMessageListResponse;
+
+    let url = "https://mail.proton.me/api/mail/v4/messages";
+    for (left_time, left_order, right_time, right_order, desc, expected) in [
+        (20, 0, 10, 100, true, true),
+        (10, 100, 20, 0, true, false),
+        (10, 0, 20, 100, false, true),
+        (20, 100, 10, 0, false, false),
+        (10, 3, 10, 2, true, true),
+        (10, 2, 10, 3, false, true),
+        (10, 2, 10, 3, true, false),
+        (10, 3, 10, 2, false, false),
+        (10, 2, 10, 2, true, false),
+        (10, 2, 10, 2, false, false),
+    ] {
+        let body = serde_json::json!({
+            "Stale": 0,"Total": 2,
+            "Messages":[
+                {"ID":"m-1","Time":left_time,"Order":left_order},
+                {"ID":"m-2","Time":right_time,"Order":right_order}
+            ]
+        })
+        .to_string();
+        let observed = ObservedMessageListResponse::parse("GET", url, &body)
+            .expect("parse synthetic ordering pair");
+        let pair = observed.messages();
+        let actual = metadata_pair_matches_time_order(&pair[0], &pair[1], desc);
+        assert_eq!(actual, expected);
+    }
 }
