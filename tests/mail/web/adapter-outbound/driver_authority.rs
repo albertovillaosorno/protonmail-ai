@@ -324,7 +324,8 @@ fn visible_row_projection_must_not_follow_labels_outside_the_row() {
     let script = MailboxPageSnapshot::expression();
     assert!(script.contains("row.querySelectorAll('[id]')"));
     assert!(script.contains("node.id===labelled"));
-    assert!(script.contains("subject:localHeading?"));
+    assert!(script.contains("const subject=localHeading.getAttribute"));
+    assert!(script.contains("subject:subject"));
     assert!(allowed_mail_runtime_expression(script));
 }
 
@@ -808,15 +809,17 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
         "
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
+let subjectValue='synthetic subject',addressValue='sender@example.test';
+let idValue='row-a';
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
-const heading={id:'heading-id',getAttribute:()=> 'synthetic subject',
+const heading={id:'heading-id',getAttribute:()=>subjectValue,
   getClientRects:()=>[{}],closest:()=>null};
-const sender={getAttribute:()=> 'sender@example.test',
+const sender={getAttribute:()=>addressValue,
   getClientRects:()=>[{}],closest:()=>null};
 const ancestor={parentElement:null};
-const row={getAttribute:(key)=>key==='data-element-id'?'row-a':
+const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   key==='aria-labelledby'?'heading-id':null,
   querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
   parentElement:ancestor,classList:{contains:()=>true}};
@@ -846,6 +849,16 @@ const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
 if(eval(script)[0]!==null){throw Error('unbounded ancestor depth accepted');}
+ancestor.parentElement=null;
+subjectValue='x'.repeat(16385);
+if(eval(script)[0]!==null){throw Error('oversized subject crossed CDP');}
+subjectValue='\\u00e9'.repeat(9000);
+if(eval(script)[0]!==null){throw Error('oversized UTF-8 crossed CDP');}
+subjectValue='synthetic subject';
+addressValue='y'.repeat(16385);
+if(eval(script)[0]!==null){throw Error('oversized addresses crossed CDP');}
+addressValue='sender@example.test';idValue='z'.repeat(513);
+if(eval(script)[0]!==null){throw Error('oversized row ID crossed CDP');}
 ",
     );
     let result = Command::new("node")
@@ -859,6 +872,7 @@ if(eval(script)[0]!==null){throw Error('unbounded ancestor depth accepted');}
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "full synthetic DOM state matrix")]
 fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
     use std::process::Command;
 
@@ -879,8 +893,9 @@ globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
+let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
-const row={getAttribute:()=> 'synthetic-row',
+const row={getAttribute:()=>rowId,
  getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
 const empty={getClientRects:()=>[{}],closest:()=>null};
 const loaded={parentElement:ancestor,querySelectorAll:(q)=>
@@ -894,7 +909,7 @@ next.getClientRects=()=>[{}];
 next.closest=()=>null;
 next.getAttribute=(key)=>key==='aria-disabled'&&nextDisabled?'true':null;
 const current={getClientRects:()=>[{}],closest:()=>null,
- getAttribute:()=> 'pagination-row:go-to-page-2'};
+ getAttribute:()=>pageId};
 globalThis.document={querySelector:()=>null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
    (showLoading?[{querySelectorAll:()=>[]}]:[]):
@@ -938,6 +953,13 @@ if(eval(expression).nextDisabled!==true){
  throw Error('disabled Next with pointer-events none must remain observable');
 }
 nextDisabled=false;
+rowId='A'.repeat(513);
+if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
+rowId='\\u00e9'.repeat(260);
+if(eval(expression)!==null){throw Error('UTF-8 row IDs exceeded limit');}
+rowId='synthetic-row';pageId='pagination-row:go-to-page-'+ '9'.repeat(100);
+if(eval(expression)!==null){throw Error('oversized page selector entered CDP');}
+pageId='pagination-row:go-to-page-2';
 pointerBlocked=true;
 if(eval(expression)!==null){
  throw Error('enabled Next with pointer-events none was accepted');

@@ -105,12 +105,20 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\"]'))){return null;}",
-    "return {loading:!!loading,loaded:!!loaded,",
-    "rowIds:real.map((row)=>row.getAttribute('data-element-id')),",
+    // Preflight projected IDs and page selectors before CDP serialization.
+    "const ids=real.map((row)=>row.getAttribute('data-element-id'));",
+    "if(ids.some((id)=>typeof id!=='string'||id.length===0||",
+    "id.length>512||new TextEncoder().encode(id).length>512)){",
+    "return null;}",
+    "const page=current?current.getAttribute('data-testid'):null;",
+    "if(page!==null&&(typeof page!=='string'||",
+    "!/^pagination-row:go-to-page-[1-9]\\d{0,9}$/.test(page))){",
+    "return null;}",
+    "return {loading:!!loading,loaded:!!loaded,rowIds:ids,",
     "skeletonCount:skeleton.length,emptyMarker:empty,nextPresent:!!next,",
     "nextDisabled:next?(!!next.disabled||",
     "next.getAttribute('aria-disabled')==='true'):null,",
-    "currentTestId:current?current.getAttribute('data-testid'):null};",
+    "currentTestId:page};",
     "})()"
 );
 const MAX_VISIBLE_ROWS: usize = 200;

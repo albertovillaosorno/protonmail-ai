@@ -1228,6 +1228,10 @@ web application without requiring Bridge or a third-party direct API identity.
   bounded visibility and positive opacity along each control's ancestor
   chain before trusting ordering or clicking. Node-executed regressions
   prove transparent parent containers cannot authorize UI interactions.
+- Audited DOM reads now reject oversized text and IDs inside Chromium
+  before serializing results to the CDP pipe. Subject and sender text use
+  the Rust byte ceilings (16 KiB), and list/content row IDs use 512 UTF-8
+  bytes; page selectors must match the bounded canonical page ID pattern.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

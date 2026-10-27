@@ -91,9 +91,15 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "getComputedStyle(localHeading).opacity==='0'||",
     "getComputedStyle(sender).opacity==='0'||",
     "!visibleTree(localHeading)||!visibleTree(sender)){return null;}",
-    // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
-    "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
-    "addresses:sender?sender.getAttribute('title'):null,",
+    // Apply the same UTF-8 byte ceilings in Chromium before CDP serializes
+    // text. Rust repeats the bounds at the untrusted response boundary.
+    "const subject=localHeading.getAttribute('title')??'';",
+    "const addresses=sender.getAttribute('title');",
+    "const bounded=(value,max)=>typeof value==='string'&&",
+    "value.length<=max&&new TextEncoder().encode(value).length<=max;",
+    "if(!bounded(id,512)||id.length===0||",
+    "!bounded(subject,16384)||!bounded(addresses,16384)){return null;}",
+    "return {id:id,subject:subject,addresses:addresses,",
     "unread:row.classList.contains('unread')};",
     "});",
     "})()"
