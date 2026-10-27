@@ -1267,6 +1267,9 @@ web application without requiring Bridge or a third-party direct API identity.
   not only a button's own `disabled` or ARIA state. The Next-page evidence,
   navigation click, and sort-menu click all refuse inherited disabled
   fieldsets, with red-first synthetic live-JavaScript regressions.
+- Search-mode proofs now reject encoded query-key aliases and
+  noncanonical case variants of recognized filter keys. URL-encoded query
+  values remain allowed, including encoded spaces and separators.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

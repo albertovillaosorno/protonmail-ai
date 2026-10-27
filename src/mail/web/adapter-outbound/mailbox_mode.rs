@@ -60,6 +60,11 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const params=new URLSearchParams(raw);",
     "const strings=['address','from','keyword','to'];",
     "const numbers=['begin','end','wildcard'];",
+    "const selectors=[...strings,...numbers];",
+    "const unsafeKey=raw.split('&').some((pair)=>{",
+    "const key=pair.split('=')[0];",
+    "return key.includes('%')||selectors.some((name)=>",
+    "name!==key&&name.toLowerCase()===key.toLowerCase());});",
     "const duplicate=[...strings,...numbers].some(",
     "(key)=>params.getAll(key).length>1);",
     // A recognized malformed selector invalidates the whole search proof.
@@ -88,7 +93,8 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const text=textValues.some(validText);",
     "const numeric=numberValues.some(validNumeric);",
     "return {forcedMessageRoute:forced,",
-    "activeSearch:searchable&&!duplicate&&complete&&(text||numeric)};",
+    "activeSearch:searchable&&!unsafeKey&&!duplicate&&",
+    "complete&&(text||numeric)};",
     "})()"
 );
 
