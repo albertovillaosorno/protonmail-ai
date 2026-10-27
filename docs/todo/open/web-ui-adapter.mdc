@@ -1175,6 +1175,7 @@ web application without requiring Bridge or a third-party direct API identity.
 - The exact message-list Network diagnostic rejects percent-encoded
   query keys, including raw aliases of `Sort`, `Page`, and `BeginID`.
   Provider and adapter cannot disagree about critical selector names.
+- Pagination and sort clicks now refuse ARIA-disabled controls.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

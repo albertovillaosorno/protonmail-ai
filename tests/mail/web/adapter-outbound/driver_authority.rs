@@ -775,3 +775,18 @@ for(const [path,hash,expected] of [
         .expect("execute synthetic mode proof");
     assert!(result.status.success(), "synthetic mode proof failed");
 }
+
+#[test]
+fn pagination_and_sort_clicks_refuse_aria_disabled_controls() {
+    let list = MailboxListEvidence::expression();
+    let next = NextPageActivation::expression();
+    assert!(list.contains("next.getAttribute('aria-disabled')"));
+    assert!(next.contains("next.getAttribute('aria-disabled')"));
+    for script in [
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        assert!(script.contains("nodes[0].getAttribute('aria-disabled')"));
+        assert!(allowed_mail_runtime_expression(script));
+    }
+}

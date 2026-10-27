@@ -89,7 +89,8 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "return {loading:!!loading,loaded:!!loaded,",
     "rowIds:real.map((row)=>row.getAttribute('data-element-id')),",
     "skeletonCount:skeleton.length,emptyMarker:empty,nextPresent:!!next,",
-    "nextDisabled:next?!!next.disabled:null,",
+    "nextDisabled:next?(!!next.disabled||",
+    "next.getAttribute('aria-disabled')==='true'):null,",
     "currentTestId:current?current.getAttribute('data-testid'):null};",
     "})()"
 );
