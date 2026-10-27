@@ -2748,3 +2748,31 @@ fn disabled_count_flags_fail_before_network_capture() {
         assert_eq!(finished, Vec::<String>::new());
     }
 }
+
+#[test]
+fn redirected_into_event_gets_is_not_fresh_evidence() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+
+    let id = "redirected";
+    let method = "Network.requestWillBeSent";
+    let source = "https://mail.proton.me/other-resource";
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let mut poll = MailboxEventNetworkCapture::new("session-1");
+    let mut latest_event = cdp_lifecycle_event(method, id, latest_url);
+    latest_event["params"]["redirectResponse"] = json!({"url":source});
+    let mut poll_event = cdp_lifecycle_event(method, id, URL);
+    poll_event["params"]["redirectResponse"] = json!({"url":source});
+    assert_eq!(
+        latest.observe(&latest_event),
+        Err(MailboxEventNetworkError::RedirectedAway)
+    );
+    assert_eq!(
+        poll.observe(&poll_event),
+        Err(MailboxEventNetworkError::RedirectedAway)
+    );
+    assert!(latest.take_finished_request_ids().is_empty());
+    assert!(poll.take_finished_request_ids().is_empty());
+}

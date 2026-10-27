@@ -1373,3 +1373,8 @@ web application without requiring Bridge or a third-party direct API identity.
 - Exact message-detail, attachment-metadata, and mailbox/label catalog GET
   observations likewise refuse CDP requests redirected from an ignored URL.
   Synthetic retry/capture suites now cover the redirected-in ambiguity.
+
+- Both event-watermark observations (latest bootstrap and core-v5 polling) now
+  refuse redirected-in GETs, preventing an ignored source endpoint from being
+  treated as newly proven mailbox cursor evidence. A synthetic regression
+  exercises both state machines.

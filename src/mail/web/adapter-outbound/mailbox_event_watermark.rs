@@ -218,6 +218,10 @@ impl LatestMailboxEventNetworkCapture {
         if !candidate {
             return Ok(());
         }
+        // A redirected-in event GET did not originate at the exact endpoint.
+        if params.get("redirectResponse").is_some() {
+            return Err(MailboxEventNetworkError::RedirectedAway);
+        }
         if tracked {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
@@ -457,6 +461,10 @@ impl MailboxEventNetworkCapture {
         }
         if !candidate {
             return Ok(());
+        }
+        // A redirected-in event GET did not originate at the exact endpoint.
+        if params.get("redirectResponse").is_some() {
+            return Err(MailboxEventNetworkError::RedirectedAway);
         }
         if tracked {
             return Err(MailboxEventNetworkError::InvalidSequence);
