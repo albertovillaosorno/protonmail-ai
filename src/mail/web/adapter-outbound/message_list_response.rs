@@ -857,11 +857,9 @@ impl ReconciledVisibleMessageMetadata {
             }
         }
         if visible_ids.is_empty() {
-            if observed.is_empty()
-                && responses
-                    .first()
-                    .is_none_or(|response| response.total() == 0)
-            {
+            // jig-ignore-next-line: canonical rustfmt all-batch total check.
+            let totals_are_zero = responses.iter().all(|response| response.total() == 0);
+            if observed.is_empty() && totals_are_zero {
                 return Ok(Self {
                     messages: Vec::new(),
                 });

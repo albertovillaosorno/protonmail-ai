@@ -1236,3 +1236,17 @@ fn case_aliases_of_message_list_query_selectors_fail_closed() {
         );
     }
 }
+
+#[test]
+fn explicit_empty_reconciliation_rejects_later_positive_total() {
+    let empty_body = r#"{"Stale":0,"Total":0,"Messages":[]}"#;
+    let positive_body = r#"{"Stale":0,"Total":2,"Messages":[]}"#;
+    let zero = ObservedMessageListResponse::parse("GET", URL, empty_body)
+        .expect("parse initial empty response");
+    let positive = ObservedMessageListResponse::parse("GET", URL, positive_body)
+        .expect("parse inconsistent later empty response");
+    let batches = [zero, positive];
+    let result = ReconciledVisibleMessageMetadata::reconcile(&[], &batches);
+    let rejected = MessageListReconciliationError::UnexpectedObservedMessage;
+    assert_eq!(result, Err(rejected));
+}

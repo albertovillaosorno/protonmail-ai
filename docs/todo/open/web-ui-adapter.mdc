@@ -1291,6 +1291,10 @@ web application without requiring Bridge or a third-party direct API identity.
   Browser-side preflight prevents those values crossing CDP; a separate
   Rust validator rejects malformed projections even if browser guards fail.
   Red-first synthetic fixtures cover both layers and ordinary Unicode text.
+- Explicit-empty message reconciliation now requires every observed
+  provider-list batch to report zero `Total`, not just the first batch.
+  A synthetic regression proved that an initial zero followed by a positive
+  total previously escaped as an empty mailbox despite contradictory data.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
