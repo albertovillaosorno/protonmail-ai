@@ -384,6 +384,11 @@ Ship useful read access before any mailbox mutation is enabled.
   folding and extension aliases, informed by Microsoft Console CreateFile
   documentation without copying implementation from upstream.
 
+- Relative attachment destinations now refuse trailing and doubled slash
+  spellings that Rust would otherwise collapse into a different file leaf.
+  Red-first synthetic tests cover these directory/file aliases while keeping
+  explicit current-directory (`./`) component normalization intact.
+
 - Caller-supplied output paths now refuse Windows-forbidden punctuation
   (`?`, `*`, quotes, angle brackets, `|`) in every component, aligning their
   portable syntax with provider filename sanitization. Synthetic regression

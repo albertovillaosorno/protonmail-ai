@@ -139,6 +139,9 @@ impl AttachmentRelativePath {
         if path.is_absolute() {
             return Err(AttachmentPathError::Absolute);
         }
+        if untrusted.ends_with('/') || untrusted.contains("//") {
+            return Err(AttachmentPathError::UnsupportedSyntax);
+        }
 
         let mut normalized = PathBuf::new();
         let mut depth = 0usize;
