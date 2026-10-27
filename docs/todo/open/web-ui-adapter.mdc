@@ -1256,6 +1256,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Conversation-list sorting now rejects duplicate, invalid, or
   differently cased `Sort`/`Desc` parameters before treating the captured
   request as page evidence. Canonical allowed ordering remains supported.
+- Message-list capture now rejects differently cased aliases of all
+  audited pagination/sort selector names. This matches the conversation-list
+  boundary and prevents ambiguous provider versus adapter interpretation.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

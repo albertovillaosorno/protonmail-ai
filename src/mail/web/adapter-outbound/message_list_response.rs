@@ -605,6 +605,11 @@ fn raw_query_parameter<'url>(
             return Err(MessageListNetworkError::MalformedEvent);
         }
         if key != name {
+            // A differently cased key can alias a canonical provider
+            // selector after query decoding and alter list interpretation.
+            if key.eq_ignore_ascii_case(name) {
+                return Err(MessageListNetworkError::MalformedEvent);
+            }
             continue;
         }
         if found.replace(value).is_some() {

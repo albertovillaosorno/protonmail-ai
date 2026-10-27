@@ -1215,3 +1215,24 @@ fn message_list_body_envelope_rejects_unexpected_cdp_fields() {
         Err(MessageListResponseError::Malformed)
     );
 }
+
+#[test]
+fn case_aliases_of_message_list_query_selectors_fail_closed() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for alias in ["sort=Size", "desc=0", "page=2", "limit=1", "beginid=decoy"] {
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let url = format!("{URL}&{alias}");
+        let event = json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"synthetic",
+                "request":{"method":"GET","url":url}}
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+    }
+}
