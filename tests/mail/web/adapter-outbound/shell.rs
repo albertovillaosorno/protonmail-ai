@@ -277,6 +277,60 @@ fn malformed_role_query_is_protocol_failure() {
 }
 
 #[test]
+fn ax_explicit_role_contradictions_fail_closed() {
+    for (label, roles) in [
+        (
+            "wrong-search-role",
+            RoleFixture {
+                // jig-ignore-next-line: indivisible synthetic AX role fixture.
+                search: r#"[{"ignored":false,"role":{"type":"role","value":"navigation"}}]"#,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "malformed-search-role",
+            RoleFixture {
+                search: r#"[{"ignored":false,"role":{"value":42}}]"#,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "wrong-dialog-role",
+            RoleFixture {
+                // jig-ignore-next-line: indivisible synthetic AX role fixture.
+                dialog: r#"[{"ignored":false,"role":{"type":"role","value":"button"}}]"#,
+                ..RoleFixture::ready()
+            },
+        ),
+    ] {
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+        );
+    }
+    let roles = RoleFixture {
+        // jig-ignore-next-line: indivisible synthetic AX role fixture.
+        search: r#"[{"ignored":false,"role":{"type":"role","value":"search"}}]"#,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "matching-search-role",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("matching AX role")
+        .ready()
+    );
+}
+
+#[test]
 fn account_origin_is_not_mail_shell() {
     let error = inspect(
         "account",

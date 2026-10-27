@@ -1374,6 +1374,11 @@ web application without requiring Bridge or a third-party direct API identity.
   512-byte printable-ASCII request-ID rule as the audited outbound body
   command. Red-first regression tests refuse malformed IDs before capture
   while ordinary dotted browser request IDs remain valid.
+- Role-filtered Mail shell queries now reject explicitly contradictory
+  `AXNode.role` values (including malformed role objects) before classifying
+  navigation, search, or dialog visibility. They retain compatibility with
+  Chromium results omitting the optional role field. A red-first fake-CDP
+  suite proves rejection without projecting accessible names or mailbox data.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

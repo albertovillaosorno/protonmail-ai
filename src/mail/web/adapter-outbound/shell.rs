@@ -74,18 +74,18 @@ impl MailShellEvidence {
         dialog: &Value,
         alertdialog: &Value,
     ) -> Result<Self, ()> {
-        let dialog_visible = visible_match(dialog)?;
-        let alertdialog_visible = visible_match(alertdialog)?;
+        let dialog_visible = visible_match(dialog, "dialog")?;
+        let alertdialog_visible = visible_match(alertdialog, "alertdialog")?;
         let modal_blocker_visible = dialog_visible || alertdialog_visible;
         Ok(Self {
-            navigation_visible: visible_match(navigation)?,
-            search_visible: visible_match(search)?,
+            navigation_visible: visible_match(navigation, "navigation")?,
+            search_visible: visible_match(search, "search")?,
             modal_blocker_visible,
         })
     }
 }
 
-fn visible_match(result: &Value) -> Result<bool, ()> {
+fn visible_match(result: &Value, expected_role: &str) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
     if nodes.len() > MAX_AX_ROLE_MATCH_NODES {
         return Err(());
@@ -93,6 +93,15 @@ fn visible_match(result: &Value) -> Result<bool, ()> {
     let mut any_visible = false;
     for node in nodes {
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;
+        // Role is optional in AXNode, but an explicit contradictory value
+        // invalidates the role-filtered browser query. Never retain names.
+        if let Some(role) = node.get("role") {
+            let kind = role.get("type").and_then(Value::as_str);
+            let value = role.get("value").and_then(Value::as_str);
+            if kind != Some("role") || value != Some(expected_role) {
+                return Err(());
+            }
+        }
         // Even after a visible landmark is found, malformed later nodes
         // invalidate the query instead of being silently skipped.
         any_visible |= !ignored;
