@@ -41,6 +41,8 @@ use crate::contract_v1::MAX_INLINE_ATTACHMENT_BYTES;
 /// metadata.
 pub const MAX_ATTACHMENT_FILENAME_BYTES: usize = 255;
 const FALLBACK_ATTACHMENT_FILENAME: &str = "attachment";
+const MAX_RELATIVE_PATH_BYTES: usize = 4_096;
+const MAX_RELATIVE_PATH_COMPONENTS: usize = 64;
 
 /// A single sanitized attachment filename leaf.
 #[derive(Clone, Eq, PartialEq)]
@@ -116,9 +118,14 @@ impl AttachmentRelativePath {
     /// Rejects empty/absolute destinations, parent traversal, backslashes,
     /// NUL/control, hidden Unicode formatting, Windows device components,
     /// trailing dots/spaces, and drive or alternate-stream colon syntax.
+    /// Destinations must also fit 4,096 total bytes, 64 path components,
+    /// and 255 bytes per path component.
     pub fn new(untrusted: &str) -> Result<Self, AttachmentPathError> {
         if untrusted.is_empty() {
             return Err(AttachmentPathError::Empty);
+        }
+        if untrusted.len() > MAX_RELATIVE_PATH_BYTES {
+            return Err(AttachmentPathError::UnsupportedSyntax);
         }
         if untrusted.chars().any(|character| {
             character == '\\'
@@ -135,9 +142,16 @@ impl AttachmentRelativePath {
         }
 
         let mut normalized = PathBuf::new();
+        let mut depth = 0usize;
         for component in path.components() {
             match component {
                 Component::Normal(value) => {
+                    depth = depth.saturating_add(1);
+                    if depth > MAX_RELATIVE_PATH_COMPONENTS
+                        || value.len() > MAX_ATTACHMENT_FILENAME_BYTES
+                    {
+                        return Err(AttachmentPathError::UnsupportedSyntax);
+                    }
                     let text = value
                         .to_str()
                         .ok_or(AttachmentPathError::UnsupportedSyntax)?;

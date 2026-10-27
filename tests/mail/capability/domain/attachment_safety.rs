@@ -214,6 +214,28 @@ fn relative_destination_rejects_hidden_unicode_path_components() {
 }
 
 #[test]
+fn relative_destination_bounds_component_path_and_depth_before_io() {
+    let overlong_ascii = format!("exports/{}", "a".repeat(256));
+    let overlong_unicode = format!("exports/{}", "\u{e9}".repeat(128));
+    let too_deep = format!("{}/report.pdf", "dir/".repeat(65));
+    let twenty_folders = vec!["a".repeat(210); 20].join("/");
+    let oversized_total = format!("{twenty_folders}/report.pdf");
+    let invalid = [overlong_ascii, overlong_unicode, too_deep, oversized_total];
+    for candidate in invalid {
+        assert_eq!(
+            AttachmentRelativePath::new(&candidate),
+            Err(AttachmentPathError::UnsupportedSyntax),
+        );
+    }
+    let allowed_ascii = format!("exports/{}", "a".repeat(255));
+    assert!(AttachmentRelativePath::new(&allowed_ascii).is_ok());
+    let allowed_unicode = format!("exports/{}x", "\u{e9}".repeat(127));
+    assert!(AttachmentRelativePath::new(&allowed_unicode).is_ok());
+    let allowed_depth = format!("{}report.pdf", "dir/".repeat(63));
+    assert!(AttachmentRelativePath::new(&allowed_depth).is_ok());
+}
+
+#[test]
 fn inline_attachment_boundary_is_exactly_thirty_two_kibibytes() {
     let limit = u64::from(MAX_INLINE_ATTACHMENT_BYTES);
     assert!(attachment_fits_inline(0));

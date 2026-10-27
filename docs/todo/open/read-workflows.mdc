@@ -378,6 +378,11 @@ Ship useful read access before any mailbox mutation is enabled.
   a misleading path leaf to cross the portable relative-path boundary.
   Synthetic tests prove rejection and preserve ordinary Unicode directories.
 
+- Caller-supplied attachment relative output paths now have enforced 4,096-byte
+  total size, 255-byte per-component size, and 64-component depth limits before
+  any filesystem work. A red-first synthetic regression covers ASCII and UTF-8
+  component overflow, deep paths, cumulative overlong paths, and valid limits.
+
 - AttachmentRelativePath rejects Windows reserved device components and
   trailing-dot/trailing-space components before any local I/O, preventing
   cross-platform output aliases despite Unix accepting those names. Red-first
