@@ -1350,6 +1350,10 @@ web application without requiring Bridge or a third-party direct API identity.
   commands before content-free list probes: the row expression itself checks
   the loading selector, so the old fixture order falsely classified content
   tasks as list reads. Nine synthetic message-page regressions pass again.
+- Synthetic message pagination now dispatches row projection before
+  generic content-free list probes. The content script itself checks for
+  loading overlap; fixture order previously masked all eight pagination
+  outcomes. The restored suite verifies Next, drift and login-expiry cases.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

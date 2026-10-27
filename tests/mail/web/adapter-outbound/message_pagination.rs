@@ -116,6 +116,12 @@ while IFS= read -r -d '' message <&3; do
       fi
       printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
         "$id" "$value" >&4;;
+    *'Runtime.evaluate'*'aria-labelledby'*)
+      row="message-$page"
+      value='[{"id":"'"$row"'","subject":"Page '"$page"'",'
+      value+='"addresses":"jobs@example.com","unread":false}]'
+      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+        "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
       disabled=false
       if [ "$page" -gt 1 ] ||
@@ -129,12 +135,6 @@ while IFS= read -r -d '' message <&3; do
       else
         value+='"currentTestId":null}'
       fi
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
-        "$id" "$value" >&4;;
-    *'Runtime.evaluate'*'aria-labelledby'*)
-      row="message-$page"
-      value='[{"id":"'"$row"'","subject":"Page '"$page"'",'
-      value+='"addresses":"jobs@example.com","unread":false}]'
       printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
