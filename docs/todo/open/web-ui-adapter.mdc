@@ -1215,6 +1215,11 @@ web application without requiring Bridge or a third-party direct API identity.
   sender row projections, loaded list rows, explicit-empty markers, current
   page markers, and sort selections. Node-executed synthetic DOM fixtures
   exercise opacity-based hiding independently from layout and ARIA hiding.
+- Content-bearing subject/sender reads now prove computed visibility and
+  positive opacity throughout the bounded ancestor chain. A transparent
+  parent cannot expose decoy message content even if the child renders a
+  layout box. Synthetic Node tests reject opacity-zero ancestors and DOM
+  ancestry exceeding the audited 64-element limit.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

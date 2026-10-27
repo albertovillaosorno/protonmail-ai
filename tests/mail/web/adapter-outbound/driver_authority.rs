@@ -807,17 +807,20 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
     source.push_str(
         "
 globalThis.location={origin:'https://mail.proton.me'};
-let subjectOpacity='1', senderOpacity='1';
+let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
- opacity:node===heading?subjectOpacity:node===sender?senderOpacity:'1'});
+ opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
+ node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',getAttribute:()=> 'synthetic subject',
   getClientRects:()=>[{}],closest:()=>null};
 const sender={getAttribute:()=> 'sender@example.test',
   getClientRects:()=>[{}],closest:()=>null};
+const ancestor={parentElement:null};
 const row={getAttribute:(key)=>key==='data-element-id'?'row-a':
   key==='aria-labelledby'?'heading-id':null,
   querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
-  classList:{contains:()=>true}};
+  parentElement:ancestor,classList:{contains:()=>true}};
+heading.parentElement=row;sender.parentElement=row;
 const root={querySelectorAll:()=>[row]};
 globalThis.document={querySelector:()=>null,querySelectorAll:()=>[root]};
 const projected=eval(script);
@@ -836,6 +839,13 @@ subjectOpacity='0';
 if(eval(script)[0]!==null){throw Error('opacity-zero heading exposed');}
 subjectOpacity='1';senderOpacity='0';
 if(eval(script)[0]!==null){throw Error('opacity-zero sender exposed');}
+senderOpacity='1';ancestorOpacity='0';
+if(eval(script)[0]!==null){throw Error('hidden ancestor exposed content');}
+ancestorOpacity='1';
+const chain=Array.from({length:70},()=>({parentElement:null}));
+chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
+ancestor.parentElement=chain[0];
+if(eval(script)[0]!==null){throw Error('unbounded ancestor depth accepted');}
 ",
     );
     let result = Command::new("node")

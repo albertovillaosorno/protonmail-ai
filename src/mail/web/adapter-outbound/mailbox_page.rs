@@ -58,6 +58,16 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const roots=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
     "if(roots.length!==1){return null;}",
     "const root=roots[0];",
+    // Include opacity and visibility of ancestors as computed opacity does
+    // not inherit, unlike visibility. Bound traversal to fail on path drift.
+    "const visibleTree=(node)=>{let current=node;",
+    "for(let depth=0;depth<64;depth++){",
+    "if(!current){return true;}",
+    "const style=getComputedStyle(current);",
+    "if(!style||style.visibility!=='visible'||",
+    "!(Number(style.opacity)>0)){return false;}",
+    "current=current.parentElement;}",
+    "return false;};",
     "const base='[data-shortcut-target=\"item-container\"]';",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
@@ -79,7 +89,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "getComputedStyle(localHeading).visibility!=='visible'||",
     "getComputedStyle(sender).visibility!=='visible'||",
     "getComputedStyle(localHeading).opacity==='0'||",
-    "getComputedStyle(sender).opacity==='0'){return null;}",
+    "getComputedStyle(sender).opacity==='0'||",
+    "!visibleTree(localHeading)||!visibleTree(sender)){return null;}",
     // jig-ignore-next-line: indivisible JavaScript row metadata fragment.
     "return {id:id,subject:localHeading?(localHeading.getAttribute('title')??''):null,",
     "addresses:sender?sender.getAttribute('title'):null,",
