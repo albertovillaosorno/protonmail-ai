@@ -86,6 +86,9 @@ impl WebEventCursorCodec {
         cursor: &ScopedEventCursor<String>,
         current_scope: &EventCursorScope,
     ) -> Result<String, WebEventCursorCodecError> {
+        if !valid_generation_tag(generation) {
+            return Err(WebEventCursorCodecError::EncodingFailed);
+        }
         let state = cursor
             .state_for(current_scope)
             // jig-ignore-next-line: canonical rustfmt line.

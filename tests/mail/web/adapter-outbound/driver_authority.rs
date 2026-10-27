@@ -1369,6 +1369,29 @@ for(const marker of ['dialog','dialog[open]','aria-modal']){
 }
 
 #[test]
+fn event_cursor_encoder_refuses_noncanonical_browser_generation() {
+    use crate::event_cursor_codec::WebEventCursorCodec;
+    use crate::event_cursor_codec::WebEventCursorCodecError;
+    use mail_capability_domain::EventCursorScope;
+
+    let codec = WebEventCursorCodec::fresh().expect("fresh synthetic codec");
+    let adapter = "proton-mail-web-v1";
+    for bad in ["not-hex-generation", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"] {
+        let scope = EventCursorScope::new("acct", adapter, bad)
+            .expect("opaque public scope permits arbitrary generation");
+        let bound = scope.clone().bind(String::from("event-safe"));
+        assert_eq!(
+            codec.encode(bad, &bound, &scope),
+            Err(WebEventCursorCodecError::EncodingFailed),
+        );
+    }
+    let valid = "0123456789abcdef0123456789abcdef";
+    let scope = EventCursorScope::new("acct", adapter, valid).expect("scope");
+    let bound = scope.clone().bind(String::from("event-safe"));
+    assert!(codec.encode(valid, &bound, &scope).is_ok());
+}
+
+#[test]
 fn catalog_cursor_state_requires_whole_page_offset() {
     use crate::mailbox_catalog_page::MailboxCatalogCursorState;
     use crate::mailbox_catalog_page::MailboxCatalogPageError;

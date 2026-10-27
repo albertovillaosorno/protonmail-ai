@@ -1365,6 +1365,11 @@ web application without requiring Bridge or a third-party direct API identity.
   previously passed even though search-mode validation correctly rejected its
   Unicode class. Conversation, catalog, event-watermark and detail regressions
   exercise the shared validator throughout read-only metadata boundaries.
+- Web event cursor encoding now rejects invalid adapter generation tags
+  before producing ciphertext. The public scope permits arbitrary opaque
+  generation strings, but event tokens require canonical 32-character
+  lowercase hex; a red-first codec regression proves malformed values no
+  longer create tokens the decoder can never resume.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
