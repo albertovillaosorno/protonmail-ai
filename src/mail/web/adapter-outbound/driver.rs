@@ -2969,7 +2969,12 @@ impl ManagedBrowser {
         {
             return Err(BrowserDriverError::MessageListBatchIncompatible);
         }
-        if first.messages().len() < first_request.limit {
+        // When Total ends exactly on a full batch boundary, the initial
+        // response already covers the final page. Do not require a second
+        // empty anchored request, but refuse an unexpected extra request.
+        let final_batch_is_exact = expected_second == 0;
+        let underfilled = first.messages().len() < first_request.limit;
+        if underfilled || final_batch_is_exact {
             if capture.tracked_request_count() != 0 {
                 return Err(BrowserDriverError::MessageListResponseAmbiguous);
             }

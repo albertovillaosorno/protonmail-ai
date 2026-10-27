@@ -153,15 +153,15 @@ while IFS= read -r -d '' message <&3; do
       value='{"forcedMessageRoute":true,"activeSearch":false}'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
+    *'Runtime.evaluate'*'aria-labelledby'*)
+      value='__ROWS__'
+      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+        "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
       value='{"loading":false,"loaded":true,"rowIds":__ROW_IDS__,'
       value+='"skeletonCount":0,"emptyMarker":false,'
       value+='"nextPresent":false,"nextDisabled":null,'
       value+='"currentTestId":"pagination-row:go-to-page-1"}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
-        "$id" "$value" >&4;;
-    *'Runtime.evaluate'*'aria-labelledby'*)
-      value='__ROWS__'
       printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
@@ -2019,4 +2019,64 @@ fn permanently_text_busy_browser_fails_closed_and_releases_lease() {
     );
     drop(resumed);
     cleanup(&root);
+}
+
+#[test]
+fn exact_full_final_message_page_requires_no_empty_continuation() {
+    let root = test_root("exact-full-final-page");
+    fs::create_dir_all(&root).expect("create isolated synthetic browser root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser);
+    let script = script.expect("read synthetic request script");
+    let initial_shape = "PageSize=50&Limit=50";
+    assert!(script.contains(initial_shape));
+    let exact_page = script.replace(initial_shape, "PageSize=1&Limit=1");
+    let installed = install_script(&browser, exact_page);
+    installed.expect("install exact-full-page browser");
+    let browser_plan = plan(&root, &browser);
+    let launched = ManagedBrowser::launch(&browser_plan);
+    let mut managed = launched.expect("launch synthetic browser");
+    let page = managed.provider_page().expect("find fake Mail page");
+    let metadata = managed
+        .observe_visible_message_metadata(&page)
+        .expect("exactly full final page needs no empty continuation");
+    assert_eq!(metadata.messages().len(), 1);
+    drop(managed);
+    let log = fs::read_to_string(root.join("network-log.txt"));
+    let log = log.expect("read network method audit");
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+    cleanup(&root);
+}
+
+#[test]
+fn unexpected_continuation_on_exact_final_page_fails_closed() {
+    let (result, log) = with_network_browser(
+        "unexpected-empty-continuation",
+        false,
+        "m-1",
+        true,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+        ManagedBrowser::observe_visible_message_metadata,
+    );
+    assert_eq!(
+        result,
+        Err(BrowserDriverError::MessageListResponseAmbiguous)
+    );
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
 }
