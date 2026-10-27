@@ -1240,6 +1240,10 @@ web application without requiring Bridge or a third-party direct API identity.
   ancestors (in addition to aria-hidden, geometry, and computed styling).
   Synthetic Node DOM cases prove inert mailbox rows, Next, and sort controls
   cannot be read or clicked during a disabled background transition.
+- A search hash grants message-row mode only when **every** recognized
+  text and numeric selector has a valid value. Valid `keyword` evidence
+  cannot mask malformed `begin`, `end`, `from`, or `to` values; Node tests
+  cover mixed valid/invalid and multiple legitimate filters.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -756,6 +756,13 @@ fn live_javascript_search_mode_rejects_malformed_routes() {
 globalThis.document={querySelector:()=>null};
 for(const [path,hash,expected] of [
   ['/u/0/inbox','#keyword=valid',true],
+  ['/u/0/inbox','#keyword=valid&begin=1',true],
+  ['/u/0/inbox','#from=alice&to=bob',true],
+  ['/u/0/inbox','#keyword=valid&begin=0',false],
+  ['/u/0/inbox','#keyword=valid&begin=01',false],
+  ['/u/0/inbox','#keyword=valid&end=not-a-number',false],
+  ['/u/0/inbox','#keyword=valid&from=%EF%BF%BD',false],
+  ['/u/0/inbox','#keyword=valid&to=%0A',false],
   ['/u/0/unknown','#keyword=valid',false],
   ['/unknown','#keyword=valid',false],
   ['/u/00/inbox','#keyword=valid',null],
@@ -769,7 +776,7 @@ for(const [path,hash,expected] of [
   globalThis.location={origin:'https://mail.proton.me',pathname:path,hash};
   const result=eval(expression);
  const actual=result===null?null:result.forcedMessageRoute||result.activeSearch;
-  if(actual!==expected){throw Error('invalid mode proof for '+path);}
+  if(actual!==expected){throw Error('invalid mode proof for '+path+hash);}
 }
 ",
     );
