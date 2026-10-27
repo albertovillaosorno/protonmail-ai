@@ -1180,18 +1180,23 @@ if(eval(open)!==null||clicks!==2){
 #[test]
 fn loading_list_rejects_malformed_ignored_projection_fields() {
     let valid = json!({
-        "loading":true,"loaded":false,"rowIds":["partial-row"],
-        "skeletonCount":3u64,"emptyMarker":false,
-        "nextPresent":true,"nextDisabled":true,
-        "currentTestId":"pagination-row:go-to-page-1"
+        "loading":true,"loaded":false,"rowIds":[],
+        "skeletonCount":0u64,"emptyMarker":false,
+        "nextPresent":false,"nextDisabled":null,
+        "currentTestId":null
     });
     assert_eq!(
         MailboxListEvidence::from_runtime_value(&valid)
-            .expect("valid partial loading projection")
+            .expect("canonical content-free loading projection")
             .state(),
         MailboxListState::Loading
     );
     for (key, invalid) in [
+        ("rowIds", json!(["partial-row"])),
+        ("skeletonCount", json!(3u64)),
+        ("nextPresent", json!(true)),
+        ("nextDisabled", json!(true)),
+        ("currentTestId", json!("pagination-row:go-to-page-1")),
         ("rowIds", json!("opaque-not-array")),
         ("rowIds", json!([17i64])),
         ("skeletonCount", json!("three")),

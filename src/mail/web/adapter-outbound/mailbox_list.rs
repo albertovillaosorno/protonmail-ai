@@ -237,15 +237,21 @@ impl MailboxListEvidence {
             return Err(());
         }
         let empty_marker = bool_field(value, "emptyMarker")?;
-        // Loading evidence can carry transitional rows and pagination state.
-        // It may discard their values, but never their shape validation.
+        // Loading evidence must remain the exact content-free projection.
+        // Transitional IDs and pagination are never serialized from Chromium.
         let row_ids = row_ids(value)?;
         let skeleton_count = usize_field(value, "skeletonCount")?;
         let next_present = bool_field(value, "nextPresent")?;
         let next_disabled = optional_bool_field(value, "nextDisabled")?;
         let current_test_id = optional_str_field(value, "currentTestId")?;
         if loading {
-            if empty_marker {
+            if empty_marker
+                || !row_ids.is_empty()
+                || skeleton_count != 0
+                || next_present
+                || next_disabled.is_some()
+                || current_test_id.is_some()
+            {
                 return Err(());
             }
             return Ok(Self {

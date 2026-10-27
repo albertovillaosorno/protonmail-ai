@@ -57,12 +57,12 @@ const ROWS: &str = r#"{
 const LOADING: &str = r#"{
   "loading": true,
   "loaded": false,
-  "rowIds": ["partial-row"],
-  "skeletonCount": 3,
+  "rowIds": [],
+  "skeletonCount": 0,
   "emptyMarker": false,
-  "nextPresent": true,
-  "nextDisabled": true,
-  "currentTestId": "pagination-row:go-to-page-1"
+  "nextPresent": false,
+  "nextDisabled": null,
+  "currentTestId": null
 }"#;
 const EXPLICIT_EMPTY: &str = r#"{
   "loading": false,

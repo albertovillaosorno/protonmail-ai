@@ -1307,6 +1307,10 @@ web application without requiring Bridge or a third-party direct API identity.
   content-free loading object instead of collecting transient row identifiers
   or pagination attributes. A Node-executed DOM regression throws on any
   attempted loading-row read and confirms no IDs cross CDP.
+- Rust now accepts only the exact fixed loading projection emitted by
+  Chromium: empty row IDs, zero skeleton count, no empty marker, and no
+  pagination state. A mutated loading response with transitional fields
+  fails closed instead of quietly discarding the unauthorized values.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
