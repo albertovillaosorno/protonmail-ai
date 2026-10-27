@@ -1354,6 +1354,11 @@ web application without requiring Bridge or a third-party direct API identity.
   generic content-free list probes. The content script itself checks for
   loading overlap; fixture order previously masked all eight pagination
   outcomes. The restored suite verifies Next, drift and login-expiry cases.
+- Message-mode search proof now refuses Unicode Hangul fillers (U+115F,
+  U+1160, U+3164, U+FFA0) and the blank Braille cell (U+2800), whose decoded
+  values are nonempty but visually blank. A red-first Node-executed location
+  matrix proves none can imply a verified individual-message search surface.
+
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
