@@ -1159,6 +1159,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - Message-detail sender and recipient fields now reject raw control
   characters and surrounding address whitespace before exposure to
   read-only workflows or possible later reply-composer handoff.
+- Real JavaScript parsing exposed a malformed comma between two `const`
+  declarations in the audited visible-row projection. Chromium would reject
+  the task; it now uses separate statements, with a red-first regression.
+- A local real-JavaScript smoke compiled all eight audited read/sort
+  expressions in Node and confirmed that each denies foreign origins. A
+  synthetic DOM then proved visible subject/sender projection and rejection
+  of hidden headings; this complements (not replaces) Chromium acceptance.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

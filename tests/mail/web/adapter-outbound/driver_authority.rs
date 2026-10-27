@@ -688,3 +688,10 @@ fn preopened_sort_menu_requires_visible_option_controls() {
     assert!(script.contains("node.closest('[aria-hidden="));
     assert!(allowed_mail_runtime_expression(script));
 }
+
+#[test]
+fn visible_row_script_separates_independent_const_declarations() {
+    let script = MailboxPageSnapshot::expression();
+    assert!(script.contains("item-container\"]';const rows="));
+    assert!(!script.contains("item-container\"]',const rows="));
+}
