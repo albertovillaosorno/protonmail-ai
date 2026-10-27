@@ -1153,6 +1153,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - A pre-opened sort menu is now recognized only if all four unique option
   controls have visible layout and are not in ARIA-hidden ancestry. Hidden
   duplicate/stale menus cannot masquerade as an interactive sort state.
+- Message-detail MIME and inline attachment-descriptor MIME now reuse
+  the same safe media-type validator as attachment metadata. Control or
+  header-injection strings cannot cross either message read boundary.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

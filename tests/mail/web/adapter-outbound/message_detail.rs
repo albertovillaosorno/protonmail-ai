@@ -884,3 +884,36 @@ fn detail_projection_keeps_printable_opaque_ids_and_content_fields() {
     );
     assert_eq!(projected.message().subject(), "Unicode \u{2713} subject");
 }
+
+#[test]
+fn message_and_attachment_mime_metadata_reject_header_controls() {
+    for invalid in ["text/plain\r\nX-Test: injected", "not-a-media-type"] {
+        for field in ["message", "attachment"] {
+            let mut body = detail_body();
+            if field == "message" {
+                body["Message"]["MIMEType"] = json!(invalid);
+            } else {
+                body["Message"]["Attachments"][0]["MIMEType"] = json!(invalid);
+            }
+            let observed =
+                // jig-ignore-next-line: canonical rustfmt metadata parser call.
+                ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &body.to_string());
+            assert_eq!(observed, Err(MessageDetailResponseError::Malformed));
+        }
+    }
+}
+
+#[test]
+fn media_type_validation_preserves_standard_mime_parameters() {
+    // jig-ignore-next-line: indivisible synthetic standard MIME value.
+    const MIME: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    let mut body = detail_body();
+    body["Message"]["MIMEType"] = json!("text/plain; charset=UTF-8");
+    body["Message"]["Attachments"][0]["MIMEType"] = json!(MIME);
+    let raw = body.to_string();
+    // jig-ignore-next-line: canonical rustfmt projection call.
+    let projected = ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &raw)
+        .expect("valid message and attachment MIME values");
+    assert_eq!(projected.message().mime_type(), "text/plain; charset=UTF-8");
+    assert_eq!(projected.message().attachments()[0].mime_type(), Some(MIME));
+}

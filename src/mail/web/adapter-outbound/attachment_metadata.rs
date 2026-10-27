@@ -418,7 +418,7 @@ impl ObservedAttachmentMetadataResponse {
         let mime_type =
             // jig-ignore-next-line: canonical rustfmt line.
             bounded_required_string(attachment, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
-        if !safe_attachment_mime_type(&mime_type) {
+        if !safe_metadata_mime_type(&mime_type) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         Ok(Self {
@@ -478,7 +478,11 @@ impl Debug for ObservedAttachmentMetadataResponse {
 
 // Reject non-MIME media names and any raw header control characters.
 // Parameters are permitted only as printable ASCII without line breaks.
-fn safe_attachment_mime_type(value: &str) -> bool {
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "message detail also validates media types"
+)]
+pub(crate) fn safe_metadata_mime_type(value: &str) -> bool {
     let printable = value.bytes().all(|byte| (32..=126).contains(&byte));
     if value.trim() != value || !printable {
         return false;

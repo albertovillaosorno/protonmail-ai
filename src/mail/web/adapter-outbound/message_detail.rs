@@ -37,6 +37,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
+use crate::attachment_metadata::safe_metadata_mime_type;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
@@ -565,6 +566,9 @@ impl ObservedMessageDetailResponse {
         let label_ids = parse_label_ids(message.get("LabelIDs"))?;
         // jig-ignore-next-line: canonical rustfmt line.
         let mime_type = bounded_required_string(message, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
+        if !safe_metadata_mime_type(&mime_type) {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         let attachments = parse_attachments(message.get("Attachments"))?;
         Ok(Self {
             message: ObservedMessageDetail {
@@ -729,6 +733,12 @@ fn parse_attachments(
         let sanitized_name = name.as_deref().map(SanitizedAttachmentFilename::new);
         // jig-ignore-next-line: canonical rustfmt line.
         let mime_type = bounded_optional_string(object, "MIMEType", MAX_MIME_TYPE_BYTES)?;
+        if mime_type
+            .as_deref()
+            .is_some_and(|mime| !safe_metadata_mime_type(mime))
+        {
+            return Err(MessageDetailResponseError::Malformed);
+        }
         let size = match object.get("Size") {
             None | Some(Value::Null) => None,
             Some(value) => Some(
