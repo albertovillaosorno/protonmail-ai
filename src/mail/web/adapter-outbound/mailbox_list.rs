@@ -55,12 +55,24 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(!root){return {loading:false,loaded:false,rowIds:[],skeletonCount:0,",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "emptyMarker:false,nextPresent:false,nextDisabled:null,currentTestId:null};}",
+    // CSS opacity does not inherit: rendered descendant boxes may still be
+    // visually hidden by a transparent ancestor. Bound ancestor inspection.
+    "const visibleTree=(node)=>{let current=node;",
+    "for(let depth=0;depth<64;depth++){",
+    "if(!current){return true;}",
+    "const style=getComputedStyle(current);",
+    "if(!style||style.visibility!=='visible'||",
+    "!(Number(style.opacity)>0)){return false;}",
+    "current=current.parentElement;}",
+    "return false;};",
+    "if(!visibleTree(root)){return null;}",
     "const base='[data-shortcut-target=\"item-container\"][data-element-id]';",
     "const real=[...root.querySelectorAll(base+'[role=\"region\"]')];",
     "if(real.length>200||real.some((row)=>",
     "row.getClientRects().length===0||",
     "getComputedStyle(row).visibility!=='visible'||",
     "getComputedStyle(row).opacity==='0'||",
+    "!visibleTree(row)||",
     "row.closest('[aria-hidden=\"true\"]'))){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const skeleton=[...root.querySelectorAll(base+':not([role=\"region\"])')];",
@@ -71,6 +83,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(emptyNode&&(emptyNode.getClientRects().length===0||",
     "getComputedStyle(emptyNode).visibility!=='visible'||",
     "getComputedStyle(emptyNode).opacity==='0'||",
+    "!visibleTree(emptyNode)||",
     "emptyNode.closest('[aria-hidden=\"true\"]'))){return null;}",
     "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -82,6 +95,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(current&&(current.getClientRects().length===0||",
     "getComputedStyle(current).visibility!=='visible'||",
     "getComputedStyle(current).opacity==='0'||",
+    "!visibleTree(current)||",
     "current.closest('[aria-hidden=\"true\"]'))){return null;}",
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.getClientRects().length===0||",
@@ -89,6 +103,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(!next.disabled&&next.getAttribute('aria-disabled')!=='true'&&",
     "getComputedStyle(next).pointerEvents==='none')||",
     "getComputedStyle(next).opacity==='0'||",
+    "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\"]'))){return null;}",
     "return {loading:!!loading,loaded:!!loaded,",
     "rowIds:real.map((row)=>row.getAttribute('data-element-id')),",

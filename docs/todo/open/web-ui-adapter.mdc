@@ -1220,6 +1220,10 @@ web application without requiring Bridge or a third-party direct API identity.
   parent cannot expose decoy message content even if the child renders a
   layout box. Synthetic Node tests reject opacity-zero ancestors and DOM
   ancestry exceeding the audited 64-element limit.
+- Content-free list observations now check root, row, empty marker,
+  current-page marker, and Next-control ancestor opacity and visibility
+  through a bounded chain. Transparent parent panels and implausibly deep
+  ancestry cannot establish a settled mailbox or trusted pagination.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -874,17 +874,20 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  pointerEvents:node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
  opacity:node===row?rowOpacity:node===current?currentOpacity:
- node===empty?emptyOpacity:'1'});
+ node===empty?emptyOpacity:node===ancestor?ancestorOpacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
-let showEmpty=false,emptyOpacity='1';
+let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
+const ancestor={parentElement:null};
 const row={getAttribute:()=> 'synthetic-row',
  getClientRects:()=>rowHidden?[]:[{}],closest:()=>null};
 const empty={getClientRects:()=>[{}],closest:()=>null};
-const loaded={querySelectorAll:(q)=>q.includes(':not(')?[]:
+const loaded={parentElement:ancestor,querySelectorAll:(q)=>
+ q.includes(':not(')?[]:
  q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
  (showEmpty?[]:[row])};
+row.parentElement=loaded;
 const next=new HTMLButtonElement();
 next.disabled=false;
 next.getClientRects=()=>[{}];
@@ -906,6 +909,14 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
 rowHidden=true;
 if(eval(expression)!==null){throw Error('hidden row was accepted');}
 rowHidden=false;
+ancestorOpacity='0';
+if(eval(expression)!==null){throw Error('hidden list root was accepted');}
+ancestorOpacity='1';
+const chain=Array.from({length:70},()=>({parentElement:null}));
+chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
+ancestor.parentElement=chain[0];
+if(eval(expression)!==null){throw Error('unbounded root ancestry accepted');}
+ancestor.parentElement=null;
 rowOpacity='0';
 if(eval(expression)!==null){throw Error('opacity-zero row was accepted');}
 rowOpacity='1';
