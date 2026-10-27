@@ -895,6 +895,7 @@ for(const [path,hash,expected] of [
   ['/u/0/inbox','#keyword=%EF%B8%8F',false],
   ['/u/0/inbox','#keyword=%EF%B8%80',false],
   ['/u/0/inbox','#keyword=%E1%A0%8B',false],
+  ['/u/0/inbox','#keyword=%E1%A0%8F',false],
   ['/u/0/inbox','#keyword=%F3%A0%84%80',false],
   ['/u/0/inbox','#from=%C2%AD',false],
   ['/u/0/inbox','#keyword=hello%E2%80%A8',false],
@@ -1043,7 +1044,8 @@ if(eval(script)!==null){throw Error('oversized row ID crossed CDP');}
 idValue='row-a';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
- 'hangul\\u115ffiller', 'braille\\u2800blank', 'tag\\u{e0100}selector']){
+ 'hangul\\u115ffiller', 'mongolian\\u180fvariation',
+ 'braille\\u2800blank', 'tag\\u{e0100}selector']){
  idValue=invalidId;titleReads=0;
  if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
  if(titleReads!==0){throw Error('invalid ID caused a content read');}
@@ -1179,7 +1181,8 @@ if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
 rowId='synthetic-row';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
- 'hangul\\u115ffiller', 'braille\\u2800blank', 'tag\\u{e0100}selector']){
+ 'hangul\\u115ffiller', 'mongolian\\u180fvariation',
+ 'braille\\u2800blank', 'tag\\u{e0100}selector']){
  rowId=invalidId;
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
 }

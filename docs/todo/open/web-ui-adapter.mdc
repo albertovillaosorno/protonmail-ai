@@ -1411,3 +1411,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - A synthetic DevTools-pipe browser regression now injects a redirected-in
   message-list GET on reload and proves typed refusal, Network cleanup before
   any body fetch, and a still-usable CDP session.
+
+- Browser-side search-mode and visible-list ID guards now reject the Mongolian
+  Free Variation Selector Four (U+180F), previously omitted from the adjacent
+  U+180B–U+180E invisible-selector range. The shared Rust route-ID guard agrees;
+  red-first Node-executed and Rust synthetic regressions show this invisible
+  character can no longer prove search mode or pass as an opaque row ID.
