@@ -876,6 +876,14 @@ addressValue='y'.repeat(16385);
 if(eval(script)[0]!==null){throw Error('oversized addresses crossed CDP');}
 addressValue='sender@example.test';idValue='z'.repeat(513);
 if(eval(script)[0]!==null){throw Error('oversized row ID crossed CDP');}
+idValue='row-a';
+for(const invalidId of ['.', '..', 'white space', 'with/slash',
+ 'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth']){
+ idValue=invalidId;
+ if(eval(script)[0]!==null){throw Error('unsafe row ID crossed CDP');}
+}
+idValue='m\\u00e9moire';
+if(eval(script)[0]?.id!==idValue){throw Error('valid unicode ID refused');}
 idValue='row-a';modal=true;
 if(eval(script)!==null){throw Error('modal exposed content rows');}
 modal=false;ancestorInert=true;
@@ -985,6 +993,16 @@ if(eval(expression).nextDisabled!==true){
 nextParentDisabled=false;
 rowId='A'.repeat(513);
 if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
+rowId='synthetic-row';
+for(const invalidId of ['.', '..', 'white space', 'with/slash',
+ 'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth']){
+ rowId=invalidId;
+ if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
+}
+rowId='m\\u00e9moire';
+if(eval(expression)?.rowIds[0]!==rowId){
+ throw Error('valid unicode list ID refused');
+}
 rowId='\\u00e9'.repeat(260);
 if(eval(expression)!==null){throw Error('UTF-8 row IDs exceeded limit');}
 rowId='synthetic-row';pageId='pagination-row:go-to-page-'+ '9'.repeat(100);

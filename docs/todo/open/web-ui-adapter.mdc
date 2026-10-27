@@ -1259,6 +1259,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Message-list capture now rejects differently cased aliases of all
   audited pagination/sort selector names. This matches the conversation-list
   boundary and prevents ambiguous provider versus adapter interpretation.
+- The browser-side DOM projection now refuses unsafe provider row ID
+  characters, encoded path separators, invisible formatting, and dot-only
+  aliases before they can traverse CDP. Synthetic Node tests cover both
+  rejected aliases and valid Unicode IDs; Rust repeats the ID checks.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -110,9 +110,15 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
+    "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
+    "\\u00ad\\u034f\\u061c\\u180e\\u200b-\\u200f",
+    "\\u202a-\\u202e\\u2060-\\u206f\\ufeff",
+    "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
     // Preflight projected IDs and page selectors before CDP serialization.
     "const ids=real.map((row)=>row.getAttribute('data-element-id'));",
     "if(ids.some((id)=>typeof id!=='string'||id.length===0||",
+    "id==='.'||id==='..'||invalidId.test(id)||",
     "id.length>512||new TextEncoder().encode(id).length>512)){",
     "return null;}",
     "const page=current?current.getAttribute('data-testid'):null;",

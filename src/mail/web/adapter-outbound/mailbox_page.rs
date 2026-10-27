@@ -99,7 +99,13 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const addresses=sender.getAttribute('title');",
     "const bounded=(value,max)=>typeof value==='string'&&",
     "value.length<=max&&new TextEncoder().encode(value).length<=max;",
+    // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
+    "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
+    "\\u00ad\\u034f\\u061c\\u180e\\u200b-\\u200f",
+    "\\u202a-\\u202e\\u2060-\\u206f\\ufeff",
+    "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
     "if(!bounded(id,512)||id.length===0||",
+    "id==='.'||id==='..'||invalidId.test(id)||",
     "!bounded(subject,16384)||!bounded(addresses,16384)){return null;}",
     "return {id:id,subject:subject,addresses:addresses,",
     "unread:row.classList.contains('unread')};",
