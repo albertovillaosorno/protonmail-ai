@@ -54,9 +54,12 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
 const fn is_invisible_format(character: char) -> bool {
     matches!(
         character,
-        '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{180e}'
+        '\u{00ad}' | '\u{034f}' | '\u{061c}'
+            | '\u{115f}' | '\u{1160}' | '\u{180b}'..='\u{180e}'
             | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}'
-            | '\u{2060}'..='\u{206f}' | '\u{feff}'
+            | '\u{2060}'..='\u{206f}' | '\u{2800}' | '\u{3164}'
+            | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
             | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+            | '\u{e0100}'..='\u{e01ef}'
     )
 }

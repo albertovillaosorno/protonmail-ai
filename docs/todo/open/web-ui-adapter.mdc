@@ -1359,6 +1359,12 @@ web application without requiring Bridge or a third-party direct API identity.
   values are nonempty but visually blank. A red-first Node-executed location
   matrix proves none can imply a verified individual-message search surface.
 
+- Both browser-owned visible-row ID preflights and the shared Rust opaque
+  read-ID guard now reject additional invisible Unicode fillers and variation
+  selectors. Red-first Rust and Node fixtures prove a blank-looking message ID
+  previously passed even though search-mode validation correctly rejected its
+  Unicode class. Conversation, catalog, event-watermark and detail regressions
+  exercise the shared validator throughout read-only metadata boundaries.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
