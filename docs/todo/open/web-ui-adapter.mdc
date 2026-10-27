@@ -1346,6 +1346,10 @@ web application without requiring Bridge or a third-party direct API identity.
   exhausted the current request page fails closed rather than publishing a
   misleading cursor. Synthetic tests cover the contradictory final-page
   state and retain an enabled Next when provider Total proves more rows.
+- Synthetic message-mode page fixtures now route audited row projection
+  commands before content-free list probes: the row expression itself checks
+  the loading selector, so the old fixture order falsely classified content
+  tasks as list reads. Nine synthetic message-page regressions pass again.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

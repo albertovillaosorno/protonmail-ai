@@ -117,16 +117,16 @@ while IFS= read -r -d '' message <&3; do
       response+='"value":{"forcedMessageRoute":'"$forced"','
       response+='"activeSearch":'"$search"'}}}}'
       printf '%s\0' "$response" >&4;;
-    *'Runtime.evaluate'*'message-list-loading'*)
-      response='{"id":'"$id"',"result":{"result":{"type":"object",'
-      response+='"value":__STABLE_LIST__}}}'
-      printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
       row_probe=$((row_probe + 1))
       rows='__ROWS_FIRST__'
       if [ "$row_probe" -gt 1 ]; then rows='__ROWS_SECOND__'; fi
       response='{"id":'"$id"',"result":{"result":{"type":"object",'
       response+='"value":'"$rows"'}}}'
+      printf '%s\0' "$response" >&4;;
+    *'Runtime.evaluate'*'message-list-loading'*)
+      response='{"id":'"$id"',"result":{"result":{"type":"object",'
+      response+='"value":__STABLE_LIST__}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*)
       response='{"id":'"$id"',"result":{"result":{"type":"object",'
