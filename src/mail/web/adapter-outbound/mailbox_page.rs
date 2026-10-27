@@ -76,8 +76,19 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
     "if(rows.length>200){return null;}",
-    "return rows.map((row)=>{",
-    "const id=row.getAttribute('data-element-id');",
+    // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
+    "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
+    "\\u00ad\\u034f\\u061c\\u180e\\u200b-\\u200f",
+    "\\u202a-\\u202e\\u2060-\\u206f\\ufeff",
+    "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
+    "const ids=rows.map((row)=>row.getAttribute('data-element-id'));",
+    "if(ids.some((id)=>typeof id!=='string'||id.length===0||",
+    "id==='.'||id==='..'||invalidId.test(id)||",
+    "id.length>512||new TextEncoder().encode(id).length>512)||",
+    "new Set(ids).size!==ids.length){return null;}",
+    // Never consult a subject or sender if any row has an ambiguous ID.
+    "const projected=rows.map((row,index)=>{",
+    "const id=ids[index];",
     "const labelled=row.getAttribute('aria-labelledby');",
     // Only one heading within the row may supply visible subject text.
     "const headingNodes=labelled?[...row.querySelectorAll('[id]')]",
@@ -103,18 +114,15 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "value.length<=max&&new TextEncoder().encode(value).length<=max;",
     "const invalidText=/[\\u0000-\\u001f\\u007f-\\u009f",
     "\\u2028\\u2029]/u;",
-    // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
-    "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
-    "\\u00ad\\u034f\\u061c\\u180e\\u200b-\\u200f",
-    "\\u202a-\\u202e\\u2060-\\u206f\\ufeff",
-    "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
-    "if(!bounded(id,512)||id.length===0||",
-    "id==='.'||id==='..'||invalidId.test(id)||",
-    "!bounded(subject,16384)||!bounded(addresses,16384)||",
+    "if(!bounded(subject,16384)||!bounded(addresses,16384)||",
     "invalidText.test(subject)||invalidText.test(addresses)){return null;}",
     "return {id:id,subject:subject,addresses:addresses,",
     "unread:row.classList.contains('unread')};",
     "});",
+    // A single malformed row makes the whole content-bearing CDP result
+    // ineligible; never serialize valid siblings beside invalid metadata.
+    "if(projected.some((item)=>item===null)){return null;}",
+    "return projected;",
     "})()"
 );
 

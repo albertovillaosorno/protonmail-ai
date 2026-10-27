@@ -1318,6 +1318,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - A synthetic sort comparator matrix now covers ten descending and
   ascending cases, including precedence of unequal `Time` over `Order`,
   strict `Order` ties, reversed order, and exact secondary collisions.
+- Content-bearing browser projections now preflight all visible row IDs
+  for uniqueness, byte bounds, and safe opaque naming before accessing any
+  subject or sender attribute. The whole JavaScript result is also null if
+  even one row's metadata is malformed, preventing valid sibling content
+  from entering CDP on an ultimately rejected read. Content-free list
+  projections reject duplicate IDs in Chromium before serialization too.
+  Node-backed red-first regressions check non-exposure in both cases.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

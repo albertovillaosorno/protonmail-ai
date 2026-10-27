@@ -817,6 +817,7 @@ fn pagination_and_sort_clicks_refuse_aria_disabled_controls() {
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "synthetic content DOM state matrix")]
 fn visible_row_javascript_projects_only_rendered_synthetic_content() {
     use std::process::Command;
 
@@ -832,13 +833,15 @@ globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
+let duplicateRows=false,titleReads=0,invalidSecondRow=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
-const heading={id:'heading-id',getAttribute:()=>subjectValue,
+const heading={id:'heading-id',
+ getAttribute:()=>{titleReads++;return subjectValue;},
   getClientRects:()=>[{}],
   closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
-const sender={getAttribute:()=>addressValue,
+const sender={getAttribute:()=>{titleReads++;return addressValue;},
   getClientRects:()=>[{}],
   closest:(q)=>ancestorInert&&q.includes('[inert]')?ancestor:null};
 const ancestor={parentElement:null};
@@ -847,7 +850,14 @@ const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
   parentElement:ancestor,classList:{contains:()=>true}};
 heading.parentElement=row;sender.parentElement=row;
-const root={querySelectorAll:()=>[row]};
+const brokenHeading={id:'heading-b',getClientRects:()=>[],
+ closest:()=>null};
+const brokenRow={getAttribute:(key)=>key==='data-element-id'?'row-b':
+ key==='aria-labelledby'?'heading-b':null,
+ querySelectorAll:(key)=>key==='[id]'?[brokenHeading]:[sender]};
+brokenHeading.parentElement=brokenRow;brokenRow.parentElement=ancestor;
+const root={querySelectorAll:()=>duplicateRows?[row,row]:
+ invalidSecondRow?[row,brokenRow]:[row]};
 globalThis.document={querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
@@ -858,46 +868,55 @@ if(!Array.isArray(projected)||projected.length!==1||
  projected[0].addresses!=='sender@example.test'||!projected[0].unread){
  throw Error('visible row projection failed');
 }
+duplicateRows=true;titleReads=0;
+if(eval(script)!==null){throw Error('duplicate IDs were projected');}
+if(titleReads!==0){throw Error('duplicate IDs caused content reads');}
+duplicateRows=false;invalidSecondRow=true;
+if(eval(script)!==null){
+ throw Error('partial content released despite invalid row');
+}
+invalidSecondRow=false;
 for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
  'line\\u2028separator', 'null\\u0000character']){
  subjectValue=invalidText;
- if(eval(script)[0]!==null){throw Error('unsafe subject entered CDP');}
+ if(eval(script)!==null){throw Error('unsafe subject entered CDP');}
  subjectValue='synthetic subject';addressValue=invalidText;
- if(eval(script)[0]!==null){throw Error('unsafe address entered CDP');}
+ if(eval(script)!==null){throw Error('unsafe address entered CDP');}
  addressValue='sender@example.test';
 }
 heading.getClientRects=()=>[];
 const hidden=eval(script);
-if(!Array.isArray(hidden)||hidden.length!==1||hidden[0]!==null){
+if(hidden!==null){
  throw Error('hidden subject remained readable');
 }
 heading.getClientRects=()=>[{}];
 subjectOpacity='0';
-if(eval(script)[0]!==null){throw Error('opacity-zero heading exposed');}
+if(eval(script)!==null){throw Error('opacity-zero heading exposed');}
 subjectOpacity='1';senderOpacity='0';
-if(eval(script)[0]!==null){throw Error('opacity-zero sender exposed');}
+if(eval(script)!==null){throw Error('opacity-zero sender exposed');}
 senderOpacity='1';ancestorOpacity='0';
-if(eval(script)[0]!==null){throw Error('hidden ancestor exposed content');}
+if(eval(script)!==null){throw Error('hidden ancestor exposed content');}
 ancestorOpacity='1';
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
-if(eval(script)[0]!==null){throw Error('unbounded ancestor depth accepted');}
+if(eval(script)!==null){throw Error('unbounded ancestor depth accepted');}
 ancestor.parentElement=null;
 subjectValue='x'.repeat(16385);
-if(eval(script)[0]!==null){throw Error('oversized subject crossed CDP');}
+if(eval(script)!==null){throw Error('oversized subject crossed CDP');}
 subjectValue='\\u00e9'.repeat(9000);
-if(eval(script)[0]!==null){throw Error('oversized UTF-8 crossed CDP');}
+if(eval(script)!==null){throw Error('oversized UTF-8 crossed CDP');}
 subjectValue='synthetic subject';
 addressValue='y'.repeat(16385);
-if(eval(script)[0]!==null){throw Error('oversized addresses crossed CDP');}
+if(eval(script)!==null){throw Error('oversized addresses crossed CDP');}
 addressValue='sender@example.test';idValue='z'.repeat(513);
-if(eval(script)[0]!==null){throw Error('oversized row ID crossed CDP');}
+if(eval(script)!==null){throw Error('oversized row ID crossed CDP');}
 idValue='row-a';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth']){
- idValue=invalidId;
- if(eval(script)[0]!==null){throw Error('unsafe row ID crossed CDP');}
+ idValue=invalidId;titleReads=0;
+ if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
+ if(titleReads!==0){throw Error('invalid ID caused a content read');}
 }
 idValue='m\\u00e9moire';
 if(eval(script)[0]?.id!==idValue){throw Error('valid unicode ID refused');}
@@ -907,7 +926,7 @@ modal=false;nativeDialog=true;
 if(eval(script)!==null){throw Error('native dialog exposed content');}
 nativeDialog=false;
 modal=false;ancestorInert=true;
-if(eval(script)[0]!==null){throw Error('inert ancestor exposed content');}
+if(eval(script)!==null){throw Error('inert ancestor exposed content');}
 ",
     );
     let result = Command::new("node")
@@ -916,7 +935,8 @@ if(eval(script)[0]!==null){throw Error('inert ancestor exposed content');}
         .expect("execute synthetic row JS");
     assert!(
         result.status.success(),
-        "visible row JS failed synthetic DOM"
+        "visible row JS failed synthetic DOM: {}",
+        String::from_utf8_lossy(&result.stderr)
     );
 }
 
@@ -940,6 +960,7 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  node===empty?emptyOpacity:node===ancestor?ancestorOpacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
+let duplicateRows=false;
 let fieldsetDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
@@ -955,7 +976,7 @@ const empty={getClientRects:()=>[{}],
 const loaded={parentElement:ancestor,querySelectorAll:(q)=>
  q.includes(':not(')?[]:
  q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
- (showEmpty?[]:[row])};
+ (showEmpty?[]:duplicateRows?[row,row]:[row])};
 row.parentElement=loaded;
 const next=new HTMLButtonElement();
 next.disabled=false;
@@ -980,6 +1001,9 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
  'pagination-row:go-to-page-2'||ready.nextDisabled!==false){
  throw Error('visible list projection was not complete');
 }
+duplicateRows=true;
+if(eval(expression)!==null){throw Error('duplicate list IDs accepted');}
+duplicateRows=false;
 rowHidden=true;
 if(eval(expression)!==null){throw Error('hidden row was accepted');}
 rowHidden=false;
