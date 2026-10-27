@@ -35,6 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
 
+use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
@@ -46,7 +47,6 @@ const LATEST_EVENT_URL: &str = "https://mail.proton.me/api/core/v4/events/latest
 const MAX_EVENT_BODY_BYTES: usize = 262_144;
 const MAX_EVENT_ID_BYTES: usize = 512;
 const MAX_TRACKED_EVENT_REQUESTS: usize = 32;
-const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_EVENT_URL_BYTES: usize = 16_384;
 const MAX_PROJECTED_CHANGES: usize = 512;
 const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
@@ -228,8 +228,7 @@ impl LatestMailboxEventNetworkCapture {
         if url.len() > MAX_EVENT_URL_BYTES {
             return Err(MailboxEventNetworkError::MalformedEvent);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+        if !safe_cdp_request_id(request_id) {
             return Err(MailboxEventNetworkError::MalformedEvent);
         }
         if self.requests.len().saturating_add(self.completed_ids.len())
@@ -475,8 +474,7 @@ impl MailboxEventNetworkCapture {
         let event_id =
             // jig-ignore-next-line: canonical rustfmt line.
             event_id_from_url(url).map_err(|_error| MailboxEventNetworkError::MalformedEvent)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+        if !safe_cdp_request_id(request_id) {
             return Err(MailboxEventNetworkError::MalformedEvent);
         }
         if self.requests.len().saturating_add(self.completed_ids.len())

@@ -4447,7 +4447,11 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
 // Browser-issued request IDs are not Mail path components. Require bounded
 // printable ASCII to prevent control, spacing and invisible Unicode aliases
 // from reaching Network.getResponseBody without narrowing ordinary CDP dots.
-fn safe_cdp_request_id(id: &str) -> bool {
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "sibling observers use CDP transport authority"
+)]
+pub(crate) fn safe_cdp_request_id(id: &str) -> bool {
     // jig-ignore-next-line: canonical rustfmt line.
     !id.is_empty() && id.len() <= 512 && id.bytes().all(|byte| byte.is_ascii_graphic())
 }

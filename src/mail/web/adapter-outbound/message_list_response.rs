@@ -35,6 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
 
+use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
 
@@ -43,7 +44,6 @@ const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "ma
 const MAX_MESSAGE_LIST_ITEMS: usize = 100;
 const MAX_MESSAGE_LIST_ID_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
-const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_MESSAGE_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
@@ -276,8 +276,7 @@ impl MessageListNetworkCapture {
         else {
             return Ok(());
         };
-        // jig-ignore-next-line: canonical rustfmt line.
-        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+        if !safe_cdp_request_id(request_id) {
             return Err(MessageListNetworkError::MalformedEvent);
         }
         // jig-ignore-next-line: canonical rustfmt line.

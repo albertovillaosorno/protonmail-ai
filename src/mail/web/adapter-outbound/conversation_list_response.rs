@@ -35,6 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
 
+use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
 
@@ -44,7 +45,6 @@ const MAX_CONVERSATION_LIST_ITEMS: usize = 100;
 const MAX_CONVERSATION_LIST_PAGE_SIZE: u16 = 100;
 const MAX_CONVERSATION_ID_BYTES: usize = 512;
 const MAX_TRACKED_CONVERSATION_LIST_REQUESTS: usize = 128;
-const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 const MAX_CONVERSATION_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 
@@ -193,10 +193,8 @@ impl ConversationListNetworkCapture {
         if params.get("redirectResponse").is_some() {
             return Err(ConversationListNetworkError::RedirectedAway);
         }
-        if request_id.is_empty()
-            || request_id.len() > MAX_CDP_REQUEST_ID_BYTES
-            || url.len() > MAX_CONVERSATION_LIST_URL_BYTES
-        {
+        let oversized_url = url.len() > MAX_CONVERSATION_LIST_URL_BYTES;
+        if !safe_cdp_request_id(request_id) || oversized_url {
             return Err(ConversationListNetworkError::MalformedEvent);
         }
         if self.requests.len().saturating_add(self.completed_ids.len())

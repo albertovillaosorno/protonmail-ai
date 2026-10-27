@@ -1941,7 +1941,9 @@ fn invisible_network_request_id_never_triggers_response_body_fetch() {
         .expect("discover Mail provider page");
     assert_eq!(
         managed.observe_message_list_response(&page),
-        Err(BrowserDriverError::Protocol),
+        Err(BrowserDriverError::MessageListNetwork(
+            mail_web_adapter::MessageListNetworkError::MalformedEvent,
+        )),
     );
     managed
         .require_mail_shell(&page)

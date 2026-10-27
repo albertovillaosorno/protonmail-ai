@@ -38,6 +38,7 @@
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
@@ -50,7 +51,6 @@ const MAX_MESSAGE_ID_BYTES: usize = 512;
 const MAX_ATTACHMENT_NAME_BYTES: usize = 4_096;
 const MAX_MIME_TYPE_BYTES: usize = 512;
 const MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS: usize = 16;
-const MAX_CDP_REQUEST_ID_BYTES: usize = 512;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AttachmentMetadataRequestState {
@@ -175,8 +175,7 @@ impl AttachmentMetadataNetworkCapture {
         if params.get("redirectResponse").is_some() {
             return Err(AttachmentMetadataNetworkError::RedirectedAway);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        if request_id.is_empty() || request_id.len() > MAX_CDP_REQUEST_ID_BYTES {
+        if !safe_cdp_request_id(request_id) {
             return Err(AttachmentMetadataNetworkError::MalformedEvent);
         }
         if self.requests.len().saturating_add(self.completed_ids.len())

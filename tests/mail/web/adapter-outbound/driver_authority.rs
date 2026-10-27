@@ -267,6 +267,122 @@ fn response_body_requests_refuse_invisible_cdp_request_ids() {
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "all eight passive capture states")]
+fn passive_network_observers_refuse_request_ids_unusable_by_cdp_transport() {
+    use crate::attachment_metadata::AttachmentMetadataNetworkCapture;
+    use crate::conversation_detail::ConversationDetailNetworkCapture;
+    use crate::conversation_list_response::ConversationListNetworkCapture;
+    use crate::mailbox_catalog::MailboxCatalogNetworkCapture;
+    use crate::mailbox_event_watermark::{
+        LatestMailboxEventNetworkCapture, MailboxEventNetworkCapture,
+    };
+    use crate::message_detail::MessageDetailNetworkCapture;
+    use crate::message_list_response::MessageListNetworkCapture;
+
+    let event = |id: &str, url: &str| {
+        json!({
+            "sessionId":"session-a", "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":url}}
+        })
+    };
+    let origin = "https://mail.proton.me/api/";
+    let query = "?Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1";
+    let urls = [
+        format!("{origin}mail/v4/messages{query}"),
+        format!("{origin}mail/v4/conversations{query}"),
+        format!("{origin}mail/v4/conversations/conversation-1"),
+        format!("{origin}mail/v4/messages/message-1"),
+        format!("{origin}mail/v4/attachments/attachment-1/metadata"),
+        format!("{origin}core/v4/labels?Type=1"),
+        format!("{origin}core/v4/events/latest"),
+        format!("{origin}core/v5/events/event-1"),
+    ];
+    let good = "42.7";
+    assert!(
+        MessageListNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[0]))
+            .is_ok()
+    );
+    assert!(
+        ConversationListNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[1]))
+            .is_ok()
+    );
+    assert!(
+        ConversationDetailNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[2]))
+            .is_ok()
+    );
+    assert!(
+        MessageDetailNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[3]))
+            .is_ok()
+    );
+    assert!(
+        AttachmentMetadataNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[4]))
+            .is_ok()
+    );
+    assert!(
+        MailboxCatalogNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[5]))
+            .is_ok()
+    );
+    assert!(
+        LatestMailboxEventNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[6]))
+            .is_ok()
+    );
+    assert!(
+        MailboxEventNetworkCapture::new("session-a")
+            .observe(&event(good, &urls[7]))
+            .is_ok()
+    );
+    for invalid in ["bad space", "unicode\u{200b}hidden", "opaque\u{00e9}"] {
+        assert!(
+            MessageListNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[0]))
+                .is_err()
+        );
+        assert!(
+            ConversationListNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[1]))
+                .is_err()
+        );
+        assert!(
+            ConversationDetailNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[2]))
+                .is_err()
+        );
+        assert!(
+            MessageDetailNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[3]))
+                .is_err()
+        );
+        assert!(
+            AttachmentMetadataNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[4]))
+                .is_err()
+        );
+        assert!(
+            MailboxCatalogNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[5]))
+                .is_err()
+        );
+        assert!(
+            LatestMailboxEventNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[6]))
+                .is_err()
+        );
+        assert!(
+            MailboxEventNetworkCapture::new("session-a")
+                .observe(&event(invalid, &urls[7]))
+                .is_err()
+        );
+    }
+}
+
+#[test]
 fn audited_click_scripts_block_common_auth_inputs_before_any_activation() {
     for script in [
         NextPageActivation::expression(),

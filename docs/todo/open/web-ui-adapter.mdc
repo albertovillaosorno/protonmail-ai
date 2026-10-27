@@ -1370,6 +1370,10 @@ web application without requiring Bridge or a third-party direct API identity.
   generation strings, but event tokens require canonical 32-character
   lowercase hex; a red-first codec regression proves malformed values no
   longer create tokens the decoder can never resume.
+- All eight passive CDP Network request trackers now apply the same
+  512-byte printable-ASCII request-ID rule as the audited outbound body
+  command. Red-first regression tests refuse malformed IDs before capture
+  while ordinary dotted browser request IDs remain valid.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
