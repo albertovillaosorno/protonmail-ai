@@ -1273,6 +1273,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Sort-menu option reads and cleanup clicks also reject ARIA-disabled
   parent subtrees. This prevents a disabled menu from establishing visible
   sort evidence or authorizing its otherwise enabled toggle.
+- Atomic DOM read and click probes now block native open `dialog`
+  elements and `aria-modal` overlays as well as explicit dialog roles.
+  Synthetic Node regressions verify new native dialogs interrupt visible
+  message content, list state, sort state, and mode observations.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

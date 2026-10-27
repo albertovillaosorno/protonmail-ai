@@ -831,7 +831,7 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let subjectValue='synthetic subject',addressValue='sender@example.test';
-let idValue='row-a',modal=false,ancestorInert=false;
+let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
@@ -848,7 +848,9 @@ const row={getAttribute:(key)=>key==='data-element-id'?idValue:
   parentElement:ancestor,classList:{contains:()=>true}};
 heading.parentElement=row;sender.parentElement=row;
 const root={querySelectorAll:()=>[row]};
-globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+globalThis.document={querySelector:(q)=>
+ (modal&&q.includes('dialog')||
+ nativeDialog&&q.includes('dialog[open]'))?{}:null,
  querySelectorAll:()=>[root]};
 const projected=eval(script);
 if(!Array.isArray(projected)||projected.length!==1||
@@ -893,6 +895,9 @@ idValue='m\\u00e9moire';
 if(eval(script)[0]?.id!==idValue){throw Error('valid unicode ID refused');}
 idValue='row-a';modal=true;
 if(eval(script)!==null){throw Error('modal exposed content rows');}
+modal=false;nativeDialog=true;
+if(eval(script)!==null){throw Error('native dialog exposed content');}
+nativeDialog=false;
 modal=false;ancestorInert=true;
 if(eval(script)[0]!==null){throw Error('inert ancestor exposed content');}
 ",
@@ -931,6 +936,7 @@ let fieldsetDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let modal=false,rootInert=false,nextParentDisabled=false;
+let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
@@ -953,7 +959,9 @@ next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 const current={getClientRects:()=>[{}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
-globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+globalThis.document={querySelector:(q)=>
+ (modal&&q.includes('dialog')||
+ nativeDialog&&q.includes('dialog[open]'))?{}:null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
    (showLoading?[{querySelectorAll:()=>[]}]:[]):
    q.includes('message-list-loaded')?[loaded]:
@@ -1032,6 +1040,8 @@ next.getClientRects=()=>[{}];rootInert=true;
 if(eval(expression)!==null){throw Error('inert list was exposed');}
 rootInert=false;modal=true;
 if(eval(expression)!==null){throw Error('modal exposed list state');}
+modal=false;nativeDialog=true;
+if(eval(expression)!==null){throw Error('native modal exposed list');}
 ",
     );
     let output = Command::new("node")
@@ -1288,10 +1298,14 @@ fn read_only_mode_and_sort_evidence_refuse_new_modal_dialogs() {
         "
 globalThis.location={origin:'https://mail.proton.me',
  pathname:'/u/0/inbox',hash:'#keyword=synthetic'};
+let modalMarker='dialog';
 globalThis.document={querySelector:(q)=>
- q.includes('dialog')?{}:null,querySelectorAll:()=>[]};
-for(const expression of expressions){
- if(eval(expression)!==null){throw Error('modal did not block a read');}
+ q.includes(modalMarker)?{}:null,querySelectorAll:()=>[]};
+for(const marker of ['dialog','dialog[open]','aria-modal']){
+ modalMarker=marker;
+ for(const expression of expressions){
+  if(eval(expression)!==null){throw Error('modal did not block a read');}
+ }
 }
 ",
     );

@@ -44,7 +44,8 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(document.querySelector('input[type=\"password\"],",
     "input[autocomplete=\"one-time-code\"]')){return null;}",
     "if(document.querySelector('[role=\"dialog\"],",
-    "[role=\"alertdialog\"]')){return null;}",
+    "[role=\"alertdialog\"],dialog[open],",
+    "[aria-modal=\"true\"]')){return null;}",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const loadingNodes=[...document.querySelectorAll('[data-testid=\"message-list-loading\"]')];",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
