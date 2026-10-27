@@ -695,3 +695,46 @@ fn visible_row_script_separates_independent_const_declarations() {
     assert!(script.contains("item-container\"]';const rows="));
     assert!(!script.contains("item-container\"]',const rows="));
 }
+
+#[test]
+fn audited_dom_expressions_parse_and_reject_foreign_origins_in_node() {
+    use std::process::Command;
+
+    // Node is a developer-only diagnostic; cargo checks remain usable on
+    // minimal Rust installations without an installed JavaScript runtime.
+    if Command::new("node").arg("--version").output().is_err() {
+        eprintln!("Node unavailable: skipping JavaScript syntax check");
+        return;
+    }
+    let expressions = [
+        MailboxModeEvidence::expression(),
+        MailboxListEvidence::expression(),
+        MailboxPageSnapshot::expression(),
+        MailboxSortOrder::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+        MailboxSortOrder::closed_expression(),
+        NextPageActivation::expression(),
+    ];
+    let encoded = serde_json::to_string(&expressions).expect("static source");
+    let source = format!(
+        "const snippets={encoded};\n\
+     for(const script of snippets){{new Function('return ('+script+');');}}\n\
+         globalThis.location={{origin:'https://lookalike.example.test'}};\n\
+         for(const script of snippets){{\n\
+           const result=eval(script);\n\
+           if(result!==null&&result!==false){{\n\
+             throw Error('untrusted origin was not rejected');\n\
+           }}\n\
+         }}"
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("launch synthetic JS runtime");
+    assert!(
+        output.status.success(),
+        "audited browser scripts failed to compile or deny foreign origins: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
