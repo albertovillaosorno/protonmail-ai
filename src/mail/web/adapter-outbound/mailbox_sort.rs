@@ -65,7 +65,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "getComputedStyle(node).visibility!=='visible'||",
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
-    "node.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    // jig-ignore-next-line: indivisible CSS ancestor-state selector.
+    "node.closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return null;}",
     "return {alreadyOpen:true,clicked:false};}",
     "if(!groups.every((group)=>group.length===0)){return null;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
@@ -115,7 +116,8 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "getComputedStyle(node).visibility!=='visible'||",
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
-    "node.closest('[aria-hidden=\"true\"],[inert]'))){return null;}",
+    // jig-ignore-next-line: indivisible CSS ancestor-state selector.
+    "node.closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return null;}",
     "const pressed=(node)=>{const value=node.getAttribute('aria-pressed');",
     "return value==='true'?true:value==='false'?false:null;};",
     "const values=nodes.map((group)=>pressed(group[0]));",
@@ -152,7 +154,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "getComputedStyle(group[0]).visibility!=='visible'||",
     "getComputedStyle(group[0]).opacity==='0'||",
     "!visibleTree(group[0])||",
-    "group[0].closest('[aria-hidden=\"true\"],[inert]'))){return false;}",
+    // jig-ignore-next-line: indivisible CSS ancestor-state selector.
+    "group[0].closest('[aria-hidden=\"true\"],[inert],[aria-disabled=\"true\"]'))){return false;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1||",

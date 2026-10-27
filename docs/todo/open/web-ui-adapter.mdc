@@ -1270,6 +1270,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Search-mode proofs now reject encoded query-key aliases and
   noncanonical case variants of recognized filter keys. URL-encoded query
   values remain allowed, including encoded spaces and separators.
+- Sort-menu option reads and cleanup clicks also reject ARIA-disabled
+  parent subtrees. This prevents a disabled menu from establishing visible
+  sort evidence or authorizing its otherwise enabled toggle.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

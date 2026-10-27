@@ -1067,12 +1067,14 @@ globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
+let optionParentDisabled=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
 const toggleParent={parentElement:null};
 const option={getClientRects:()=>hidden?[]:[{}],
- closest:(q)=>sortInert&&q.includes('[inert]')?optionParent:null,
+ closest:(q)=>(sortInert&&q.includes('[inert]')||
+ optionParentDisabled&&q.includes('[aria-disabled'))?optionParent:null,
  parentElement:optionParent};
 const toggle=new HTMLButtonElement();
 toggle.parentElement=toggleParent;
@@ -1099,7 +1101,11 @@ const alreadyOpen=eval(open);
 if(!alreadyOpen.alreadyOpen||alreadyOpen.clicked||clicks!==1){
  throw Error('open menu triggered a second click');
 }
-hidden=true;
+optionParentDisabled=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('ARIA-disabled sort option was actionable');
+}
+optionParentDisabled=false;hidden=true;
 if(eval(close)!==false||clicks!==1){
  throw Error('hidden sort options triggered close');
 }
