@@ -661,6 +661,14 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
     let name = bounded_required_string(object, "Name", MAX_RECIPIENT_NAME_BYTES, true)?;
     // jig-ignore-next-line: canonical rustfmt line.
     let address = bounded_required_string(object, "Address", MAX_RECIPIENT_ADDRESS_BYTES, false)?;
+    // Names and addresses may eventually be reused in a reply composer.
+    // Reject raw header controls before exposing provider recipient values.
+    if name.chars().any(char::is_control)
+        || address.chars().any(char::is_control)
+        || address.trim() != address
+    {
+        return Err(MessageDetailResponseError::Malformed);
+    }
     Ok(ObservedMessageRecipient { name, address })
 }
 

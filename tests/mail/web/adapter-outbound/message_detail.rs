@@ -917,3 +917,26 @@ fn media_type_validation_preserves_standard_mime_parameters() {
     assert_eq!(projected.message().mime_type(), "text/plain; charset=UTF-8");
     assert_eq!(projected.message().attachments()[0].mime_type(), Some(MIME));
 }
+
+#[test]
+fn message_recipient_fields_reject_control_character_injection() {
+    for (pointer, value) in [
+        (
+            "/Message/Sender/Address",
+            "sender@example.test\r\nBcc:evil@example.test",
+        ),
+        ("/Message/Sender/Name", "Sender\nBcc: evil@example.test"),
+        ("/Message/ToList/0/Address", "to@example.test\u{0}"),
+        ("/Message/ToList/0/Name", "Recipient\u{7f}"),
+    ] {
+        let mut body = detail_body();
+        let field = body
+            .pointer_mut(pointer)
+            .expect("synthetic recipient field");
+        *field = json!(value);
+        let raw = body.to_string();
+        // jig-ignore-next-line: canonical rustfmt read-boundary call.
+        let observed = ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &raw);
+        assert_eq!(observed, Err(MessageDetailResponseError::Malformed));
+    }
+}
