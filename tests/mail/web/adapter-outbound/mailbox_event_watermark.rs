@@ -2744,6 +2744,7 @@ fn disabled_count_flags_fail_before_network_capture() {
             capture.observe(&event),
             Err(MailboxEventNetworkError::MalformedEvent)
         );
-        assert!(capture.take_finished_request_ids().is_empty());
+        let finished = capture.take_finished_request_ids();
+        assert_eq!(finished, Vec::<String>::new());
     }
 }
