@@ -1422,8 +1422,9 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
     use super::metadata_pair_matches_time_order;
     use crate::message_list_response::ObservedMessageListResponse;
 
+    type Case = (u64, i64, u64, i64, bool, bool);
     let url = "https://mail.proton.me/api/mail/v4/messages";
-    for (left_time, left_order, right_time, right_order, desc, expected) in [
+    let cases: [Case; 10] = [
         (20, 0, 10, 100, true, true),
         (10, 100, 20, 0, true, false),
         (10, 0, 20, 100, false, true),
@@ -1434,9 +1435,11 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
         (10, 3, 10, 2, false, false),
         (10, 2, 10, 2, true, false),
         (10, 2, 10, 2, false, false),
-    ] {
+    ];
+    // jig-ignore-next-line: canonical rustfmt six-part synthetic sort tuple.
+    for (left_time, left_order, right_time, right_order, desc, expected) in cases {
         let body = serde_json::json!({
-            "Stale": 0,"Total": 2,
+            "Stale": 0u8,"Total": 2u8,
             "Messages":[
                 {"ID":"m-1","Time":left_time,"Order":left_order},
                 {"ID":"m-2","Time":right_time,"Order":right_order}

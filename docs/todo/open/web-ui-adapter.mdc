@@ -1315,6 +1315,9 @@ web application without requiring Bridge or a third-party direct API identity.
   pair of distinct message IDs. Such a pair lacks a proven stable tie-break
   and cannot establish deterministic batch or page ordering until an
   independently validated provider-ID normalization is available.
+- A synthetic sort comparator matrix now covers ten descending and
+  ascending cases, including precedence of unequal `Time` over `Order`,
+  strict `Order` ties, reversed order, and exact secondary collisions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
