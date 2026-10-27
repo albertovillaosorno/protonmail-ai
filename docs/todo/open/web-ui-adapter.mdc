@@ -1224,6 +1224,10 @@ web application without requiring Bridge or a third-party direct API identity.
   current-page marker, and Next-control ancestor opacity and visibility
   through a bounded chain. Transparent parent panels and implausibly deep
   ancestry cannot establish a settled mailbox or trusted pagination.
+- Sort-menu open/close, sort selection, and Next-page click now verify
+  bounded visibility and positive opacity along each control's ancestor
+  chain before trusting ordering or clicking. Node-executed regressions
+  prove transparent parent containers cannot authorize UI interactions.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

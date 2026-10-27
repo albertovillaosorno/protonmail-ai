@@ -977,18 +977,24 @@ fn live_javascript_sort_menu_clicks_only_safe_visible_controls() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
-let optionOpacity='1';
+let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
-const option={getClientRects:()=>hidden?[]:[{}],closest:()=>null};
+const optionParent={parentElement:null};
+const toggleParent={parentElement:null};
+const option={getClientRects:()=>hidden?[]:[{}],
+ closest:()=>null,parentElement:optionParent};
 const toggle=new HTMLButtonElement();
+toggle.parentElement=toggleParent;
 toggle.getClientRects=()=>[{}];toggle.closest=()=>null;
 toggle.getAttribute=()=>disabled?'true':null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
 globalThis.getComputedStyle=(node)=>({
  visibility:'visible',pointerEvents:'auto',
- opacity:node===option?optionOpacity:'1'});
+ opacity:node===option?optionOpacity:
+ node===optionParent?optionParentOpacity:
+ node===toggleParent?toggleParentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:(q)=>q.includes('filter-dropdown:show-filters')?[toggle]:
  ids.some(id=>q.includes(id))?(isOpen?[option]:[]):[]};
@@ -1010,9 +1016,19 @@ if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('opacity-zero sort option was actionable');
 }
 optionOpacity='1';
+optionParentOpacity='0';
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('transparent option parent allowed action');
+}
+optionParentOpacity='1';
 if(eval(close)!==true||clicks!==2||isOpen){
  throw Error('closing did not perform exactly one click');
 }
+toggleParentOpacity='0';
+if(eval(open)!==null||clicks!==2){
+ throw Error('transparent toggle parent was clicked');
+}
+toggleParentOpacity='1';
 disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
@@ -1076,16 +1092,19 @@ fn live_javascript_next_click_requires_one_actionable_control() {
     source.push_str(
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
+let parentOpacity='1';
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
+const parent={parentElement:null};
 const next=new HTMLButtonElement();
+next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&disabled?'true':null;
 next.getClientRects=()=>hidden?[]:[{}];
 next.closest=()=>null;
 next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
-globalThis.getComputedStyle=()=>({visibility:'visible',
- pointerEvents:'auto',opacity:'1'});
+globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ pointerEvents:'auto',opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:()=>duplicate?[next,next]:[next]};
 if(eval(script).clicked!==true||clicks!==1){
@@ -1095,7 +1114,11 @@ disabled=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('ARIA-disabled Next was clicked');
 }
-disabled=false;hidden=true;
+disabled=false;parentOpacity='0';
+if(eval(script).clicked||clicks!==1){
+ throw Error('transparent Next parent permitted a click');
+}
+parentOpacity='1';hidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('layout-hidden Next was clicked');
 }
