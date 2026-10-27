@@ -1327,3 +1327,21 @@ for(const marker of ['dialog','dialog[open]','aria-modal']){
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn catalog_cursor_state_requires_whole_page_offset() {
+    use crate::mailbox_catalog_page::MailboxCatalogCursorState;
+    use crate::mailbox_catalog_page::MailboxCatalogPageError;
+    use crate::mailbox_catalog_page::MailboxCatalogPageKind;
+
+    let snapshot = "0123456789abcdef0123456789abcdef";
+    let kind = MailboxCatalogPageKind::Labels;
+    assert!(MailboxCatalogCursorState::new(snapshot, kind, 10, 10).is_ok());
+    assert!(MailboxCatalogCursorState::new(snapshot, kind, 10, 20).is_ok());
+    for offset in [1, 9, 11, 19, 21] {
+        assert_eq!(
+            MailboxCatalogCursorState::new(snapshot, kind, 10, offset),
+            Err(MailboxCatalogPageError::InvalidCursorState)
+        );
+    }
+}

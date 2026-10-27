@@ -1295,6 +1295,10 @@ web application without requiring Bridge or a third-party direct API identity.
   provider-list batch to report zero `Total`, not just the first batch.
   A synthetic regression proved that an initial zero followed by a positive
   total previously escaped as an empty mailbox despite contradictory data.
+- Authenticated mailbox/label catalog continuation state now requires
+  a whole-page-aligned offset. Malformed mid-page offsets cannot reissue
+  overlapping catalog items even if a cursor were decoded from an unexpected
+  state. Synthetic tests retain valid aligned offsets and reject gaps.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

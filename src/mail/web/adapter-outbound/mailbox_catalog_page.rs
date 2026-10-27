@@ -87,7 +87,7 @@ impl MailboxCatalogCursorState {
     ) -> Result<Self, MailboxCatalogPageError> {
         validate_snapshot_boundary(snapshot_boundary)?;
         validate_page_size(Some(page_size))?;
-        if offset == 0 {
+        if offset == 0 || !offset.is_multiple_of(usize::from(page_size)) {
             return Err(MailboxCatalogPageError::InvalidCursorState);
         }
         Ok(Self {
