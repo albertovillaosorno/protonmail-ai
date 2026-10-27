@@ -101,6 +101,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const addresses=sender.getAttribute('title');",
     "const bounded=(value,max)=>typeof value==='string'&&",
     "value.length<=max&&new TextEncoder().encode(value).length<=max;",
+    "const invalidText=/[\\u0000-\\u001f\\u007f-\\u009f",
+    "\\u2028\\u2029]/u;",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\u00ad\\u034f\\u061c\\u180e\\u200b-\\u200f",
@@ -108,7 +110,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
     "if(!bounded(id,512)||id.length===0||",
     "id==='.'||id==='..'||invalidId.test(id)||",
-    "!bounded(subject,16384)||!bounded(addresses,16384)){return null;}",
+    "!bounded(subject,16384)||!bounded(addresses,16384)||",
+    "invalidText.test(subject)||invalidText.test(addresses)){return null;}",
     "return {id:id,subject:subject,addresses:addresses,",
     "unread:row.classList.contains('unread')};",
     "});",
@@ -377,10 +380,17 @@ fn bounded_string(
         .get(key)
         .and_then(Value::as_str)
         .ok_or(BrowserDriverError::MailboxPageIncompatible)?;
-    if value.len() > max_bytes || (!allow_empty && value.is_empty()) {
+    if value.len() > max_bytes
+        || (!allow_empty && value.is_empty())
+        || value.chars().any(unsafe_display_character)
+    {
         return Err(BrowserDriverError::MailboxPageIncompatible);
     }
     Ok(String::from(value))
+}
+
+const fn unsafe_display_character(character: char) -> bool {
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
 fn ids_match(expected: &[String], rows: &[VisibleMailboxRow]) -> bool {

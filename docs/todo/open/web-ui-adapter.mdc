@@ -1286,6 +1286,11 @@ web application without requiring Bridge or a third-party direct API identity.
   unit tests proved the previous second-layer validator accepted slash,
   encoded and invisible ID aliases; the browser-list validator had masked
   this defect in end-to-end reads. The two guards now agree.
+- Content-bearing row projection now refuses embedded C0/C1 controls
+  and Unicode line-separator characters in visible subject/address text.
+  Browser-side preflight prevents those values crossing CDP; a separate
+  Rust validator rejects malformed projections even if browser guards fail.
+  Red-first synthetic fixtures cover both layers and ordinary Unicode text.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

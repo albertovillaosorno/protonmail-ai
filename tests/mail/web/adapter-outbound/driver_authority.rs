@@ -858,6 +858,14 @@ if(!Array.isArray(projected)||projected.length!==1||
  projected[0].addresses!=='sender@example.test'||!projected[0].unread){
  throw Error('visible row projection failed');
 }
+for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
+ 'line\\u2028separator', 'null\\u0000character']){
+ subjectValue=invalidText;
+ if(eval(script)[0]!==null){throw Error('unsafe subject entered CDP');}
+ subjectValue='synthetic subject';addressValue=invalidText;
+ if(eval(script)[0]!==null){throw Error('unsafe address entered CDP');}
+ addressValue='sender@example.test';
+}
 heading.getClientRects=()=>[];
 const hidden=eval(script);
 if(!Array.isArray(hidden)||hidden.length!==1||hidden[0]!==null){

@@ -66,3 +66,33 @@ fn rust_row_projection_refuses_unsafe_ids_independently_of_list_guard() {
     }]);
     assert!(parse_rows(&safe).is_ok());
 }
+
+#[test]
+fn rust_row_projection_rejects_control_bearing_visible_text() {
+    for (subject, addresses) in [
+        ("Synthetic\nsubject", "sender@example.test"),
+        ("Synthetic\rsubject", "sender@example.test"),
+        ("Synthetic\u{2028}subject", "sender@example.test"),
+        ("Normal subject", "sender@example.test\u{0000}"),
+        ("Normal subject", "sender@example.test\u{007f}"),
+        ("Normal subject", "sender@example.test\u{2029}"),
+    ] {
+        let value = json!([{
+            "id": "safe-row",
+            "subject": subject,
+            "addresses": addresses,
+            "unread": false
+        }]);
+        assert_eq!(
+            parse_rows(&value),
+            Err(BrowserDriverError::MailboxPageIncompatible)
+        );
+    }
+    let safe = json!([{
+        "id":"safe-row",
+        "subject":"Emoji \u{263a} and an ordinary space",
+        "addresses":"Sender <sender@example.test>",
+        "unread":false
+    }]);
+    assert!(parse_rows(&safe).is_ok());
+}
