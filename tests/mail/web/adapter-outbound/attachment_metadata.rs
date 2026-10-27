@@ -1014,3 +1014,45 @@ fn attachment_metadata_body_envelope_rejects_unexpected_cdp_fields() {
         Err(AttachmentMetadataResponseError::Malformed)
     );
 }
+
+#[test]
+fn mime_parameters_reject_ambiguous_or_incomplete_values() {
+    for invalid in [
+        "text/plain; charset",
+        "text/plain; charset=",
+        "text/plain; =UTF-8",
+        "text/plain; charset=UTF-8;",
+        "text/plain; charset=U TF-8",
+        "text/plain; charset=UTF-8; broken",
+        "text/plain; charset=\"unterminated",
+        "text/plain; charset=UTF-8; CHARSET=ISO-8859-1",
+    ] {
+        let mut body = metadata_body();
+        body["Attachment"]["MIMEType"] = json!(invalid);
+        let raw = body.to_string();
+        // jig-ignore-next-line: canonical rustfmt metadata parser call.
+        let observed = ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &raw);
+        assert_eq!(observed, Err(AttachmentMetadataResponseError::Malformed));
+    }
+}
+
+#[test]
+fn mime_parameters_accept_valid_quoted_and_token_values() {
+    for valid in [
+        "text/plain; charset=UTF-8",
+        "text/plain; charset=\"UTF-8\"",
+        "application/pdf; name=sample.pdf",
+        "application/pdf; name=\"sample; 2026.pdf\"",
+        "multipart/mixed; boundary=\"part\\\"next\"",
+    ] {
+        let mut body = metadata_body();
+        body["Attachment"]["MIMEType"] = json!(valid);
+        let observed =
+            // jig-ignore-next-line: canonical rustfmt metadata parser call.
+            ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &body.to_string());
+        assert!(
+            observed.is_ok(),
+            "valid synthetic MIME parameter must parse"
+        );
+    }
+}

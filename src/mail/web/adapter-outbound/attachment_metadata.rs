@@ -499,7 +499,77 @@ pub(crate) fn safe_metadata_mime_type(value: &str) -> bool {
         |byte: u8| byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte);
     // jig-ignore-next-line: canonical rustfmt MIME token validator.
     let token = |part: &str| !part.is_empty() && part.bytes().all(valid_token_byte);
-    token(kind) && token(subtype)
+    if !token(kind) || !token(subtype) {
+        return false;
+    }
+    let Some(mut rest) = value.get(essence.len()..) else {
+        return false;
+    };
+    let mut keys = BTreeSet::new();
+    while !rest.is_empty() {
+        let Some(after_separator) = rest.strip_prefix(';') else {
+            return false;
+        };
+        let parameter = after_separator.trim_start_matches(' ');
+        let key_len = parameter
+            .bytes()
+            .take_while(|byte| valid_token_byte(*byte))
+            .count();
+        if key_len == 0 || parameter.as_bytes().get(key_len) != Some(&b'=') {
+            return false;
+        }
+        let Some(key) = parameter.get(..key_len) else {
+            return false;
+        };
+        if !keys.insert(key.to_ascii_lowercase()) {
+            return false;
+        }
+        let Some(after_key) = parameter.get(key_len..) else {
+            return false;
+        };
+        let Some(after_equal) = after_key.strip_prefix('=') else {
+            return false;
+        };
+        rest = after_equal;
+        if let Some(quoted) = rest.strip_prefix('"') {
+            let mut escaped = false;
+            let mut closing = None;
+            for (offset, byte) in quoted.bytes().enumerate() {
+                if escaped {
+                    escaped = false;
+                } else if byte == b'\\' {
+                    escaped = true;
+                } else if byte == b'"' {
+                    closing = Some(offset);
+                    break;
+                }
+            }
+            let Some(end_quote) = closing else {
+                return false;
+            };
+            let Some(after_value) = quoted.get(end_quote..) else {
+                return false;
+            };
+            let Some(after_quote) = after_value.strip_prefix('"') else {
+                return false;
+            };
+            rest = after_quote;
+        } else {
+            let value_len = rest
+                .bytes()
+                .take_while(|byte| valid_token_byte(*byte))
+                .count();
+            if value_len == 0 {
+                return false;
+            }
+            let Some(after_value) = rest.get(value_len..) else {
+                return false;
+            };
+            rest = after_value;
+        }
+        rest = rest.trim_start_matches(' ');
+    }
+    true
 }
 
 /// Why attachment metadata failed exact bounded projection.

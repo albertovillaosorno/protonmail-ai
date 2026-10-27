@@ -1200,6 +1200,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Active search only proves message-row mode on an explicit set of known
   mailbox views. Unknown or unrelated Mail routes with valid search hashes
   remain unproven, including routes whose URL structure otherwise looks valid.
+- Shared message/attachment MIME validation now parses bounded media-type
+  parameters instead of accepting any printable suffix. It rejects missing
+  names/values, duplicate case-insensitive keys, bad quoting, and unfinished
+  parameters while supporting token parameters and escaped quoted values.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,
