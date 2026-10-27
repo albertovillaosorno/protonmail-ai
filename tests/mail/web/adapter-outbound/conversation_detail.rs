@@ -299,16 +299,17 @@ fn network_capture_tracks_only_exact_unparameterized_get() {
 
 #[test]
 fn redirected_into_exact_conversation_detail_get_is_rejected() {
+    let redirected_id = "from-unrelated";
     let mut capture = ConversationDetailNetworkCapture::new("session-1");
     capture
         .observe(&request_event(
             "session-1",
-            "from-unrelated",
+            redirected_id,
             "GET",
             "https://mail.proton.me/other-resource",
         ))
         .expect("ignore the first unrelated request hop");
-    let mut redirected = request_event("session-1", "from-unrelated", "GET", URL);
+    let mut redirected = request_event("session-1", redirected_id, "GET", URL);
     redirected["params"]["redirectResponse"] = json!({
         "url": "https://mail.proton.me/other-resource"
     });

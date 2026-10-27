@@ -347,16 +347,17 @@ fn completed_conversation_request_markers_are_bounded_and_redacted() {
 
 #[test]
 fn redirected_into_exact_conversation_list_get_is_rejected() {
+    let redirected_id = "from-unrelated";
     let mut capture = ConversationListNetworkCapture::new("session-1");
     capture
         .observe(&request_event(
             "session-1",
-            "from-unrelated",
+            redirected_id,
             "GET",
             "https://mail.proton.me/other-resource",
         ))
         .expect("ignore the first unrelated request hop");
-    let mut redirected = request_event("session-1", "from-unrelated", "GET", URL);
+    let mut redirected = request_event("session-1", redirected_id, "GET", URL);
     redirected["params"]["redirectResponse"] = json!({
         "url": "https://mail.proton.me/other-resource"
     });

@@ -101,7 +101,10 @@ fn redirected_into_exact_message_list_get_is_not_fresh_evidence() {
         "params":{
             "requestId":"redirected-list",
             "request":{"method":"GET","url":URL},
-            "redirectResponse":{"url":"https://mail.proton.me/elsewhere","status":302u16}
+            "redirectResponse":{
+                "url":"https://mail.proton.me/elsewhere",
+                "status":302u16
+            }
         }
     });
     assert_eq!(
