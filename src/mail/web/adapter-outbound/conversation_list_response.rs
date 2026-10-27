@@ -642,6 +642,8 @@ fn parse_request_page(
     let mut has_anchor = false;
     let mut has_anchor_id = false;
     let mut has_non_visible_selector = false;
+    let mut sort = None;
+    let mut descending = None;
     for parameter in query.split('&') {
         let (key, value) = parameter.split_once('=').unwrap_or((parameter, ""));
         // Encoded keys can become provider pagination/sort aliases after
@@ -697,7 +699,32 @@ fn parse_request_page(
             "BeginID" | "EndID" | "ID" => {
                 has_non_visible_selector = true;
             }
-            _ => {}
+            "Sort" => {
+                // jig-ignore-next-line: Rustfmt sort keys.
+                let recognized_sort = ["Time", "SnoozeTime", "Size"].contains(&value);
+                if sort.replace(value).is_some() || !recognized_sort {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+            }
+            "Desc" => {
+                let recognized_desc = matches!(value, "0" | "1");
+                if descending.replace(value).is_some() || !recognized_desc {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+            }
+            _ => {
+                // Critical selectors must use their canonical wire casing.
+                // jig-ignore-next-line: Rustfmt selector set.
+                let selectors = ["Page", "PageSize", "Limit", "Anchor", "AnchorID"];
+                let other = ["BeginID", "EndID", "ID", "Sort", "Desc"];
+                let reserved = selectors.iter().chain(&other);
+                if reserved
+                    .into_iter()
+                    .any(|name| name.eq_ignore_ascii_case(key))
+                {
+                    return Err(ConversationListNetworkError::InvalidPagination);
+                }
+            }
         }
     }
     if has_anchor != has_anchor_id

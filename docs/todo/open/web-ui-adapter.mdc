@@ -1253,6 +1253,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Captured conversation-list request parsing now refuses percent-encoded
   query keys. Encoded `Page`, `Sort`, or anchor aliases cannot be interpreted
   differently by the provider and the local pagination observer.
+- Conversation-list sorting now rejects duplicate, invalid, or
+  differently cased `Sort`/`Desc` parameters before treating the captured
+  request as page evidence. Canonical allowed ordering remains supported.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

@@ -1844,3 +1844,17 @@ fn encoded_conversation_query_key_aliases_fail_closed() {
         assert_eq!(capture.tracked_request_count(), 0);
     }
 }
+
+#[test]
+fn conflicting_conversation_sort_query_selectors_fail_closed() {
+    let aliases = ["Sort=Size", "Desc=0", "sort=Size", "desc=0", "SORT=Time"];
+    for alias in aliases {
+        let url = format!("{URL}&{alias}");
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let event = request_event("session-a", "ambiguous-sort", "GET", &url);
+        let result = capture.observe(&event);
+        let rejected = Err(ConversationListNetworkError::InvalidPagination);
+        assert_eq!(result, rejected);
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+}
