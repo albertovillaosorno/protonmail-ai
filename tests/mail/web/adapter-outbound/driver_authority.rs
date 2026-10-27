@@ -790,3 +790,50 @@ fn pagination_and_sort_clicks_refuse_aria_disabled_controls() {
         assert!(allowed_mail_runtime_expression(script));
     }
 }
+
+#[test]
+fn visible_row_javascript_projects_only_rendered_synthetic_content() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let encoded = serde_json::to_string(MailboxPageSnapshot::expression())
+        .expect("static row projection source");
+    let mut source = format!("const script={encoded};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.getComputedStyle=()=>({visibility:'visible'});
+const heading={id:'heading-id',getAttribute:()=> 'synthetic subject',
+  getClientRects:()=>[{}],closest:()=>null};
+const sender={getAttribute:()=> 'sender@example.test',
+  getClientRects:()=>[{}],closest:()=>null};
+const row={getAttribute:(key)=>key==='data-element-id'?'row-a':
+  key==='aria-labelledby'?'heading-id':null,
+  querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
+  classList:{contains:()=>true}};
+const root={querySelectorAll:()=>[row]};
+globalThis.document={querySelector:()=>null,querySelectorAll:()=>[root]};
+const projected=eval(script);
+if(!Array.isArray(projected)||projected.length!==1||
+ projected[0].id!=='row-a'||projected[0].subject!=='synthetic subject'||
+ projected[0].addresses!=='sender@example.test'||!projected[0].unread){
+ throw Error('visible row projection failed');
+}
+heading.getClientRects=()=>[];
+const hidden=eval(script);
+if(!Array.isArray(hidden)||hidden.length!==1||hidden[0]!==null){
+ throw Error('hidden subject remained readable');
+}
+",
+    );
+    let result = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("execute synthetic row JS");
+    assert!(
+        result.status.success(),
+        "visible row JS failed synthetic DOM"
+    );
+}
