@@ -93,6 +93,18 @@ fn reserved_filename_prefixing_preserves_the_byte_ceiling() {
 }
 
 #[test]
+fn attachment_filename_sanitization_neutralizes_superscript_devices() {
+    for (input, expected) in [
+        ("COM\u{b9}.txt", "_COM\u{b9}.txt"),
+        ("com\u{b2}", "_com\u{b2}"),
+        ("LPT\u{b3}.pdf", "_LPT\u{b3}.pdf"),
+        ("LPT0.txt", "LPT0.txt"),
+    ] {
+        assert_eq!(SanitizedAttachmentFilename::new(input).as_str(), expected);
+    }
+}
+
+#[test]
 fn filename_sanitization_truncates_only_on_utf8_boundaries() {
     let input = "\u{1f680}".repeat(100);
     let safe = SanitizedAttachmentFilename::new(&input);
@@ -137,6 +149,44 @@ fn relative_destination_rejects_traversal_absolute_and_portability_hazards() {
         ("folder\nfile", AttachmentPathError::UnsupportedSyntax),
     ] {
         assert_eq!(AttachmentRelativePath::new(input), Err(expected));
+    }
+}
+
+#[test]
+fn relative_destination_refuses_windows_aliasing_components() {
+    for input in [
+        "CON",
+        "nul.txt",
+        "AUX.log",
+        "prn",
+        "COM1",
+        "LPT9.bin",
+        "exports/CON.txt",
+        "exports/COM\u{b9}.txt",
+        "exports/com\u{b2}.txt",
+        "exports/LPT\u{b3}",
+        "exports/com3.pdf",
+        "lpt1/archive.pdf",
+        "exports/folder./report.txt",
+        "exports/folder /report.txt",
+        "exports/report.",
+        "exports/report ",
+        "exports/.. ",
+    ] {
+        assert_eq!(
+            AttachmentRelativePath::new(input),
+            Err(AttachmentPathError::UnsupportedSyntax),
+            "unsafe portable destination must fail closed"
+        );
+    }
+    for input in [
+        "exports/COM0.txt",
+        "exports/LPT0.txt",
+        "exports/report .txt",
+        "exports/hello.txt",
+        "exports/memo-2026.pdf",
+    ] {
+        assert!(AttachmentRelativePath::new(input).is_ok());
     }
 }
 

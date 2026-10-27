@@ -114,8 +114,8 @@ impl AttachmentRelativePath {
     /// # Errors
     ///
     /// Rejects empty/absolute destinations, parent traversal, backslashes,
-    /// NUL/control and hidden Unicode formatting characters, and colon
-    /// syntax that could form Windows drives or alternate-data-stream paths.
+    /// NUL/control, hidden Unicode formatting, Windows device components,
+    /// trailing dots/spaces, and drive or alternate-stream colon syntax.
     pub fn new(untrusted: &str) -> Result<Self, AttachmentPathError> {
         if untrusted.is_empty() {
             return Err(AttachmentPathError::Empty);
@@ -137,7 +137,17 @@ impl AttachmentRelativePath {
         let mut normalized = PathBuf::new();
         for component in path.components() {
             match component {
-                Component::Normal(value) => normalized.push(value),
+                Component::Normal(value) => {
+                    let text = value
+                        .to_str()
+                        .ok_or(AttachmentPathError::UnsupportedSyntax)?;
+                    let has_nonportable_suffix = text.ends_with([' ', '.']);
+                    let reserved = windows_reserved_filename(text);
+                    if has_nonportable_suffix || reserved {
+                        return Err(AttachmentPathError::UnsupportedSyntax);
+                    }
+                    normalized.push(value);
+                }
                 Component::CurDir => {}
                 // jig-ignore-next-line: canonical rustfmt line.
                 Component::ParentDir => return Err(AttachmentPathError::ParentTraversal),
@@ -219,9 +229,13 @@ fn windows_reserved_filename(filename: &str) -> bool {
 }
 
 fn reserved_numbered_device(stem: &str, prefix: &str) -> bool {
-    stem.strip_prefix(prefix)
-        // jig-ignore-next-line: canonical rustfmt line.
-        .is_some_and(|suffix| matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"))
+    stem.strip_prefix(prefix).is_some_and(|suffix| {
+        matches!(
+            suffix,
+            // jig-ignore-next-line: rustfmt canonical device-suffix literals.
+            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "\u{b9}" | "\u{b2}" | "\u{b3}"
+        )
+    })
 }
 
 fn truncate_utf8(value: &mut String, maximum_bytes: usize) {
