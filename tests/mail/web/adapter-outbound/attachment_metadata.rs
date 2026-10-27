@@ -139,6 +139,22 @@ fn metadata_projection_binds_parent_and_drops_crypto_fields() {
 }
 
 #[test]
+fn standalone_attachment_metadata_neutralizes_bidi_filename() {
+    let mut body = metadata_body();
+    let deceptive = "statement\u{202e}fdp.exe";
+    body["Attachment"]["Name"] = json!(deceptive);
+    let raw = body.to_string();
+    let project = ObservedAttachmentMetadataResponse::parse;
+    let projected = project("GET", URL, MESSAGE_ID, &raw).expect("project");
+    let safe = projected.metadata().sanitized_name();
+    assert_eq!(
+        safe.map(SanitizedAttachmentFilename::as_str),
+        Some("statement_fdp.exe")
+    );
+    assert!(!format!("{projected:?}").contains(deceptive));
+}
+
+#[test]
 fn metadata_projection_rejects_attachment_and_parent_identity_drift() {
     let mut wrong_attachment = metadata_body();
     wrong_attachment["Attachment"]["ID"] = json!("attachment-2");

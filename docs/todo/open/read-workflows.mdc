@@ -369,6 +369,10 @@ Ship useful read access before any mailbox mutation is enabled.
   regressions cover extension-spoofing names while preserving real Unicode
   letters in otherwise safe filenames.
 
+- Both single-message and standalone attachment-metadata projection paths
+  now have synthetic regressions proving that bidi-spoofed provider filenames
+  retain only a neutralized saved-name leaf, while Debug remains redacted.
+
 ## Acceptance criteria
 
 - Every path is classified read-only by the tool contract.

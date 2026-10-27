@@ -388,6 +388,23 @@ fn detail_projection_sanitizes_provider_attachment_filename() {
 }
 
 #[test]
+fn message_attachment_descriptor_neutralizes_bidi_filename() {
+    let mut body = detail_body();
+    let deceptive = "archive\u{202e}exe.pdf";
+    body["Message"]["Attachments"][0]["Name"] = json!(deceptive);
+    let raw = body.to_string();
+    let project = ObservedMessageDetailResponse::parse;
+    let projected = project("GET", MESSAGE_URL, &raw).expect("project");
+    let attachment = &projected.message().attachments()[0];
+    assert_eq!(attachment.name(), Some(deceptive));
+    let safe = attachment
+        .sanitized_name()
+        .map(SanitizedAttachmentFilename::as_str);
+    assert_eq!(safe, Some("archive_exe.pdf"));
+    assert!(!format!("{attachment:?}").contains(deceptive));
+}
+
+#[test]
 fn attachment_descriptor_accepts_unaddressable_optional_metadata() {
     let mut body = detail_body();
     // jig-ignore-next-line: canonical rustfmt line.
