@@ -1345,3 +1345,51 @@ fn catalog_cursor_state_requires_whole_page_offset() {
         );
     }
 }
+
+#[test]
+fn live_javascript_loading_list_never_reads_transitional_row_ids() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let encoded = serde_json::to_string(MailboxListEvidence::expression())
+        .expect("serialize content-free list expression");
+    let mut source = format!("const expression={encoded};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.document={
+ querySelector:()=>null,
+ querySelectorAll:(selector)=>{
+  if(selector.includes('message-list-loading')){
+   return [root];
+  }
+  if(selector.includes('message-list-loaded')){return [];}
+  throw Error('pagination must not be inspected during loading');
+ }
+};
+let rowReads=0;
+const root={parentElement:null,querySelectorAll:()=>{
+ rowReads++;
+ throw Error('transitional rows entered CDP');
+}};
+globalThis.getComputedStyle=()=>({visibility:'visible',opacity:'1'});
+const result=eval(expression);
+if(!result||!result.loading||result.loaded||
+ result.rowIds.length!==0||result.nextPresent||
+ result.currentTestId!==null||rowReads!==0){
+ throw Error('loading list retained transitional data');
+}
+",
+    );
+    let output = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("evaluate loading list expression");
+    assert!(
+        output.status.success(),
+        "loading list inspected transitional row metadata: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

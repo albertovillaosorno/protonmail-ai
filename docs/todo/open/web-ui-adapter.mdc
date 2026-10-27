@@ -1303,6 +1303,10 @@ web application without requiring Bridge or a third-party direct API identity.
   browser-owned list batches (initial page plus one anchored continuation).
   A synthetic zero-row three-batch chain previously escaped as a valid
   empty page, despite lacking audited pagination/snapshot evidence.
+- During an active list-loading state, Chromium now emits only a fixed
+  content-free loading object instead of collecting transient row identifiers
+  or pagination attributes. A Node-executed DOM regression throws on any
+  attempted loading-row read and confirms no IDs cross CDP.
 - Still required: prove an immutable snapshot boundary, extend bounded
   equal-Time ID normalization into any future cursor chain, then implement a
   durable cursor/snapshot chain,

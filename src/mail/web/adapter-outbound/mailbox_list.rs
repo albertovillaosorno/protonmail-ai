@@ -69,6 +69,11 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "current=current.parentElement;}",
     "return false;};",
     "if(!visibleTree(root)){return null;}",
+    // Loading is a non-authoritative state. Do not inspect or serialize
+    // transient row IDs, skeleton details, or pagination while it is active.
+    "if(loading){return {loading:true,loaded:false,rowIds:[],",
+    "skeletonCount:0,emptyMarker:false,nextPresent:false,",
+    "nextDisabled:null,currentTestId:null};}",
     "const base='[data-shortcut-target=\"item-container\"][data-element-id]';",
     "const real=[...root.querySelectorAll(base+'[role=\"region\"]')];",
     "if(real.length>200||real.some((row)=>",
