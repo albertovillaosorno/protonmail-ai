@@ -238,6 +238,36 @@ fn group_or_world_writable_final_directory_is_not_a_safe_output_parent() {
 }
 
 #[test]
+fn shared_writable_ancestor_cannot_redirect_nested_attachment_output() {
+    for ancestor in ["root", "intermediate"] {
+        for mode in [0o770u32, 0o777u32] {
+            let root = prepare_root(&format!("ancestor-{ancestor}-{mode}"));
+            let intermediate = root.join("shared");
+            let final_parent = intermediate.join("private");
+            fs::create_dir_all(&final_parent).expect("create dirs");
+            let shared = if ancestor == "root" {
+                &root
+            } else {
+                &intermediate
+            };
+            fs::set_permissions(shared, fs::Permissions::from_mode(mode))
+                .expect("set unsafe ancestor permissions");
+            let sink = AttachmentFileOutputRoot::open(&root).expect("root");
+            let result = sink.write_no_overwrite(
+                &relative("shared/private/output.bin"),
+                b"private-bytes",
+                128,
+            );
+            let expected = Err(AttachmentFileOutputError::UnsafeDestination);
+            assert_eq!(result, expected);
+            assert!(!final_parent.join("output.bin").exists());
+            assert_no_partial_entries(&final_parent);
+            cleanup(&root);
+        }
+    }
+}
+
+#[test]
 fn adversarial_precreated_partial_names_cannot_block_safe_output() {
     let root = prepare_root("partial-name-squatting");
     // The old PID plus monotonic sequence revealed every future temporary

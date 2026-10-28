@@ -458,3 +458,9 @@ Ship useful read access before any mailbox mutation is enabled.
   and 0777 modes; each now fails closed without committing bytes. This
   limits cross-account replacement of an observed temporary name, while
   same-user concurrent mutation still requires cautious filesystem use.
+
+- Nested attachment output now validates directory permissions at every held
+  component from the configured root through the final parent, not just the
+  leaf parent. A red-first synthetic regression covered both 0770 and 0777
+  permissions on the root and an intermediate directory above an otherwise
+  private final parent; these now fail before any partial file is created.

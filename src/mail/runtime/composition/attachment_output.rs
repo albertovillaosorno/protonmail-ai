@@ -108,14 +108,6 @@ impl AttachmentFileOutputRoot {
             return Err(AttachmentFileOutputError::OutputTooLarge);
         }
         let (parent, final_name) = self.open_destination_parent(destination)?;
-        // A directory writable by another local account allows replacing a
-        // created partial entry before linkat commits it by name. Refuse it.
-        let parent_mode = fstat(&parent)
-            .map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?
-            .st_mode;
-        if parent_mode & 0o022 != 0 {
-            return Err(AttachmentFileOutputError::UnsafeDestination);
-        }
         let (partial_fd, partial_name) = create_partial(&parent)?;
         let mut partial = File::from(partial_fd);
         if partial.write_all(bytes).is_err() || partial.sync_all().is_err() {
@@ -160,6 +152,10 @@ impl AttachmentFileOutputRoot {
         let mut directory =
             // jig-ignore-next-line: canonical rustfmt line.
             dup(&self.directory).map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?;
+        // A shared-writable ancestor can rename the next destination component
+        // even if the final directory itself is private. Check the held root
+        // and each opened child before using it to resolve another component.
+        require_private_directory(&directory)?;
         if let Some(parent) = path.parent() {
             for component in parent.components() {
                 match component {
@@ -173,6 +169,7 @@ impl AttachmentFileOutputRoot {
                         )
                         // jig-ignore-next-line: canonical rustfmt line.
                         .map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?;
+                        require_private_directory(&directory)?;
                     }
                     // jig-ignore-next-line: canonical rustfmt line.
                     Component::RootDir | Component::ParentDir | Component::Prefix(_) => {
@@ -247,6 +244,17 @@ pub enum AttachmentFileOutputError {
     CleanupFailed,
     /// The final path committed, but the partial hard link remained.
     PostCommitCleanupFailed,
+}
+
+// jig-ignore-next-line: canonical rustfmt function signature.
+fn require_private_directory(directory: &OwnedFd) -> Result<(), AttachmentFileOutputError> {
+    let mode = fstat(directory)
+        .map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?
+        .st_mode;
+    if mode & 0o022 != 0 {
+        return Err(AttachmentFileOutputError::UnsafeDestination);
+    }
+    Ok(())
 }
 
 fn directory_flags() -> OFlag {
