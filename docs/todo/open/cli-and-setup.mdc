@@ -59,3 +59,9 @@ to register as a local MCP server.
   `std::env::args()` panicked before the compose parser's redaction boundary.
   Red-first process evidence verifies a malformed recipient exits normally,
   emits no URL, and never echoes the secret argument or a panic backtrace.
+
+- Human `mail compose-url --body-file` input now refuses FIFOs and device
+  entries before reading content. The descriptor is opened nonblocking, and
+  its actual file type is checked, so a FIFO with no writer cannot trap the
+  CLI before the 16 KiB read bound. A bounded red-first child-process test
+  proves the previous indefinite wait and the fail-closed regular-file gate.

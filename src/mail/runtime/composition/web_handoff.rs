@@ -33,8 +33,11 @@
 //! Proton Mail web-composer handoff URL construction.
 
 use std::fmt;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::Read as _;
+use std::os::unix::fs::OpenOptionsExt as _;
+
+use nix::fcntl::OFlag;
 
 const WEB_HANDOFF_PREFIX: &str = "https://mail.proton.me/inbox/#mailto=";
 const MAX_BODY_BYTES: usize = 16_384;
@@ -249,7 +252,17 @@ fn set_body_file(target: &mut Option<String>, path: &str) -> HResult<()> {
 }
 
 fn read_body_file(path: &str) -> HResult<String> {
-    let file = File::open(path).map_err(|_error| body_file_error(path))?;
+    // A caller-selected path may name a FIFO or device. Open without waiting
+    // for a writer, then inspect the held inode before reading its contents.
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(OFlag::O_NONBLOCK.bits())
+        .open(path)
+        .map_err(|_error| body_file_error(path))?;
+    let metadata = file.metadata().map_err(|_error| body_file_error(path))?;
+    if !metadata.is_file() {
+        return Err(body_file_error(path));
+    }
     let mut body = String::new();
     file.take(MAX_BODY_READ_BYTES)
         .read_to_string(&mut body)

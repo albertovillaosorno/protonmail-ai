@@ -35,7 +35,12 @@ use std::ffi::OsString;
 use std::fs;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::PathBuf;
-use std::process::{self, Command, Output};
+use std::process::{self, Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use nix::sys::stat::Mode;
+use nix::unistd::mkfifo;
 
 #[path = "../../../../src/mail/runtime/composition/web_handoff.rs"]
 pub mod web_handoff;
@@ -295,4 +300,40 @@ fn non_utf8_cli_args_fail_without_panic_or_leak() {
     assert!(diagnostic.contains("invalid command arguments"));
     assert!(!diagnostic.contains("private-recipient"));
     assert!(!diagnostic.contains("panicked"));
+}
+
+#[test]
+fn nonregular_body_file_refuses_fifo_without_waiting_for_writer() {
+    let path = body_path("fifo");
+    if path.exists() {
+        fs::remove_file(&path).expect("remove stale fixture");
+    }
+    let private_mode = Mode::from_bits_truncate(0o600);
+    mkfifo(&path, private_mode).expect("create FIFO fixture");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["mail", "compose-url", "--to", "person@example.test"])
+        .arg("--body-file")
+        .arg(&path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start CLI without a FIFO writer");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if child.try_wait().expect("poll synthetic CLI").is_some() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            child.kill().expect("stop blocked CLI");
+            child.wait().expect("reap stopped CLI");
+            fs::remove_file(&path).expect("remove FIFO fixture");
+            panic!("body-file FIFO blocked without a writer");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().expect("collect CLI output");
+    fs::remove_file(&path).expect("remove FIFO fixture");
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("cannot read body file"));
 }
