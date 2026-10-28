@@ -919,6 +919,12 @@ for(const [path,hash,expected] of [
   ['/u/0/inbox/nested','#keyword=valid',null],
   ['/inbox/extra','#keyword=valid',null],
   ['/u/0/sent','',true],
+  ['/u/0/sent','#keyword=valid',true],
+  ['/u/0/sent','#view=conversations',null],
+  ['/u/0/sent','#keyword=valid&view=threads',null],
+  ['/u/0/sent','#keyword=valid&begin=invalid',null],
+  ['/u/0/sent','#keyword=valid&keyword=again',null],
+  ['/sent','#keyword=%E2%80%8B',null],
   ['/u/0/inbox','',false],
   ['/sent','',true],
   ['/','',null]
@@ -948,7 +954,11 @@ for(const [path,search,hash] of [
         .args(["--eval", &source])
         .output()
         .expect("execute synthetic mode proof");
-    assert!(result.status.success(), "synthetic mode proof failed");
+    assert!(
+        result.status.success(),
+        "synthetic mode proof failed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 
 #[test]

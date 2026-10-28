@@ -1510,3 +1510,9 @@ web application without requiring Bridge or a third-party direct API identity.
   that those locations could still authorize individual-message reads from
   an otherwise forced or active-search route; canonical paths and hash-only
   search filters remain supported.
+
+- Forced message routes no longer bypass malformed hash-filter validation.
+  Unrecognized keys, duplicate selectors, hidden characters and invalid
+  filters now refuse mode evidence even on Sent/Drafts; canonical forced
+  routes without hashes and supported filters still prove message mode.
+  Red-first live-JavaScript fixtures exposed the former bypass.

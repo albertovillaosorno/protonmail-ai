@@ -101,6 +101,8 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     // Wildcard changes how a search matches; it does not start a search.
     "const ranged=['begin','end'].some((key)=>",
     "params.get(key)!==null&&validNumeric(params.get(key)));",
+    // A forced route is not a license to ignore contradictory hash state.
+    "if(forced&&raw.length>0&&(unsafeKey||duplicate||!complete)){return null;}",
     "return {forcedMessageRoute:forced,",
     "activeSearch:searchable&&!unsafeKey&&!duplicate&&",
     "complete&&(text||ranged)};",
