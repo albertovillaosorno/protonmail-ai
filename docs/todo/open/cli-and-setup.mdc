@@ -44,3 +44,12 @@ to register as a local MCP server.
 - End-to-end CLI/MCP equivalence tests
 - Fresh-machine installation transcript
 - Redacted login, doctor, client-setup, and first-tool transcript
+
+## Existing compose-url diagnostic safety
+
+- The explicit human `mail compose-url` helper now redacts all recipients,
+  subject, and body content from `ComposeInput` Debug output. Unknown CLI
+  options and unreadable body-file paths are no longer echoed through
+  `ComposeInputError` Debug or CLI stderr. Red-first synthetic CLI and
+  direct-format tests demonstrated both leaks before the fix, while valid
+  opt-in compose URL generation and its existing encoding tests still pass.

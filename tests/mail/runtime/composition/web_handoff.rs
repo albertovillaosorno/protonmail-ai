@@ -35,6 +35,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{self, Command, Output};
 
+#[path = "../../../../src/mail/runtime/composition/web_handoff.rs"]
+pub mod web_handoff;
+
+use web_handoff::{ComposeInput, ComposeInputError};
+
 fn run(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
         .args(args)
@@ -213,4 +218,62 @@ fn oversized_body_file_is_rejected_before_encoding() {
 
     assert!(!output.status.success());
     assert!(stderr(&output).contains("body exceeds 16384 bytes"));
+}
+
+#[test]
+fn compose_input_and_error_debug_redact_mail_and_path_content() {
+    let input = ComposeInput::parse(&[
+        "--to".into(),
+        "secret-recipient@example.test".into(),
+        "--subject".into(),
+        "secret-subject-marker".into(),
+        "--body".into(),
+        "secret-body-marker".into(),
+    ])
+    .expect("synthetic compose input");
+    let debug = format!("{input:?}");
+    assert!(input.web_url().starts_with("https://mail.proton.me/inbox/"));
+    for secret in ["secret-recipient", "secret-subject", "secret-body"] {
+        assert!(
+            !debug.contains(secret),
+            "Debug must not expose mail content"
+        );
+    }
+    let errors = [
+        ComposeInputError::BodyFileRead(String::from("secret-path-marker")),
+        ComposeInputError::UnknownFlag(String::from("--secret-flag-marker")),
+    ];
+    for error in errors {
+        let debug = format!("{error:?}");
+        let display = error.to_string();
+        assert!(!debug.contains("secret"), "Debug must redact CLI input");
+        assert!(!display.contains("secret"), "Display must redact CLI input");
+    }
+}
+
+#[test]
+fn compose_errors_never_echo_unknown_flags_or_private_file_paths() {
+    let unrecognized = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "candidate@example.test",
+        "--secret-flag-marker",
+        "synthetic-value",
+    ]);
+    assert!(!unrecognized.status.success());
+    assert!(!stderr(&unrecognized).contains("secret-flag-marker"));
+    assert!(stderr(&unrecognized).contains("unknown compose flag"));
+
+    let missing = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "candidate@example.test",
+        "--body-file",
+        "/private/secret-file-marker.txt",
+    ]);
+    assert!(!missing.status.success());
+    assert!(stderr(&missing).contains("cannot read body file"));
+    assert!(!stderr(&missing).contains("secret-file-marker"));
 }

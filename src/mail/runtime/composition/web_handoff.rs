@@ -42,13 +42,19 @@ const MAX_BODY_READ_BYTES: u64 = 16_385;
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
 /// Validated input for Proton Mail's web-composer handoff.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ComposeInput {
     to: String,
     cc: Option<String>,
     bcc: Option<String>,
     subject: Option<String>,
     body: Option<String>,
+}
+
+impl fmt::Debug for ComposeInput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ComposeInput(<redacted>)")
+    }
 }
 
 impl ComposeInput {
@@ -138,7 +144,7 @@ impl ComposeInput {
 }
 
 /// Invalid composition input that cannot be encoded safely.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub enum ComposeInputError {
     /// No primary recipient was provided.
     MissingTo,
@@ -162,6 +168,25 @@ pub enum ComposeInputError {
     BodyTooLarge,
 }
 
+impl fmt::Debug for ComposeInputError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingTo => f.write_str("MissingTo"),
+            Self::MissingValue => f.write_str("MissingValue"),
+            // jig-ignore-next-line: canonical rustfmt static-flag diagnostics.
+            Self::DuplicateFlag(flag) => f.debug_tuple("DuplicateFlag").field(flag).finish(),
+            // jig-ignore-next-line: canonical rustfmt static-flag diagnostics.
+            Self::EmptyValue(flag) => f.debug_tuple("EmptyValue").field(flag).finish(),
+            Self::UnknownFlag(_) => f.write_str("UnknownFlag(<redacted>)"),
+            Self::InvalidRecipient => f.write_str("InvalidRecipient"),
+            Self::InvalidSubject => f.write_str("InvalidSubject"),
+            Self::InvalidBody => f.write_str("InvalidBody"),
+            Self::BodyFileRead(_) => f.write_str("BodyFileRead(<redacted>)"),
+            Self::BodyTooLarge => f.write_str("BodyTooLarge"),
+        }
+    }
+}
+
 type HResult<T> = Result<T, ComposeInputError>;
 
 impl fmt::Display for ComposeInputError {
@@ -175,15 +200,11 @@ impl fmt::Display for ComposeInputError {
             Self::EmptyValue(flag) => {
                 write!(f, "compose flag cannot be empty: {flag}")
             }
-            Self::UnknownFlag(flag) => {
-                write!(f, "unknown compose flag: {flag}")
-            }
+            Self::UnknownFlag(_flag) => f.write_str("unknown compose flag"),
             Self::InvalidRecipient => f.write_str("recipient contains control"),
             Self::InvalidSubject => f.write_str("subject contains control"),
             Self::InvalidBody => f.write_str("body contains control"),
-            Self::BodyFileRead(path) => {
-                write!(f, "cannot read body file: {path}")
-            }
+            Self::BodyFileRead(_path) => f.write_str("cannot read body file"),
             Self::BodyTooLarge => f.write_str("body exceeds 16384 bytes"),
         }
     }
