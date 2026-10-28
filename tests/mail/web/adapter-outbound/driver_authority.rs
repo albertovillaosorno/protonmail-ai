@@ -757,6 +757,35 @@ fn content_bearing_rows_reject_unrecognized_dom_fields() {
 }
 
 #[test]
+fn visible_row_projections_reject_hidden_unicode_metadata() {
+    let before = MailboxListEvidence::from_runtime_value(&json!({
+        "loading":false,"loaded":true,"rowIds":["row-a"],
+        "skeletonCount":0u64,"emptyMarker":false,"nextPresent":false,
+        "nextDisabled":null,"currentTestId":null
+    }))
+    .expect("synthetic settled list");
+    for mark in [
+        // jig-ignore-next-line: canonical rustfmt Unicode scalar matrix.
+        '\u{0600}', '\u{0605}', '\u{06dd}', '\u{070f}', '\u{0890}', '\u{0891}', '\u{08e2}',
+        '\u{2800}', '\u{3164}', '\u{ffa0}',
+    ] {
+        for field in ["subject", "addresses"] {
+            let mut rows = json!([{
+                "id":"row-a","subject":"subject",
+                "addresses":"contact@example.test","unread":false
+            }]);
+            rows[0][field] = json!(format!("invoice{mark}approved"));
+            assert_eq!(
+                // jig-ignore-next-line: canonical rustfmt projection signature.
+                MailboxPageSnapshot::from_observations(&before, Some(&rows), Some(&rows), &before),
+                Err(BrowserDriverError::MailboxPageIncompatible),
+                "hidden Unicode metadata must fail closed"
+            );
+        }
+    }
+}
+
+#[test]
 fn ui_navigation_click_receipts_require_exact_audited_schema() {
     use super::SortMenuActivation;
     let open = json!({"alreadyOpen":false,"clicked":true});
@@ -814,6 +843,64 @@ fn visible_row_script_separates_independent_const_declarations() {
     let script = MailboxPageSnapshot::expression();
     assert!(script.contains("item-container\"]';const rows="));
     assert!(!script.contains("item-container\"]',const rows="));
+}
+
+#[test]
+fn live_javascript_visible_rows_deny_hidden_unicode_before_cdp() {
+    use std::process::Command;
+
+    if Command::new("node").arg("--version").output().is_err() {
+        return;
+    }
+    let encoded = serde_json::to_string(MailboxPageSnapshot::expression())
+        .expect("serialize audited visible-row expression");
+    let mut source = format!("const expression={encoded};\n");
+    source.push_str(
+        "
+globalThis.location={origin:'https://mail.proton.me'};
+globalThis.getComputedStyle=()=>({visibility:'visible',opacity:'1'});
+globalThis.currentSubject='ordinary subject';
+globalThis.currentAddresses='reader@example.test';
+const visible={parentElement:null,getClientRects:()=>[{}],closest:()=>null};
+const header={...visible,id:'heading',getAttribute:(key)=>
+  key==='title'?currentSubject:null};
+const sender={...visible,getAttribute:(key)=>
+  key==='title'?currentAddresses:null};
+const row={...visible,classList:{contains:()=>false},
+ getAttribute:(key)=>key==='data-element-id'?'row-a':
+   key==='aria-labelledby'?'heading':null,
+ querySelectorAll:(selector)=>selector==='[id]'?[header]:[sender]};
+const root={...visible,querySelectorAll:()=>[row]};
+globalThis.document={querySelector:()=>null,
+ querySelectorAll:(selector)=>selector.includes('message-list-loaded')?
+ [root]:[]};
+const valid=eval(expression);
+if(!Array.isArray(valid)||valid.length!==1||
+ valid[0].subject!=='ordinary subject'){
+ throw Error('printable metadata must still project');
+}
+for(const point of [0x600,0x605,0x6dd,0x70f,0x890,0x891,
+ 0x8e2,0x2800,0x3164,0xffa0]){
+ for(const field of ['currentSubject','currentAddresses']){
+  globalThis[field]='invoice'+String.fromCodePoint(point)+'approved';
+  if(eval(expression)!==null){
+   throw Error('hidden metadata crossed CDP '+point.toString(16));
+  }
+  globalThis[field]=field==='currentSubject'?'ordinary subject':
+   'reader@example.test';
+ }
+}
+",
+    );
+    let result = Command::new("node")
+        .args(["--eval", &source])
+        .output()
+        .expect("execute synthetic visible-row projection");
+    assert!(
+        result.status.success(),
+        "visible-row browser projection must fail closed: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
 }
 
 #[test]

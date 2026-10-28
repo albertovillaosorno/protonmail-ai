@@ -30,6 +30,13 @@ Ship useful read access before any mailbox mutation is enabled.
   account/generation/query-bound cursors without rereading Proton during
   continuation. Public transport DTO fields remain undefined by the frozen
   contract, so no wire shape is invented.
+- Display metadata at both read boundaries now rejects additional hidden
+  Unicode formatting/filler markers already refused by route-ID validation.
+  Browser-side visible rows refuse them before CDP serialization; Rust visible
+  rows and message-detail subjects, display names, and literal addresses also
+  fail closed. Red-first synthetic JavaScript and projection tests cover the
+  formerly accepted markers while preserving ordinary printable metadata.
+
 - Exact single-message `mail/v4/messages/{messageID}` responses can now be
   reduced to bounded identity/envelope/read-state/label/MIME and attachment
   descriptor metadata while dropping body, headers, passwords, cryptographic
