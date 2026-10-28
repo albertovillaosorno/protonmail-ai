@@ -278,17 +278,23 @@ fn body_file_error(path: &str) -> ComposeInputError {
 }
 
 fn validate_recipients(value: &str) -> Result<(), ComposeInputError> {
-    if value.bytes().any(|byte| byte.is_ascii_control()) {
+    if value.chars().any(invalid_single_line_character) {
         return Err(ComposeInputError::InvalidRecipient);
     }
     Ok(())
 }
 
 fn validate_single_line(value: &str) -> Result<(), ComposeInputError> {
-    if value.bytes().any(|byte| byte.is_ascii_control()) {
+    if value.chars().any(invalid_single_line_character) {
         return Err(ComposeInputError::InvalidSubject);
     }
     Ok(())
+}
+
+// Unicode newline separators also create additional visual lines, even
+// though none of their UTF-8 bytes are ASCII control bytes.
+const fn invalid_single_line_character(character: char) -> bool {
+    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
 }
 
 fn validate_body(value: &str) -> Result<(), ComposeInputError> {

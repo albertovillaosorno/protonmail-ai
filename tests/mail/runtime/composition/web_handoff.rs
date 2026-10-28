@@ -337,3 +337,47 @@ fn nonregular_body_file_refuses_fifo_without_waiting_for_writer() {
     assert!(output.stdout.is_empty());
     assert!(stderr(&output).contains("cannot read body file"));
 }
+
+#[test]
+fn composer_single_line_fields_reject_unicode_line_controls() {
+    for marker in ['\u{0085}', '\u{2028}', '\u{2029}'] {
+        let recipient = format!("local{marker}@example.test");
+        let to = run(&["mail", "compose-url", "--to", &recipient]);
+        assert!(
+            !to.status.success(),
+            "recipient Unicode line control passed"
+        );
+        assert!(stderr(&to).contains("recipient contains control"));
+        assert!(to.stdout.is_empty());
+
+        for flag in ["--cc", "--bcc"] {
+            let copy = run(&[
+                "mail",
+                "compose-url",
+                "--to",
+                "person@example.test",
+                flag,
+                &recipient,
+            ]);
+            assert!(!copy.status.success(), "copy address control passed");
+            assert!(stderr(&copy).contains("recipient contains control"));
+            assert!(copy.stdout.is_empty());
+        }
+
+        let subject = format!("invoice{marker}extra");
+        let title = run(&[
+            "mail",
+            "compose-url",
+            "--to",
+            "person@example.test",
+            "--subject",
+            &subject,
+        ]);
+        assert!(
+            !title.status.success(),
+            "subject Unicode line control passed"
+        );
+        assert!(stderr(&title).contains("subject contains control"));
+        assert!(title.stdout.is_empty());
+    }
+}

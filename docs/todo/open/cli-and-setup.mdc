@@ -65,3 +65,9 @@ to register as a local MCP server.
   its actual file type is checked, so a FIFO with no writer cannot trap the
   CLI before the 16 KiB read bound. A bounded red-first child-process test
   proves the previous indefinite wait and the fail-closed regular-file gate.
+
+- Compose `--to`, `--cc`, `--bcc`, and `--subject` now apply Unicode-aware
+  single-line validation. The old ASCII-byte guard silently accepted U+0085
+  NEL and U+2028/U+2029 separators, which can create additional displayed
+  lines despite a single-line field. Red-first synthetic process evidence
+  covers recipients and subjects while ordinary Unicode remains supported.
