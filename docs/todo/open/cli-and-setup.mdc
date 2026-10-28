@@ -116,3 +116,9 @@ to register as a local MCP server.
   recipient fields also reject internal ASCII/Unicode whitespace, while
   natural-language subjects retain spaces and legitimate emoji joiners.
   Red-first synthetic CLI tests cover all recipient roles and subjects.
+
+- Compose single-line headers now also refuse additional invisible
+  Khmer, shorthand, interlinear-annotation, Kaithi, Egyptian-control,
+  and musical-format markers. Red-first CLI fixtures demonstrated that
+  these had passed into encoded recipients and subjects despite the
+  read-side metadata and opaque-identity boundaries rejecting them.
