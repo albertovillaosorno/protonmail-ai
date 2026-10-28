@@ -1558,6 +1558,41 @@ fn malformed_attached_session_ids_fail_before_runtime_origin_evaluation() {
 }
 
 #[test]
+fn contradictory_runtime_remote_type_cannot_prove_provider_origin() {
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    for (label, remote_type) in [
+        ("runtime-string-object", r#""type":"string""#),
+        ("runtime-boolean-object", r#""type":"boolean""#),
+        ("runtime-unknown-type", r#""type":"invalid""#),
+        ("runtime-null-type", r#""type":null"#),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_browser(&root, targets, "mail.proton.me");
+        let script = fs::read_to_string(&browser).expect("read fixture");
+        assert!(script.contains(r#""type":"object""#));
+        install_script(
+            &browser,
+            script.replacen(r#""type":"object""#, remote_type, 1),
+        )
+        .expect("inject contradictory Runtime RemoteObject type");
+        let browser_plan = plan(&root, &browser);
+        let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+        let page = driver.provider_page().expect("discover Mail page");
+        assert_eq!(
+            driver.verify_provider_origin(&page),
+            Err(BrowserDriverError::Protocol),
+            "case {label} must not prove a trusted origin"
+        );
+        drop(driver);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn maximal_safe_cdp_target_and_session_handles_work_without_log_exposure() {
     use serde_json::json;
     let root = test_root("maximal-browser-handles");

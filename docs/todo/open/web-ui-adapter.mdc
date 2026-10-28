@@ -1457,3 +1457,10 @@ web application without requiring Bridge or a third-party direct API identity.
   passed as harmless events and let a message-list read succeed; strict
   validation now fails closed, drains the genuine command reply, disables
   Network, and keeps the managed session usable.
+
+- Browser `Runtime.evaluate` replies now check any explicit CDP
+  `RemoteObject.type` against the returned by-value JSON before it can prove
+  a Mail origin or UI state. A red-first synthetic origin fixture showed
+  that a `string`-typed response carrying an object previously authorized
+  a Mail page. Contradictory, unknown and malformed types fail closed;
+  existing fixtures omitting the optional type stay compatible.

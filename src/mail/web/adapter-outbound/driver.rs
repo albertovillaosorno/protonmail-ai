@@ -729,11 +729,30 @@ impl ManagedBrowser {
         {
             return Err(BrowserDriverError::Protocol);
         }
-        result
+        let remote = result
             .get("result")
-            .and_then(|remote| remote.get("value"))
-            .cloned()
-            .ok_or(BrowserDriverError::Protocol)
+            .filter(|remote| remote.is_object())
+            .ok_or(BrowserDriverError::Protocol)?;
+        let value = remote.get("value").ok_or(BrowserDriverError::Protocol)?;
+        // Chromium's RemoteObject.type must agree with the returned by-value
+        // JSON. A contradictory explicit type cannot authorize page evidence.
+        // Some synthetic/older replies omit type; retain that compatibility.
+        let is_composite = value.is_object() || value.is_array();
+        let type_matches = match remote.get("type") {
+            None => true,
+            Some(Value::String(kind)) => match kind.as_str() {
+                "object" => is_composite || value.is_null(),
+                "string" => value.is_string(),
+                "boolean" => value.is_boolean(),
+                "number" => value.is_number(),
+                _ => false,
+            },
+            Some(_) => false,
+        };
+        if !type_matches {
+            return Err(BrowserDriverError::Protocol);
+        }
+        Ok(value.clone())
     }
 
     fn query_ax_role(
