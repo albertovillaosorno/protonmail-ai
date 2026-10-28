@@ -104,3 +104,47 @@ fn rust_row_projection_rejects_control_bearing_visible_text() {
     }]);
     assert!(parse_rows(&safe).is_ok());
 }
+
+#[test]
+fn rust_row_projection_refuses_hidden_formatting_in_display_text() {
+    for mark in [
+        '\u{00ad}',
+        '\u{034f}',
+        '\u{061c}',
+        '\u{200b}',
+        '\u{200d}',
+        '\u{202e}',
+        '\u{2066}',
+        '\u{2069}',
+        '\u{fe0f}',
+        '\u{feff}',
+        '\u{e0001}',
+        '\u{e0100}',
+    ] {
+        for (subject, addresses) in [
+            (
+                format!("invoice{mark}approved"),
+                String::from("sender@example.test"),
+            ),
+            (
+                String::from("Normal subject"),
+                format!("sender{mark}@example.test"),
+            ),
+        ] {
+            let value = json!([{
+                "id": "safe-row", "subject": subject, "addresses": addresses,
+                "unread": false
+            }]);
+            assert_eq!(
+                parse_rows(&value),
+                Err(BrowserDriverError::MailboxPageIncompatible),
+                "hidden formatting must not cross row projection"
+            );
+        }
+    }
+    let printable = json!([{
+        "id": "safe-row", "subject": "Caf\u{e9} \u{1f600}",
+        "addresses": "\u{00c9}lodie <sender@example.test>", "unread": false
+    }]);
+    assert!(parse_rows(&printable).is_ok());
+}

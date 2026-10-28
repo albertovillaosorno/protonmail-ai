@@ -490,3 +490,12 @@ Ship useful read access before any mailbox mutation is enabled.
   owner can change permissions or move its entries. A red-first pure policy
   regression proves foreign owner rejection, including root-owned output when
   the process is not root; normal owned private directories still pass.
+
+- Visible mailbox-row subject/address text now refuses visually hidden
+  formatting and bidi override/isolate code points at both the browser
+  JavaScript projection and the Rust CDP-response validation. Exact message
+  detail Subject and sender/recipient Name/Address use the same fail-closed
+  policy. Red-first pure-Rust and synthetic Node DOM tests demonstrate the
+  old acceptance and verify rejection without leaking private metadata.
+  Ordinary printable Unicode remains readable; this still does not enable
+  plaintext body/header extraction or public get-message transport.

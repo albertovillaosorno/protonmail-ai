@@ -1058,6 +1058,50 @@ fn message_subject_and_recipient_display_text_reject_line_spoofing() {
 }
 
 #[test]
+fn message_detail_refuses_hidden_formatting_in_header_metadata() {
+    let project = ObservedMessageDetailResponse::parse;
+    for mark in [
+        '\u{00ad}',
+        '\u{034f}',
+        '\u{061c}',
+        '\u{200b}',
+        '\u{200d}',
+        '\u{202e}',
+        '\u{2066}',
+        '\u{2069}',
+        '\u{fe0f}',
+        '\u{feff}',
+        '\u{e0001}',
+        '\u{e0100}',
+    ] {
+        for pointer in [
+            "/Message/Subject",
+            "/Message/Sender/Name",
+            "/Message/Sender/Address",
+            "/Message/ToList/0/Name",
+            "/Message/ToList/0/Address",
+            "/Message/CCList/0/Name",
+            "/Message/CCList/0/Address",
+        ] {
+            let mut body = detail_body();
+            let field = body
+                .pointer_mut(pointer)
+                .expect("synthetic header metadata");
+            *field = json!(format!("invoice{mark}approved"));
+            assert_eq!(
+                project("GET", MESSAGE_URL, &body.to_string()),
+                Err(MessageDetailResponseError::Malformed),
+                "hidden header metadata must fail closed"
+            );
+        }
+    }
+    let mut body = detail_body();
+    body["Message"]["Subject"] = json!("Caf\u{e9} \u{1f600}");
+    body["Message"]["Sender"]["Name"] = json!("\u{00c9}lodie");
+    assert!(project("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
 fn message_detail_body_envelope_rejects_unexpected_cdp_fields() {
     let mut result = json!({
         "body":detail_body().to_string(),"base64Encoded":false

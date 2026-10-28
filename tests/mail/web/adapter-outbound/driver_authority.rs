@@ -1058,7 +1058,11 @@ if(eval(script)!==null){
 }
 invalidSecondRow=false;
 for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
- 'line\\u2028separator', 'null\\u0000character']){
+ 'line\\u2028separator', 'null\\u0000character',
+ 'bidi\\u202eoverride', 'isolate\\u2066mark',
+ 'zero\\u200bwidth', 'joiner\\u200dmark',
+ 'soft\\u00adhyphen', 'variation\\ufe0fmark',
+ 'bom\\ufeffmark', 'tag\\u{e0001}mark']){
  subjectValue=invalidText;
  if(eval(script)!==null){throw Error('unsafe subject entered CDP');}
  subjectValue='synthetic subject';addressValue=invalidText;

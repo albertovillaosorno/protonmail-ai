@@ -123,8 +123,17 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const addresses=sender.getAttribute('title');",
     "const bounded=(value,max)=>typeof value==='string'&&",
     "value.length<=max&&new TextEncoder().encode(value).length<=max;",
+    // Match the Rust content-text guard before anything reaches CDP.
     "const invalidText=/[\\u0000-\\u001f\\u007f-\\u009f",
-    "\\u2028\\u2029]/u;",
+    "\\u00ad\\u034f\\u061c\\u115f-\\u1160",
+    "\\u17b4-\\u17b5\\u180b-\\u180f",
+    "\\u{1bca0}-\\u{1bca3}\\u200b-\\u200f",
+    "\\u2028-\\u202e\\u2060-\\u206f",
+    "\\ufff9-\\ufffb\\u{110bd}\\u{110cd}",
+    "\\u{13430}-\\u{1343f}\\u{1d173}-\\u{1d17a}",
+    "\\ufe00-\\ufe0f\\ufeff",
+    "\\u{e0001}\\u{e0020}-\\u{e007f}",
+    "\\u{e0100}-\\u{e01ef}]/u;",
     "if(!bounded(subject,16384)||!bounded(addresses,16384)||",
     "invalidText.test(subject)||invalidText.test(addresses)){return null;}",
     "return {id:id,subject:subject,addresses:addresses,",
@@ -408,8 +417,23 @@ fn bounded_string(
     Ok(String::from(value))
 }
 
+// Metadata may later be displayed to a user or reused to select a reply
+// target. Hidden selectors and bidi controls must not disguise that text.
+// Preserve ordinary printable Unicode and visible international scripts.
 const fn unsafe_display_character(character: char) -> bool {
-    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
+    character.is_control()
+        || matches!(
+            character,
+            '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{115f}'..='\u{1160}'
+                | '\u{17b4}'..='\u{17b5}' | '\u{180b}'..='\u{180f}'
+                | '\u{1bca0}'..='\u{1bca3}' | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+                | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
+                | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}'
+        )
 }
 
 fn ids_match(expected: &[String], rows: &[VisibleMailboxRow]) -> bool {

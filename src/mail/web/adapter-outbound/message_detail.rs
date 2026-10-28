@@ -682,8 +682,23 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
 }
 
 // Match the visible-row boundary before exposing text for later read or reply.
+// Metadata may later be displayed to a user or reused to select a reply
+// target. Hidden selectors and bidi controls must not disguise that text.
+// Preserve ordinary printable Unicode and visible international scripts.
 const fn unsafe_display_character(character: char) -> bool {
-    character.is_control() || matches!(character, '\u{2028}' | '\u{2029}')
+    character.is_control()
+        || matches!(
+            character,
+            '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{115f}'..='\u{1160}'
+                | '\u{17b4}'..='\u{17b5}' | '\u{180b}'..='\u{180f}'
+                | '\u{1bca0}'..='\u{1bca3}' | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+                | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
+                | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}'
+        )
 }
 
 fn parse_recipients(
