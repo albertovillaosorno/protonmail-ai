@@ -439,3 +439,9 @@ Ship useful read access before any mailbox mutation is enabled.
   formatting controls (U+1BCA0–U+1BCA3). Red-first tests confirmed that
   these default-ignorable marks previously survived filename normalization
   or were accepted as output-path components. Ordinary Unicode stays intact.
+
+- Attachment filename sanitization and caller-chosen output destination paths
+  now reject the additional Unicode 16 formatting controls also refused by
+  the read-only provider-ID boundary. A red-first synthetic regression proved
+  that Arabic, Syriac, annotation, Kaithi, hieroglyph, and musical markers
+  previously survived as filename/path text; printable Unicode stays valid.

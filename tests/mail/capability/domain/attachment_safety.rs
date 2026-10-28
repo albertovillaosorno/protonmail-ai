@@ -77,6 +77,38 @@ fn filename_sanitization_neutralizes_spoofing_format_controls() {
 }
 
 #[test]
+fn untrusted_attachment_paths_neutralize_all_unicode_format_controls() {
+    // Unicode 16 Cf formatting controls are not portable visible filename
+    // content, even when they are outside the familiar bidi/ZWJ ranges.
+    for point in [
+        // jig-ignore-next-line: rustfmt canonical Unicode code point array.
+        0x600, 0x605, 0x6dd, 0x70f, 0x890, 0x891, 0x8e2, 0xfff9, 0xfffb, 0x110bd, 0x110cd, 0x13430,
+        0x1343f, 0x1d173, 0x1d17a,
+    ] {
+        let mark = char::from_u32(point).expect("valid Unicode scalar");
+        let filename = format!("report{mark}archive.pdf");
+        assert_eq!(
+            SanitizedAttachmentFilename::new(&filename).as_str(),
+            "report_archive.pdf",
+            "unsafe format character U+{point:04X} escaped filename guard"
+        );
+        let destination = format!("exports/{filename}");
+        assert_eq!(
+            AttachmentRelativePath::new(&destination),
+            Err(AttachmentPathError::UnsupportedSyntax),
+            "unsafe format character U+{point:04X} escaped output path guard"
+        );
+    }
+    let portable = "exports/r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert_eq!(
+        AttachmentRelativePath::new(portable)
+            .expect("printable Unicode must remain supported")
+            .as_path(),
+        Path::new(portable)
+    );
+}
+
+#[test]
 fn filename_sanitization_handles_empty_hidden_and_reserved_names() {
     assert_eq!(SanitizedAttachmentFilename::new("").as_str(), "attachment");
     assert_eq!(
