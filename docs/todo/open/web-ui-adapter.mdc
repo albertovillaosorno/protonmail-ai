@@ -1450,3 +1450,10 @@ web application without requiring Bridge or a third-party direct API identity.
   carrying an extra private field can no longer authorize Network enable;
   the real reply is drained before cleanup and later safe inspection remains
   usable.
+
+- Unsolicited CDP notifications now reject unexpected top-level envelope fields
+  before any passive Network observer sees them. Red-first synthetic frames
+  proved that unknown extension fields (including explicit nulls) previously
+  passed as harmless events and let a message-list read succeed; strict
+  validation now fails closed, drains the genuine command reply, disables
+  Network, and keeps the managed session usable.

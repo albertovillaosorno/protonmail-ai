@@ -4504,7 +4504,15 @@ fn safe_cdp_notification_method(method: &str) -> bool {
 // unrelated CDP method would otherwise be ignored by a specific classifier.
 // jig-ignore-next-line: canonical rustfmt line.
 fn validate_cdp_notification(message: &Value) -> Result<(), BrowserDriverError> {
-    if !message.is_object()
+    // Protocol notifications carry only method, optional params and session.
+    // Reject extension fields before any Network observer can use the event.
+    let allowed_fields = ["method", "params", "sessionId"];
+    let invalid_fields = message.as_object().is_none_or(|notification| {
+        notification
+            .keys()
+            .any(|field| !allowed_fields.contains(&field.as_str()))
+    });
+    if invalid_fields
         || message.get("id").is_some()
         || message.get("result").is_some()
         || message.get("error").is_some()

@@ -1173,6 +1173,20 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         ("array-envelope", "[]"),
         ("event-empty-method", r#"{"method":""}"#),
         (
+            "event-extra-private-field",
+            concat!(
+                r#"{"method":"Security.securityStateChanged","params":{},"#,
+                r#""privateField":"sensitive"}"#,
+            ),
+        ),
+        (
+            "event-extra-null-field",
+            concat!(
+                r#"{"method":"Security.securityStateChanged","#,
+                r#""sessionId":"session-1","extra":null}"#,
+            ),
+        ),
+        (
             "event-null-params",
             r#"{"method":"Network.loadingFinished","params":null}"#,
         ),
