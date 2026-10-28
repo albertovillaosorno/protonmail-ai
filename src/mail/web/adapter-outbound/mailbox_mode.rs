@@ -62,10 +62,11 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const strings=['address','from','keyword','to'];",
     "const numbers=['begin','end','wildcard'];",
     "const selectors=[...strings,...numbers];",
+    // Unknown or ambiguous query keys cannot establish message-mode proof.
+    // In particular, a future provider option may change row grouping.
     "const unsafeKey=raw.split('&').some((pair)=>{",
     "const key=pair.split('=')[0];",
-    "return key.includes('%')||selectors.some((name)=>",
-    "name!==key&&name.toLowerCase()===key.toLowerCase());});",
+    "return key.includes('%')||!selectors.includes(key);});",
     "const duplicate=[...strings,...numbers].some(",
     "(key)=>params.getAll(key).length>1);",
     // A recognized malformed selector invalidates the whole search proof.

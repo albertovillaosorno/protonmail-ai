@@ -1491,3 +1491,10 @@ web application without requiring Bridge or a third-party direct API identity.
   on post-CDP Rust UTF-8 validation could cross a content-bearing boundary.
   Red-first synthetic Node tests verify both list and row projection reject
   malformed surrogates without rejecting valid supplementary-plane characters.
+
+- Active-search message-mode proof now requires every URL hash key to be an
+  exactly recognized search selector. Previously an unknown `view=threads`
+  or future provider option could accompany a valid `keyword` and still
+  authorize individual-message rows even though the option's effect was
+  unknown. Red-first browser JS tests cover unknown, empty, and trailing
+  hash keys while retaining the audited search selectors and forced routes.
