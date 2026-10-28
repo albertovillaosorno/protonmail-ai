@@ -1109,6 +1109,40 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
 }
 
 #[test]
+fn detail_literal_addresses_refuse_embedded_whitespace() {
+    let parse = ObservedMessageDetailResponse::parse;
+    for address in [
+        "alice@example.test Bcc:shadow@example.test",
+        "alice @example.test",
+        "alice\u{00a0}@example.test",
+        "alice\u{1680}@example.test",
+        "alice\u{2007}@example.test",
+        "alice\u{202f}@example.test",
+        "alice\u{3000}@example.test",
+    ] {
+        for pointer in [
+            "/Message/Sender/Address",
+            "/Message/ToList/0/Address",
+            "/Message/CCList/0/Address",
+        ] {
+            let mut body = detail_body();
+            *body
+                .pointer_mut(pointer)
+                .expect("synthetic literal address") = json!(address);
+            assert_eq!(
+                parse("GET", MESSAGE_URL, &body.to_string()),
+                Err(MessageDetailResponseError::Malformed),
+                "whitespace cannot prove one literal mailbox address"
+            );
+        }
+    }
+    let mut body = detail_body();
+    body["Message"]["Sender"]["Name"] = json!("Alice Example");
+    body["Message"]["Sender"]["Address"] = json!("alice+tag@example.test");
+    assert!(parse("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
 fn detail_literal_addresses_remain_strict_for_joiners_and_variation_marks() {
     let parse = ObservedMessageDetailResponse::parse;
     for mark in ['\u{200c}', '\u{200d}', '\u{fe0f}', '\u{180b}', '\u{e0100}'] {

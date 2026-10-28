@@ -684,7 +684,8 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
 // Literal addresses must not contain invisible grapheme-joining controls:
 // only human-language subjects and display names may contain them.
 const fn unsafe_address_character(character: char) -> bool {
-    unsafe_display_character(character)
+    character.is_whitespace()
+        || unsafe_display_character(character)
         || matches!(
             character,
             '\u{180b}'..='\u{180d}' | '\u{200c}'..='\u{200d}'

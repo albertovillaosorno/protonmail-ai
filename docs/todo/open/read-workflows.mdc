@@ -30,6 +30,12 @@ Ship useful read access before any mailbox mutation is enabled.
   account/generation/query-bound cursors without rereading Proton during
   continuation. Public transport DTO fields remain undefined by the frozen
   contract, so no wire shape is invented.
+- Literal sender and recipient mailbox addresses now reject embedded
+  ASCII and Unicode whitespace, not merely leading/trailing space. A future
+  reply target cannot silently treat a malformed multi-token address as one
+  provider identity; red-first message-detail tests preserve ordinary display
+  names and plus-tagged addresses.
+
 - Display metadata at both read boundaries now rejects additional hidden
   Unicode formatting/filler markers already refused by route-ID validation.
   Browser-side visible rows refuse them before CDP serialization; Rust visible
