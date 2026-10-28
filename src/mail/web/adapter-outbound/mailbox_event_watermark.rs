@@ -1238,9 +1238,9 @@ fn network_request_id(event: &Value) -> Result<&str, MailboxEventNetworkError> {
         .ok_or(MailboxEventNetworkError::MalformedEvent)
 }
 
-// A count flag set to zero can silently omit mailbox cursor changes.
-// Accept only canonical positive count selectors when those flags appear.
-fn count_flags_preserve_mailbox_signals(url: &str) -> bool {
+// Unknown event-query selectors may change which mailbox streams are polled.
+// Only exact count-enabling flags and known caller contexts are authoritative.
+fn audited_event_query(url: &str) -> bool {
     let Some((_path, query)) = url.split_once('?') else {
         return true;
     };
@@ -1252,16 +1252,13 @@ fn count_flags_preserve_mailbox_signals(url: &str) -> bool {
         let Some((key, value)) = pair.split_once('=') else {
             return false;
         };
-        if key.contains('%') {
+        let valid = match key {
+            "MessageCounts" | "ConversationCounts" => value == "1",
+            "CalledFrom" => matches!(value, "Foreground" | "Background"),
+            _ => false,
+        };
+        if !valid || !seen.insert(key) {
             return false;
-        }
-        for name in ["MessageCounts", "ConversationCounts"] {
-            if name.eq_ignore_ascii_case(key) {
-                let unsafe_count = key != name || value != "1";
-                if unsafe_count || !seen.insert(name) {
-                    return false;
-                }
-            }
         }
     }
     true
@@ -1272,14 +1269,12 @@ fn is_latest_event_url(url: &str) -> bool {
         return false;
     }
     url.split_once('?').map_or(url, |(path, _query)| path) == LATEST_EVENT_URL
-        && count_flags_preserve_mailbox_signals(url)
+        && audited_event_query(url)
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
-    if url.len() > MAX_EVENT_URL_BYTES
-        || url.contains('#')
-        || !count_flags_preserve_mailbox_signals(url)
-    {
+    // jig-ignore-next-line: canonical rustfmt event endpoint guard.
+    if url.len() > MAX_EVENT_URL_BYTES || url.contains('#') || !audited_event_query(url) {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     let path = url.split_once('?').map_or(url, |(path, _query)| path);

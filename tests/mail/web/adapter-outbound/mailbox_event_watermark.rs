@@ -1946,16 +1946,16 @@ fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
     const CEILING: usize = 16_384;
     let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
     for (url, is_latest) in [(latest_url, true), (URL, false)] {
-        let prefix = format!("{url}&Synthetic=");
         let prefix = if is_latest {
             format!("{url}?Synthetic=")
         } else {
-            prefix
+            format!("{url}&Synthetic=")
         };
+        // The strict selector vocabulary is far smaller than the byte ceiling;
+        // keep transport bounds covered with an explicitly unaudited long URL.
         // jig-ignore-next-line: canonical rustfmt line.
-        let accepted = format!("{prefix}{}", "x".repeat(CEILING - prefix.len()));
-        let oversized = format!("{accepted}x");
-        assert_eq!(accepted.len(), CEILING);
+        let oversized = format!("{prefix}{}", "x".repeat(CEILING + 1 - prefix.len()));
+        assert_eq!(oversized.len(), CEILING + 1);
         if is_latest {
             // jig-ignore-next-line: canonical rustfmt line.
             let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
@@ -1963,9 +1963,9 @@ fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
                 .observe(&cdp_lifecycle_event(
                     "Network.requestWillBeSent",
                     "good",
-                    &accepted,
+                    url,
                 ))
-                .expect("capture bounded bootstrap URL");
+                .expect("capture canonical bootstrap URL");
             assert_eq!(
                 capture.observe(&cdp_lifecycle_event(
                     "Network.responseReceived",
@@ -1976,14 +1976,17 @@ fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
             );
             // jig-ignore-next-line: canonical rustfmt line.
             let mut oversize = LatestMailboxEventNetworkCapture::new("session-1");
+            // An unaudited latest-event URL is ignored rather than tracked.
+            // Its body cannot become trusted bootstrap evidence.
             assert_eq!(
                 oversize.observe(&cdp_lifecycle_event(
                     "Network.requestWillBeSent",
                     "bad",
                     &oversized
                 )),
-                Err(MailboxEventNetworkError::MalformedEvent)
+                Ok(())
             );
+            assert!(oversize.take_finished_request_ids().is_empty());
             assert_eq!(
                 ObservedLatestMailboxEventWatermark::parse(
                     "GET",
@@ -1998,9 +2001,9 @@ fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
                 .observe(&cdp_lifecycle_event(
                     "Network.requestWillBeSent",
                     "good",
-                    &accepted,
+                    url,
                 ))
-                .expect("capture bounded v5 event URL");
+                .expect("capture canonical v5 event URL");
             assert_eq!(
                 capture.observe(&cdp_lifecycle_event(
                     "Network.responseReceived",
@@ -2719,6 +2722,43 @@ fn event_count_query_flags_cannot_silently_disable_mailbox_signals() {
         ObservedLatestMailboxEventWatermark::parse("GET", &bad, body),
         Err(MailboxEventWatermarkError::UnexpectedEndpoint)
     );
+}
+
+#[test]
+fn event_queries_require_only_exact_audited_selector_vocabulary() {
+    // A future provider query key can alter the scope of the returned event
+    // batch. Neither latest bootstrap nor v5 polling may assume its meaning.
+    let poll = "https://mail.proton.me/api/core/v5/events/event-7";
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    let poll_body = r#"{"EventID":"event-8","More":0}"#;
+    let latest_body = r#"{"EventID":"event-bootstrap"}"#;
+    for query in [
+        "Unexpected=1",
+        "MessageCounts=1&Foo=bar",
+        "MessageCounts=1&CalledFrom=Foreground&FutureMode=thread",
+        "CalledFrom=Foreground&CalledFrom=Background",
+        "calledfrom=Foreground",
+        "%43alledFrom=Foreground",
+        "CalledFrom=foreground",
+        "CalledFrom=Unknown",
+        "CalledFrom=Foreground=extra",
+        "CalledFrom=Foreground&",
+        "MessageCounts=1&&ConversationCounts=1",
+    ] {
+        let poll_url = format!("{poll}?{query}");
+        assert_eq!(
+            ObservedMailboxEventWatermark::parse("GET", &poll_url, poll_body),
+            Err(MailboxEventWatermarkError::UnexpectedEndpoint),
+            "unsafe poll query: {query}"
+        );
+        let latest_url = format!("{latest}?{query}");
+        assert_eq!(
+            // jig-ignore-next-line: canonical rustfmt bootstrap parse call.
+            ObservedLatestMailboxEventWatermark::parse("GET", &latest_url, latest_body),
+            Err(MailboxEventWatermarkError::UnexpectedEndpoint),
+            "unsafe bootstrap query: {query}"
+        );
+    }
 }
 
 #[test]

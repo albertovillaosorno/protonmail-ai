@@ -225,3 +225,9 @@ bounded resource use.
   boundary; advertising `wait_for_changes` still waits on the dependent read
   workflow/transport composition and opt-in live-account acceptance rather than
   additional provider event semantics.
+
+- Exact latest-event bootstrap and core-v5 event poll URL guards now accept
+  only canonical count flags and recognized foreground/background caller
+  selectors, each at most once. Unknown, duplicated, or malformed query
+  selectors cannot silently change the observed mailbox stream. Red-first
+  synthetic parsers reproduce the prior bypass for both event endpoints.
