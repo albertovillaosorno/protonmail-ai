@@ -78,6 +78,7 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     // visible user search, even when decoded URLSearchParams retains them.
     "const hiddenText=/[\\u0080-\\u009f\\u00ad\\u034f\\u061c",
     "\\u115f\\u1160\\u180b-\\u180f\\u200b-\\u200f",
+    "\\u17b4-\\u17b5\\u{1bca0}-\\u{1bca3}",
     "\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164",
     "\\ufe00-\\ufe0f\\ufeff\\uffa0",
     "\\u{e0001}\\u{e0020}-\\u{e007f}\\u{e0100}-\\u{e01ef}]/u;",

@@ -897,6 +897,8 @@ for(const [path,hash,expected] of [
   ['/u/0/inbox','#keyword=%EF%B8%80',false],
   ['/u/0/inbox','#keyword=%E1%A0%8B',false],
   ['/u/0/inbox','#keyword=%E1%A0%8F',false],
+  ['/u/0/inbox','#keyword=%E1%9E%B4',false],
+  ['/u/0/inbox','#keyword=%F0%9B%B2%A0',false],
   ['/u/0/inbox','#keyword=%F3%A0%84%80',false],
   ['/u/0/inbox','#from=%C2%AD',false],
   ['/u/0/inbox','#keyword=hello%E2%80%A8',false],
@@ -1050,6 +1052,7 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
+ 'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',
  'lossy\\ufffdid']){
  idValue=invalidId;titleReads=0;
  if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
@@ -1205,6 +1208,7 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
+ 'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',
  'lossy\\ufffdid']){
  rowId=invalidId;
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}

@@ -51,6 +51,8 @@ fn rust_row_projection_refuses_unsafe_ids_independently_of_list_guard() {
         "braille\u{2800}blank",
         "variation\u{fe0f}selector",
         "mongolian\u{180f}variation",
+        "khmer\u{17b4}vowel",
+        "shorthand\u{1bca0}control",
         "tag\u{e0100}selector",
     ] {
         let value = json!([{

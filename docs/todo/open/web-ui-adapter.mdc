@@ -1477,3 +1477,10 @@ web application without requiring Bridge or a third-party direct API identity.
   their actual JSON types can accompany an object result. A red-first fake
   browser proved that an origin object explicitly tagged as array previously
   passed trusted-origin verification; the new guard fails closed.
+
+- Shared Rust provider-identity validation and browser-owned visible-list,
+  visible-row, and search-mode JavaScript now reject two additional classes
+  of default-ignorable Unicode: Khmer inherent vowel signs U+17B4–U+17B5
+  and shorthand format controls U+1BCA0–U+1BCA3. Red-first tests proved the
+  old guards accepted these hidden marks as route-bound opaque IDs and as
+  browser search evidence. All boundaries still accept ordinary Unicode.

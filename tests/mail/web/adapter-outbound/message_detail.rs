@@ -902,6 +902,8 @@ fn detail_projection_rejects_unsafe_route_bound_metadata_ids() {
         "invisible\u{200b}join",
         "hangul\u{115f}filler",
         "braille\u{2800}blank",
+        "khmer\u{17b5}vowel",
+        "shorthand\u{1bca3}control",
         "variation\u{fe0f}selector",
         "tag\u{e0100}selector",
         "isolated\u{2066}id\u{2069}",
