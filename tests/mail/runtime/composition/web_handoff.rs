@@ -567,6 +567,39 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
 }
 
 #[test]
+fn composer_literal_recipients_refuse_replacement_character() {
+    let address = "alice\u{fffd}@example.test";
+    for flag in ["--to", "--cc", "--bcc"] {
+        let args = if flag == "--to" {
+            vec!["mail", "compose-url", "--to", address]
+        } else {
+            vec![
+                "mail",
+                "compose-url",
+                "--to",
+                "valid@example.test",
+                flag,
+                address,
+            ]
+        };
+        let output = run(&args);
+        assert!(!output.status.success(), "lossy {flag} address must fail");
+        assert!(output.stdout.is_empty());
+        assert!(stderr(&output).contains("recipient contains control"));
+        assert!(!stderr(&output).contains(address));
+    }
+    let subject = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "alice@example.test",
+        "--subject",
+        "Quoted \u{fffd} replacement glyph",
+    ]);
+    assert!(subject.status.success(), "subject text is not a mailbox ID");
+}
+
+#[test]
 fn composer_literal_recipients_refuse_address_list_delimiters() {
     for address in [
         "alice@example.test,bob@example.test",

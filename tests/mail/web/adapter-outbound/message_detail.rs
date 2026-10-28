@@ -1109,6 +1109,29 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
 }
 
 #[test]
+fn detail_literal_addresses_refuse_replacement_character() {
+    let parse = ObservedMessageDetailResponse::parse;
+    let address = "alice\u{fffd}@example.test";
+    for pointer in [
+        "/Message/Sender/Address",
+        "/Message/ToList/0/Address",
+        "/Message/CCList/0/Address",
+    ] {
+        let mut body = detail_body();
+        let literal = body.pointer_mut(pointer).expect("literal address");
+        *literal = json!(address);
+        assert_eq!(
+            parse("GET", MESSAGE_URL, &body.to_string()),
+            Err(MessageDetailResponseError::Malformed),
+            "replacement scalar cannot prove an exact mailbox"
+        );
+    }
+    let mut body = detail_body();
+    body["Message"]["Subject"] = json!("Quoted \u{fffd} replacement glyph");
+    assert!(parse("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
 fn detail_literal_addresses_refuse_address_list_delimiters() {
     let parse = ObservedMessageDetailResponse::parse;
     for address in [

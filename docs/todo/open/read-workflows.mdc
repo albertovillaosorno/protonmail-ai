@@ -30,6 +30,11 @@ Ship useful read access before any mailbox mutation is enabled.
   account/generation/query-bound cursors without rereading Proton during
   continuation. Public transport DTO fields remain undefined by the frozen
   contract, so no wire shape is invented.
+- Provider literal `Address` fields now reject U+FFFD replacement glyphs:
+  a possibly lossily decoded sender/recipient cannot establish an exact
+  future reply target. Red-first message-detail tests cover Sender, To and
+  Cc while ordinary subjects retain this visible character.
+
 - Provider literal sender/recipient `Address` values now reject embedded
   address-list or display-wrapper delimiters (comma, semicolon, colon and
   angle brackets). One field must not silently carry several reply targets;

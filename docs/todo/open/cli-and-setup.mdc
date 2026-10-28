@@ -128,3 +128,8 @@ to register as a local MCP server.
   brackets) fail closed on all recipient roles. Red-first CLI tests prove
   the previous multi-target interpretation; punctuation in subjects and
   plus aliases in addresses remain valid.
+
+- Literal compose recipients now reject U+FFFD, the Unicode replacement
+  scalar, because a lossy-decoded address cannot reliably establish one
+  exact destination. Red-first CLI coverage proves To/Cc/Bcc rejection
+  without rejecting replacement glyphs in ordinary subject text.
