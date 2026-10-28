@@ -749,7 +749,21 @@ impl ManagedBrowser {
             },
             Some(_) => false,
         };
-        if !type_matches {
+        // A by-value array or null may declare an object subtype. Other
+        // explicit subtypes cannot describe our audited JSON evidence.
+        let subtype_matches = match remote.get("subtype") {
+            None => true,
+            Some(Value::String(kind)) => {
+                remote.get("type").and_then(Value::as_str) == Some("object")
+                    && match kind.as_str() {
+                        "array" => value.is_array(),
+                        "null" => value.is_null(),
+                        _ => false,
+                    }
+            }
+            Some(_) => false,
+        };
+        if !type_matches || !subtype_matches {
             return Err(BrowserDriverError::Protocol);
         }
         Ok(value.clone())

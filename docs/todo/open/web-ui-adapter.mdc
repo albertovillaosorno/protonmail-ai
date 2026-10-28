@@ -1471,3 +1471,9 @@ web application without requiring Bridge or a third-party direct API identity.
   and target detach require empty result objects. Red-first synthetic tests
   proved extra nested fields previously authorized a trusted page and a
   passive Network capture; the latter still disables Network on rejection.
+
+- Runtime by-value evidence now also rejects contradictory or unsupported CDP
+  `RemoteObject.subtype` metadata: only `array` and `null` subtypes matching
+  their actual JSON types can accompany an object result. A red-first fake
+  browser proved that an origin object explicitly tagged as array previously
+  passed trusted-origin verification; the new guard fails closed.

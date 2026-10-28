@@ -1585,6 +1585,39 @@ fn malformed_attached_session_ids_fail_before_runtime_origin_evaluation() {
 }
 
 #[test]
+fn contradictory_runtime_subtype_cannot_prove_provider_origin() {
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    for (label, subtype) in [
+        ("runtime-array-subtype", "array"),
+        ("runtime-null-subtype", "null"),
+        ("runtime-error-subtype", "error"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_browser(&root, targets, "mail.proton.me");
+        let script = fs::read_to_string(&browser).expect("read fixture");
+        let expected = r#""type":"object","#;
+        assert!(script.contains(expected));
+        let altered = format!(r#""type":"object","subtype":"{subtype}","#);
+        install_script(&browser, script.replacen(expected, &altered, 1))
+            .expect("inject contradictory Runtime RemoteObject subtype");
+        let browser_plan = plan(&root, &browser);
+        let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+        let page = driver.provider_page().expect("discover Mail page");
+        assert_eq!(
+            driver.verify_provider_origin(&page),
+            Err(BrowserDriverError::Protocol),
+            "case {label} must fail closed"
+        );
+        drop(driver);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn contradictory_runtime_remote_type_cannot_prove_provider_origin() {
     let targets = concat!(
         r#"[{"targetId":"page-1","type":"page","#,
