@@ -183,6 +183,29 @@ fn sticky_parent_above_private_output_root_is_trusted() {
 }
 
 #[test]
+fn unsafe_final_output_root_is_refused_at_open_time() {
+    // A successfully opened root is later exposed to independent workflow
+    // code. Reject unsafe ownership and permissions before granting that FD.
+    for mode in [0o770u32, 0o777u32] {
+        let root = prepare_root(&format!("unsafe-root-open-{mode}"));
+        set_fixture_mode(&root, mode);
+        assert_eq!(
+            AttachmentFileOutputRoot::open(&root).expect_err("unsafe root"),
+            AttachmentFileOutputError::UnsafeRoot
+        );
+        assert_eq!(
+            fs::metadata(&root)
+                .expect("root remains intact")
+                .permissions()
+                .mode()
+                & 0o777,
+            mode
+        );
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn missing_destination_parent_fails_without_creating_partial() {
     let root = prepare_root("missing-parent");
     // jig-ignore-next-line: canonical rustfmt line.
@@ -268,22 +291,30 @@ fn group_or_world_writable_final_directory_is_not_a_safe_output_parent() {
             };
             fs::set_permissions(&parent, fs::Permissions::from_mode(mode))
                 .expect("set synthetic shared permissions");
-            let output_root =
-                // jig-ignore-next-line: canonical rustfmt permission fixture.
-                AttachmentFileOutputRoot::open(&root).expect("open explicit synthetic root");
             let destination = if nested {
                 "shared/output.bin"
             } else {
                 "output.bin"
             };
-            let result =
-                // jig-ignore-next-line: canonical rustfmt permission fixture.
-                output_root.write_no_overwrite(&relative(destination), b"private-bytes", 128);
-            let created = root.join(destination).exists();
+            if nested {
+                let output_root = AttachmentFileOutputRoot::open(&root)
+                    .expect("private root with shared-writable child");
+                let path = relative(destination);
+                let bytes = b"private-bytes";
+                let result = output_root.write_no_overwrite(&path, bytes, 128);
+                let expected = AttachmentFileOutputError::UnsafeDestination;
+                assert_eq!(result, Err(expected));
+            } else {
+                assert_eq!(
+                    AttachmentFileOutputRoot::open(&root).err(),
+                    Some(AttachmentFileOutputError::UnsafeRoot)
+                );
+            }
+            assert!(
+                !root.join(destination).exists(),
+                "unsafe output must never commit"
+            );
             cleanup(&root);
-            // jig-ignore-next-line: canonical rustfmt permission fixture.
-            assert_eq!(result, Err(AttachmentFileOutputError::UnsafeDestination));
-            assert!(!created, "unsafe destination must never commit");
         }
     }
 }
@@ -303,14 +334,23 @@ fn shared_writable_ancestor_cannot_redirect_nested_attachment_output() {
             };
             fs::set_permissions(shared, fs::Permissions::from_mode(mode))
                 .expect("set unsafe ancestor permissions");
-            let sink = AttachmentFileOutputRoot::open(&root).expect("root");
-            let result = sink.write_no_overwrite(
-                &relative("shared/private/output.bin"),
-                b"private-bytes",
-                128,
-            );
-            let expected = Err(AttachmentFileOutputError::UnsafeDestination);
-            assert_eq!(result, expected);
+            if ancestor == "root" {
+                assert_eq!(
+                    AttachmentFileOutputRoot::open(&root).err(),
+                    Some(AttachmentFileOutputError::UnsafeRoot)
+                );
+            } else {
+                // jig-ignore-next-line: rustfmt canonical private-root fixture.
+                let sink = AttachmentFileOutputRoot::open(&root).expect("private root");
+                assert_eq!(
+                    sink.write_no_overwrite(
+                        &relative("shared/private/output.bin"),
+                        b"private-bytes",
+                        128,
+                    ),
+                    Err(AttachmentFileOutputError::UnsafeDestination)
+                );
+            }
             assert!(!final_parent.join("output.bin").exists());
             assert_no_partial_entries(&final_parent);
             cleanup(&root);

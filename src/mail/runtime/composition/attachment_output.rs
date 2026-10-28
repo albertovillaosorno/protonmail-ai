@@ -87,6 +87,11 @@ impl AttachmentFileOutputRoot {
                 }
             }
         }
+        // A configured root must itself be suitable for private output.
+        // Never return an apparently usable root descriptor if writes would
+        // necessarily fail its owner/mode policy later.
+        require_private_directory(&directory)
+            .map_err(|_error| AttachmentFileOutputError::UnsafeRoot)?;
         Ok(Self { directory })
     }
 
