@@ -1514,6 +1514,12 @@ web application without requiring Bridge or a third-party direct API identity.
   unknown. Red-first browser JS tests cover unknown, empty, and trailing
   hash keys while retaining the audited search selectors and forced routes.
 
+- Search-mode evidence now recognizes only `wildcard=1` as a supported
+  modifier; noncanonical numeric values such as `wildcard=2` or `99` fail
+  closed, even alongside a valid keyword/date or on forced message routes.
+  Red-first live-JavaScript cases proved the previous false authorization;
+  ordinary text/date searches and the supported modifier still work.
+
 - A standalone `wildcard` search-hash modifier no longer proves active
   individual-message search mode. It must accompany a valid textual or
   `begin`/`end` date filter; malformed modifiers still invalidate all search

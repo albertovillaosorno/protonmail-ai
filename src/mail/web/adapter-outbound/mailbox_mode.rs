@@ -62,14 +62,14 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "if(raw.length>8192||/%(?![0-9a-fA-F]{2})/.test(raw)){return null;}",
     "const params=new URLSearchParams(raw);",
     "const strings=['address','from','keyword','to'];",
-    "const numbers=['begin','end','wildcard'];",
-    "const selectors=[...strings,...numbers];",
+    "const numbers=['begin','end'];",
+    "const selectors=[...strings,...numbers,'wildcard'];",
     // Unknown or ambiguous query keys cannot establish message-mode proof.
     // In particular, a future provider option may change row grouping.
     "const unsafeKey=raw.split('&').some((pair)=>{",
     "const key=pair.split('=')[0];",
     "return key.includes('%')||!selectors.includes(key);});",
-    "const duplicate=[...strings,...numbers].some(",
+    "const duplicate=selectors.some(",
     "(key)=>params.getAll(key).length>1);",
     // A recognized malformed selector invalidates the whole search proof.
     // Do not allow a legitimate Keyword to mask an invalid Begin or From.
@@ -98,8 +98,10 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "if(value.length>1&&value.startsWith('0')){return false;}",
     "const parsed=Number(value);",
     "return Number.isSafeInteger(parsed)&&parsed>0;};",
+    "const wildcard=params.get('wildcard');",
+    "const validWildcard=wildcard===null||wildcard==='1';",
     "const complete=textValues.every(validText)&&",
-    "numberValues.every(validNumeric);",
+    "numberValues.every(validNumeric)&&validWildcard;",
     "const text=textValues.some(validText);",
     // Wildcard changes how a search matches; it does not start a search.
     "const ranged=['begin','end'].some((key)=>",
