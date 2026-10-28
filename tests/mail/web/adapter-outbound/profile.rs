@@ -137,6 +137,30 @@ fn xdg_login_uses_dedicated_private_profile() {
 }
 
 #[test]
+fn shared_writable_data_home_cannot_hold_private_browser_profile() {
+    for mode in [0o770u32, 0o777u32] {
+        let root = test_root(&format!("shared-data-{mode}"));
+        let data_home = root.join("data");
+        fs::create_dir_all(&data_home).expect("create shared data home");
+        fs::set_permissions(&data_home, fs::Permissions::from_mode(mode))
+            .expect("set shared data home mode");
+        let browser = fake_browser(&root);
+        let output = login(&root, &browser, Some(&data_home));
+        assert!(!output.status.success());
+        assert!(!root.join("browser-args.txt").exists());
+        let stderr = String::from_utf8(output.stderr).expect("UTF-8 error");
+        assert!(stderr.contains("browser data home is shared-writable"));
+        let mode_after = fs::metadata(&data_home)
+            .expect("data home remains")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode_after, mode, "never chmod user-selected data home");
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn home_fallback_remains_project_scoped() {
     let root = test_root("home");
     fs::create_dir_all(&root).expect("create synthetic root");

@@ -87,6 +87,8 @@ for visible, manual sign-in. On Linux the profile lives under
 `$XDG_DATA_HOME/protonmail-ai/browser-profile`, falling back to
 `$HOME/.local/share/protonmail-ai/browser-profile` when XDG data home is absent
 or invalid. The project and profile directories are restricted to mode `0700`.
+The selected data-home directory must not be group- or world-writable; unsafe
+permissions fail closed without changing the caller's data-home directory.
 
 The launcher does not accept an arbitrary profile path, attach to an existing
 browser profile, enable remote debugging, or read password, second-factor,

@@ -1523,3 +1523,10 @@ web application without requiring Bridge or a third-party direct API identity.
   and musical format controls. Red-first Node and metadata fixtures prove
   that the previously omitted marks could cross exact-ID/search boundaries;
   legitimate printable Unicode remains accepted.
+
+- Dedicated browser-profile setup now refuses a selected XDG/HOME data-home
+  directory with group or world write permissions before resolving the fixed
+  project/profile children. Another account could otherwise rename a private
+  project directory between validation and Chromium launch. Red-first fake
+  browser login tests for 0770 and 0777 verify no launch and no chmod of the
+  caller-selected data home; private data homes remain supported.

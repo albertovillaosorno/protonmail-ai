@@ -197,6 +197,8 @@ pub enum WebLoginError {
     MissingDataHome,
     /// No supported Chromium-family browser could be selected.
     BrowserUnavailable,
+    /// The selected data home allows another account to replace project paths.
+    UnsafeDataHome,
     /// The project profile path resolves to a symbolic link.
     ProfileLink(PathBuf),
     /// The project-owned profile parent resolves to a symbolic link.
@@ -218,6 +220,7 @@ impl fmt::Debug for WebLoginError {
         match self {
             Self::MissingDataHome => f.write_str("MissingDataHome"),
             Self::BrowserUnavailable => f.write_str("BrowserUnavailable"),
+            Self::UnsafeDataHome => f.write_str("UnsafeDataHome"),
             Self::ProfileLink(_) => f.write_str("ProfileLink(<redacted>)"),
             Self::ProjectLink(_) => f.write_str("ProjectLink(<redacted>)"),
             // jig-ignore-next-line: canonical rustfmt line.
@@ -235,6 +238,8 @@ impl fmt::Display for WebLoginError {
         match self {
             Self::MissingDataHome => f.write_str("browser data unavailable"),
             Self::BrowserUnavailable => f.write_str("Chromium unavailable"),
+            // jig-ignore-next-line: canonical rustfmt typed error message.
+            Self::UnsafeDataHome => f.write_str("browser data home is shared-writable"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::AutomationInUse => f.write_str("profile owned by managed automation"),
             Self::ProfileLink(_) => f.write_str("profile symlink"),
@@ -322,6 +327,16 @@ fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
         // jig-ignore-next-line: canonical rustfmt line.
         open(data_home, root_flags, Mode::empty()).map_err(|_error| create_error(path))?;
     let data = File::from(data_fd);
+    // Even a private project directory can be renamed by another local
+    // account when its selected parent directory permits shared writes.
+    // Do not chmod the caller-selected data home to make it acceptable.
+    let permissions = data
+        .metadata()
+        .map_err(|error| io_err(path, error))?
+        .permissions();
+    if permissions.mode() & 0o022 != 0 {
+        return Err(WebLoginError::UnsafeDataHome);
+    }
     open_private_child(
         &data,
         APP_DIR,
