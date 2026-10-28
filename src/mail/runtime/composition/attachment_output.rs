@@ -269,13 +269,18 @@ fn require_trusted_root_ancestor(directory: &OwnedFd) -> Result<(), AttachmentFi
 
 // jig-ignore-next-line: canonical rustfmt function signature.
 fn require_private_directory(directory: &OwnedFd) -> Result<(), AttachmentFileOutputError> {
-    let mode = fstat(directory)
-        .map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?
-        .st_mode;
-    if mode & 0o022 != 0 {
+    let state = fstat(directory);
+    // jig-ignore-next-line: canonical rustfmt typed filesystem error.
+    let state = state.map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?;
+    let current_uid = geteuid().as_raw();
+    if !private_directory_allowed(state.st_mode, state.st_uid, current_uid) {
         return Err(AttachmentFileOutputError::UnsafeDestination);
     }
     Ok(())
+}
+
+const fn private_directory_allowed(mode: u32, uid: u32, owner: u32) -> bool {
+    uid == owner && mode & 0o022 == 0
 }
 
 fn directory_flags() -> OFlag {
@@ -318,4 +323,18 @@ fn create_partial(parent: &OwnedFd) -> Result<(OwnedFd, String), AttachmentFileO
 fn cleanup_partial(parent: &OwnedFd, partial_name: &str) -> Result<(), AttachmentFileOutputError> {
     unlinkat(parent, Path::new(partial_name), UnlinkatFlags::NoRemoveDir)
         .map_err(|_error| AttachmentFileOutputError::CleanupFailed)
+}
+
+#[cfg(test)]
+mod output_owner_tests {
+    use super::private_directory_allowed;
+
+    #[test]
+    fn private_output_requires_effective_owner_and_private_mode() {
+        assert!(private_directory_allowed(0o700, 1000, 1000));
+        assert!(private_directory_allowed(0o700, 0, 0));
+        assert!(!private_directory_allowed(0o700, 1001, 1000));
+        assert!(!private_directory_allowed(0o700, 0, 1000));
+        assert!(!private_directory_allowed(0o770, 1000, 1000));
+    }
 }

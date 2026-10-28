@@ -477,3 +477,10 @@ Ship useful read access before any mailbox mutation is enabled.
   renamed by another local account even though nested output checks passed.
   A red-first regression proves 0770/0777 parents are rejected before output;
   trusted sticky directories, such as `/tmp`, remain compatible.
+
+- Each held attachment output root and nested directory now requires the
+  effective process UID as owner, in addition to private mode. A foreign-owned
+  0700 directory was previously considered safe by mode alone, although its
+  owner can change permissions or move its entries. A red-first pure policy
+  regression proves foreign owner rejection, including root-owned output when
+  the process is not root; normal owned private directories still pass.
