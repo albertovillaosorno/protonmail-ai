@@ -109,3 +109,10 @@ to register as a local MCP server.
   file with `O_NOFOLLOW|O_NONBLOCK`. A red-first CLI fixture showed that an
   intermediate symlink could previously bypass the leaf-only guard and
   encode unrelated private content; ordinary nested paths remain accepted.
+
+- Compose URL headers now reject the same additional hidden Unicode
+  formatting/filler marks as content-bearing read metadata, including
+  Arabic annotation controls and blank-looking filler characters. Literal
+  recipient fields also reject internal ASCII/Unicode whitespace, while
+  natural-language subjects retain spaces and legitimate emoji joiners.
+  Red-first synthetic CLI tests cover all recipient roles and subjects.

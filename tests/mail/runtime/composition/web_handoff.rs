@@ -489,11 +489,21 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
     for mark in [
         '\u{00ad}',
         '\u{034f}',
+        '\u{0600}',
+        '\u{0605}',
+        '\u{06dd}',
+        '\u{070f}',
+        '\u{0890}',
+        '\u{0891}',
+        '\u{08e2}',
         '\u{180e}',
         '\u{200b}',
         '\u{200c}',
         '\u{200d}',
         '\u{2060}',
+        '\u{2800}',
+        '\u{3164}',
+        '\u{ffa0}',
         '\u{fe0f}',
         '\u{feff}',
         '\u{e0001}',
@@ -542,6 +552,51 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
         assert!(stderr(&result).contains("subject contains control"));
         assert!(!stderr(&result).contains(&subject));
     }
+}
+
+#[test]
+fn composer_literal_recipients_refuse_embedded_whitespace() {
+    for address in [
+        "person@example.test Bcc:other@example.test",
+        "person @example.test",
+        "person\u{00a0}@example.test",
+        "person\u{1680}@example.test",
+        "person\u{2007}@example.test",
+        "person\u{202f}@example.test",
+        "person\u{3000}@example.test",
+    ] {
+        for flag in ["--to", "--cc", "--bcc"] {
+            let args = if flag == "--to" {
+                vec!["mail", "compose-url", "--to", address]
+            } else {
+                vec![
+                    "mail",
+                    "compose-url",
+                    "--to",
+                    "valid@example.test",
+                    flag,
+                    address,
+                ]
+            };
+            let result = run(&args);
+            assert!(!result.status.success(), "ambiguous {flag} must fail");
+            assert!(result.stdout.is_empty());
+            assert!(stderr(&result).contains("recipient contains control"));
+            assert!(!stderr(&result).contains(address));
+        }
+    }
+    let valid = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "alice+tag@example.test",
+        "--subject",
+        "Meeting notes with spaces",
+    ]);
+    assert!(
+        valid.status.success(),
+        "ordinary subject and address remain valid"
+    );
 }
 
 #[test]
