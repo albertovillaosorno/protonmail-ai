@@ -94,13 +94,16 @@ while IFS= read -r -d '' message <&3; do
       origin_probe=$((origin_probe + 1))
       host='{runtime_host}'
       if [ "$origin_probe" -gt 1 ]; then host='{runtime_host_after}'; fi
-      response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
+      response='{{"id":'"$id"','
+      response+='"sessionId":"session-1","result":{{"result":{{"type":"object",'
       response+='"value":{{"protocol":"https:",'
       response+='"hostname":"'"$host"'",'
       response+='"port":""}}}}}}}}'
       printf '%s\0' "$response" >&4;;
     *'DOM.getDocument'*)
-      printf '{{"id":%s,"result":{{"root":{{"nodeId":1}}}}}}\0' "$id" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"root":{{"nodeId":1}}}}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         *'"role":"navigation"'*) nodes='{navigation}';;
@@ -109,7 +112,9 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='{dialog}';;
         *) exit 91;;
       esac
-      printf '{{"id":%s,"result":{{"nodes":%s}}}}\0' "$id" "$nodes" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"nodes":%s}}}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Target.detachFromTarget'*)
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *) exit 92;;
@@ -591,7 +596,7 @@ fn runtime_javascript_exception_cannot_become_ready_shell_evidence() {
     let expected = "      printf '%s\\0' \"$response\" >&4;;";
     assert!(script.contains(expected));
     let error_reply = concat!(
-        "      printf '{\"id\":%s,\"result\":",
+        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"result\":",
         "{\"result\":{\"value\":{\"protocol\":\"https:\",",
         "\"hostname\":\"mail.proton.me\",\"port\":\"\"}},",
         "\"exceptionDetails\":{\"text\":\"synthetic-private-message\"}}}\\0' ",
@@ -645,7 +650,7 @@ fn runtime_thrown_flag_cannot_authorize_mail_shell_with_plausible_value() {
         );
         let replacement =
             // jig-ignore-next-line: canonical rustfmt line.
-            format!("      printf '{{\"id\":%s,\"result\":{remote}}}\\0' \"$id\" >&4;;");
+            format!("      printf '{{\"id\":%s,\"sessionId\":\"session-1\",\"result\":{remote}}}\\0' \"$id\" >&4;;");
         fs::write(&browser, script.replacen(original, &replacement, 1))
             .expect("inject a bounded old-CDP throw flag");
         let mut managed =

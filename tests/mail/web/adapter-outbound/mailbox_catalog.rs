@@ -403,9 +403,13 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
     *'Runtime.evaluate'*)
       value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         # jig-ignore-next-line: indivisible synthetic shell fixture.
@@ -413,10 +417,12 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac
-      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"nodes":%s}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Network.enable'*)
       printf 'enable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Page.reload'*)
       printf 'reload\n' >> '__LOG__'
       for spec in 'label-1:1' 'folder-1:3' 'system-1:4' 'contacts-1:2'; do
@@ -455,7 +461,7 @@ while IFS= read -r -d '' message <&3; do
       other+='"url":"https://mail.proton.me/api/core/v4/users",'
       other+='"headers":{"Authorization":"Bearer unrelated-secret"}}}}'
       printf '%s\0' "$other" >&4
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Network.getResponseBody'*'"requestId":"folder-1"'*)
       printf 'body-folder\n' >> '__LOG__'
       body='{"Code":1000,"Labels":['
@@ -463,23 +469,27 @@ while IFS= read -r -d '' message <&3; do
       body+='{"ID":"folder-parent","Name":"Projects","Type":3,"Order":2,"ParentID":null},'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body+='{"ID":"folder-child","Name":"Nested","Type":3,"Order":3,"ParentID":"folder-parent"}]}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' "$id" "${body//\"/\\\"}" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"body":"%s","base64Encoded":false}}\0'
+      printf "$reply_format" "$id" "${body//\"/\\\"}" >&4;;
     *'Network.getResponseBody'*'"requestId":"label-1"'*)
       printf 'body-label\n' >> '__LOG__'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body='{"Code":1000,"Labels":[{"ID":"label-safe","Name":"Tag","Type":1,"Order":8}]}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":__ENCODED_LABEL__}}\0' "$id" "${body//\"/\\\"}" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"body":"%s","base64Encoded":__ENCODED_LABEL__}}\'
+      reply_format+='0'
+      printf "$reply_format" "$id" "${body//\"/\\\"}" >&4;;
     *'Network.getResponseBody'*'"requestId":"system-1"'*)
       printf 'body-system\n' >> '__LOG__'
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body='{"Code":1000,"Labels":[{"ID":"0","Name":"Inbox","Type":4,"Order":1}]}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' "$id" "${body//\"/\\\"}" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"body":"%s","base64Encoded":false}}\0'
+      printf "$reply_format" "$id" "${body//\"/\\\"}" >&4;;
     *'Network.disable'*)
       printf 'disable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *) exit 92;;
@@ -1717,7 +1727,10 @@ fn malformed_cdp_envelope_during_observed_enable_cleans_catalog_network() {
         let browser = fake_catalog_browser(&root, false, false);
         // jig-ignore-next-line: canonical rustfmt line.
         let script = fs::read_to_string(&browser).expect("read fake browser fixture");
-        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        let reply = concat!(
+            "      printf '{\"id\":%s,\"sessionId\":\"session-1\",",
+            "\"result\":{}}\\0' \"$id\" >&4;;",
+        );
         assert!(script.contains(reply));
         // jig-ignore-next-line: canonical rustfmt line.
         let replacement = format!("      printf '%s\\0' '{envelope}' >&4\n{reply}");

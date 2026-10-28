@@ -129,19 +129,23 @@ while IFS= read -r -d '' message <&3; do
     *'Target.attachToTarget'*)
       printf '{{"id":%s,"result":{{"sessionId":"session-1"}}}}\0' "$id" >&4;;
     *'Runtime.evaluate'*'message-list-loaded'*)
-      response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
+      response='{{"id":'"$id"','
+      response+='"sessionId":"session-1","result":{{"result":{{"type":"object",'
       response+='"value":{list_value}}}}}}}'
       printf '%s\0' "$response" >&4;;
     *'Runtime.evaluate'*)
       origin_probe=$((origin_probe + 1))
       host='mail.proton.me'
       if [ "$origin_probe" -gt 2 ]; then host='{host_after_list}'; fi
-      response='{{"id":'"$id"',"result":{{"result":{{"type":"object",'
+      response='{{"id":'"$id"','
+      response+='"sessionId":"session-1","result":{{"result":{{"type":"object",'
       response+='"value":{{"protocol":"https:",'
       response+='"hostname":"'"$host"'","port":""}}}}}}}}'
       printf '%s\0' "$response" >&4;;
     *'DOM.getDocument'*)
-      printf '{{"id":%s,"result":{{"root":{{"nodeId":1}}}}}}\0' "$id" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"root":{{"nodeId":1}}}}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         *'"role":"navigation"'*) nodes='{VISIBLE_AX}';;
@@ -150,7 +154,9 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='{ABSENT_AX}';;
         *) exit 91;;
       esac
-      printf '{{"id":%s,"result":{{"nodes":%s}}}}\0' "$id" "$nodes" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"nodes":%s}}}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Target.detachFromTarget'*)
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *) exit 92;;

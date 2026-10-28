@@ -42,6 +42,11 @@ use mail_web_adapter::MessageListResponseError;
 use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 use mail_web_adapter::{PageOrigin, ProviderPage};
 
+const SESSION_EMPTY_REPLY: &str = concat!(
+    "      printf '{\"id\":%s,\"sessionId\":\"session-1\",",
+    "\"result\":{}}\\0' \"$id\" >&4;;",
+);
+
 fn test_root(label: &str) -> PathBuf {
     let name = format!("protonmail-ai-driver-{label}-{}", process::id());
     env::temp_dir().join(name)
@@ -76,7 +81,8 @@ while IFS= read -r -d '' message <&3; do
     *'Target.attachToTarget'*)
       printf '%s\0' '{{"id":3,"result":{{"sessionId":"session-1"}}}}' >&4;;
     *'Runtime.evaluate'*)
-      response='{{"id":4,"result":{{"result":{{"type":"object",'
+      response='{{"id":4,'
+      response+='"sessionId":"session-1","result":{{"result":{{"type":"object",'
       response+='"value":{{"protocol":"https:",'
       response+='"hostname":"{runtime_host}","port":""}}}}}}}}'
       printf '%s\0' "$response" >&4;;
@@ -151,26 +157,36 @@ while IFS= read -r -d '' message <&3; do
         "$id" >&4;;
     *'Runtime.evaluate'*'forcedMessageRoute'*)
       value='{"forcedMessageRoute":true,"activeSearch":false}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
       value='__ROWS__'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
       value='{"loading":false,"loaded":true,"rowIds":__ROW_IDS__,'
       value+='"skeletonCount":0,"emptyMarker":false,'
       value+='"nextPresent":false,"nextDisabled":null,'
       value+='"currentTestId":"pagination-row:go-to-page-1"}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
       value='{"protocol":"https:",'
       value+='"hostname":"mail.proton.me","port":""}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      printf "$reply_format" \
         "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
@@ -179,7 +195,7 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac
-      printf '{"id":%s,"result":{"nodes":%s}}\0' \
+      printf '{"id":%s,"sessionId":"session-1","result":{"nodes":%s}}\0' \
         "$id" "$nodes" >&4;;
     *'Network.enable'*)
       case "$message" in
@@ -187,7 +203,7 @@ while IFS= read -r -d '' message <&3; do
         *) exit 93;;
       esac
       printf 'enable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Page.reload'*)
       printf 'reload\n' >> '__LOG__'
       extra='{"sessionId":"session-1",'
@@ -221,7 +237,7 @@ while IFS= read -r -d '' message <&3; do
       finished+='"method":"Network.loadingFinished","params":{'
       finished+='"requestId":"list-1"}}'
       printf '%s\0' "$finished" >&4
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Network.getResponseBody'*'"requestId":"list-1"'*)
       printf 'body\n' >> '__LOG__'
       if [ '__MULTI_BATCH__' = 'true' ]; then
@@ -249,14 +265,14 @@ while IFS= read -r -d '' message <&3; do
       body='{\"Code\":1000,\"Stale\":0,\"Total\":__TOTAL__,\"Messages\":[{'
       body+='\"ID\":\"m-1\",\"Time\":1790848000,\"Order\":9,'
       body+='\"Subject\":\"secret subject\"}]}'
-      prefix='{"id":'"$id"',"result":{"body":"'
+      prefix='{"id":'"$id"',"sessionId":"session-1","result":{"body":"'
       suffix='","base64Encoded":__ENCODED__}}'
       printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
     *'Network.getResponseBody'*'"requestId":"list-2"'*)
       printf 'body\n' >> '__LOG__'
       body='{\"Code\":1000,\"Stale\":0,\"Total\":2,\"Messages\":[{'
       body+='\"ID\":\"m-2\",\"Time\":__SECOND_TIME__,\"Order\":8}]}'
-      prefix='{"id":'"$id"',"result":{"body":"'
+      prefix='{"id":'"$id"',"sessionId":"session-1","result":{"body":"'
       suffix='","base64Encoded":false}}'
       printf '%s%s%s\0' "$prefix" "$body" "$suffix" >&4;;
     *'Network.disable'*)
@@ -269,7 +285,7 @@ while IFS= read -r -d '' message <&3; do
         request+='Limit=1&Anchor=1790847999&AnchorID=m-2&Sort=Time&Desc=1"}}}'
         printf '%s\0' "$request" >&4
       fi
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *) exit 92;;
@@ -1023,10 +1039,10 @@ fn rejected_message_list_network_enable_disables_before_returning() {
         "1790847999",
     );
     let script = fs::read_to_string(&browser).expect("read fake CDP script");
-    let expected = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    let expected = SESSION_EMPTY_REPLY;
     assert!(script.contains(expected));
     // jig-ignore-next-line: indivisible synthetic fixture command.
-    let rejected = "      printf '{\"id\":%s,\"error\":{\"code\":-32601}}\\0' \"$id\" >&4;;";
+    let rejected = "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"error\":{\"code\":-32601}}\\0' \"$id\" >&4;;";
     let modified = script.replacen(expected, rejected, 1);
     install_script(&browser, modified).expect("install synthetic error reply");
     let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
@@ -1115,8 +1131,7 @@ fn consumed_message_list_id_replay_during_disable_fails_closed() {
         "1",
         "1790847999",
     );
-    // jig-ignore-next-line: canonical rustfmt line.
-    let script = fs::read_to_string(&browser).expect("read fake browser script");
+    let script = fs::read_to_string(&browser).expect("read browser script");
     assert!(script.contains("list-3"));
     install_script(&browser, script.replace("list-3", "list-1"))
         .expect("install reused completed request ID");
@@ -1196,7 +1211,7 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
         );
         // jig-ignore-next-line: canonical rustfmt line.
         let script = fs::read_to_string(&browser).expect("read CDP browser fixture");
-        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        let reply = SESSION_EMPTY_REPLY;
         assert!(script.contains(reply));
         // jig-ignore-next-line: canonical rustfmt line.
         let injected = format!("      printf '%s\\0' '{unsolicited}' >&4\n{reply}");
@@ -1243,7 +1258,7 @@ fn hybrid_cdp_frame_with_matching_command_id_does_not_spoof_success() {
     );
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
-    let expected = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    let expected = SESSION_EMPTY_REPLY;
     assert!(script.contains(expected));
     let injected = format!(
         // jig-ignore-next-line: canonical rustfmt line.
@@ -1295,11 +1310,11 @@ fn malformed_cdp_result_shapes_never_enable_network_capture() {
         );
         // jig-ignore-next-line: canonical rustfmt line.
         let script = fs::read_to_string(&browser).expect("read synthetic browser script");
-        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        let reply = SESSION_EMPTY_REPLY;
         assert!(script.contains(reply));
         let invalid =
             // jig-ignore-next-line: canonical rustfmt line.
-            format!("      printf '{{\"id\":%s,\"result\":{result_json}}}\\0' \"$id\" >&4;;");
+            format!("      printf '{{\"id\":%s,\"sessionId\":\"session-1\",\"result\":{result_json}}}\\0' \"$id\" >&4;;");
         install_script(&browser, script.replacen(reply, &invalid, 1))
             .expect("inject invalid success payload into Network.enable");
         let mut managed =
@@ -1340,7 +1355,7 @@ fn invalid_utf8_cdp_frame_drains_real_enable_reply_before_cleanup() {
     );
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read synthetic browser script");
-    let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    let reply = SESSION_EMPTY_REPLY;
     assert!(script.contains(reply));
     let injected = format!("      printf '\\377\\0' >&4\n{reply}");
     install_script(&browser, script.replacen(reply, &injected, 1))
@@ -1384,8 +1399,8 @@ fn provider_rejected_message_list_body_disables_network_before_returning() {
     assert!(script.contains(success_code));
     install_script(&browser, script.replace(success_code, r#"\"Code\":2001"#))
         .expect("inject explicit unsuccessful provider response code");
-    // jig-ignore-next-line: canonical rustfmt line.
-    let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch");
     let page = managed.provider_page().expect("discover Mail page");
     assert_eq!(
         managed.observe_message_list_response(&page),
@@ -1419,8 +1434,7 @@ fn browser_allows_distinct_continuation_totals_without_snapshot_claim() {
         "2",
         "1790847999",
     );
-    // jig-ignore-next-line: canonical rustfmt line.
-    let script = fs::read_to_string(&browser).expect("read synthetic browser fixture");
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
     // jig-ignore-next-line: canonical rustfmt line.
     let second_branch = "    *'Network.getResponseBody'*'\"requestId\":\"list-2\"'*)";
     let start = script
@@ -1591,8 +1605,8 @@ fn wrong_session_reply_with_current_command_id_cannot_spoof_enable() {
             "1790847999",
         );
         // jig-ignore-next-line: canonical rustfmt line.
-        let script = fs::read_to_string(&browser).expect("read fake browser fixture");
-        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        let script = fs::read_to_string(&browser).expect("read browser fixture");
+        let reply = SESSION_EMPTY_REPLY;
         assert!(script.contains(reply));
         let unsolicited = format!(
             // jig-ignore-next-line: canonical rustfmt line.
@@ -1600,8 +1614,9 @@ fn wrong_session_reply_with_current_command_id_cannot_spoof_enable() {
         );
         install_script(&browser, script.replacen(reply, &unsolicited, 1))
             .expect("install cross-session reply ahead of actual reply");
-        let mut managed = ManagedBrowser::launch(&plan(&root, &browser))
-            .expect("launch private-pipe fake Chrome");
+        let browser_plan = plan(&root, &browser);
+        let launched = ManagedBrowser::launch(&browser_plan);
+        let mut managed = launched.expect("launch");
         let page = managed.provider_page().expect("select synthetic Mail page");
         assert_eq!(
             managed.observe_message_list_response(&page),
@@ -1613,10 +1628,80 @@ fn wrong_session_reply_with_current_command_id_cannot_spoof_enable() {
         drop(managed);
         let log =
             // jig-ignore-next-line: canonical rustfmt line.
-            fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network audit");
+            fs::read_to_string(root.join("network-log.txt")).expect("read Network audit");
         assert_eq!(log, "enable\ndisable\n");
         cleanup(&root);
     }
+}
+
+#[test]
+fn browser_scoped_handshake_rejects_attached_session_reply() {
+    let root = test_root("browser-handshake-session");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#
+    );
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
+    let reply = r#""id":1,"result":{"product":"FakeChrome/1"}"#;
+    let wrong = concat!(
+        r#""id":1,"sessionId":"session-1","#,
+        r#""result":{"product":"FakeChrome/1"}"#
+    );
+    assert!(script.contains(reply));
+    let injected = format!(
+        "      printf '%s\\0' '{{{wrong}}}' >&4\n\
+             printf '%s\\0' '{{{reply}}}' >&4"
+    );
+    let original = format!("      printf '%s\\0' '{{{reply}}}' >&4");
+    assert!(script.contains(&original));
+    install_script(&browser, script.replacen(&original, &injected, 1))
+        .expect("install wrong-scope reply ahead of genuine acknowledgement");
+    assert!(matches!(
+        ManagedBrowser::launch(&plan(&root, &browser)),
+        Err(BrowserDriverError::Protocol)
+    ));
+    cleanup(&root);
+}
+
+#[test]
+fn absent_session_reply_cannot_spoof_an_attached_command() {
+    let root = test_root("missing-session-reply");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
+    let reply = SESSION_EMPTY_REPLY;
+    assert!(script.contains(reply));
+    let missing = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+    let injected = format!("{}\n{reply}", missing.trim_end_matches(";;"));
+    install_script(&browser, script.replacen(reply, &injected, 1))
+        .expect("inject sessionless reply before attached acknowledgement");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = managed.provider_page().expect("select synthetic Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("matched reply was drained before Network cleanup");
+    drop(managed);
+    let log = fs::read_to_string(root.join("network-log.txt")).expect("audit");
+    assert_eq!(log, "enable\ndisable\n");
+    cleanup(&root);
 }
 
 #[test]
@@ -1635,16 +1720,9 @@ fn matching_explicit_cdp_session_reply_is_accepted() {
         "1",
         "1790847999",
     );
-    // jig-ignore-next-line: canonical rustfmt line.
-    let script = fs::read_to_string(&browser).expect("read fake browser script");
-    let original = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
-    let explicit =
-        // jig-ignore-next-line: canonical rustfmt line.
-        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"result\":{}}\\0' \"$id\" >&4;;";
-    assert!(script.contains(original));
-    install_script(&browser, script.replacen(original, explicit, 1))
-        // jig-ignore-next-line: canonical rustfmt line.
-        .expect("add matching explicit session to Network.enable acknowledgement");
+    // The fake Chromium sends matching flattened-session replies by default.
+    let script = fs::read_to_string(&browser).expect("read browser script");
+    assert!(script.contains("\"sessionId\":\"session-1\",\"result\""));
     let mut managed =
         // jig-ignore-next-line: canonical rustfmt line.
         ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
@@ -1658,7 +1736,7 @@ fn matching_explicit_cdp_session_reply_is_accepted() {
     drop(managed);
     let log =
         // jig-ignore-next-line: canonical rustfmt line.
-        fs::read_to_string(root.join("network-log.txt")).expect("read synthetic Network audit");
+        fs::read_to_string(root.join("network-log.txt")).expect("read Network audit");
     assert_eq!(log, "enable\nreload\nbody\ndisable\n");
     cleanup(&root);
 }
@@ -1749,9 +1827,9 @@ fn malformed_non_page_target_entries_cannot_hide_in_valid_target_catalog() {
             fs::create_dir_all(&root).expect("create isolated fake profile");
             // jig-ignore-next-line: canonical rustfmt line.
             let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
-            let mut managed =
-                // jig-ignore-next-line: canonical rustfmt line.
-                ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+            let browser_plan = plan(&root, &browser);
+            let launched = ManagedBrowser::launch(&browser_plan);
+            let mut managed = launched.expect("launch");
             // jig-ignore-next-line: canonical rustfmt line.
             assert_eq!(managed.provider_page(), Err(BrowserDriverError::Protocol));
             drop(managed);
@@ -1772,8 +1850,8 @@ fn unrelated_well_typed_browser_targets_remain_ignorable() {
         {"targetId":"mail-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}
     ]);
     let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
-    // jig-ignore-next-line: canonical rustfmt line.
-    let mut managed = ManagedBrowser::launch(&plan(&root, &browser)).expect("launch fake Chrome");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch");
     assert_eq!(
         managed.provider_page().map(|page| page.origin()),
         Ok(PageOrigin::ProtonMail)
@@ -1821,7 +1899,7 @@ fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
         );
         // jig-ignore-next-line: canonical rustfmt line.
         let script = fs::read_to_string(&browser).expect("read synthetic CDP fixture");
-        let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4;;";
+        let reply = SESSION_EMPTY_REPLY;
         assert!(script.contains(reply));
         let inserted = format!("      printf '%s\\0' '{frame}' >&4\n{reply}");
         install_script(&browser, script.replacen(reply, &inserted, 1))
@@ -1890,11 +1968,12 @@ fn bounded_chromium_product_marker_is_accepted_at_the_boundary() {
     use serde_json::json;
     let root = test_root("product-marker-max");
     fs::create_dir_all(&root).expect("create isolated profile");
-    // jig-ignore-next-line: canonical rustfmt line.
-    let targets = r#"[{"targetId":"page-1","type":"page","url":"https://mail.proton.me/"}]"#;
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#
+    );
     let browser = fake_browser(&root, targets, "mail.proton.me");
-    // jig-ignore-next-line: canonical rustfmt line.
-    let script = fs::read_to_string(&browser).expect("read fake browser fixture");
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
     let product = r#""product":"FakeChrome/1""#;
     assert!(script.contains(product));
     let bounded = format!("\"product\":{}", json!("P".repeat(256)));

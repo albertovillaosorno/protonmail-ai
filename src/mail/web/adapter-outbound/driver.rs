@@ -3538,13 +3538,18 @@ impl ManagedBrowser {
                 }
                 continue;
             };
-            let wrong_reply_session = match message.get("sessionId") {
-                None => false,
-                Some(Value::String(actual)) => session != Some(actual.as_str()),
-                Some(_) => true,
-            };
+            // A flattened target-session reply must echo the exact session.
+            // A browser-scoped reply must not carry a session at all.
+            let reply_scope = message.get("sessionId");
+            let matching_reply_session = session.map_or_else(
+                || reply_scope.is_none(),
+                |expected| {
+                    let observed = reply_scope.and_then(Value::as_str);
+                    observed == Some(expected)
+                },
+            );
             if response_id != id
-                || wrong_reply_session
+                || !matching_reply_session
                 || message.get("method").is_some()
                 || message.get("params").is_some()
             {

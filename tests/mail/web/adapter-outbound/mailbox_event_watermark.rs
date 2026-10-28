@@ -942,10 +942,13 @@ while IFS= read -r -d '' message <&3; do
       printf '{{"id":%s,"result":{{"sessionId":"session-1"}}}}\0' "$id" >&4;;
     *'Runtime.evaluate'*)
       value='{{"protocol":"https:","hostname":"mail.proton.me","port":""}}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{{"id":%s,"result":{{"result":{{"value":%s}}}}}}\0' "$id" "$value" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"result":{{"value":%s}}}}}}\0'
+      printf "$reply_format" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{{"id":%s,"result":{{"root":{{"nodeId":1}}}}}}\0' "$id" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"root":{{"nodeId":1}}}}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       if [[ "$message" == *'"role":"navigation"'* || "$message" == *'"role":"search"'* ]]; then
@@ -953,9 +956,11 @@ while IFS= read -r -d '' message <&3; do
       else
         nodes='[]'
       fi
-      printf '{{"id":%s,"result":{{"nodes":%s}}}}\0' "$id" "$nodes" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"nodes":%s}}}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Network.enable'*)
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4
       if [ {emit} -eq 1 ]; then
         (
           sleep 0.02
@@ -971,7 +976,7 @@ while IFS= read -r -d '' message <&3; do
         ) &
       fi;;
     *'Page.reload'*)
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4
       (
         sleep 0.02
         latest='https://mail.proton.me/api/core/v4/events/latest'
@@ -996,13 +1001,15 @@ while IFS= read -r -d '' message <&3; do
         printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4
       fi
       body='{{\"EventID\":\"event-bootstrap\",\"decoy\":\"secret-body\"}}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"body":"%s","base64Encoded":false}}}}\0'
+      printf "$reply_format" "$id" "$body" >&4;;
     *'Network.getResponseBody'*'"requestId":"bootstrap-event-1"'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body='{{\"EventID\":\"event-bootstrap-next\",\"More\":0,\"Messages\":[{{\"ID\":\"m-bootstrap\",\"Action\":1}}]}}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"body":"%s","base64Encoded":false}}}}\0'
+      printf "$reply_format" "$id" "$body" >&4;;
     *'Network.getResponseBody'*'"requestId":"event-1"'*)
       if [ {multi} -eq 1 ]; then
         url='https://mail.proton.me/api/core/v5/events/event-8?MessageCounts=1'
@@ -1019,15 +1026,17 @@ while IFS= read -r -d '' message <&3; do
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         body='{{\"EventID\":\"event-8\",\"More\":0,\"Messages\":[{{\"ID\":\"m-1\",\"Action\":1}}]}}'
       fi
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"body":"%s","base64Encoded":false}}}}\0'
+      printf "$reply_format" "$id" "$body" >&4;;
     *'Network.getResponseBody'*'"requestId":"event-2"'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       body='{{\"EventID\":\"event-9\",\"More\":0,\"Messages\":[{{\"ID\":\"m-1\",\"Action\":1}},{{\"ID\":\"m-1\",\"Action\":3}}]}}'
-      # jig-ignore-next-line: indivisible synthetic shell fixture.
-      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' "$id" "$body" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"body":"%s","base64Encoded":false}}}}\0'
+      printf "$reply_format" "$id" "$body" >&4;;
     *'Network.disable'*)
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *) exit 92;;

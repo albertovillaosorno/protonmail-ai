@@ -424,16 +424,22 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
     *'Runtime.evaluate'*)
       value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       case "$message" in *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false}]';; *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';; *) exit 91;; esac
-      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"nodes":%s}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Network.enable'*)
       printf 'enable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4
       if [ '__EMIT_DETAIL__' = 'true' ]; then
         url='https://mail.proton.me/api/mail/v4/conversations/conversation-1'
         # jig-ignore-next-line: indivisible synthetic shell fixture.
@@ -453,7 +459,9 @@ while IFS= read -r -d '' message <&3; do
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         body='{"Code":1000,"Conversation":{"ID":"conversation-1","NumMessages":2},"Messages":[{"ID":"message-1","ConversationID":"conversation-1","Time":1700000001}]}'
       fi
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"body":"%s","base64Encoded":false}}\0'
+      printf "$reply_format" \
         "$id" "${body//\"/\\\"}" >&4;;
     *'Network.disable'*)
       printf 'disable\n' >> '__LOG__'
@@ -463,7 +471,7 @@ while IFS= read -r -d '' message <&3; do
         request='{"sessionId":"session-1","method":"Network.requestWillBeSent","params":{"requestId":"conversation-late","request":{"method":"GET","url":"'"$url"'"}}}'
         printf '%s\0' "$request" >&4
       fi
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *'Page.reload'*) exit 94;;

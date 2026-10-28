@@ -386,6 +386,10 @@ fn attachment_browser_root(label: &str) -> PathBuf {
     ))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "synthetic CDP transcript includes session replies"
+)]
 fn fake_attachment_browser(
     root: &Path,
     emit_metadata: bool,
@@ -409,9 +413,13 @@ while IFS= read -r -d '' message <&3; do
       printf '{"id":%s,"result":{"sessionId":"session-1"}}\0' "$id" >&4;;
     *'Runtime.evaluate'*)
       value='{"protocol":"https:","hostname":"mail.proton.me","port":""}'
-      printf '{"id":%s,"result":{"result":{"value":%s}}}\0' "$id" "$value" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"value":%s}}}\0'
+      printf "$reply_format" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         # jig-ignore-next-line: indivisible synthetic shell fixture.
@@ -419,10 +427,12 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac
-      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"nodes":%s}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Network.enable'*)
       printf 'enable\n' >> '__LOG__'
-      printf '{"id":%s,"result":{}}\0' "$id" >&4
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4
       if [ '__EMIT_METADATA__' = 'true' ]; then
         # jig-ignore-next-line: indivisible synthetic shell fixture.
         url='https://mail.proton.me/api/mail/v4/attachments/attachment-1/metadata'
@@ -449,7 +459,9 @@ while IFS= read -r -d '' message <&3; do
       body+='"Size":32769,"MIMEType":"application/pdf",'
       body+='"KeyPackets":"SECRET-KEY","Signature":"SECRET-SIGNATURE",'
       body+='"AddressID":"SECRET-ADDRESS"}}'
-      printf '{"id":%s,"result":{"body":"%s","base64Encoded":false}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"body":"%s","base64Encoded":false}}\0'
+      printf "$reply_format" \
         "$id" "${body//\"/\\\"}" >&4;;
     *'Network.disable'*)
       printf 'disable\n' >> '__LOG__'
@@ -462,7 +474,7 @@ while IFS= read -r -d '' message <&3; do
         request+='"requestId":"metadata-late","request":{"method":"GET","url":"'"$url"'"}}}'
         printf '%s\0' "$request" >&4
       fi
-      printf '{"id":%s,"result":{}}\0' "$id" >&4;;
+      printf '{"id":%s,"sessionId":"session-1","result":{}}\0' "$id" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *'Page.reload'*) exit 94;;
@@ -653,7 +665,10 @@ fn malformed_attachment_event_during_enable_disables_network() {
     let browser = fake_attachment_browser(&root, false, MESSAGE_ID, false);
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read synthetic browser script");
-    let marker = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4";
+    let marker = concat!(
+        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",",
+        "\"result\":{}}\\0' \"$id\" >&4",
+    );
     assert!(script.contains(marker));
     let invalid_event = json!({
         "sessionId": "session-1",
@@ -706,9 +721,12 @@ fn rejected_network_enable_still_disables_attachment_observation() {
     let browser = fake_attachment_browser(&root, false, MESSAGE_ID, false);
     // jig-ignore-next-line: canonical rustfmt line.
     let script = fs::read_to_string(&browser).expect("read synthetic browser script");
-    let reply = "      printf '{\"id\":%s,\"result\":{}}\\0' \"$id\" >&4";
+    let reply = concat!(
+        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",",
+        "\"result\":{}}\\0' \"$id\" >&4",
+    );
     // jig-ignore-next-line: indivisible synthetic fixture command.
-    let replacement = "      printf '{\"id\":%s,\"error\":{\"code\":-32601,\"message\":\"synthetic unavailable\"}}\\0' \"$id\" >&4";
+    let replacement = "      printf '{\"id\":%s,\"sessionId\":\"session-1\",\"error\":{\"code\":-32601,\"message\":\"synthetic unavailable\"}}\\0' \"$id\" >&4";
     assert!(script.contains(reply));
     let updated = script.replacen(reply, replacement, 1);
     fs::write(&browser, updated).expect("install synthetic CDP rejection");

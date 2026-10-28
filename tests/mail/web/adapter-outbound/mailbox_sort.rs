@@ -114,7 +114,8 @@ fn fake(root: &Path, scenario: SortScenario, starts_open: bool) -> PathBuf {
         r#"#!/usr/bin/env bash
 set -eu
 menu_open={open}
-value_reply='{{"id":%s,"result":{{"result":{{"value":%s}}}}}}\0'
+value_reply='{{"id":%s,'
+value_reply+='"sessionId":"session-1","result":{{"result":{{"value":%s}}}}}}\0'
 while IFS= read -r -d '' message <&3; do
   id=$(printf '%s' "$message" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   case "$message" in
@@ -130,7 +131,7 @@ while IFS= read -r -d '' message <&3; do
       value='{{"forcedMessageRoute":true,"activeSearch":false}}'
       printf "$value_reply" "$id" "$value" >&4;;
     *'Network.enable'*)
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4;;
     *'Page.reload'*)
       url='https://mail.proton.me/api/mail/v4/messages?'
       url+='Page=0&PageSize={network_limit}&Limit={network_limit}'
@@ -146,7 +147,7 @@ while IFS= read -r -d '' message <&3; do
       finished='{{"sessionId":"session-1","method":"Network.loadingFinished",'
       finished+='"params":{{"requestId":"list-1"}}}}'
       printf '%s\0' "$finished" >&4
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4;;
     *'Network.getResponseBody'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       if [ {multi_batch} -eq 1 ] && [[ "$message" == *'"requestId":"list-1"'* ]]; then
@@ -177,10 +178,12 @@ while IFS= read -r -d '' message <&3; do
       else
         body='{{\"Stale\":0,\"Total\":0,\"Messages\":[]}}'
       fi
-      printf '{{"id":%s,"result":{{"body":"%s","base64Encoded":false}}}}\0' \
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"body":"%s","base64Encoded":false}}}}\0'
+      printf "$reply_format" \
         "$id" "$body" >&4;;
     *'Network.disable'*)
-      printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
+      printf '{{"id":%s,"sessionId":"session-1","result":{{}}}}\0' "$id" >&4;;
     *'Runtime.evaluate'*'alreadyOpen'*)
       if [ "$menu_open" -eq 1 ]; then
         value='{{"alreadyOpen":true,"clicked":false}}'
@@ -200,7 +203,9 @@ while IFS= read -r -d '' message <&3; do
     *'Runtime.evaluate'*'nodes[0].click();return true'*)
       menu_open=0
       printf 'close\n' >> '{log}'
-      printf '{{"id":%s,"result":{{"result":{{"value":true}}}}}}\0' "$id" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"result":{{"value":true}}}}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Runtime.evaluate'*'===null'*)
       if [ "$menu_open" -eq 0 ]; then closed=true; else closed=false; fi
       printf "$value_reply" "$id" "$closed" >&4;;
@@ -208,7 +213,9 @@ while IFS= read -r -d '' message <&3; do
       value='{{"protocol":"https:","hostname":"mail.proton.me","port":""}}'
       printf "$value_reply" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{{"id":%s,"result":{{"root":{{"nodeId":1}}}}}}\0' "$id" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"root":{{"nodeId":1}}}}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         *'"role":"navigation"'*) nodes='{visible}';;
@@ -217,7 +224,9 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='{absent}';;
         *) exit 91;;
       esac
-      printf '{{"id":%s,"result":{{"nodes":%s}}}}\0' "$id" "$nodes" >&4;;
+      reply_format='{{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{{"nodes":%s}}}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Target.detachFromTarget'*)
       printf '{{"id":%s,"result":{{}}}}\0' "$id" >&4;;
     *) exit 92;;

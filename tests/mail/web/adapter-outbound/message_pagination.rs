@@ -104,7 +104,9 @@ while IFS= read -r -d '' message <&3; do
       if [ "$clicked" -eq 1 ] &&
          [ '__MODE_AFTER__' = false ]; then forced=false; fi
       value='{"forcedMessageRoute":'"$forced"',"activeSearch":false}'
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"type":"object","value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'pagination-row:go-to-next-page'*'next.click'*)
       if [ '__CLICK_DISABLED__' = true ]; then
@@ -114,13 +116,17 @@ while IFS= read -r -d '' message <&3; do
         page=__DESTINATION_PAGE__
         value='{"present":true,"disabled":false,"clicked":true}'
       fi
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"type":"object","value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'aria-labelledby'*)
       row="message-$page"
       value='[{"id":"'"$row"'","subject":"Page '"$page"'",'
       value+='"addresses":"jobs@example.com","unread":false}]'
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"type":"object","value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*'message-list-loading'*)
       disabled=false
@@ -135,7 +141,9 @@ while IFS= read -r -d '' message <&3; do
       else
         value+='"currentTestId":null}'
       fi
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"type":"object","value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'Runtime.evaluate'*)
       host='mail.proton.me'
@@ -143,10 +151,14 @@ while IFS= read -r -d '' message <&3; do
         host='account.proton.me'
       fi
       value='{"protocol":"https:","hostname":"'"$host"'","port":""}'
-      printf '{"id":%s,"result":{"result":{"type":"object","value":%s}}}\0' \
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"result":{"type":"object","value":%s}}}\0'
+      printf "$reply_format" \
         "$id" "$value" >&4;;
     *'DOM.getDocument'*)
-      printf '{"id":%s,"result":{"root":{"nodeId":1}}}\0' "$id" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
         *'"role":"navigation"'*) nodes='__VISIBLE_AX__';;
@@ -155,7 +167,9 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='__ABSENT_AX__';;
         *) exit 91;;
       esac
-      printf '{"id":%s,"result":{"nodes":%s}}\0' "$id" "$nodes" >&4;;
+      reply_format='{"id":%s,"sessionId":"session-1",'
+      reply_format+='"result":{"nodes":%s}}\0'
+      printf "$reply_format" "$id" "$nodes" >&4;;
     *'Target.detachFromTarget'*)
       printf '{"id":%s,"result":{}}\0' "$id" >&4;;
     *) exit 92;;

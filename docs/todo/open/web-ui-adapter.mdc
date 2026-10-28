@@ -1437,3 +1437,10 @@ web application without requiring Bridge or a third-party direct API identity.
   U+FFFD, the Unicode replacement character, before a lossy provider ID
   can be used for an exact route or exposed in CDP metadata. Synthetic
   red-first tests preserve ordinary Unicode identity support.
+
+- Flattened CDP command replies now require the exact attached session ID;
+  browser-scoped replies must have no session ID. This prevents a reply from
+  another scope, or an omitted scope, from acknowledging a Mail read. Synthetic
+  Chromium fixtures now emit session IDs on attached commands, and regressions
+  prove the driver drains a spoofed reply, fails closed, cleans up Network,
+  and remains usable for later safe inspection.
