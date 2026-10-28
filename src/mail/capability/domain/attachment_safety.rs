@@ -89,6 +89,11 @@ impl SanitizedAttachmentFilename {
             let maximum_original = MAX_ATTACHMENT_FILENAME_BYTES.saturating_sub(1);
             truncate_utf8(&mut safe, maximum_original);
             safe.insert(0, '_');
+            // The byte removed for the prefix can expose an earlier trailing
+            // dot or space, even though the original leaf was already trimmed.
+            while safe.ends_with([' ', '.']) {
+                safe.pop();
+            }
         }
         Self(safe)
     }

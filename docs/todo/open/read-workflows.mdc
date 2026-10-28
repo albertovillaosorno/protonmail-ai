@@ -464,3 +464,9 @@ Ship useful read access before any mailbox mutation is enabled.
   leaf parent. A red-first synthetic regression covered both 0770 and 0777
   permissions on the root and an intermediate directory above an otherwise
   private final parent; these now fail before any partial file is created.
+
+- Reserved Windows-device attachment filenames are rechecked for trailing
+  dots/spaces after prefix insertion and UTF-8 byte-limit truncation. Without
+  the second trim, an originally internal character could become a terminal
+  nonportable alias at the 255-byte boundary. Red-first synthetic cases for
+  `CON`, `LPT1`, and `NUL` prove the previously exposed suffix is removed.

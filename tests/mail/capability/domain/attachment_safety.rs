@@ -136,6 +136,23 @@ fn reserved_filename_prefixing_preserves_the_byte_ceiling() {
 }
 
 #[test]
+fn reserved_name_prefixing_never_reintroduces_trailing_dots_or_spaces() {
+    for device in ["CON.", "LPT1.", "NUL."] {
+        for suffix in ['.', ' '] {
+            let fill_length = MAX_ATTACHMENT_FILENAME_BYTES - device.len() - 2;
+            let fill = "x".repeat(fill_length);
+            let input = format!("{device}{fill}{suffix}z");
+            assert_eq!(input.len(), MAX_ATTACHMENT_FILENAME_BYTES);
+            let sanitized = SanitizedAttachmentFilename::new(&input);
+            let name = sanitized.as_str();
+            assert!(name.starts_with('_'), "reserved device prefix required");
+            assert!(name.len() <= MAX_ATTACHMENT_FILENAME_BYTES);
+            assert!(!name.ends_with([' ', '.']), "unsafe trailing name alias");
+        }
+    }
+}
+
+#[test]
 fn attachment_filename_sanitization_neutralizes_superscript_devices() {
     for (input, expected) in [
         ("COM\u{b9}.txt", "_COM\u{b9}.txt"),
