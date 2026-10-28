@@ -100,8 +100,14 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "return Number.isSafeInteger(parsed)&&parsed>0;};",
     "const wildcard=params.get('wildcard');",
     "const validWildcard=wildcard===null||wildcard==='1';",
+    "const begin=params.get('begin');",
+    "const end=params.get('end');",
+    // An inverted date interval may be ignored by the provider; it cannot
+    // prove that search results are rendered as individual messages.
+    "const coherentRange=begin===null||end===null||",
+    "Number(begin)<=Number(end);",
     "const complete=textValues.every(validText)&&",
-    "numberValues.every(validNumeric)&&validWildcard;",
+    "numberValues.every(validNumeric)&&validWildcard&&coherentRange;",
     "const text=textValues.some(validText);",
     // Wildcard changes how a search matches; it does not start a search.
     "const ranged=['begin','end'].some((key)=>",

@@ -1521,6 +1521,12 @@ web application without requiring Bridge or a third-party direct API identity.
   unknown. Red-first browser JS tests cover unknown, empty, and trailing
   hash keys while retaining the audited search selectors and forced routes.
 
+- Search-mode evidence now refuses inverted `begin`/`end` date ranges,
+  even when accompanied by a valid keyword or placed on a forced message
+  route. Red-first browser JavaScript cases show that the contradictory
+  range previously proved message mode; ordered or equal boundaries still
+  work, while impossible intervals fail closed.
+
 - Search-mode evidence now recognizes only `wildcard=1` as a supported
   modifier; noncanonical numeric values such as `wildcard=2` or `99` fail
   closed, even alongside a valid keyword/date or on forced message routes.
