@@ -53,6 +53,7 @@ fn test_root(label: &str) -> PathBuf {
 fn prepare_root(label: &str) -> PathBuf {
     let root = test_root(label);
     fs::create_dir_all(&root).expect("create synthetic output root");
+    set_fixture_mode(&root, 0o700);
     root
 }
 
@@ -86,6 +87,7 @@ fn bounded_nested_output_commits_exact_bytes_with_private_mode() {
     let root = prepare_root("success");
     // jig-ignore-next-line: canonical rustfmt line.
     fs::create_dir_all(root.join("nested")).expect("create nested output directory");
+    set_fixture_mode(&root.join("nested"), 0o700);
     // jig-ignore-next-line: canonical rustfmt line.
     let output_root = AttachmentFileOutputRoot::open(&root).expect("open safe root");
     let destination = relative("nested/report.bin");
@@ -201,6 +203,30 @@ fn unsafe_final_output_root_is_refused_at_open_time() {
                 & 0o777,
             mode
         );
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn world_readable_root_or_nested_directory_must_not_reveal_attachment_names() {
+    for mode in [0o755u32, 0o750, 0o711] {
+        let root = prepare_root(&format!("root-readable-{mode}"));
+        set_fixture_mode(&root, mode);
+        assert_eq!(
+            AttachmentFileOutputRoot::open(&root).err(),
+            Some(AttachmentFileOutputError::UnsafeRoot)
+        );
+        cleanup(&root);
+
+        let root = prepare_root(&format!("nested-readable-{mode}"));
+        let child = root.join("nested");
+        fs::create_dir_all(&child).expect("create nested directory");
+        set_fixture_mode(&child, mode);
+        let sink = AttachmentFileOutputRoot::open(&root).expect("private root");
+        let destination = relative("nested/secret.bin");
+        let result = sink.write_no_overwrite(&destination, b"private", 128);
+        assert_eq!(result, Err(AttachmentFileOutputError::UnsafeDestination));
+        assert!(!child.join("secret.bin").exists());
         cleanup(&root);
     }
 }

@@ -50,10 +50,12 @@ Ship useful read access before any mailbox mutation is enabled.
   reject parent traversal, absolute roots, backslashes, control characters, and
   drive/alternate-stream colon syntax. Inline eligibility uses the frozen
   `32 KiB` contract ceiling exactly.
-- The attachment output root now rejects a group/world-writable or
-  foreign-owned final root at open time, rather than granting a descriptor that
-  only refuses its first write. Each nested destination parent remains checked
-  at the write boundary; synthetic mode tests cover both refusal points.
+- The attachment output root rejects a group/world-writable or foreign-owned
+  final root at open time. A further privacy gate requires owner-only rwx
+  directories (0700-equivalent) at the root and each nested destination parent:
+  otherwise local users could list sensitive attachment filenames even though
+  the attachment contents are stored in 0600 files. Synthetic tests cover
+  readable and writable permission refusal without changing caller modes.
 - The local runtime now owns bounded file output under an explicit absolute
   root. It opens every root/destination directory component through held file
   descriptors with no-follow semantics, enforces the configured byte ceiling

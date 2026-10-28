@@ -39,4 +39,9 @@ fn private_output_requires_effective_owner_and_private_mode() {
     assert!(!private_directory_allowed(0o700, 1001, 1000));
     assert!(!private_directory_allowed(0o700, 0, 1000));
     assert!(!private_directory_allowed(0o770, 1000, 1000));
+    // A 0755 directory permits untrusted users to enumerate attachment names
+    // even when each final attachment file is independently chmodded 0600.
+    for mode in [0o755, 0o750, 0o705, 0o711, 0o740, 0o500, 0o600] {
+        assert!(!private_directory_allowed(mode, 1000, 1000));
+    }
 }

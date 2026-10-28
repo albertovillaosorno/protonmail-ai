@@ -285,7 +285,9 @@ fn require_private_directory(directory: &OwnedFd) -> Result<(), AttachmentFileOu
 }
 
 const fn private_directory_allowed(mode: u32, uid: u32, owner: u32) -> bool {
-    uid == owner && mode & 0o022 == 0
+    // Even a nonwritable 0755 directory reveals attachment filenames to
+    // other local accounts. Require private rwx for the account that writes.
+    uid == owner && mode & 0o700 == 0o700 && mode.trailing_zeros() >= 6
 }
 
 fn directory_flags() -> OFlag {
