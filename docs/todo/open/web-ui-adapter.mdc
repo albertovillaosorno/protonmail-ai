@@ -1484,3 +1484,10 @@ web application without requiring Bridge or a third-party direct API identity.
   and shorthand format controls U+1BCA0–U+1BCA3. Red-first tests proved the
   old guards accepted these hidden marks as route-bound opaque IDs and as
   browser search evidence. All boundaries still accept ordinary Unicode.
+
+- Visible Mail DOM row-ID guards now reject unpaired UTF-16 surrogate code
+  units *before* inspecting row subjects, senders, or serializing CDP JSON.
+  `TextEncoder` silently replaces malformed surrogate input, so relying only
+  on post-CDP Rust UTF-8 validation could cross a content-bearing boundary.
+  Red-first synthetic Node tests verify both list and row projection reject
+  malformed surrogates without rejecting valid supplementary-plane characters.

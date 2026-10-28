@@ -83,6 +83,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "if(rows.length>200){return null;}",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
+    "\\ud800-\\udfff",
     "\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f",
     "\\u17b4-\\u17b5\\u{1bca0}-\\u{1bca3}",
     "\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f",

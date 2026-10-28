@@ -1053,11 +1053,14 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
  'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',
+ 'surrogate\\ud800half', 'surrogate\\udcfforphan',
  'lossy\\ufffdid']){
  idValue=invalidId;titleReads=0;
  if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
  if(titleReads!==0){throw Error('invalid ID caused a content read');}
 }
+idValue='valid\\u{1f600}emoji';
+if(eval(script)[0]?.id!==idValue){throw Error('valid astral ID refused');}
 idValue='m\\u00e9moire';
 if(eval(script)[0]?.id!==idValue){throw Error('valid unicode ID refused');}
 idValue='row-a';modal=true;
@@ -1209,9 +1212,14 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
  'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',
+ 'surrogate\\ud800half', 'surrogate\\udcfforphan',
  'lossy\\ufffdid']){
  rowId=invalidId;
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
+}
+rowId='valid\\u{1f600}emoji';
+if(eval(expression)?.rowIds[0]!==rowId){
+ throw Error('valid astral list ID refused');
 }
 rowId='m\\u00e9moire';
 if(eval(expression)?.rowIds[0]!==rowId){
