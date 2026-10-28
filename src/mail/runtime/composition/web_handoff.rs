@@ -263,11 +263,12 @@ fn set_body_file(target: &mut Option<String>, path: &str) -> HResult<()> {
 }
 
 fn read_body_file(path: &str) -> HResult<String> {
-    // A caller-selected path may name a FIFO or device. Open without waiting
-    // for a writer, then inspect the held inode before reading its contents.
+    // A caller-selected path may name a FIFO, device, or symlink to unrelated
+    // content. Avoid blocking and refuse final-component symlink traversal;
+    // then inspect the held inode before reading any bytes.
     let file = OpenOptions::new()
         .read(true)
-        .custom_flags(OFlag::O_NONBLOCK.bits())
+        .custom_flags((OFlag::O_NONBLOCK | OFlag::O_NOFOLLOW).bits())
         .open(path)
         .map_err(|_error| body_file_error(path))?;
     let metadata = file.metadata().map_err(|_error| body_file_error(path))?;

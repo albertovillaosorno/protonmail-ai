@@ -92,3 +92,9 @@ to register as a local MCP server.
   synthetic CLI matrix showed invisible markers were encoded unchanged in
   recipients and subjects; content-free refusal now covers to/cc/bcc and
   subject without restricting ordinary international printable text or body.
+
+- The explicit `--body-file` helper now opens with `O_NOFOLLOW` as well as
+  `O_NONBLOCK`. A red-first synthetic CLI fixture proved an existing symlink
+  could redirect a chosen body path into unrelated file bytes; the CLI now
+  refuses such final-component aliases without producing a URL or echoing
+  private path/content. Regular file encoding and FIFO refusal remain intact.

@@ -34,6 +34,7 @@ use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::os::unix::ffi::OsStringExt as _;
+use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 use std::process::{self, Command, Output, Stdio};
 use std::thread;
@@ -300,6 +301,35 @@ fn non_utf8_cli_args_fail_without_panic_or_leak() {
     assert!(diagnostic.contains("invalid command arguments"));
     assert!(!diagnostic.contains("private-recipient"));
     assert!(!diagnostic.contains("panicked"));
+}
+
+#[test]
+fn body_file_does_not_follow_symlink_into_unrelated_content() {
+    let target = body_path("symlink-target");
+    let alias = body_path("symlink-alias");
+    if alias.exists() {
+        fs::remove_file(&alias).expect("remove stale link");
+    }
+    let private_body = "unrelated-private-body-marker";
+    fs::write(&target, private_body).expect("write private fixture");
+    symlink(&target, &alias).expect("link to unrelated content");
+    let alias_text = alias.to_str().expect("UTF-8 fixture link");
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "person@example.test",
+        "--body-file",
+        alias_text,
+    ]);
+    fs::remove_file(&alias).expect("remove synthetic link");
+    fs::remove_file(&target).expect("remove synthetic target");
+
+    assert!(!output.status.success(), "symlink body must be refused");
+    assert!(output.stdout.is_empty(), "do not encode unrelated bytes");
+    assert!(stderr(&output).contains("cannot read body file"));
+    assert!(!stderr(&output).contains("symlink-alias"));
+    assert!(!stderr(&output).contains("unrelated-private-body-marker"));
 }
 
 #[test]
