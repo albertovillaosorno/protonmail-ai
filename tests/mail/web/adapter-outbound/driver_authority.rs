@@ -875,6 +875,10 @@ globalThis.document={querySelector:()=>null};
 for(const [path,hash,expected] of [
   ['/u/0/inbox','#keyword=valid',true],
   ['/u/0/inbox','#keyword=valid&begin=1',true],
+  ['/u/0/inbox','#wildcard=1',false],
+  ['/u/0/inbox','#wildcard=1&begin=1',true],
+  ['/u/0/inbox','#wildcard=1&keyword=valid',true],
+  ['/u/0/inbox','#begin=1',true],
   ['/u/0/inbox','#%6Beyword=valid',false],
   ['/u/0/inbox','#keyword=valid&%66rom=alice',false],
   ['/u/0/inbox','#keyword=valid&Keyword=decoy',false],

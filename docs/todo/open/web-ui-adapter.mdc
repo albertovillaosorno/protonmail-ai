@@ -1498,3 +1498,9 @@ web application without requiring Bridge or a third-party direct API identity.
   authorize individual-message rows even though the option's effect was
   unknown. Red-first browser JS tests cover unknown, empty, and trailing
   hash keys while retaining the audited search selectors and forced routes.
+
+- A standalone `wildcard` search-hash modifier no longer proves active
+  individual-message search mode. It must accompany a valid textual or
+  `begin`/`end` date filter; malformed modifiers still invalidate all search
+  evidence. Red-first Node cases proved the prior lone `wildcard=1` false
+  authorization and preserve genuine text/date-only searches.

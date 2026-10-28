@@ -96,10 +96,12 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "const complete=textValues.every(validText)&&",
     "numberValues.every(validNumeric);",
     "const text=textValues.some(validText);",
-    "const numeric=numberValues.some(validNumeric);",
+    // Wildcard changes how a search matches; it does not start a search.
+    "const ranged=['begin','end'].some((key)=>",
+    "params.get(key)!==null&&validNumeric(params.get(key)));",
     "return {forcedMessageRoute:forced,",
     "activeSearch:searchable&&!unsafeKey&&!duplicate&&",
-    "complete&&(text||numeric)};",
+    "complete&&(text||ranged)};",
     "})()"
 );
 
