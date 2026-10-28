@@ -223,6 +223,7 @@ dependencies = [
 name = "mail_runtime"
 version = "0.0.0"
 dependencies = [
+ "getrandom",
  "mail_capability_domain",
  "mail_web_adapter",
  "nix",

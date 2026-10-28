@@ -38,8 +38,6 @@ use std::fs::File;
 use std::io::Write as _;
 use std::os::fd::OwnedFd;
 use std::path::{Component, Path, PathBuf};
-use std::process;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use mail_capability_domain::AttachmentRelativePath;
 use nix::errno::Errno;
@@ -48,7 +46,6 @@ use nix::sys::stat::Mode;
 use nix::unistd::{UnlinkatFlags, dup, linkat, unlinkat};
 
 const MAX_PARTIAL_NAME_ATTEMPTS: usize = 16;
-static PARTIAL_NAME_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// An explicit allowlisted attachment output root held as an open directory FD.
 pub struct AttachmentFileOutputRoot {
@@ -255,12 +252,16 @@ fn partial_flags() -> OFlag {
 
 // jig-ignore-next-line: canonical rustfmt line.
 fn create_partial(parent: &OwnedFd) -> Result<(OwnedFd, String), AttachmentFileOutputError> {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     for _attempt in 0..MAX_PARTIAL_NAME_ATTEMPTS {
-        let serial = PARTIAL_NAME_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-        let name = format!(
-            ".protonmail-ai-attachment-partial-{}-{serial}",
-            process::id()
-        );
+        let mut entropy = [0u8; 16];
+        getrandom::fill(&mut entropy)
+            .map_err(|_error| AttachmentFileOutputError::PartialCreateFailed)?;
+        let mut name = String::from(".protonmail-ai-attachment-partial-");
+        for byte in entropy {
+            name.push(char::from(HEX[usize::from(byte >> 4u8)]));
+            name.push(char::from(HEX[usize::from(byte & 0x0fu8)]));
+        }
         match openat(
             parent,
             Path::new(&name),

@@ -445,3 +445,9 @@ Ship useful read access before any mailbox mutation is enabled.
   the read-only provider-ID boundary. A red-first synthetic regression proved
   that Arabic, Syriac, annotation, Kaithi, hieroglyph, and musical markers
   previously survived as filename/path text; printable Unicode stays valid.
+
+- The file-output partial inode now uses fresh OS-generated 128-bit random
+  names rather than predictable process IDs and sequence numbers. A red-first
+  synthetic directory fixture pre-created 512 old-style guesses and proved
+  that those guesses could previously exhaust the bounded create attempts;
+  fresh output now succeeds without modifying any existing attacker files.

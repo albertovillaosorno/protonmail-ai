@@ -204,6 +204,34 @@ fn existing_file_or_symlink_is_never_overwritten_and_partial_is_cleaned() {
 }
 
 #[test]
+fn adversarial_precreated_partial_names_cannot_block_safe_output() {
+    let root = prepare_root("partial-name-squatting");
+    // The old PID plus monotonic sequence revealed every future temporary
+    // leaf. Pre-create a bounded set of those known names as attacker files.
+    let mut existing = Vec::new();
+    for serial in 0u16..512u16 {
+        let name = format!(
+            ".protonmail-ai-attachment-partial-{}-{serial}",
+            process::id()
+        );
+        let candidate = root.join(name);
+        // jig-ignore-next-line: canonical rustfmt filesystem fixture.
+        fs::write(&candidate, b"preexisting").expect("reserve guessed temporary name");
+        existing.push(candidate);
+    }
+    // jig-ignore-next-line: canonical rustfmt root open.
+    let output_root = AttachmentFileOutputRoot::open(&root).expect("open safe synthetic root");
+    output_root
+        .write_no_overwrite(&relative("output.bin"), b"new-output", 128)
+        .expect("old partial names must not block fresh output");
+    assert_eq!(fs::read(root.join("output.bin")).unwrap(), b"new-output");
+    for candidate in existing {
+        assert_eq!(fs::read(candidate).unwrap(), b"preexisting");
+    }
+    cleanup(&root);
+}
+
+#[test]
 fn oversized_output_fails_before_any_file_is_created() {
     let root = prepare_root("oversized");
     // jig-ignore-next-line: canonical rustfmt line.
