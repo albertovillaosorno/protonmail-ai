@@ -333,6 +333,76 @@ fn body_file_does_not_follow_symlink_into_unrelated_content() {
 }
 
 #[test]
+fn body_file_rejects_symlinked_parent_directory() {
+    let name = format!("protonmail-ai-body-parent-link-{}", process::id());
+    let root = env::temp_dir().join(name);
+    if root.exists() {
+        fs::remove_dir_all(&root).expect("clear synthetic fixture");
+    }
+    let directory = root.join("real");
+    let alias = root.join("alias");
+    fs::create_dir_all(&directory).expect("create ordinary nested source");
+    let content = directory.join("body.txt");
+    fs::write(&content, "private-symlink-parent-body").expect("synthetic body");
+    symlink(&directory, &alias).expect("alias source directory");
+
+    let aliased = alias.join("body.txt");
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "person@example.test",
+        "--body-file",
+        aliased.to_str().expect("fixture UTF-8"),
+    ]);
+    assert!(!output.status.success(), "must refuse parent alias");
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("cannot read body file"));
+    assert!(!stderr(&output).contains("private-symlink-parent-body"));
+
+    // The same regular file remains usable through an ordinary directory.
+    let ordinary = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "person@example.test",
+        "--body-file",
+        content.to_str().expect("fixture UTF-8"),
+    ]);
+    assert!(ordinary.status.success(), "ordinary nested path must work");
+    assert!(stdout(&ordinary).contains("private-symlink-parent-body"));
+    fs::remove_dir_all(&root).expect("clean synthetic fixture");
+}
+
+#[test]
+fn body_file_accepts_explicit_relative_parent_component() {
+    let name = format!("protonmail-ai-body-relative-{}", process::id());
+    let root = env::temp_dir().join(name);
+    if root.exists() {
+        fs::remove_dir_all(&root).expect("clear synthetic fixture");
+    }
+    let nested = root.join("nested");
+    fs::create_dir_all(&nested).expect("create relative working directory");
+    fs::write(root.join("body.txt"), "ordinary-relative-body")
+        .expect("write ordinary relative body");
+    let output = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .current_dir(&nested)
+        .args([
+            "mail",
+            "compose-url",
+            "--to",
+            "person@example.test",
+            "--body-file",
+            "../body.txt",
+        ])
+        .output()
+        .expect("run helper with explicit relative path");
+    assert!(output.status.success());
+    assert!(stdout(&output).contains("ordinary-relative-body"));
+    fs::remove_dir_all(&root).expect("clean synthetic fixture");
+}
+
+#[test]
 fn nonregular_body_file_refuses_fifo_without_waiting_for_writer() {
     let path = body_path("fifo");
     if path.exists() {

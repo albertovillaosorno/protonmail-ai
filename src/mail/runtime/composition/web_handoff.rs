@@ -33,11 +33,12 @@
 //! Proton Mail web-composer handoff URL construction.
 
 use std::fmt;
-use std::fs::OpenOptions;
+use std::fs::File;
 use std::io::Read as _;
-use std::os::unix::fs::OpenOptionsExt as _;
+use std::path::{Component, Path};
 
-use nix::fcntl::OFlag;
+use nix::fcntl::{OFlag, open, openat};
+use nix::sys::stat::Mode;
 
 const WEB_HANDOFF_PREFIX: &str = "https://mail.proton.me/inbox/#mailto=";
 const MAX_RECIPIENT_FIELD_BYTES: usize = 8_192;
@@ -264,13 +265,9 @@ fn set_body_file(target: &mut Option<String>, path: &str) -> HResult<()> {
 
 fn read_body_file(path: &str) -> HResult<String> {
     // A caller-selected path may name a FIFO, device, or symlink to unrelated
-    // content. Avoid blocking and refuse final-component symlink traversal;
-    // then inspect the held inode before reading any bytes.
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags((OFlag::O_NONBLOCK | OFlag::O_NOFOLLOW).bits())
-        .open(path)
-        .map_err(|_error| body_file_error(path))?;
+    // content. Resolve every directory via no-follow descriptor-relative
+    // opens, then inspect the final held inode before reading any bytes.
+    let file = open_body_file_without_links(path)?;
     let metadata = file.metadata().map_err(|_error| body_file_error(path))?;
     if !metadata.is_file() {
         return Err(body_file_error(path));
@@ -283,6 +280,45 @@ fn read_body_file(path: &str) -> HResult<String> {
         return Err(ComposeInputError::BodyTooLarge);
     }
     Ok(body)
+}
+
+// Traversing by pathname would follow intermediate symlink aliases despite
+// O_NOFOLLOW at the file leaf. Hold every ancestor directory descriptor and
+// never follow an alias while resolving the explicitly selected body file.
+fn open_body_file_without_links(path: &str) -> HResult<File> {
+    if path.ends_with('/') || path.ends_with("/.") {
+        return Err(body_file_error(path));
+    }
+    let selected = Path::new(path);
+    let leaf = selected.file_name().ok_or_else(|| body_file_error(path))?;
+    let parent_flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY;
+    let parent_flags = parent_flags | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let start = if selected.is_absolute() {
+        Path::new("/")
+    } else {
+        Path::new(".")
+    };
+    let initial = open(start, parent_flags, Mode::empty());
+    let mut directory = initial.map_err(|_error| body_file_error(path))?;
+    if let Some(parent) = selected.parent() {
+        for component in parent.components() {
+            let name = match component {
+                Component::RootDir | Component::CurDir => continue,
+                Component::Normal(name) => Path::new(name),
+                Component::ParentDir => Path::new(".."),
+                Component::Prefix(_) => return Err(body_file_error(path)),
+            };
+            directory = openat(&directory, name, parent_flags, Mode::empty())
+                .map_err(|_error| body_file_error(path))?;
+        }
+    }
+    // Nonblocking open prevents a FIFO from hanging while a writer is absent;
+    // the held inode must still be a regular file before reading.
+    let file_flags = OFlag::O_RDONLY | OFlag::O_NONBLOCK;
+    let file_flags = file_flags | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = openat(&directory, Path::new(leaf), file_flags, Mode::empty())
+        .map_err(|_error| body_file_error(path))?;
+    Ok(File::from(fd))
 }
 
 fn body_file_error(path: &str) -> ComposeInputError {

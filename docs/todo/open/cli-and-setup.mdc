@@ -103,3 +103,9 @@ to register as a local MCP server.
   fields still reject them, alongside direction overrides and hidden
   separators. This restores international text without widening address
   acceptance.
+
+- The explicit body-file read now opens each ancestor directory through a
+  held `O_DIRECTORY|O_NOFOLLOW` descriptor before opening the final regular
+  file with `O_NOFOLLOW|O_NONBLOCK`. A red-first CLI fixture showed that an
+  intermediate symlink could previously bypass the leaf-only guard and
+  encode unrelated private content; ordinary nested paths remain accepted.
