@@ -35,6 +35,7 @@
 pub mod web_handoff;
 
 use std::env;
+use std::ffi::OsString;
 use std::process::ExitCode;
 
 use mail_capability_domain::planned_capabilities;
@@ -42,7 +43,16 @@ use mail_web_adapter::WebLoginPlan;
 use web_handoff::ComposeInput;
 
 fn main() -> ExitCode {
-    let args = env::args().skip(1).collect::<Vec<_>>();
+    // CLI arguments may contain arbitrary Unix bytes. Reject invalid UTF-8
+    // without panicking or exposing recipients, bodies, or local file paths.
+    let args = env::args_os()
+        .skip(1)
+        .map(OsString::into_string)
+        .collect::<Result<Vec<_>, _>>();
+    let Ok(args) = args else {
+        eprintln!("invalid command arguments: non-UTF-8 input");
+        return ExitCode::FAILURE;
+    };
     match args.as_slice() {
         [mode, command] if is_auth_login(mode, command) => web_login(),
         [mode, command, rest @ ..] if is_mail(mode, command) => emit_url(rest),

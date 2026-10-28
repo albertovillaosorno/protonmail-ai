@@ -31,7 +31,9 @@
 //! Web-composer handoff CLI regression tests.
 
 use std::env;
+use std::ffi::OsString;
 use std::fs;
+use std::os::unix::ffi::OsStringExt as _;
 use std::path::PathBuf;
 use std::process::{self, Command, Output};
 
@@ -276,4 +278,21 @@ fn compose_errors_never_echo_unknown_flags_or_private_file_paths() {
     assert!(!missing.status.success());
     assert!(stderr(&missing).contains("cannot read body file"));
     assert!(!stderr(&missing).contains("secret-file-marker"));
+}
+
+#[test]
+fn non_utf8_cli_args_fail_without_panic_or_leak() {
+    let raw = b"private-recipient-\xff@example.test".to_vec();
+    let input = OsString::from_vec(raw);
+    let output = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["mail", "compose-url", "--to"])
+        .arg(input)
+        .output()
+        .expect("run CLI with non-UTF-8 user input");
+    assert_eq!(output.status.code(), Some(1i32));
+    assert!(output.stdout.is_empty());
+    let diagnostic = stderr(&output);
+    assert!(diagnostic.contains("invalid command arguments"));
+    assert!(!diagnostic.contains("private-recipient"));
+    assert!(!diagnostic.contains("panicked"));
 }

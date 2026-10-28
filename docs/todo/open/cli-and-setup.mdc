@@ -53,3 +53,9 @@ to register as a local MCP server.
   `ComposeInputError` Debug or CLI stderr. Red-first synthetic CLI and
   direct-format tests demonstrated both leaks before the fix, while valid
   opt-in compose URL generation and its existing encoding tests still pass.
+
+- The CLI now reads OS-native argument bytes before UTF-8 conversion and
+  rejects malformed text with a single content-free diagnostic. Previously
+  `std::env::args()` panicked before the compose parser's redaction boundary.
+  Red-first process evidence verifies a malformed recipient exits normally,
+  emits no URL, and never echoes the secret argument or a panic backtrace.
