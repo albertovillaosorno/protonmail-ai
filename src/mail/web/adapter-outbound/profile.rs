@@ -45,6 +45,8 @@ use nix::sys::stat::{Mode, mkdirat};
 use nix::unistd::geteuid;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::Duration;
 
 use crate::lease::AutomationProfileLease;
 
@@ -61,6 +63,7 @@ pub(crate) fn user_data_dir_argument(profile: &Path) -> OsString {
 }
 
 const MAIL_URL: &str = "https://mail.proton.me/";
+const MAX_TEXT_BUSY_RETRIES: u8 = 32;
 const BROWSER_ENV: &str = "PROTONMAIL_AI_BROWSER";
 const APP_DIR: &str = "protonmail-ai";
 const PROFILE_DIR: &str = "browser-profile";
@@ -180,7 +183,8 @@ impl WebLoginPlan {
             return Err(WebLoginError::AutomationInUse);
         }
         let user_data = user_data_dir_argument(self.profile.path());
-        Command::new(&self.browser)
+        let mut command = Command::new(&self.browser);
+        command
             .arg(user_data)
             .arg("--no-first-run")
             .arg("--no-default-browser-check")
@@ -189,10 +193,23 @@ impl WebLoginPlan {
             // own diagnostics into human CLI / future transport channels.
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|error| browser_error(&self.browser, error))?;
-        Ok(())
+            .stderr(Stdio::null());
+        // A just-updated browser executable may briefly be held open for
+        // writing. Retry only Linux ETXTBSY; other launch errors fail at once.
+        for attempt in 0u8..=MAX_TEXT_BUSY_RETRIES {
+            match command.spawn() {
+                Ok(_child) => return Ok(()),
+                Err(error)
+                    if attempt < MAX_TEXT_BUSY_RETRIES
+                        // jig-ignore-next-line: rustfmt errno guard.
+                        && error.raw_os_error().map(Errno::from_raw) == Some(Errno::ETXTBSY) =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(browser_error(&self.browser, error)),
+            }
+        }
+        Err(WebLoginError::BrowserLaunch(self.browser.clone()))
     }
 }
 

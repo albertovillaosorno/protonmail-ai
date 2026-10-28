@@ -124,6 +124,32 @@ fn cleanup(root: &Path) {
 }
 
 #[test]
+fn visible_login_retries_only_transient_busy_executable() {
+    let root = test_root("busy-visible-browser");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    // A just-written browser executable can temporarily fail execve with
+    // ETXTBSY while another process retains an open writable descriptor.
+    let writer = fs::OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("hold executable writable");
+    let release = thread::spawn(move || {
+        thread::sleep(Duration::from_millis(180));
+        drop(writer);
+    });
+    let output = login(&root, &browser, Some(&root.join("xdg-data")));
+    release.join().expect("release executable writer");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    wait_for_args(&root);
+    cleanup(&root);
+}
+
+#[test]
 fn xdg_login_uses_dedicated_private_profile() {
     let root = test_root("xdg");
     fs::create_dir_all(&root).expect("create synthetic root");
