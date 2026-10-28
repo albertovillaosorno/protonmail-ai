@@ -381,3 +381,49 @@ fn composer_single_line_fields_reject_unicode_line_controls() {
         assert!(title.stdout.is_empty());
     }
 }
+
+#[test]
+fn composer_address_and_subject_refuse_invisible_direction_overrides() {
+    // Bidi controls can make the displayed destination or subject differ from
+    // the encoded text even though no newline is present.
+    for mark in [
+        // jig-ignore-next-line: rustfmt canonical bidi control fixture.
+        '\u{061c}', '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}',
+        // jig-ignore-next-line: rustfmt canonical bidi control fixture.
+        '\u{202e}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{206e}', '\u{206f}',
+    ] {
+        let recipient = format!("candidate{mark}@example.test");
+        for flag in ["--to", "--cc", "--bcc"] {
+            let args = if flag == "--to" {
+                vec!["mail", "compose-url", "--to", &recipient]
+            } else {
+                vec![
+                    "mail",
+                    "compose-url",
+                    "--to",
+                    "valid@example.test",
+                    flag,
+                    &recipient,
+                ]
+            };
+            let result = run(&args);
+            assert!(!result.status.success(), "bidi address must fail");
+            assert!(result.stdout.is_empty());
+            assert!(stderr(&result).contains("recipient contains control"));
+            assert!(!stderr(&result).contains(&recipient));
+        }
+        let subject = format!("invoice{mark}2026");
+        let result = run(&[
+            "mail",
+            "compose-url",
+            "--to",
+            "valid@example.test",
+            "--subject",
+            &subject,
+        ]);
+        assert!(!result.status.success(), "bidi subject must fail");
+        assert!(result.stdout.is_empty());
+        assert!(stderr(&result).contains("subject contains control"));
+        assert!(!stderr(&result).contains(&subject));
+    }
+}

@@ -71,3 +71,10 @@ to register as a local MCP server.
   NEL and U+2028/U+2029 separators, which can create additional displayed
   lines despite a single-line field. Red-first synthetic process evidence
   covers recipients and subjects while ordinary Unicode remains supported.
+
+- Compose recipient and subject validation also rejects hidden Unicode
+  bidirectional-direction formatting such as U+202E and U+2066/U+2069.
+  Red-first synthetic CLI tests demonstrated that those markers previously
+  passed through in URL-encoded addresses and subjects without warnings.
+  All four single-line fields now refuse the controls with redacted errors;
+  ordinary printable Unicode and multiline body text remain unchanged.
