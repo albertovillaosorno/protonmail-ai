@@ -98,7 +98,12 @@ fn wait_for_args_bytes(root: &Path) -> Vec<u8> {
     let path = root.join("browser-args.txt");
     for _attempt in 0..100u8 {
         if let Ok(value) = fs::read(&path) {
-            return value;
+            // The CLI returns before the visible child finishes writing.
+            // Do not mistake an opened but partially flushed file for argv.
+            const LAST_ARG: &[u8] = b"https://mail.proton.me/\n";
+            if value.ends_with(LAST_ARG) {
+                return value;
+            }
         }
         thread::sleep(Duration::from_millis(10));
     }
