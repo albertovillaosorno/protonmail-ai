@@ -1530,3 +1530,11 @@ web application without requiring Bridge or a third-party direct API identity.
   project directory between validation and Chromium launch. Red-first fake
   browser login tests for 0770 and 0777 verify no launch and no chmod of the
   caller-selected data home; private data homes remain supported.
+
+- Browser-profile custody now also checks trusted owner and shared-write/sticky
+  permissions on every ancestor of the selected and resolved XDG/HOME data
+  home. A private 0700 leaf under a non-sticky 0770/0777 parent was previously
+  accepted and would permit another local account to replace the path before
+  Chromium launch. Red-first process tests prove refusal through both a direct
+  XDG home and a symlink alias, without changing caller-owned directories;
+  ordinary private parents and trusted sticky ancestors remain usable.

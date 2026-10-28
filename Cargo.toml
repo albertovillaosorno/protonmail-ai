@@ -37,7 +37,7 @@ features = ["zeroize"]
 
 [workspace.dependencies.nix]
 version = "=0.31.3"
-features = ["fs"]
+features = ["fs", "user"]
 
 [workspace.dependencies.serde]
 version = "=1.0.229"

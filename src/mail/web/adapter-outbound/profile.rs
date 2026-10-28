@@ -42,6 +42,7 @@ use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 use nix::errno::Errno;
 use nix::fcntl::{OFlag, open, openat};
 use nix::sys::stat::{Mode, mkdirat};
+use nix::unistd::geteuid;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -199,6 +200,8 @@ pub enum WebLoginError {
     BrowserUnavailable,
     /// The selected data home allows another account to replace project paths.
     UnsafeDataHome,
+    /// An ancestor of the selected data home permits unauthorized replacement.
+    UnsafeDataHomeAncestor,
     /// The project profile path resolves to a symbolic link.
     ProfileLink(PathBuf),
     /// The project-owned profile parent resolves to a symbolic link.
@@ -221,6 +224,8 @@ impl fmt::Debug for WebLoginError {
             Self::MissingDataHome => f.write_str("MissingDataHome"),
             Self::BrowserUnavailable => f.write_str("BrowserUnavailable"),
             Self::UnsafeDataHome => f.write_str("UnsafeDataHome"),
+            // jig-ignore-next-line: canonical rustfmt match arm.
+            Self::UnsafeDataHomeAncestor => f.write_str("UnsafeDataHomeAncestor"),
             Self::ProfileLink(_) => f.write_str("ProfileLink(<redacted>)"),
             Self::ProjectLink(_) => f.write_str("ProjectLink(<redacted>)"),
             // jig-ignore-next-line: canonical rustfmt line.
@@ -240,6 +245,8 @@ impl fmt::Display for WebLoginError {
             Self::BrowserUnavailable => f.write_str("Chromium unavailable"),
             // jig-ignore-next-line: canonical rustfmt typed error message.
             Self::UnsafeDataHome => f.write_str("browser data home is shared-writable"),
+            // jig-ignore-next-line: canonical rustfmt typed error message.
+            Self::UnsafeDataHomeAncestor => f.write_str("browser data home ancestor is unsafe"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::AutomationInUse => f.write_str("profile owned by managed automation"),
             Self::ProfileLink(_) => f.write_str("profile symlink"),
@@ -327,14 +334,14 @@ fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
         // jig-ignore-next-line: canonical rustfmt line.
         open(data_home, root_flags, Mode::empty()).map_err(|_error| create_error(path))?;
     let data = File::from(data_fd);
+    verify_data_home_ancestors(data_home)?;
     // Even a private project directory can be renamed by another local
     // account when its selected parent directory permits shared writes.
     // Do not chmod the caller-selected data home to make it acceptable.
-    let permissions = data
-        .metadata()
-        .map_err(|error| io_err(path, error))?
-        .permissions();
-    if permissions.mode() & 0o022 != 0 {
+    let metadata = data.metadata().map_err(|error| io_err(path, error))?;
+    let shared_writable = metadata.permissions().mode() & 0o022 != 0;
+    let wrong_owner = metadata.uid() != geteuid().as_raw();
+    if shared_writable || wrong_owner {
         return Err(WebLoginError::UnsafeDataHome);
     }
     open_private_child(
@@ -344,6 +351,44 @@ fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
         WebLoginError::ProjectLink(path.to_path_buf()),
         create_error(path),
     )
+}
+
+// An attacker who can rename a data-home ancestor can replace its private
+// descendants between preparation and the browser's path-based launch. Both
+// the caller's spelling and its resolved target matter: an XDG alias may be
+// safe itself while pointing into an unsafe tree (or vice versa).
+fn verify_data_home_ancestors(data_home: &Path) -> Result<(), WebLoginError> {
+    let unsafe_ancestor = |_error| WebLoginError::UnsafeDataHomeAncestor;
+    let resolved = fs::canonicalize(data_home).map_err(unsafe_ancestor)?;
+    let owner = geteuid().as_raw();
+    let chosen = fs::symlink_metadata(data_home).map_err(unsafe_ancestor)?;
+    if chosen.uid() != 0 && chosen.uid() != owner {
+        return Err(WebLoginError::UnsafeDataHomeAncestor);
+    }
+    for path in [data_home, resolved.as_path()] {
+        for ancestor in path.ancestors().skip(1) {
+            let metadata = fs::symlink_metadata(ancestor);
+            let metadata = metadata.map_err(unsafe_ancestor)?;
+            if metadata.uid() != 0 && metadata.uid() != owner {
+                return Err(WebLoginError::UnsafeDataHomeAncestor);
+            }
+            if metadata.file_type().is_symlink() {
+                continue;
+            }
+            if !metadata.is_dir() {
+                return Err(WebLoginError::UnsafeDataHomeAncestor);
+            }
+            let mode = metadata.permissions().mode();
+            // A sticky directory owned by us or root (e.g. /tmp) protects
+            // the caller-owned entry from other local users. Without sticky,
+            // group/world write permits an ancestor rename despite a 0700
+            // data-home leaf.
+            if mode & 0o022 != 0 && mode & 0o1000 == 0 {
+                return Err(WebLoginError::UnsafeDataHomeAncestor);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn open_private_child(

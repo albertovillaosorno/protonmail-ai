@@ -161,6 +161,85 @@ fn shared_writable_data_home_cannot_hold_private_browser_profile() {
 }
 
 #[test]
+fn shared_writable_parent_cannot_replace_private_data_home() {
+    for mode in [0o770u32, 0o777u32] {
+        let root = test_root(&format!("shared-data-parent-{mode}"));
+        let shared = root.join("shared");
+        let data_home = shared.join("private-data");
+        fs::create_dir_all(&data_home).expect("create private data home");
+        fs::set_permissions(&data_home, fs::Permissions::from_mode(0o700))
+            .expect("set private home permissions");
+        fs::set_permissions(&shared, fs::Permissions::from_mode(mode))
+            .expect("make selected parent shared writable");
+        let browser = fake_browser(&root);
+        let output = login(&root, &browser, Some(&data_home));
+        assert!(!output.status.success());
+        assert!(!root.join("browser-args.txt").exists());
+        assert!(
+            String::from_utf8(output.stderr)
+                .expect("UTF-8 refusal")
+                .contains("browser data home ancestor is unsafe")
+        );
+        assert_eq!(
+            fs::metadata(&shared)
+                .expect("shared parent remains")
+                .permissions()
+                .mode()
+                & 0o777,
+            mode,
+            "unsafe parent permissions must not be silently changed"
+        );
+        assert_eq!(
+            fs::metadata(&data_home)
+                .expect("private data home remains")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700,
+            "private data home must not be chmodded after refusal"
+        );
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn symlinked_data_home_cannot_hide_shared_writable_target_ancestor() {
+    let root = test_root("alias-shared-ancestor");
+    let shared = root.join("shared");
+    let actual_data_home = shared.join("private-data");
+    let chosen = root.join("xdg-alias");
+    fs::create_dir_all(&actual_data_home).expect("create private data home");
+    fs::set_permissions(&actual_data_home, fs::Permissions::from_mode(0o700))
+        .expect("set private alias target permissions");
+    symlink(&actual_data_home, &chosen).expect("create selected XDG alias");
+    fs::set_permissions(&shared, fs::Permissions::from_mode(0o777))
+        .expect("make target ancestor shared writable");
+    let browser = fake_browser(&root);
+    let output = login(&root, &browser, Some(&chosen));
+    assert!(!output.status.success());
+    assert!(!root.join("browser-args.txt").exists());
+    assert!(!actual_data_home.join("protonmail-ai").exists());
+    cleanup(&root);
+}
+
+#[test]
+fn trusted_sticky_parent_allows_private_data_home() {
+    let root = test_root("sticky-ancestor");
+    let sticky = root.join("sticky");
+    let data_home = sticky.join("private-data");
+    fs::create_dir_all(&data_home).expect("create private data home");
+    fs::set_permissions(&data_home, fs::Permissions::from_mode(0o700))
+        .expect("set private home permissions");
+    fs::set_permissions(&sticky, fs::Permissions::from_mode(0o1777))
+        .expect("set sticky directory permissions");
+    let browser = fake_browser(&root);
+    assert!(login(&root, &browser, Some(&data_home)).status.success());
+    let expected = profile_under(&data_home);
+    assert!(expected.is_dir());
+    cleanup(&root);
+}
+
+#[test]
 fn home_fallback_remains_project_scoped() {
     let root = test_root("home");
     fs::create_dir_all(&root).expect("create synthetic root");

@@ -90,6 +90,11 @@ or invalid. The project and profile directories are restricted to mode `0700`.
 The selected data-home directory must not be group- or world-writable; unsafe
 permissions fail closed without changing the caller's data-home directory.
 
+Its ancestors must also be owned by root or the current user and must not be
+shared-writable unless protected by a trusted sticky directory (such as
+`/tmp`). Both the selected XDG/HOME spelling and its resolved symlink target
+are checked, so a private data home beneath a replaceable parent is rejected.
+
 The launcher does not accept an arbitrary profile path, attach to an existing
 browser profile, enable remote debugging, or read password, second-factor,
 CAPTCHA, recovery, cookie, or web-storage values. Profile and project-directory
