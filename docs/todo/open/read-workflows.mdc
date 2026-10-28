@@ -451,3 +451,10 @@ Ship useful read access before any mailbox mutation is enabled.
   synthetic directory fixture pre-created 512 old-style guesses and proved
   that those guesses could previously exhaust the bounded create attempts;
   fresh output now succeeds without modifying any existing attacker files.
+
+- Final attachment output parents now refuse group- or world-writable
+  directory permissions before any temporary file creation. Red-first
+  synthetic tests covered both output roots and nested parents with 0770
+  and 0777 modes; each now fails closed without committing bytes. This
+  limits cross-account replacement of an observed temporary name, while
+  same-user concurrent mutation still requires cautious filesystem use.

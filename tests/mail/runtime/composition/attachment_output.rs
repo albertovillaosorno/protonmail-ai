@@ -204,6 +204,40 @@ fn existing_file_or_symlink_is_never_overwritten_and_partial_is_cleaned() {
 }
 
 #[test]
+fn group_or_world_writable_final_directory_is_not_a_safe_output_parent() {
+    for mode in [0o770u32, 0o777u32] {
+        for nested in [false, true] {
+            let root = prepare_root(&format!("unsafe-parent-{mode}-{nested}"));
+            let parent = if nested {
+                // jig-ignore-next-line: canonical rustfmt permission fixture.
+                fs::create_dir_all(root.join("shared")).expect("create nested parent");
+                root.join("shared")
+            } else {
+                root.clone()
+            };
+            fs::set_permissions(&parent, fs::Permissions::from_mode(mode))
+                .expect("set synthetic shared permissions");
+            let output_root =
+                // jig-ignore-next-line: canonical rustfmt permission fixture.
+                AttachmentFileOutputRoot::open(&root).expect("open explicit synthetic root");
+            let destination = if nested {
+                "shared/output.bin"
+            } else {
+                "output.bin"
+            };
+            let result =
+                // jig-ignore-next-line: canonical rustfmt permission fixture.
+                output_root.write_no_overwrite(&relative(destination), b"private-bytes", 128);
+            let created = root.join(destination).exists();
+            cleanup(&root);
+            // jig-ignore-next-line: canonical rustfmt permission fixture.
+            assert_eq!(result, Err(AttachmentFileOutputError::UnsafeDestination));
+            assert!(!created, "unsafe destination must never commit");
+        }
+    }
+}
+
+#[test]
 fn adversarial_precreated_partial_names_cannot_block_safe_output() {
     let root = prepare_root("partial-name-squatting");
     // The old PID plus monotonic sequence revealed every future temporary

@@ -42,7 +42,7 @@ use std::path::{Component, Path, PathBuf};
 use mail_capability_domain::AttachmentRelativePath;
 use nix::errno::Errno;
 use nix::fcntl::{AtFlags, OFlag, open, openat};
-use nix::sys::stat::Mode;
+use nix::sys::stat::{Mode, fstat};
 use nix::unistd::{UnlinkatFlags, dup, linkat, unlinkat};
 
 const MAX_PARTIAL_NAME_ATTEMPTS: usize = 16;
@@ -108,6 +108,14 @@ impl AttachmentFileOutputRoot {
             return Err(AttachmentFileOutputError::OutputTooLarge);
         }
         let (parent, final_name) = self.open_destination_parent(destination)?;
+        // A directory writable by another local account allows replacing a
+        // created partial entry before linkat commits it by name. Refuse it.
+        let parent_mode = fstat(&parent)
+            .map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?
+            .st_mode;
+        if parent_mode & 0o022 != 0 {
+            return Err(AttachmentFileOutputError::UnsafeDestination);
+        }
         let (partial_fd, partial_name) = create_partial(&parent)?;
         let mut partial = File::from(partial_fd);
         if partial.write_all(bytes).is_err() || partial.sync_all().is_err() {
@@ -223,7 +231,7 @@ pub enum AttachmentFileOutputError {
     RootNotAbsolute,
     /// A root component was not a real no-follow directory.
     UnsafeRoot,
-    /// A destination directory could not be walked without following symlinks.
+    /// A destination directory was unsafe, missing, or shared-writable.
     UnsafeDestination,
     /// Plaintext bytes exceed the configured file-output ceiling.
     OutputTooLarge,
