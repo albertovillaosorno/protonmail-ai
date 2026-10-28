@@ -427,3 +427,55 @@ fn composer_address_and_subject_refuse_invisible_direction_overrides() {
         assert!(!stderr(&result).contains(&subject));
     }
 }
+
+#[test]
+fn composer_rejects_oversized_header_fields_before_encoding() {
+    for flag in ["--to", "--cc", "--bcc"] {
+        let oversized = "x".repeat(8_193);
+        let args = if flag == "--to" {
+            vec!["mail", "compose-url", "--to", oversized.as_str()]
+        } else {
+            vec![
+                "mail",
+                "compose-url",
+                "--to",
+                "person@example.test",
+                flag,
+                oversized.as_str(),
+            ]
+        };
+        let output = run(&args);
+        assert!(!output.status.success(), "oversized recipients must fail");
+        assert!(output.stdout.is_empty());
+        assert!(stderr(&output).contains("recipient exceeds 8192 bytes"));
+        assert!(!stderr(&output).contains(&oversized));
+    }
+    let subject = "\u{e9}".repeat(1_025);
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "person@example.test",
+        "--subject",
+        &subject,
+    ]);
+    assert!(!output.status.success(), "oversized subject must fail");
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("subject exceeds 2048 bytes"));
+    assert!(!stderr(&output).contains(&subject));
+}
+
+#[test]
+fn composer_header_byte_ceiling_is_inclusive() {
+    let to = "x".repeat(8_192);
+    let subject = "\u{e9}".repeat(1_024);
+    let args = ["mail", "compose-url", "--to", &to, "--subject", &subject];
+    let output = run(&args);
+    assert!(output.status.success());
+    assert!(stderr(&output).is_empty());
+    assert!(
+        String::from_utf8(output.stdout)
+            .expect("UTF-8 URL")
+            .starts_with("https://mail.proton.me/inbox/#mailto=")
+    );
+}

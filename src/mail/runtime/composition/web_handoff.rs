@@ -40,6 +40,8 @@ use std::os::unix::fs::OpenOptionsExt as _;
 use nix::fcntl::OFlag;
 
 const WEB_HANDOFF_PREFIX: &str = "https://mail.proton.me/inbox/#mailto=";
+const MAX_RECIPIENT_FIELD_BYTES: usize = 8_192;
+const MAX_SUBJECT_BYTES: usize = 2_048;
 const MAX_BODY_BYTES: usize = 16_384;
 const MAX_BODY_READ_BYTES: u64 = 16_385;
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
@@ -159,10 +161,14 @@ pub enum ComposeInputError {
     EmptyValue(&'static str),
     /// An unsupported CLI flag was provided.
     UnknownFlag(String),
-    /// Recipient text contains an ASCII control byte.
+    /// Recipient text contains an unsafe control or direction marker.
     InvalidRecipient,
-    /// Subject text contains an ASCII control byte.
+    /// Recipient text exceeds the bounded URL handoff size.
+    RecipientTooLarge,
+    /// Subject text contains an unsafe control or direction marker.
     InvalidSubject,
+    /// Subject text exceeds the bounded URL handoff size.
+    SubjectTooLarge,
     /// Body text contains a control byte other than tab or line breaks.
     InvalidBody,
     /// The requested UTF-8 body file could not be read.
@@ -182,7 +188,9 @@ impl fmt::Debug for ComposeInputError {
             Self::EmptyValue(flag) => f.debug_tuple("EmptyValue").field(flag).finish(),
             Self::UnknownFlag(_) => f.write_str("UnknownFlag(<redacted>)"),
             Self::InvalidRecipient => f.write_str("InvalidRecipient"),
+            Self::RecipientTooLarge => f.write_str("RecipientTooLarge"),
             Self::InvalidSubject => f.write_str("InvalidSubject"),
+            Self::SubjectTooLarge => f.write_str("SubjectTooLarge"),
             Self::InvalidBody => f.write_str("InvalidBody"),
             Self::BodyFileRead(_) => f.write_str("BodyFileRead(<redacted>)"),
             Self::BodyTooLarge => f.write_str("BodyTooLarge"),
@@ -205,7 +213,10 @@ impl fmt::Display for ComposeInputError {
             }
             Self::UnknownFlag(_flag) => f.write_str("unknown compose flag"),
             Self::InvalidRecipient => f.write_str("recipient contains control"),
+            // jig-ignore-next-line: rustfmt canonical size diagnostic.
+            Self::RecipientTooLarge => f.write_str("recipient exceeds 8192 bytes"),
             Self::InvalidSubject => f.write_str("subject contains control"),
+            Self::SubjectTooLarge => f.write_str("subject exceeds 2048 bytes"),
             Self::InvalidBody => f.write_str("body contains control"),
             Self::BodyFileRead(_path) => f.write_str("cannot read body file"),
             Self::BodyTooLarge => f.write_str("body exceeds 16384 bytes"),
@@ -278,6 +289,9 @@ fn body_file_error(path: &str) -> ComposeInputError {
 }
 
 fn validate_recipients(value: &str) -> Result<(), ComposeInputError> {
+    if value.len() > MAX_RECIPIENT_FIELD_BYTES {
+        return Err(ComposeInputError::RecipientTooLarge);
+    }
     if value.chars().any(invalid_single_line_character) {
         return Err(ComposeInputError::InvalidRecipient);
     }
@@ -285,6 +299,9 @@ fn validate_recipients(value: &str) -> Result<(), ComposeInputError> {
 }
 
 fn validate_single_line(value: &str) -> Result<(), ComposeInputError> {
+    if value.len() > MAX_SUBJECT_BYTES {
+        return Err(ComposeInputError::SubjectTooLarge);
+    }
     if value.chars().any(invalid_single_line_character) {
         return Err(ComposeInputError::InvalidSubject);
     }
