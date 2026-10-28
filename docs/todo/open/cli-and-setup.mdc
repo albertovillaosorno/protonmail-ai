@@ -98,3 +98,8 @@ to register as a local MCP server.
   could redirect a chosen body path into unrelated file bytes; the CLI now
   refuses such final-component aliases without producing a URL or echoing
   private path/content. Regular file encoding and FIFO refusal remain intact.
+- Subject handoff now preserves legitimate emoji variation selectors and
+  language/script joiners, proven by a red-first CLI test. Bare recipient
+  fields still reject them, alongside direction overrides and hidden
+  separators. This restores international text without widening address
+  acceptance.

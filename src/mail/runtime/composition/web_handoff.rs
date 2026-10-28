@@ -303,10 +303,21 @@ fn validate_single_line(value: &str) -> Result<(), ComposeInputError> {
     if value.len() > MAX_SUBJECT_BYTES {
         return Err(ComposeInputError::SubjectTooLarge);
     }
-    if value.chars().any(invalid_single_line_character) {
+    if value.chars().any(invalid_subject_character) {
         return Err(ComposeInputError::InvalidSubject);
     }
     Ok(())
+}
+
+// Human-language subjects use grapheme joiners and variation selectors;
+// route-bound recipient addresses retain the stricter single-line gate.
+const fn invalid_subject_character(character: char) -> bool {
+    invalid_single_line_character(character)
+        && !matches!(
+            character,
+            '\u{180b}'..='\u{180d}' | '\u{200c}'..='\u{200d}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}'
+        )
 }
 
 // A visually hidden selector, bidirectional override, or Unicode newline

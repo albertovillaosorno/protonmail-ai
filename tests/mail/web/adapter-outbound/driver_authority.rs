@@ -1060,8 +1060,8 @@ invalidSecondRow=false;
 for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
  'line\\u2028separator', 'null\\u0000character',
  'bidi\\u202eoverride', 'isolate\\u2066mark',
- 'zero\\u200bwidth', 'joiner\\u200dmark',
- 'soft\\u00adhyphen', 'variation\\ufe0fmark',
+ 'zero\\u200bwidth',
+ 'soft\\u00adhyphen',
  'bom\\ufeffmark', 'tag\\u{e0001}mark']){
  subjectValue=invalidText;
  if(eval(script)!==null){throw Error('unsafe subject entered CDP');}
@@ -1069,6 +1069,14 @@ for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
  if(eval(script)!==null){throw Error('unsafe address entered CDP');}
  addressValue='sender@example.test';
 }
+subjectValue='heart\\u2764\\ufe0f';
+addressValue='Name\\u200cpart <sender@example.test>';
+const rich=eval(script);
+if(rich?.[0]?.subject!==subjectValue||
+ rich?.[0]?.addresses!==addressValue){
+ throw Error('ordinary grapheme formatting was refused');
+}
+subjectValue='synthetic subject';addressValue='sender@example.test';
 heading.getClientRects=()=>[];
 const hidden=eval(script);
 if(hidden!==null){

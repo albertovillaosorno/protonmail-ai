@@ -449,6 +449,15 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
             assert!(stderr(&result).contains("recipient contains control"));
             assert!(!stderr(&result).contains(&recipient));
         }
+        // Joiners and variation selectors have valid linguistic/emoji uses in
+        // subject prose, but never in bare email recipient addresses.
+        if matches!(
+            mark,
+            '\u{180b}'..='\u{180d}' | '\u{200c}'..='\u{200d}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}'
+        ) {
+            continue;
+        }
         let subject = format!("invoice{mark}approved");
         let result = run(&[
             "mail",
@@ -463,6 +472,32 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
         assert!(stderr(&result).contains("subject contains control"));
         assert!(!stderr(&result).contains(&subject));
     }
+}
+
+#[test]
+fn subject_accepts_emoji_variation_and_language_joiners() {
+    let subject = concat!(
+        "Heart \u{2764}\u{fe0f}, coder \u{1f469}\u{200d}\u{1f4bb}",
+        ", Name\u{200c}part"
+    );
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "person@example.test",
+        "--subject",
+        subject,
+    ]);
+    assert!(
+        output.status.success(),
+        "ordinary subject graphemes must work"
+    );
+    let url = stdout(&output);
+    assert!(url.starts_with("https://mail.proton.me/inbox/#mailto="));
+    assert!(
+        url.contains("%25E2%259D%25A4"),
+        "Unicode subject encoded twice"
+    );
 }
 
 #[test]

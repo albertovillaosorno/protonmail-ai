@@ -112,14 +112,11 @@ fn rust_row_projection_refuses_hidden_formatting_in_display_text() {
         '\u{034f}',
         '\u{061c}',
         '\u{200b}',
-        '\u{200d}',
         '\u{202e}',
         '\u{2066}',
         '\u{2069}',
-        '\u{fe0f}',
         '\u{feff}',
         '\u{e0001}',
-        '\u{e0100}',
     ] {
         for (subject, addresses) in [
             (
@@ -147,4 +144,17 @@ fn rust_row_projection_refuses_hidden_formatting_in_display_text() {
         "addresses": "\u{00c9}lodie <sender@example.test>", "unread": false
     }]);
     assert!(parse_rows(&printable).is_ok());
+}
+
+#[test]
+fn display_text_preserves_emoji_and_language_joiners() {
+    let subject = "Heart \u{2764}\u{fe0f} and coder \u{1f469}\u{200d}\u{1f4bb}";
+    let sender = "Name\u{200c}part <sender@example.test>";
+    let rows = json!([{
+        "id": "safe-row", "subject": subject, "addresses": sender,
+        "unread": false
+    }]);
+    let projected = parse_rows(&rows).expect("preserve ordinary graphemes");
+    assert_eq!(projected[0].subject(), subject);
+    assert_eq!(projected[0].displayed_addresses(), sender);
 }

@@ -499,3 +499,8 @@ Ship useful read access before any mailbox mutation is enabled.
   old acceptance and verify rejection without leaking private metadata.
   Ordinary printable Unicode remains readable; this still does not enable
   plaintext body/header extraction or public get-message transport.
+- Refined the display-text policy with red-first positive Rust/Node tests:
+  emoji variation selectors and script joiners are valid in message subjects
+  and display names. Bidirectional overrides, hidden separators and line
+  controls remain refused, while literal message addresses retain a stricter
+  safety rule. Opaque route IDs remain unchanged and strictly validated.

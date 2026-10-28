@@ -1065,14 +1065,11 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
         '\u{034f}',
         '\u{061c}',
         '\u{200b}',
-        '\u{200d}',
         '\u{202e}',
         '\u{2066}',
         '\u{2069}',
-        '\u{fe0f}',
         '\u{feff}',
         '\u{e0001}',
-        '\u{e0100}',
     ] {
         for pointer in [
             "/Message/Subject",
@@ -1099,6 +1096,38 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
     body["Message"]["Subject"] = json!("Caf\u{e9} \u{1f600}");
     body["Message"]["Sender"]["Name"] = json!("\u{00c9}lodie");
     assert!(project("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
+fn detail_literal_addresses_remain_strict_for_joiners_and_variation_marks() {
+    let parse = ObservedMessageDetailResponse::parse;
+    for mark in ['\u{200c}', '\u{200d}', '\u{fe0f}', '\u{180b}', '\u{e0100}'] {
+        for pointer in [
+            "/Message/Sender/Address",
+            "/Message/ToList/0/Address",
+            "/Message/CCList/0/Address",
+        ] {
+            let mut body = detail_body();
+            *body.pointer_mut(pointer).expect("literal address") =
+                json!(format!("local{mark}@example.test"));
+            let parsed = parse("GET", MESSAGE_URL, &body.to_string());
+            assert_eq!(parsed, Err(MessageDetailResponseError::Malformed));
+        }
+    }
+}
+
+#[test]
+fn detail_metadata_preserves_emoji_and_language_joiners() {
+    let parse = ObservedMessageDetailResponse::parse;
+    let subject = "Heart \u{2764}\u{fe0f} and coder \u{1f469}\u{200d}\u{1f4bb}";
+    let name = "Name\u{200c}part";
+    let mut body = detail_body();
+    body["Message"]["Subject"] = json!(subject);
+    body["Message"]["Sender"]["Name"] = json!(name);
+    let result = parse("GET", MESSAGE_URL, &body.to_string());
+    let projected = result.expect("preserve ordinary graphemes");
+    assert_eq!(projected.message().subject(), subject);
+    assert_eq!(projected.message().sender().name(), name);
 }
 
 #[test]
