@@ -85,3 +85,10 @@ to register as a local MCP server.
   from single-line fields while returning only content-free size diagnostics.
   Red-first CLI regressions cover over-limit to/cc/bcc, multibyte subjects,
   and inclusive limits.
+
+- Compose recipient and subject fields now reject invisible Unicode format
+  selectors (soft hyphen, zero-width joins/spaces, BOM, and variation/tag
+  selectors) in addition to existing bidi/line controls. A red-first
+  synthetic CLI matrix showed invisible markers were encoded unchanged in
+  recipients and subjects; content-free refusal now covers to/cc/bcc and
+  subject without restricting ordinary international printable text or body.

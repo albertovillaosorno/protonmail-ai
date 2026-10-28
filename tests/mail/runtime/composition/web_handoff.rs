@@ -383,6 +383,59 @@ fn composer_single_line_fields_reject_unicode_line_controls() {
 }
 
 #[test]
+fn composer_header_fields_reject_invisible_formatting_characters() {
+    // These are not directional overrides or line breaks, but invisible
+    // selectors can conceal the actual destination or change a shown subject.
+    for mark in [
+        '\u{00ad}',
+        '\u{034f}',
+        '\u{180e}',
+        '\u{200b}',
+        '\u{200c}',
+        '\u{200d}',
+        '\u{2060}',
+        '\u{fe0f}',
+        '\u{feff}',
+        '\u{e0001}',
+        '\u{e0100}',
+    ] {
+        let recipient = format!("support{mark}@example.test");
+        for flag in ["--to", "--cc", "--bcc"] {
+            let args = if flag == "--to" {
+                vec!["mail", "compose-url", "--to", &recipient]
+            } else {
+                vec![
+                    "mail",
+                    "compose-url",
+                    "--to",
+                    "valid@example.test",
+                    flag,
+                    &recipient,
+                ]
+            };
+            let result = run(&args);
+            assert!(!result.status.success(), "invisible {flag} must fail");
+            assert!(result.stdout.is_empty());
+            assert!(stderr(&result).contains("recipient contains control"));
+            assert!(!stderr(&result).contains(&recipient));
+        }
+        let subject = format!("invoice{mark}approved");
+        let result = run(&[
+            "mail",
+            "compose-url",
+            "--to",
+            "valid@example.test",
+            "--subject",
+            &subject,
+        ]);
+        assert!(!result.status.success(), "invisible subject must fail");
+        assert!(result.stdout.is_empty());
+        assert!(stderr(&result).contains("subject contains control"));
+        assert!(!stderr(&result).contains(&subject));
+    }
+}
+
+#[test]
 fn composer_address_and_subject_refuse_invisible_direction_overrides() {
     // Bidi controls can make the displayed destination or subject differ from
     // the encoded text even though no newline is present.

@@ -308,15 +308,19 @@ fn validate_single_line(value: &str) -> Result<(), ComposeInputError> {
     Ok(())
 }
 
-// Unicode newline separators and bidi direction controls can make a single
-// visible recipient or subject line show different text from its raw input.
-// The email body remains a free-form multiline field with separate bounds.
+// A visually hidden selector, bidirectional override, or Unicode newline
+// can make the apparent recipient/subject differ from the encoded header.
+// Preserve ordinary printable Unicode; the body is intentionally multiline.
 const fn invalid_single_line_character(character: char) -> bool {
     character.is_control()
         || matches!(
             character,
-            '\u{061c}' | '\u{200e}'..='\u{200f}'
-                | '\u{2028}'..='\u{202e}' | '\u{2066}'..='\u{206f}'
+            '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{115f}'..='\u{1160}'
+                | '\u{180b}'..='\u{180f}' | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}'
         )
 }
 
