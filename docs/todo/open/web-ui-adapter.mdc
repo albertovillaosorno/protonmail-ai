@@ -60,6 +60,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- The synthetic visible-login lease-during-ETXTBSY regression now
+  keeps the executable write lock until the runner exits. Releasing it
+  immediately after acquiring the lease could let an already-checked
+  browser spawn slip through before the next lease check and cause a
+  nondeterministic test failure. Production lease policy is unchanged.
+
+
 - CDP NUL-delimited frame readers now apply an absolute timeout per frame,
   based on the active socket wait budget. Partial data arriving just before
   each syscall timeout cannot keep a command or passive event capture alive

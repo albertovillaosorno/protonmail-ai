@@ -179,8 +179,11 @@ fn visible_login_rechecks_automation_lease_during_busy_executable_retry() {
     let profile = profile_result.expect("synthetic profile");
     let lease_result = Lease::acquire(&profile);
     let lease = lease_result.expect("automation takes profile lease");
-    drop(writer);
+    // Keep ETXTBSY in force until the runner exits. Releasing the writer
+    // while a launch attempt sits between its lease check and execve would
+    // let the fake browser start, making the race test itself flaky.
     let output = runner.join().expect("reap visible-login CLI");
+    drop(writer);
     assert!(
         !output.status.success(),
         "lease must block the delayed launch"
