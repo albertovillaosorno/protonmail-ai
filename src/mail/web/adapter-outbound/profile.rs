@@ -197,6 +197,11 @@ impl WebLoginPlan {
         // A just-updated browser executable may briefly be held open for
         // writing. Retry only Linux ETXTBSY; other launch errors fail at once.
         for attempt in 0u8..=MAX_TEXT_BUSY_RETRIES {
+            // A managed session may acquire ownership during the retry delay.
+            // Do not rely on the check preceding the first spawn attempt.
+            if AutomationProfileLease::is_active(&self.profile)? {
+                return Err(WebLoginError::AutomationInUse);
+            }
             match command.spawn() {
                 Ok(_child) => return Ok(()),
                 Err(error)

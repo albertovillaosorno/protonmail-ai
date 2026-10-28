@@ -150,6 +150,49 @@ fn visible_login_retries_only_transient_busy_executable() {
 }
 
 #[test]
+fn visible_login_rechecks_automation_lease_during_busy_executable_retry() {
+    let root = test_root("lease-acquired-during-retry");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    let data_home = root.join("xdg-data");
+    let writer = fs::OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("hold executable writable");
+    let run_root = root.clone();
+    let runner = thread::spawn(move || {
+        let xdg = run_root.join("xdg-data");
+        login(&run_root, &browser, Some(&xdg))
+    });
+    // Once the CLI has prepared its private profile, it will spin through
+    // ETXTBSY retries until this test releases the executable writer.
+    let target = profile_under(&data_home);
+    for _attempt in 0..100u8 {
+        if target.exists() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(target.exists(), "visible login must prepare profile");
+    thread::sleep(Duration::from_millis(60));
+    let profile_result = Profile::under_data_home(&data_home);
+    let profile = profile_result.expect("synthetic profile");
+    let lease_result = Lease::acquire(&profile);
+    let lease = lease_result.expect("automation takes profile lease");
+    drop(writer);
+    let output = runner.join().expect("reap visible-login CLI");
+    assert!(
+        !output.status.success(),
+        "lease must block the delayed launch"
+    );
+    assert!(!root.join("browser-args.txt").exists());
+    let diagnostic = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    assert!(diagnostic.contains("owned by managed automation"));
+    drop(lease);
+    cleanup(&root);
+}
+
+#[test]
 fn xdg_login_uses_dedicated_private_profile() {
     let root = test_root("xdg");
     fs::create_dir_all(&root).expect("create synthetic root");

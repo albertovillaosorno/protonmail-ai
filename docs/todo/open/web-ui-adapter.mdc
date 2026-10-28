@@ -69,6 +69,9 @@ web application without requiring Bridge or a third-party direct API identity.
   failures with a finite 320 ms budget, matching the managed-browser pattern.
   A red-first test holds a fake executable writable during login and verifies
   launch succeeds after the descriptor is released; other errors still fail.
+  Every retry also rechecks the managed automation lease, so a lease acquired
+  during the delay blocks delayed visible launch. Synthetic parallel lease
+  acquisition proves the earlier single-check gap no longer authorizes launch.
 - Visible-login Chromium runs with stdin, stdout, and stderr detached from
   the invoking CLI. A synthetic fake-browser process confirms a child cannot
   read piped CLI input or inject its diagnostics into captured CLI channels.
