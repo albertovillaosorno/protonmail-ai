@@ -685,6 +685,7 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
 // only human-language subjects and display names may contain them.
 const fn unsafe_address_character(character: char) -> bool {
     character.is_whitespace()
+        || matches!(character, '<' | '>' | ',' | ';' | ':')
         || unsafe_display_character(character)
         || matches!(
             character,

@@ -1109,6 +1109,36 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
 }
 
 #[test]
+fn detail_literal_addresses_refuse_address_list_delimiters() {
+    let parse = ObservedMessageDetailResponse::parse;
+    for address in [
+        "alice@example.test,bob@example.test",
+        "alice@example.test;bob@example.test",
+        "alice@example.test:Bcc:other@example.test",
+        "<alice@example.test>",
+    ] {
+        for pointer in [
+            "/Message/Sender/Address",
+            "/Message/ToList/0/Address",
+            "/Message/CCList/0/Address",
+        ] {
+            let mut body = detail_body();
+            let literal = body.pointer_mut(pointer).expect("literal address");
+            *literal = json!(address);
+            assert_eq!(
+                parse("GET", MESSAGE_URL, &body.to_string()),
+                Err(MessageDetailResponseError::Malformed),
+                "provider literal Address must denote one mailbox"
+            );
+        }
+    }
+    let mut body = detail_body();
+    body["Message"]["Sender"]["Name"] = json!("Example, Alice: Sender");
+    body["Message"]["Sender"]["Address"] = json!("alice+tag@example.test");
+    assert!(parse("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
 fn detail_literal_addresses_refuse_embedded_whitespace() {
     let parse = ObservedMessageDetailResponse::parse;
     for address in [

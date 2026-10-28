@@ -337,7 +337,9 @@ fn validate_recipients(value: &str) -> Result<(), ComposeInputError> {
 
 // A mailto recipient must denote a single unambiguous mailbox token.
 const fn invalid_recipient_character(character: char) -> bool {
-    character.is_whitespace() || invalid_single_line_character(character)
+    character.is_whitespace()
+        || matches!(character, '<' | '>' | ',' | ';' | ':')
+        || invalid_single_line_character(character)
 }
 
 fn validate_single_line(value: &str) -> Result<(), ComposeInputError> {

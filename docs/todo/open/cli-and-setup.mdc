@@ -122,3 +122,9 @@ to register as a local MCP server.
   and musical-format markers. Red-first CLI fixtures demonstrated that
   these had passed into encoded recipients and subjects despite the
   read-side metadata and opaque-identity boundaries rejecting them.
+
+- A bare compose recipient is now limited to one unambiguous mailbox token:
+  literal address-list delimiters (commas, semicolons, colons and angle
+  brackets) fail closed on all recipient roles. Red-first CLI tests prove
+  the previous multi-target interpretation; punctuation in subjects and
+  plus aliases in addresses remain valid.

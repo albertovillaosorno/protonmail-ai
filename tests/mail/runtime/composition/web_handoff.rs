@@ -567,6 +567,48 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
 }
 
 #[test]
+fn composer_literal_recipients_refuse_address_list_delimiters() {
+    for address in [
+        "alice@example.test,bob@example.test",
+        "alice@example.test;bob@example.test",
+        "alice@example.test:Bcc:other@example.test",
+        "<alice@example.test>",
+    ] {
+        for flag in ["--to", "--cc", "--bcc"] {
+            let args = if flag == "--to" {
+                vec!["mail", "compose-url", "--to", address]
+            } else {
+                vec![
+                    "mail",
+                    "compose-url",
+                    "--to",
+                    "valid@example.test",
+                    flag,
+                    address,
+                ]
+            };
+            let result = run(&args);
+            assert!(!result.status.success(), "one {flag} cannot hide a list");
+            assert!(result.stdout.is_empty());
+            assert!(stderr(&result).contains("recipient contains control"));
+            assert!(!stderr(&result).contains(address));
+        }
+    }
+    let valid = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "alice+tag@example.test",
+        "--subject",
+        "Hello, Alice: see attachments; thanks",
+    ]);
+    assert!(
+        valid.status.success(),
+        "subject prose and plus-tags remain valid"
+    );
+}
+
+#[test]
 fn composer_literal_recipients_refuse_embedded_whitespace() {
     for address in [
         "person@example.test Bcc:other@example.test",
