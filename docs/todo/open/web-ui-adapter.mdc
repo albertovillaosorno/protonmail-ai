@@ -1516,3 +1516,10 @@ web application without requiring Bridge or a third-party direct API identity.
   filters now refuse mode evidence even on Sent/Drafts; canonical forced
   routes without hashes and supported filters still prove message mode.
   Red-first live-JavaScript fixtures exposed the former bypass.
+
+- Rust route-ID validation and browser-owned list, row, and search guards now
+  refuse all Unicode 16 Cf formatting controls, including Arabic and Syriac
+  markers, interlinear annotations, Kaithi and Egyptian hieroglyph controls,
+  and musical format controls. Red-first Node and metadata fixtures prove
+  that the previously omitted marks could cross exact-ID/search boundaries;
+  legitimate printable Unicode remains accepted.

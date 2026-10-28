@@ -860,6 +860,10 @@ fn audited_dom_expressions_parse_and_reject_foreign_origins_in_node() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "synthetic mode and Unicode route matrix"
+)]
 fn live_javascript_search_mode_rejects_malformed_routes() {
     use std::process::Command;
 
@@ -933,6 +937,15 @@ for(const [path,hash,expected] of [
   const result=eval(expression);
  const actual=result===null?null:result.forcedMessageRoute||result.activeSearch;
   if(actual!==expected){throw Error('invalid mode proof for '+path+hash);}
+}
+for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
+ 0x110bd,0x110cd,0x13430,0x1d173]){
+  const query='visible'+String.fromCodePoint(point);
+  globalThis.location={origin:'https://mail.proton.me',
+    pathname:'/inbox',search:'',hash:'#keyword='+encodeURIComponent(query)};
+  if(eval(expression)?.activeSearch!==false){
+    throw Error('format control proved search '+point.toString(16));
+  }
 }
 for(const [path,search,hash] of [
   ['/sent/','',''],
@@ -1091,6 +1104,13 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  if(eval(script)!==null){throw Error('unsafe row ID crossed CDP');}
  if(titleReads!==0){throw Error('invalid ID caused a content read');}
 }
+for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
+ 0x110bd,0x110cd,0x13430,0x1d173]){
+ idValue='hidden'+String.fromCodePoint(point);titleReads=0;
+ if(eval(script)!==null||titleReads!==0){
+  throw Error('format control exposed row content '+point.toString(16));
+ }
+}
 idValue='valid\\u{1f600}emoji';
 if(eval(script)[0]?.id!==idValue){throw Error('valid astral ID refused');}
 idValue='m\\u00e9moire';
@@ -1248,6 +1268,13 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  'lossy\\ufffdid']){
  rowId=invalidId;
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
+}
+for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
+ 0x110bd,0x110cd,0x13430,0x1d173]){
+ rowId='hidden'+String.fromCodePoint(point);
+ if(eval(expression)!==null){
+  throw Error('format control exposed list ID '+point.toString(16));
+ }
 }
 rowId='valid\\u{1f600}emoji';
 if(eval(expression)?.rowIds[0]!==rowId){
