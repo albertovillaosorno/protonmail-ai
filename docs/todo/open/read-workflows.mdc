@@ -433,3 +433,9 @@ Ship useful read access before any mailbox mutation is enabled.
 
 - Synthetic mailbox fixtures
 - Contract and adapter integration tests
+
+- Attachment filename sanitization and caller-chosen relative destination paths
+  now reject Khmer inherent vowel signs (U+17B4–U+17B5) and shorthand
+  formatting controls (U+1BCA0–U+1BCA3). Red-first tests confirmed that
+  these default-ignorable marks previously survived filename normalization
+  or were accepted as output-path components. Ordinary Unicode stays intact.
