@@ -928,6 +928,20 @@ for(const [path,hash,expected] of [
  const actual=result===null?null:result.forcedMessageRoute||result.activeSearch;
   if(actual!==expected){throw Error('invalid mode proof for '+path+hash);}
 }
+for(const [path,search,hash] of [
+  ['/sent/','',''],
+  ['/u/0/sent/','',''],
+  ['/u/0/inbox/','','#keyword=valid'],
+  ['/u/0/inbox','?view=threads','#keyword=valid'],
+  ['/u/0/sent','?view=threads',''],
+  ['/u/0/inbox','?keyword=other','#keyword=valid'],
+]){
+  globalThis.location={
+    origin:'https://mail.proton.me',pathname:path,search,hash};
+  if(eval(expression)!==null){
+    throw Error('noncanonical location '+path+search+hash);
+  }
+}
 ",
     );
     let result = Command::new("node")

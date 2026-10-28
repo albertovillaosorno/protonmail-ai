@@ -1504,3 +1504,9 @@ web application without requiring Bridge or a third-party direct API identity.
   `begin`/`end` date filter; malformed modifiers still invalidate all search
   evidence. Red-first Node cases proved the prior lone `wildcard=1` false
   authorization and preserve genuine text/date-only searches.
+
+- Browser message-mode proof now refuses an unaudited URL query string and
+  trailing-slash route variants. Red-first Node fixtures previously showed
+  that those locations could still authorize individual-message reads from
+  an otherwise forced or active-search route; canonical paths and hash-only
+  search filters remain supported.

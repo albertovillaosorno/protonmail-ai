@@ -42,7 +42,9 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "if(document.querySelector('[role~=\"dialog\" i],",
     "[role~=\"alertdialog\" i],dialog[open],",
     "[aria-modal=\"true\" i]')){return null;}",
-    "if(location.pathname.length>512||",
+    // Unrecognized query state or a noncanonical route cannot prove mode.
+    "if(location.search||location.pathname.endsWith('/')||",
+    "location.pathname.length>512||",
     "location.pathname.includes('//')){return null;}",
     "const parts=location.pathname.split('/').filter(Boolean);",
     "const account=parts[1]||'';",
