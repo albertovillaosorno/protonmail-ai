@@ -326,15 +326,6 @@ fn cleanup_partial(parent: &OwnedFd, partial_name: &str) -> Result<(), Attachmen
 }
 
 #[cfg(test)]
-mod output_owner_tests {
-    use super::private_directory_allowed;
-
-    #[test]
-    fn private_output_requires_effective_owner_and_private_mode() {
-        assert!(private_directory_allowed(0o700, 1000, 1000));
-        assert!(private_directory_allowed(0o700, 0, 0));
-        assert!(!private_directory_allowed(0o700, 1001, 1000));
-        assert!(!private_directory_allowed(0o700, 0, 1000));
-        assert!(!private_directory_allowed(0o770, 1000, 1000));
-    }
-}
+// jig-ignore-next-line: required root-tree private ownership policy tests.
+#[path = "../../../../tests/mail/runtime/composition/attachment_owner_policy.rs"]
+mod output_owner_tests;

@@ -787,3 +787,13 @@ source_revision=74773f0b10cc31d32e43e82c061da5d75fef96ce
 source_license=GPL-3.0
 destination_license=GPL-3.0-only
 modifications=synthetic-conversation-list-metadata-fixtures
+
+[file]
+path=tests/mail/runtime/composition/attachment_owner_policy.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-synthetic-attachment-output-uid-and-mode-policy-tests
