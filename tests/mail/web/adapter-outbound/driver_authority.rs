@@ -1792,3 +1792,46 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
         assert_eq!(actual, expected);
     }
 }
+
+#[test]
+fn cdp_frame_readers_bound_total_time_not_each_byte_interval() {
+    use super::{read_frame, read_frame_waiting};
+    use std::io::{BufReader, Write as _};
+    use std::os::unix::net::UnixStream;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    // The first byte is ready immediately, but later bytes arrive just before
+    // each per-read timeout. A bounded frame must not wait for the terminator.
+    for waiting in [false, true] {
+        let pair = UnixStream::pair().expect("synthetic CDP pair");
+        let (mut writer, reader) = pair;
+        writer.write_all(b"x").expect("write first frame byte");
+        reader
+            .set_read_timeout(Some(Duration::from_millis(100)))
+            .expect("set synthetic read timeout");
+        let producer = thread::spawn(move || {
+            for _part in 0..15u8 {
+                thread::sleep(Duration::from_millis(20));
+                if writer.write_all(b"x").is_err() {
+                    return;
+                }
+            }
+            let _ignored = writer.write_all(&[0]);
+        });
+        let mut input = BufReader::new(reader);
+        let start = Instant::now();
+        let outcome = if waiting {
+            read_frame_waiting(&mut input).map(|_frame| ())
+        } else {
+            read_frame(&mut input).map(|_frame| ())
+        };
+        assert_eq!(outcome, Err(BrowserDriverError::PipeIo));
+        assert!(start.elapsed() < Duration::from_secs(1));
+        assert_eq!(
+            input.get_ref().read_timeout().expect("read timeout"),
+            Some(Duration::from_millis(100))
+        );
+        producer.join().expect("reap synthetic stream producer");
+    }
+}

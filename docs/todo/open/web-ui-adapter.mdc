@@ -60,6 +60,11 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- CDP NUL-delimited frame readers now apply an absolute timeout per frame,
+  based on the active socket wait budget. Partial data arriving just before
+  each syscall timeout cannot keep a command or passive event capture alive
+  indefinitely; the socket timeout is restored before subsequent cleanup.
+  Synthetic slow-drip pipe tests cover both ordinary and passive readers.
 - Visible-login Chromium runs with stdin, stdout, and stderr detached from
   the invoking CLI. A synthetic fake-browser process confirms a child cannot
   read piped CLI input or inject its diagnostics into captured CLI channels.

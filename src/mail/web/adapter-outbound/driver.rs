@@ -4301,77 +4301,129 @@ fn spawn_browser(
     Err(BrowserDriverError::BrowserLaunch)
 }
 
+// Treat one NUL-delimited frame as one bounded operation. A peer that keeps
+// sending partial bytes just before every socket timeout must not extend the
+// wall-clock budget indefinitely. Restore the caller's socket timeout even on
+// a framing error, so later cleanup uses its original deadline.
+fn with_frame_deadline<T>(
+    reader: &mut BufReader<UnixStream>,
+    // jig-ignore-next-line: canonical rustfmt bounded-frame closure signature.
+    read: impl FnOnce(&mut BufReader<UnixStream>, Instant) -> Result<T, BrowserDriverError>,
+) -> Result<T, BrowserDriverError> {
+    let previous = reader
+        .get_ref()
+        .read_timeout()
+        .map_err(|_error| BrowserDriverError::PipeIo)?;
+    let limit = previous.unwrap_or(PIPE_TIMEOUT);
+    let deadline = Instant::now()
+        .checked_add(limit)
+        .ok_or(BrowserDriverError::PipeIo)?;
+    let result = read(reader, deadline);
+    reader
+        .get_ref()
+        .set_read_timeout(previous)
+        .map_err(|_error| BrowserDriverError::PipeIo)?;
+    result
+}
+
+fn arm_frame_deadline(
+    reader: &BufReader<UnixStream>,
+    deadline: Instant,
+) -> Result<(), BrowserDriverError> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(BrowserDriverError::PipeIo);
+    }
+    reader
+        .get_ref()
+        .set_read_timeout(Some(remaining))
+        .map_err(|_error| BrowserDriverError::PipeIo)
+}
+
 fn read_frame_waiting(
     reader: &mut BufReader<UnixStream>,
 ) -> Result<Option<Vec<u8>>, BrowserDriverError> {
-    let mut frame = Vec::new();
-    loop {
-        let available = match reader.fill_buf() {
-            Ok(available) => available,
-            Err(error)
-                if frame.is_empty()
-                    // jig-ignore-next-line: canonical rustfmt line.
-                    && matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
-            {
-                return Ok(None);
+    with_frame_deadline(reader, |reader, deadline| {
+        let mut frame = Vec::new();
+        loop {
+            if Instant::now() >= deadline {
+                return if frame.is_empty() {
+                    Ok(None)
+                } else {
+                    Err(BrowserDriverError::PipeIo)
+                };
             }
-            Err(_error) => return Err(BrowserDriverError::PipeIo),
-        };
-        if available.is_empty() {
-            return Err(BrowserDriverError::PipeIo);
+            arm_frame_deadline(reader, deadline)?;
+            let available = match reader.fill_buf() {
+                Ok(available) => available,
+                Err(error)
+                    if frame.is_empty()
+                        // jig-ignore-next-line: canonical rustfmt line.
+                        && matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
+                {
+                    return Ok(None);
+                }
+                Err(_error) => return Err(BrowserDriverError::PipeIo),
+            };
+            if available.is_empty() {
+                return Err(BrowserDriverError::PipeIo);
+            }
+            let terminator = available.iter().position(|byte| *byte == 0);
+            let payload = terminator.unwrap_or(available.len());
+            let total = frame
+                .len()
+                .checked_add(payload)
+                .ok_or(BrowserDriverError::Protocol)?;
+            if total > MAX_FRAME_BYTES {
+                return Err(BrowserDriverError::Protocol);
+            }
+            frame.extend_from_slice(&available[..payload]);
+            let consumed = if terminator.is_some() {
+                payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
+            } else {
+                payload
+            };
+            reader.consume(consumed);
+            if terminator.is_some() {
+                return Ok(Some(frame));
+            }
         }
-        let terminator = available.iter().position(|byte| *byte == 0);
-        let payload = terminator.unwrap_or(available.len());
-        let total = frame
-            .len()
-            .checked_add(payload)
-            .ok_or(BrowserDriverError::Protocol)?;
-        if total > MAX_FRAME_BYTES {
-            return Err(BrowserDriverError::Protocol);
-        }
-        frame.extend_from_slice(&available[..payload]);
-        let consumed = if terminator.is_some() {
-            payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
-        } else {
-            payload
-        };
-        reader.consume(consumed);
-        if terminator.is_some() {
-            return Ok(Some(frame));
-        }
-    }
+    })
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
 fn read_frame(reader: &mut BufReader<UnixStream>) -> Result<Vec<u8>, BrowserDriverError> {
-    let mut frame = Vec::new();
-    loop {
-        let available = reader
-            .fill_buf()
-            .map_err(|_error| BrowserDriverError::PipeIo)?;
-        if available.is_empty() {
-            return Err(BrowserDriverError::PipeIo);
+    with_frame_deadline(reader, |reader, deadline| {
+        let mut frame = Vec::new();
+        loop {
+            arm_frame_deadline(reader, deadline)?;
+            let available = reader
+                .fill_buf()
+                .map_err(|_error| BrowserDriverError::PipeIo)?;
+            if available.is_empty() {
+                return Err(BrowserDriverError::PipeIo);
+            }
+            let terminator = available.iter().position(|byte| *byte == 0);
+            let payload = terminator.unwrap_or(available.len());
+            let total = frame
+                .len()
+                .checked_add(payload)
+                .ok_or(BrowserDriverError::Protocol)?;
+            if total > MAX_FRAME_BYTES {
+                return Err(BrowserDriverError::Protocol);
+            }
+            frame.extend_from_slice(&available[..payload]);
+            let consumed = if terminator.is_some() {
+                payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
+            } else {
+                payload
+            };
+            reader.consume(consumed);
+            if terminator.is_some() {
+                return Ok(frame);
+            }
         }
-        let terminator = available.iter().position(|byte| *byte == 0);
-        let payload = terminator.unwrap_or(available.len());
-        let total = frame
-            .len()
-            .checked_add(payload)
-            .ok_or(BrowserDriverError::Protocol)?;
-        if total > MAX_FRAME_BYTES {
-            return Err(BrowserDriverError::Protocol);
-        }
-        frame.extend_from_slice(&available[..payload]);
-        let consumed = if terminator.is_some() {
-            payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
-        } else {
-            payload
-        };
-        reader.consume(consumed);
-        if terminator.is_some() {
-            return Ok(frame);
-        }
-    }
+    })
 }
 
 // Browser process commands and flattened target-session commands have
