@@ -1307,6 +1307,7 @@ fn malformed_cdp_result_shapes_never_enable_network_capture() {
         ("string-result", "\"ok\""),
         ("boolean-result", "true"),
         ("numeric-result", "17"),
+        ("extra-result-field", r#"{"unexpected":true}"#),
     ] {
         let root = test_root(label);
         fs::create_dir_all(&root).expect("create test-only CDP profile");
@@ -1511,6 +1512,32 @@ fn malformed_cdp_provider_target_ids_never_become_page_handles() {
         drop(managed);
         cleanup(&root);
     }
+}
+
+#[test]
+fn unexpected_attached_session_result_fields_cannot_authorize_origin() {
+    let root = test_root("attach-result-extra-field");
+    fs::create_dir_all(&root).expect("create synthetic profile");
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let script = fs::read_to_string(&browser).expect("read fake browser");
+    let reply = r#""result":{"sessionId":"session-1"}"#;
+    assert!(script.contains(reply));
+    let invalid = r#""result":{"sessionId":"session-1","extra":true}"#;
+    install_script(&browser, script.replacen(reply, invalid, 1))
+        .expect("inject extra attach result field");
+    let browser_plan = plan(&root, &browser);
+    let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = driver.provider_page().expect("discover Mail page");
+    assert_eq!(
+        driver.verify_provider_origin(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    drop(driver);
+    cleanup(&root);
 }
 
 #[test]

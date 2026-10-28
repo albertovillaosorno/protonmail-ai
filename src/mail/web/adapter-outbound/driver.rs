@@ -3586,12 +3586,16 @@ impl ManagedBrowser {
             let result = message
                 .get("result")
                 .filter(|result| result.is_object())
-                .cloned()
                 .ok_or(BrowserDriverError::Protocol)?;
+            // Void commands and target attachment have exact result shapes.
+            // An extension field must not acknowledge a browser action.
+            if !valid_cdp_command_result(method, result) {
+                return Err(BrowserDriverError::Protocol);
+            }
             if let Some(error) = observation_error {
                 return Err(error);
             }
-            return Ok(result);
+            return Ok(result.clone());
         }
         Err(BrowserDriverError::Protocol)
     }
@@ -4470,6 +4474,30 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
                     && fields.get("ignoreCache").and_then(Value::as_bool) == Some(false))
         }
         _ => false,
+    }
+}
+
+// Validate method-specific result authority, separate from the CDP envelope.
+// Requests that return no data cannot authorize follow-on work through an
+// unfamiliar response shape. Attach supplies exactly one session handle.
+fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
+    let Some(fields) = result.as_object() else {
+        return false;
+    };
+    match method {
+        "Target.attachToTarget" => {
+            fields.len() == 1
+                && fields
+                    .get("sessionId")
+                    .and_then(Value::as_str)
+                    .is_some_and(safe_cdp_endpoint_id)
+        }
+        "Browser.close"
+        | "Target.detachFromTarget"
+        | "Network.enable"
+        | "Network.disable"
+        | "Page.reload" => fields.is_empty(),
+        _ => true,
     }
 }
 

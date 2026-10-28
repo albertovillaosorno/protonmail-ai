@@ -1464,3 +1464,10 @@ web application without requiring Bridge or a third-party direct API identity.
   that a `string`-typed response carrying an object previously authorized
   a Mail page. Contradictory, unknown and malformed types fail closed;
   existing fixtures omitting the optional type stay compatible.
+
+- CDP command replies now validate the method-specific result body as well
+  as the outer envelope. `Target.attachToTarget` returns exactly one safe
+  session handle; `Network.enable`/`disable`, `Page.reload`, browser close,
+  and target detach require empty result objects. Red-first synthetic tests
+  proved extra nested fields previously authorized a trusted page and a
+  passive Network capture; the latter still disables Network on rejection.
