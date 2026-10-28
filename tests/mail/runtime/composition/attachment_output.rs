@@ -56,6 +56,11 @@ fn prepare_root(label: &str) -> PathBuf {
     root
 }
 
+fn set_fixture_mode(path: &Path, mode: u32) {
+    fs::set_permissions(path, fs::Permissions::from_mode(mode))
+        .expect("set synthetic directory permissions");
+}
+
 fn relative(value: &str) -> AttachmentRelativePath {
     AttachmentRelativePath::new(value).expect("valid synthetic relative path")
 }
@@ -129,6 +134,52 @@ fn opened_root_fd_ignores_later_path_replacement_with_symlink() {
     fs::remove_file(&root).expect("remove replacement root symlink");
     cleanup(&moved);
     cleanup(&outside);
+}
+
+#[test]
+fn shared_writable_parent_above_output_root_is_rejected() {
+    for mode in [0o770u32, 0o777u32] {
+        let container = test_root(&format!("outer-ancestor-{mode}"));
+        let shared = container.join("shared");
+        let root = shared.join("private-output-root");
+        fs::create_dir_all(&root).expect("create private output root");
+        set_fixture_mode(&root, 0o700);
+        set_fixture_mode(&shared, mode);
+        let attempted = AttachmentFileOutputRoot::open(&root);
+        let expected = Some(AttachmentFileOutputError::UnsafeRoot);
+        assert_eq!(attempted.err(), expected);
+        assert!(!root.join("output.bin").exists());
+        assert_eq!(
+            fs::metadata(&shared)
+                .expect("parent remains")
+                .permissions()
+                .mode()
+                & 0o777,
+            mode,
+        );
+        cleanup(&container);
+    }
+}
+
+#[test]
+fn sticky_parent_above_private_output_root_is_trusted() {
+    let container = test_root("outer-sticky-parent");
+    let sticky = container.join("sticky");
+    let root = sticky.join("private-output-root");
+    fs::create_dir_all(&root).expect("create private output root");
+    set_fixture_mode(&root, 0o700);
+    fs::set_permissions(&sticky, fs::Permissions::from_mode(0o1777))
+        .expect("set trusted sticky parent");
+    let output = AttachmentFileOutputRoot::open(&root)
+        .expect("sticky parent permits caller-owned private root");
+    output
+        .write_no_overwrite(&relative("output.bin"), b"safe", 64)
+        .expect("write under sticky ancestor");
+    assert_eq!(
+        fs::read(root.join("output.bin")).expect("read output"),
+        b"safe"
+    );
+    cleanup(&container);
 }
 
 #[test]

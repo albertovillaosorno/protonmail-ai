@@ -470,3 +470,10 @@ Ship useful read access before any mailbox mutation is enabled.
   the second trim, an originally internal character could become a terminal
   nonportable alias at the 255-byte boundary. Red-first synthetic cases for
   `CON`, `LPT1`, and `NUL` prove the previously exposed suffix is removed.
+
+- Explicit attachment output roots now validate each held absolute-path
+  ancestor before descending into the requested root. A private 0700 output
+  root beneath a non-sticky shared-writable parent could previously be
+  renamed by another local account even though nested output checks passed.
+  A red-first regression proves 0770/0777 parents are rejected before output;
+  trusted sticky directories, such as `/tmp`, remain compatible.

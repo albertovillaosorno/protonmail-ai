@@ -43,7 +43,7 @@ use mail_capability_domain::AttachmentRelativePath;
 use nix::errno::Errno;
 use nix::fcntl::{AtFlags, OFlag, open, openat};
 use nix::sys::stat::{Mode, fstat};
-use nix::unistd::{UnlinkatFlags, dup, linkat, unlinkat};
+use nix::unistd::{UnlinkatFlags, dup, geteuid, linkat, unlinkat};
 
 const MAX_PARTIAL_NAME_ATTEMPTS: usize = 16;
 
@@ -70,6 +70,10 @@ impl AttachmentFileOutputRoot {
             match component {
                 Component::RootDir | Component::CurDir => {}
                 Component::Normal(name) => {
+                    // A private output root is replaceable if one of its
+                    // absolute-path ancestors is owned by an untrusted user
+                    // or is shared-writable without a sticky-entry guard.
+                    require_trusted_root_ancestor(&directory)?;
                     directory = openat(
                         &directory,
                         Path::new(name),
@@ -244,6 +248,23 @@ pub enum AttachmentFileOutputError {
     CleanupFailed,
     /// The final path committed, but the partial hard link remained.
     PostCommitCleanupFailed,
+}
+
+// Check the directory that owns the next absolute path component. A sticky
+// directory owned by this account or root prevents another local account from
+// moving our entry. Other shared-writable or foreign-owned parents are unsafe.
+// jig-ignore-next-line: canonical rustfmt function signature.
+fn require_trusted_root_ancestor(directory: &OwnedFd) -> Result<(), AttachmentFileOutputError> {
+    let state = fstat(directory);
+    let state = state.map_err(|_error| AttachmentFileOutputError::UnsafeRoot)?;
+    let uid = geteuid().as_raw();
+    let foreign_owner = state.st_uid != uid && state.st_uid != 0;
+    let shared_write = state.st_mode & 0o022 != 0;
+    let sticky = state.st_mode & 0o1000 != 0;
+    if foreign_owner || (shared_write && !sticky) {
+        return Err(AttachmentFileOutputError::UnsafeRoot);
+    }
+    Ok(())
 }
 
 // jig-ignore-next-line: canonical rustfmt function signature.
