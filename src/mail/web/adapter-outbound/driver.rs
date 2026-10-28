@@ -3548,11 +3548,16 @@ impl ManagedBrowser {
                     observed == Some(expected)
                 },
             );
-            if response_id != id
-                || !matching_reply_session
-                || message.get("method").is_some()
-                || message.get("params").is_some()
-            {
+            // CDP command replies have no extension fields. An otherwise
+            // plausible reply with extra keys cannot prove command success.
+            let reply = message.as_object();
+            let reply_fields = reply.ok_or(BrowserDriverError::Protocol)?;
+            let allowed_reply_fields = ["id", "sessionId", "result", "error"];
+            let unexpected_reply_field = reply_fields
+                .keys()
+                .any(|field| !allowed_reply_fields.contains(&field.as_str()));
+            let same_reply = response_id == id && matching_reply_session;
+            if !same_reply || unexpected_reply_field {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
             }

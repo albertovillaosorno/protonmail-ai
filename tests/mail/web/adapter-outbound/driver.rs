@@ -1666,6 +1666,46 @@ fn browser_scoped_handshake_rejects_attached_session_reply() {
 }
 
 #[test]
+fn unexpected_cdp_reply_envelope_field_cannot_spoof_enable() {
+    let root = test_root("extra-reply-field");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read fixture");
+    let reply = SESSION_EMPTY_REPLY;
+    assert!(script.contains(reply));
+    let extra_reply = concat!(
+        "      printf '{\"id\":%s,\"sessionId\":\"session-1\",",
+        "\"result\":{},\"unexpected\":\"private\"}\\0' \"$id\" >&4"
+    );
+    let injected = format!("{extra_reply}\n{reply}");
+    install_script(&browser, script.replacen(reply, &injected, 1))
+        .expect("inject unexpected reply field ahead of valid response");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = managed.provider_page().expect("select Mail page");
+    assert_eq!(
+        managed.observe_message_list_response(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    managed.require_mail_shell(&page).expect("drained reply");
+    drop(managed);
+    let log = fs::read_to_string(root.join("network-log.txt")).expect("audit");
+    assert_eq!(log, "enable\ndisable\n");
+    cleanup(&root);
+}
+
+#[test]
 fn absent_session_reply_cannot_spoof_an_attached_command() {
     let root = test_root("missing-session-reply");
     fs::create_dir_all(&root).expect("create isolated synthetic profile");
