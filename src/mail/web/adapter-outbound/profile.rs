@@ -44,7 +44,7 @@ use nix::fcntl::{OFlag, open, openat};
 use nix::sys::stat::{Mode, mkdirat};
 use nix::unistd::geteuid;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::lease::AutomationProfileLease;
 
@@ -185,6 +185,11 @@ impl WebLoginPlan {
             .arg("--no-first-run")
             .arg("--no-default-browser-check")
             .arg(MAIL_URL)
+            // A visible browser must never inherit caller input or write its
+            // own diagnostics into human CLI / future transport channels.
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .spawn()
             .map_err(|error| browser_error(&self.browser, error))?;
         Ok(())

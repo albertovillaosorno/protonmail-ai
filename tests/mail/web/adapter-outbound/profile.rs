@@ -33,9 +33,10 @@
 
 use std::env;
 use std::fs;
+use std::io::Write as _;
 use std::os::unix::fs::{PermissionsExt as _, symlink};
 use std::path::{Path, PathBuf};
-use std::process::{self, Command, Output};
+use std::process::{self, Command, Output, Stdio};
 use std::thread;
 use std::time::Duration;
 
@@ -93,15 +94,20 @@ fn login_without_override(root: &Path, path_env: &Path, xdg: &Path) -> Output {
         .expect("execute auth login")
 }
 
-fn wait_for_args(root: &Path) -> String {
+fn wait_for_args_bytes(root: &Path) -> Vec<u8> {
     let path = root.join("browser-args.txt");
     for _attempt in 0..100u8 {
-        if let Ok(value) = fs::read_to_string(&path) {
+        if let Ok(value) = fs::read(&path) {
             return value;
         }
         thread::sleep(Duration::from_millis(10));
     }
     panic!("fake browser did not record arguments");
+}
+
+fn wait_for_args(root: &Path) -> String {
+    let bytes = wait_for_args_bytes(root);
+    String::from_utf8(bytes).expect("UTF-8 browser arguments")
 }
 
 fn profile_under(data_home: &Path) -> PathBuf {
@@ -133,6 +139,61 @@ fn xdg_login_uses_dedicated_private_profile() {
     assert!(!args.contains("password"));
     assert!(!args.contains("captcha"));
     assert!(!args.contains("cookie"));
+    cleanup(&root);
+}
+
+#[test]
+fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
+    let root = test_root("browser-stdio");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    fs::write(
+        &browser,
+        concat!(
+            "#!/bin/sh\n",
+            "printf '%s\\n' \"$@\" > \"$PROTONMAIL_AI_TEST_ARGS\"\n",
+            "IFS= read -r line || :\n",
+            "printf '%s' \"$line\" > \"$PROTONMAIL_AI_TEST_STDIN\"\n",
+            "printf 'browser-stdout-private-marker\\n'\n",
+            "printf 'browser-stderr-private-marker\\n' >&2\n",
+        ),
+    )
+    .expect("replace synthetic browser script");
+    let stdin_capture = root.join("browser-stdin.txt");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["auth", "login"])
+        .env("PROTONMAIL_AI_BROWSER", &browser)
+        .env(LOGIN_ARGS_FILE, root.join("browser-args.txt"))
+        .env("PROTONMAIL_AI_TEST_STDIN", &stdin_capture)
+        .env("HOME", root.join("home"))
+        .env("XDG_DATA_HOME", root.join("xdg-data"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn synthetic login CLI");
+    child
+        .stdin
+        .take()
+        .expect("CLI stdin pipe")
+        .write_all(b"browser-stdin-private-marker\n")
+        .expect("send synthetic CLI input");
+    let output = child.wait_with_output().expect("collect CLI output");
+    assert!(output.status.success());
+    wait_for_args(&root);
+    let mut captured = None;
+    for _attempt in 0..100u8 {
+        if let Ok(text) = fs::read_to_string(&stdin_capture) {
+            captured = Some(text);
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(captured.as_deref(), Some(""), "browser must receive EOF");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 CLI stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 CLI stderr");
+    assert!(!stdout.contains("browser-stdout-private-marker"));
+    assert!(!stderr.contains("browser-stderr-private-marker"));
     cleanup(&root);
 }
 
@@ -599,7 +660,7 @@ fn non_utf8_data_home_preserves_exact_browser_argument() {
     assert!(profile.is_dir());
     let mut expected = b"--user-data-dir=".to_vec();
     expected.extend_from_slice(profile.as_os_str().as_bytes());
-    let args = fs::read(root.join("browser-args.txt")).expect("browser args");
+    let args = wait_for_args_bytes(&root);
     assert!(
         args.split(|byte| *byte == b'\n')
             .any(|line| line == expected.as_slice())
@@ -656,7 +717,7 @@ fn non_utf8_home_fallback_keeps_exact_profile_bytes() {
     assert!(profile.is_dir());
     let mut expected = b"--user-data-dir=".to_vec();
     expected.extend_from_slice(profile.as_os_str().as_bytes());
-    let args = fs::read(args_file).expect("read recorded argv");
+    let args = wait_for_args_bytes(&root);
     assert!(
         args.split(|byte| *byte == b'\n')
             .any(|line| line == expected.as_slice())

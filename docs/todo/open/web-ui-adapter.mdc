@@ -60,6 +60,9 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- Visible-login Chromium runs with stdin, stdout, and stderr detached from
+  the invoking CLI. A synthetic fake-browser process confirms a child cannot
+  read piped CLI input or inject its diagnostics into captured CLI channels.
 - `protonmail-ai auth login` launches Proton Mail in a fixed, project-owned
   Chromium profile using `--user-data-dir`; it does not attach to a personal
   browser profile or enable remote debugging.
