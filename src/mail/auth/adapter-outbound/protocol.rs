@@ -56,6 +56,11 @@ const GCM_TAG_LEN: usize = 16;
 const FORK_AAD: &[u8] = b"fork";
 const FORK_SELECTOR_LEN: usize = 20;
 const FORK_USER_CODE_LEN: usize = 8;
+// Restrict provider-controlled JSON and ciphertext before allocating parsed
+// authority or invoking AEAD. These bounds apply even without a live adapter.
+const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
+const MAX_ENCRYPTED_PAYLOAD_BYTES: usize = 65_536;
+const MAX_ENCODED_PAYLOAD_BYTES: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3) * 4;
 
 type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 
@@ -308,6 +313,9 @@ impl AnonymousSession {
             return Err(ProtocolError::UnexpectedStatus(status));
         }
 
+        if body.len() > MAX_AUTH_RESPONSE_BYTES {
+            return Err(ProtocolError::ResponseTooLarge);
+        }
         let parsed = serde_json::from_slice::<RawAuth>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
         if raw.user_id.is_some() {
@@ -421,6 +429,9 @@ impl ForkChallenge {
             return Err(ProtocolError::UnexpectedStatus(status));
         }
 
+        if body.len() > MAX_AUTH_RESPONSE_BYTES {
+            return Err(ProtocolError::ResponseTooLarge);
+        }
         let parsed = serde_json::from_slice::<RawChallenge>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
         // Poll selectors are inserted verbatim into one URL path segment.
@@ -509,6 +520,9 @@ impl ForkPoll {
             return Err(ProtocolError::UnexpectedStatus(status));
         }
 
+        if body.len() > MAX_AUTH_RESPONSE_BYTES {
+            return Err(ProtocolError::ResponseTooLarge);
+        }
         let parsed = serde_json::from_slice::<RawForkSession>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
         let user_id = raw.auth.user_id.ok_or(ProtocolError::MissingUserId)?;
@@ -520,6 +534,13 @@ impl ForkPoll {
             return Err(ProtocolError::IncompleteAuthority);
         }
 
+        if raw
+            .payload
+            .as_ref()
+            .is_some_and(|encoded| encoded.len() > MAX_ENCODED_PAYLOAD_BYTES)
+        {
+            return Err(ProtocolError::InvalidEncryptedPayload);
+        }
         let payload = raw
             .payload
             .map(|encoded| STANDARD.decode(encoded))
@@ -710,6 +731,9 @@ impl ForkPayloadDecoder {
         let Some(payload) = payload else {
             return Ok(KeyPassword(Zeroizing::new(String::new())));
         };
+        if payload.len() > MAX_ENCRYPTED_PAYLOAD_BYTES {
+            return Err(ProtocolError::InvalidEncryptedPayload);
+        }
         let plaintext = decrypt_payload(&self.key, payload, version)?;
         let bytes = plaintext.as_slice();
         let parsed = serde_json::from_slice::<RawForkPayload>(bytes);
@@ -723,6 +747,8 @@ impl ForkPayloadDecoder {
 pub enum ProtocolError {
     /// The provider returned a status other than 200 or the pending 422.
     UnexpectedStatus(u16),
+    /// The provider response exceeded the maximum number of input bytes.
+    ResponseTooLarge,
     /// The response body is not the expected JSON shape.
     MalformedJson,
     /// The selector or human-readable code has an invalid shape.
@@ -735,7 +761,7 @@ pub enum ProtocolError {
     IncompleteAuthority,
     /// The encrypted provider payload is not valid base64.
     InvalidPayloadEncoding,
-    /// The encrypted payload cannot contain a nonce and authentication tag.
+    /// The encrypted payload is too short or exceeds the allowed byte size.
     InvalidEncryptedPayload,
     /// AES-GCM authentication failed for both supported payload layouts.
     PayloadAuthenticationFailed,

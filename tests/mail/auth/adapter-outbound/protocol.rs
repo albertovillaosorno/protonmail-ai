@@ -181,6 +181,87 @@ fn challenge_parser_accepts_exact_provider_shape() {
 }
 
 #[test]
+fn session_fork_parsers_bound_provider_response_bodies_before_deserialization() {
+    const MAX_RESPONSE_BYTES: usize = 262_144;
+    let challenge = json!({
+        "Selector":SELECTOR,"UserCode":USER_CODE,"IgnoredPadding":""
+    });
+    let base = challenge.to_string();
+    let padding = "x".repeat(MAX_RESPONSE_BYTES - base.len());
+    let at_limit = json!({
+        "Selector":SELECTOR,"UserCode":USER_CODE,"IgnoredPadding":padding
+    })
+    .to_string();
+    assert_eq!(at_limit.len(), MAX_RESPONSE_BYTES);
+    assert!(ForkChallenge::parse(200, at_limit.as_bytes()).is_ok());
+    let oversized = json!({
+        "Selector":SELECTOR,"UserCode":USER_CODE,
+        "IgnoredPadding":"x".repeat(MAX_RESPONSE_BYTES)
+    })
+    .to_string();
+    assert!(oversized.len() > MAX_RESPONSE_BYTES);
+    assert!(matches!(
+        ForkChallenge::parse(200, oversized.as_bytes()),
+        Err(ProtocolError::ResponseTooLarge)
+    ));
+
+    let bootstrap = json!({
+        "UID":"synthetic-anonymous-uid","UserID":null,
+        "AccessToken":ACCESS_TOKEN,"RefreshToken":REFRESH_TOKEN,
+        "Scopes":["loggedin"],"IgnoredPadding":"x".repeat(MAX_RESPONSE_BYTES)
+    })
+    .to_string();
+    assert!(bootstrap.len() > MAX_RESPONSE_BYTES);
+    assert!(matches!(
+        AnonymousSession::parse(200, bootstrap.as_bytes()),
+        Err(ProtocolError::ResponseTooLarge)
+    ));
+
+    let mut completed: serde_json::Value =
+        serde_json::from_slice(&complete_response(None)).expect("complete fixture");
+    completed["IgnoredPadding"] = json!("x".repeat(MAX_RESPONSE_BYTES));
+    let oversized_fork = completed.to_string();
+    assert!(oversized_fork.len() > MAX_RESPONSE_BYTES);
+    assert!(matches!(
+        ForkPoll::parse(200, oversized_fork.as_bytes()),
+        Err(ProtocolError::ResponseTooLarge)
+    ));
+    assert!(matches!(
+        ForkPoll::parse(422, oversized_fork.as_bytes()),
+        Ok(ForkPoll::Pending)
+    ));
+}
+
+#[test]
+fn completed_poll_refuses_oversized_base64_before_decoding() {
+    let encoded = "A".repeat(87_388);
+    let response = complete_response(Some(&encoded));
+    assert!(response.len() < 262_144);
+    assert!(matches!(
+        ForkPoll::parse(200, &response),
+        Err(ProtocolError::InvalidEncryptedPayload)
+    ));
+}
+
+#[test]
+fn fork_payload_decoder_rejects_oversized_ciphertext_before_authentication() {
+    let decoder = sdk_handoff().into_decoder();
+    let oversized = vec![0xaa; 65_537];
+    for version in [
+        ForkPayloadVersion::V1,
+        ForkPayloadVersion::V2,
+        ForkPayloadVersion::V3,
+    ] {
+        assert_eq!(
+            decoder
+                .decode(Some(&oversized), version)
+                .expect_err("oversized encrypted payload must fail before GCM"),
+            ProtocolError::InvalidEncryptedPayload
+        );
+    }
+}
+
+#[test]
 fn fork_challenge_refuses_selector_url_injection_and_control_bearing_codes() {
     // Selectors are interpolated verbatim into a single provider URL segment.
     // Equal-byte-width bad inputs previously crossed the parser unmodified.

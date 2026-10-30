@@ -95,3 +95,15 @@ account credentials. The primary web UI login remains a separate P1 path.
   characters. Explicitly valid printable base64-style selector/code fixtures
   remain supported. These are parser safety checks, not evidence of live
   provider authentication authorization.
+
+## Bounded auth response parsing
+
+- Red-first synthetic inputs demonstrated that anonymous bootstrap, fork
+  challenge, and completed-fork parsers previously accepted arbitrarily large
+  valid JSON bodies. Those protocol boundaries now reject decoded response
+  bodies above 256 KiB before Serde deserialization and report a typed size
+  failure. The decrypted-fork input has a 64 KiB ciphertext ceiling, and the
+  corresponding base64 payload is rejected before decoding if oversized.
+  An exact-boundary challenge fixture remains valid; HTTP 422 remains pending
+  without parsing a provider body. Full live auth still requires provider
+  approval and transport/store integration.
