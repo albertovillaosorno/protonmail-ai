@@ -38,7 +38,7 @@ use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use serde_json::{Value, json};
+use serde_json::Value;
 use zeroize::Zeroizing;
 
 // jig-ignore-next-line: canonical rustfmt line.
@@ -53,6 +53,17 @@ const MAX_ACCOUNT_BYTES: usize = 512;
 const GENERATION_TAG_CHARS: usize = 32;
 const SNAPSHOT_TAG_CHARS: usize = 32;
 const WEB_ADAPTER_ID: &str = "proton-mail-web-v1";
+
+#[derive(serde::Serialize)]
+struct BorrowedCatalogCursorPayload<'scope> {
+    account: &'scope str,
+    adapter: &'scope str,
+    generation: &'scope str,
+    kind: &'scope str,
+    offset: u64,
+    page_size: u16,
+    snapshot: &'scope str,
+}
 
 /// Per-generation authenticated codec for catalog continuation state.
 #[expect(
@@ -82,17 +93,20 @@ impl WebCatalogCursorCodec {
         validate_catalog_account(account)?;
         let offset = u64::try_from(state.offset())
             .map_err(|_error| WebCatalogCursorCodecError::EncodingFailed)?;
-        let payload = json!({
-            "account": account,
-            "adapter": WEB_ADAPTER_ID,
-            "generation": generation,
-            "kind": state.kind().token_name(),
-            "offset": offset,
-            "page_size": state.page_size(),
-            "snapshot": state.snapshot_boundary(),
-        });
-        let plaintext = serde_json::to_vec(&payload)
-            .map(Zeroizing::new)
+        // Borrow account/snapshot identity rather than leaving duplicate
+        // private strings in an unzeroized JSON Value on heap. Serialize
+        // directly into memory that zeroizes even after a write failure.
+        let payload = BorrowedCatalogCursorPayload {
+            account,
+            adapter: WEB_ADAPTER_ID,
+            generation,
+            kind: state.kind().token_name(),
+            offset,
+            page_size: state.page_size(),
+            snapshot: state.snapshot_boundary(),
+        };
+        let mut plaintext = Zeroizing::new(Vec::new());
+        serde_json::to_writer(&mut *plaintext, &payload)
             .map_err(|_error| WebCatalogCursorCodecError::EncodingFailed)?;
         let mut nonce_bytes = [0u8; CURSOR_NONCE_BYTES];
         getrandom::fill(&mut nonce_bytes)

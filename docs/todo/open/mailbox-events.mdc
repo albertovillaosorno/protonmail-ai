@@ -231,3 +231,9 @@ bounded resource use.
   selectors, each at most once. Unknown, duplicated, or malformed query
   selectors cannot silently change the observed mailbox stream. Red-first
   synthetic parsers reproduce the prior bypass for both event endpoints.
+
+- Event-cursor encryption now serializes a borrowed typed payload directly
+  into a zeroizing byte buffer instead of making unzeroized heap copies of
+  private account identifiers and provider watermarks in a transient JSON
+  Value. Authenticated cursor fields, generation binding, and decoding remain
+  unchanged; existing round-trip/tamper regressions cover compatibility.

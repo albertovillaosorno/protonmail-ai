@@ -41,7 +41,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 // jig-ignore-next-line: canonical rustfmt line.
 use mail_capability_domain::{EventCursorResumeFailure, EventCursorScope, ScopedEventCursor};
-use serde_json::{Value, json};
+use serde_json::Value;
 use zeroize::Zeroizing;
 
 use crate::mailbox_event_watermark::ObservedMailboxEventWatermark;
@@ -51,6 +51,14 @@ const CURSOR_AAD_PREFIX: &[u8] = b"protonmail-ai:web-event-cursor:v1:";
 const CURSOR_KEY_BYTES: usize = 32;
 const CURSOR_NONCE_BYTES: usize = 12;
 const MAX_ENCODED_CURSOR_BYTES: usize = 4096;
+
+#[derive(serde::Serialize)]
+struct BorrowedEventCursorPayload<'scope> {
+    account: &'scope str,
+    adapter: &'scope str,
+    generation: &'scope str,
+    state: &'scope str,
+}
 
 /// Per-generation authenticated cursor codec owned by the managed web adapter.
 #[expect(
@@ -101,14 +109,17 @@ impl WebEventCursorCodec {
         if scope_generation != generation {
             return Err(WebEventCursorCodecError::CursorExpired);
         }
-        let payload = json!({
-            "account": account,
-            "adapter": adapter,
-            "generation": scope_generation,
-            "state": state,
-        });
-        let plaintext = serde_json::to_vec(&payload)
-            .map(Zeroizing::new)
+        // Borrow private identifiers rather than cloning them into an
+        // unzeroized serde_json::Value before encryption. Write directly
+        // into a zeroizing buffer, including on serialization errors.
+        let payload = BorrowedEventCursorPayload {
+            account,
+            adapter,
+            generation: scope_generation,
+            state,
+        };
+        let mut plaintext = Zeroizing::new(Vec::new());
+        serde_json::to_writer(&mut *plaintext, &payload)
             .map_err(|_error| WebEventCursorCodecError::EncodingFailed)?;
         let mut nonce_bytes = [0u8; CURSOR_NONCE_BYTES];
         getrandom::fill(&mut nonce_bytes)

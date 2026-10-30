@@ -1605,3 +1605,8 @@ web application without requiring Bridge or a third-party direct API identity.
   retains its single historical LF exception. Direct synthetic Unicode tests
   and existing per-adapter fixtures lock hidden-control refusal and emoji
   joiner/selector compatibility without expanding the public adapter API.
+
+- Catalog cursor encoding likewise uses borrowed account/snapshot references
+  and serializes directly into a zeroizing plaintext buffer before AES-GCM.
+  This avoids transient ordinary-heap JSON copies of private scope values,
+  including the serialization-error path; cursor decoding is unchanged.
