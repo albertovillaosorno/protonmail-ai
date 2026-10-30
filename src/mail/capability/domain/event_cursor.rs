@@ -31,6 +31,7 @@
 //! Provider-neutral event-cursor scope and binding semantics.
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
+use zeroize::Zeroize as _;
 
 const MAX_CURSOR_SCOPE_COMPONENT_BYTES: usize = 512;
 
@@ -65,7 +66,10 @@ impl EventCursorScope {
 
     /// Binds opaque adapter-owned resume state to this validated scope.
     #[must_use]
-    pub const fn bind<State>(self, state: State) -> ScopedEventCursor<State> {
+    pub const fn bind<State>(self, state: State) -> ScopedEventCursor<State>
+    where
+        State: zeroize::Zeroize,
+    {
         ScopedEventCursor { scope: self, state }
     }
 
@@ -84,6 +88,18 @@ impl EventCursorScope {
     }
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs private account and scope identifiers"
+)]
+impl Drop for EventCursorScope {
+    fn drop(&mut self) {
+        self.account.zeroize();
+        self.adapter.zeroize();
+        self.generation.zeroize();
+    }
+}
+
 impl Debug for EventCursorScope {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("EventCursorScope")
@@ -96,12 +112,18 @@ impl Debug for EventCursorScope {
 
 /// Opaque adapter state bound to one provider-neutral event-cursor scope.
 #[derive(Clone, Eq, PartialEq)]
-pub struct ScopedEventCursor<State> {
+pub struct ScopedEventCursor<State>
+where
+    State: zeroize::Zeroize,
+{
     scope: EventCursorScope,
     state: State,
 }
 
-impl<State> ScopedEventCursor<State> {
+impl<State> ScopedEventCursor<State>
+where
+    State: zeroize::Zeroize,
+{
     /// Releases adapter-owned state only for an exact current scope.
     ///
     /// # Errors
@@ -128,7 +150,23 @@ impl<State> ScopedEventCursor<State> {
     }
 }
 
-impl<State> Debug for ScopedEventCursor<State> {
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs adapter-owned resume state"
+)]
+impl<State> Drop for ScopedEventCursor<State>
+where
+    State: zeroize::Zeroize,
+{
+    fn drop(&mut self) {
+        self.state.zeroize();
+    }
+}
+
+impl<State> Debug for ScopedEventCursor<State>
+where
+    State: zeroize::Zeroize,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("ScopedEventCursor")
             .field("scope", &self.scope)

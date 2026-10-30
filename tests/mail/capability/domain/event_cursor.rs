@@ -31,7 +31,30 @@
 //! Provider-neutral event-cursor binding regression tests.
 
 use mail_capability_domain::EventCursorResumeFailure;
+use mail_capability_domain::ScopedEventCursor;
 use mail_capability_domain::{EventCursorBindingError, EventCursorScope};
+
+#[test]
+fn cursor_scope_and_state_have_drop_time_secret_scrubbing() {
+    // Scope accounts and adapter state are private even when their public
+    // Debug implementations redact them. Both require explicit Drop custody.
+    #[expect(drop_bounds, reason = "require explicit zeroization on drop")]
+    fn require_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    require_drop::<EventCursorScope>();
+    require_drop::<ScopedEventCursor<String>>();
+
+    // jig-ignore-next-line: rustfmt canonical synthetic cursor scope.
+    let scope = EventCursorScope::new("private-account", "web", "generation").expect("valid scope");
+    let cursor = scope.clone().bind(String::from("private-watermark"));
+    assert_eq!(
+        cursor.state_for(&scope).map(String::as_str),
+        Ok("private-watermark")
+    );
+}
 
 #[test]
 fn exact_scope_releases_opaque_adapter_state() {

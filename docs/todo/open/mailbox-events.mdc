@@ -243,3 +243,12 @@ bounded resource use.
   even when later scope validation rejects the cursor. The shared provider
   JSON parser remains unchanged for all other read paths; synthetic duplicate-
   key and recursive scrubber tests exercise the cursor-specific wrapper.
+
+- Provider-neutral event-cursor bindings now scrub account, adapter and
+  generation identifiers when the scope drops. A scoped cursor requires
+  `Zeroize`-capable provider state and clears it on drop, so the current
+  string-backed event watermark no longer remains in a discarded heap
+  allocation. Red-first compile-time tests showed neither public cursor type
+  implemented a drop-time scrub contract; synthetic scope, resume and Debug
+  regressions retain their previous behavior. This does not clear caller-owned
+  copies or authenticate event cursors by itself.
