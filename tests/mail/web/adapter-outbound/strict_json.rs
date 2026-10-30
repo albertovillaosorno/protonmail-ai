@@ -30,8 +30,31 @@
 
 //! Offline typed JSON decoding coverage.
 
-use super::{from_sensitive_slice, from_slice, from_str, zeroize_json_strings};
+use super::{StrictValue, from_sensitive_slice, from_slice};
+use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
+
+#[test]
+fn incomplete_strict_json_trees_have_explicit_scrub_on_drop() {
+    // On duplicate or malformed nested fields, this wrapper is destroyed
+    // before a successful cursor-level SensitiveValue can own the strings.
+    #[expect(drop_bounds, reason = "require explicit scrub-on-drop")]
+    fn require_scrubbed_intermediate<T>()
+    where
+        T: Drop,
+    {
+    }
+    require_scrubbed_intermediate::<StrictValue>();
+
+    for text in [
+        r#"{"account":"sensitive-account","account":"duplicate"}"#,
+        r#"{"account":"sensitive-account","child":{"x":1,"x":2}}"#,
+        r#"["secret-watermark",{"ok":true,"unfinished":]"#,
+        r#"{"account":"sensitive-account","child":["secret",{"k":1,"k":2}]}"#,
+    ] {
+        assert!(from_sensitive_slice(text.as_bytes()).is_err());
+    }
+}
 
 #[test]
 fn strict_decoder_preserves_valid_value_types() {

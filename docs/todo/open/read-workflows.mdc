@@ -564,3 +564,13 @@ Ship useful read access before any mailbox mutation is enabled.
   protocol error, drains the authentic command reply and disables Network.
   Subsequent same-session shell inspection remains possible. This closes the
   remaining web-adapter raw `Value` JSON decoding exception.
+
+- The recursive strict JSON visitor now scrubs partial decoded strings and
+  object keys on parser failure, including duplicate nested keys and malformed
+  nested arrays. Previously an error inside a partly populated map/array
+  destroyed plain `Value` strings before the authenticated cursor's outer
+  `SensitiveValue` could own them. Intermediate `StrictValue` containers now
+  implement `Drop` and transfer completed children through `take`; a red-first
+  compile-time ownership test and malformed/duplicate synthetic inputs cover
+  this early-failure path. Provider JSON values returned successfully to
+  non-cursor read projectors retain their existing ownership semantics.

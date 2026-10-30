@@ -41,12 +41,14 @@ use zeroize::Zeroize as _;
 
 #[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
 pub(crate) fn from_str(input: &str) -> Result<Value, serde_json::Error> {
-    serde_json::from_str::<StrictValue>(input).map(|value| value.0)
+    let mut value = serde_json::from_str::<StrictValue>(input)?;
+    Ok(take(&mut value.0))
 }
 
 #[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
 pub(crate) fn from_slice(input: &[u8]) -> Result<Value, serde_json::Error> {
-    serde_json::from_slice::<StrictValue>(input).map(|value| value.0)
+    let mut value = serde_json::from_slice::<StrictValue>(input)?;
+    Ok(take(&mut value.0))
 }
 
 // AES cursor decoding uses the same strict duplicate-key rejection, but its
@@ -101,7 +103,19 @@ fn zeroize_json_strings(value: &mut Value) {
     }
 }
 
+// Every partially decoded tree must scrub owned strings if Serde aborts
+// before the successful outer cursor can create its SensitiveValue guard.
 struct StrictValue(Value);
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the only explicit destructor contract"
+)]
+impl Drop for StrictValue {
+    fn drop(&mut self) {
+        zeroize_json_strings(&mut self.0);
+    }
+}
 
 #[expect(
     clippy::inline_trait_bounds,
@@ -177,24 +191,29 @@ impl<'de> Deserialize<'de> for StrictValue {
 
             // jig-ignore-next-line: Serde visitor method signature.
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                let mut values = Vec::new();
-                while let Some(value) = seq.next_element::<StrictValue>()? {
-                    values.push(value.0);
+                let mut values = StrictValue(Value::Array(Vec::new()));
+                while let Some(mut value) = seq.next_element::<StrictValue>()? {
+                    if let Value::Array(items) = &mut values.0 {
+                        items.push(take(&mut value.0));
+                    }
                 }
-                Ok(StrictValue(Value::Array(values)))
+                Ok(values)
             }
 
             // jig-ignore-next-line: Serde visitor method signature.
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-                let mut object = Map::new();
-                // jig-ignore-next-line: Serde visitor method signature.
-                while let Some((key, value)) = map.next_entry::<String, StrictValue>()? {
-                    if object.contains_key(&key) {
-                        return Err(A::Error::custom("duplicate key"));
+                let mut object = StrictValue(Value::Object(Map::new()));
+                // jig-ignore-next-line: canonical Serde map-entry signature.
+                while let Some((mut key, mut value)) = map.next_entry::<String, StrictValue>()? {
+                    if let Value::Object(entries) = &mut object.0 {
+                        if entries.contains_key(&key) {
+                            key.zeroize();
+                            return Err(A::Error::custom("duplicate key"));
+                        }
+                        entries.insert(key, take(&mut value.0));
                     }
-                    object.insert(key, value.0);
                 }
-                Ok(StrictValue(Value::Object(object)))
+                Ok(object)
             }
         }
 
