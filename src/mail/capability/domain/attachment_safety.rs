@@ -34,6 +34,7 @@
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use std::path::{Component, Path, PathBuf};
+use zeroize::Zeroize as _;
 
 use crate::contract_v1::MAX_INLINE_ATTACHMENT_BYTES;
 
@@ -47,6 +48,16 @@ const MAX_RELATIVE_PATH_COMPONENTS: usize = 64;
 /// A single sanitized attachment filename leaf.
 #[derive(Clone, Eq, PartialEq)]
 pub struct SanitizedAttachmentFilename(String);
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for SanitizedAttachmentFilename {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
 
 impl SanitizedAttachmentFilename {
     /// Sanitizes untrusted provider filename metadata into one portable leaf.

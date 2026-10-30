@@ -38,6 +38,17 @@ use mail_capability_domain::{AttachmentPathError, AttachmentRelativePath};
 use std::path::Path;
 
 #[test]
+fn sanitized_filenames_require_scrub_on_drop() {
+    #[expect(drop_bounds, reason = "require private filename custody")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<SanitizedAttachmentFilename>();
+}
+
+#[test]
 fn filename_sanitization_preserves_unicode_but_removes_path_semantics() {
     let untrusted = "../r\u{e9}sum\u{e9}/2026\\final?.pdf";
     let safe = SanitizedAttachmentFilename::new(untrusted);

@@ -44,6 +44,23 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+#[test]
+fn retained_message_detail_fields_require_scrub_on_drop() {
+    use mail_web_adapter::ObservedAttachmentDescriptor;
+    use mail_web_adapter::ObservedMessageDetail;
+    use mail_web_adapter::ObservedMessageRecipient;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedMessageRecipient>();
+    requires_scrub_on_drop::<ObservedAttachmentDescriptor>();
+    requires_scrub_on_drop::<ObservedMessageDetail>();
+}
+
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_URL: &str = "https://mail.proton.me/api/mail/v4/messages/message-1";
 

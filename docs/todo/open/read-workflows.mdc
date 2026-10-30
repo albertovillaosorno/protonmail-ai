@@ -25,6 +25,15 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Retained single-message metadata now erases copied subject, sender/recipient
+  names and addresses, label and identity strings, and original attachment
+  names on drop. The reusable sanitized filename leaf also scrubs its String
+  allocation, including when held inside a message descriptor or attachment
+  output policy. Existing metadata accessors and synthetic compatibility tests
+  remain unchanged; red-first Drop checks establish explicit custody. This
+  covers successfully retained objects, not temporary parsing copies or
+  browser-owned content buffers.
+
 - Full decoded provider response JSON now stays in a `SensitiveValue` guard
   through every bounded read projector, including metadata-only message,
   conversation, attachment, catalog, and event readers. The guard erases

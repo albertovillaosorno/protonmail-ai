@@ -44,6 +44,7 @@ use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_DETAIL_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/messages/";
@@ -306,6 +307,17 @@ pub struct ObservedMessageRecipient {
     address: String,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMessageRecipient {
+    fn drop(&mut self) {
+        self.name.zeroize();
+        self.address.zeroize();
+    }
+}
+
 impl ObservedMessageRecipient {
     /// Returns the provider-supplied recipient display name.
     #[must_use]
@@ -337,6 +349,21 @@ pub struct ObservedAttachmentDescriptor {
     sanitized_name: Option<SanitizedAttachmentFilename>,
     size: Option<u64>,
     mime_type: Option<String>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedAttachmentDescriptor {
+    fn drop(&mut self) {
+        for field in [&mut self.id, &mut self.name, &mut self.mime_type] {
+            if let Some(value) = field.as_mut() {
+                value.zeroize();
+            }
+        }
+        // SanitizedAttachmentFilename erases its own leaf on drop.
+    }
 }
 
 impl ObservedAttachmentDescriptor {
@@ -401,6 +428,23 @@ pub struct ObservedMessageDetail {
     label_ids: Vec<String>,
     mime_type: String,
     attachments: Vec<ObservedAttachmentDescriptor>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMessageDetail {
+    fn drop(&mut self) {
+        self.id.zeroize();
+        self.conversation_id.zeroize();
+        self.subject.zeroize();
+        self.mime_type.zeroize();
+        for id in &mut self.label_ids {
+            id.zeroize();
+        }
+        // Recipient and attachment descriptors scrub their nested values.
+    }
 }
 
 impl ObservedMessageDetail {
