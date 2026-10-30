@@ -451,11 +451,14 @@ impl ForkChallenge {
         let parsed = serde_json::from_slice::<RawChallenge>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
         // Poll selectors are inserted verbatim into one URL path segment.
-        // Reject delimiters, encoded aliases, controls and non-ASCII bytes.
-        let safe_selector = raw.selector.bytes().all(|byte| {
-            let forbidden = matches!(byte, b'/' | b'\\' | b'%' | b'?' | b'#');
-            byte.is_ascii_graphic() && !forbidden
-        });
+        // Permit URL-unreserved bytes and the +/= forms of Base64 only;
+        // other reserved punctuation can be reinterpreted by intermediaries.
+        let allowed_selector_byte = |byte: u8| {
+            let alphanumeric = byte.is_ascii_alphanumeric();
+            let safe_punctuation = b"-_.~+=".contains(&byte);
+            alphanumeric || safe_punctuation
+        };
+        let safe_selector = raw.selector.bytes().all(allowed_selector_byte);
         // Approval codes are passed into a colon-delimited QR payload.
         let safe_code = safe_fork_user_code(&raw.user_code);
         let correct_selector_length = raw.selector.len() == FORK_SELECTOR_LEN;

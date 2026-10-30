@@ -156,3 +156,13 @@ account credentials. The primary web UI login remains a separate P1 path.
   ownership directly without a second wrapper. Synthetic tests confirm the
   path, request framing, and scrub-on-drop type. Callers still must avoid
   deliberately copying the borrowed path into an unprotected allocation.
+
+## Selector reserved-punctuation rejection
+
+- An additional red-first parser test found URI-reserved ASCII (including
+  `;`, `:`, `@`, quote and shell-like metacharacters) could become a literal
+  polling path selector despite its exact 20-byte length. Accept only
+  URL-unreserved ASCII plus Base64 `+` and `=` used by the existing synthetic
+  selector shape; encoded aliases, route delimiters and other reserved syntax
+  remain rejected. This is offline parser hardening, not authority to make
+  provider requests or a claim of live fork compatibility.

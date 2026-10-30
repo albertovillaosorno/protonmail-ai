@@ -289,6 +289,17 @@ fn fork_challenge_refuses_selector_url_injection_and_control_bearing_codes() {
             "unsafe selector should not become a poll URL segment"
         );
     }
+    // Reserved URI punctuation may alter path parameters or be rewritten by
+    // intermediaries despite staying inside an apparent path segment.
+    for bad in ";:@&$!*()'\"<>[]{}|^`,".chars() {
+        let selector = format!("{}{}", "A".repeat(19), bad);
+        let body = json!({"Selector":selector, "UserCode":USER_CODE});
+        assert_eq!(
+            ForkChallenge::parse(200, &body.to_string().into_bytes()),
+            Err(ProtocolError::InvalidChallenge),
+            "reserved selector punctuation should not enter the poll route"
+        );
+    }
     for bad in ['\n', '\r', '\t', ' ', '\0', ':'] {
         let code = format!("ABCDEF{bad}H");
         let body = json!({"Selector":SELECTOR, "UserCode":code});
