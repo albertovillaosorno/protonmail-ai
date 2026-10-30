@@ -132,7 +132,8 @@ impl TargetHandoff {
     pub fn payload(&self) -> HandoffPayload {
         // Both the encoded key and returned QR text must be scrubbed on drop;
         // the original binary handoff key already uses Zeroizing storage.
-        let encoded_secret = Zeroizing::new(STANDARD.encode(self.secret.as_ref()));
+        let encoded_key = STANDARD.encode(self.secret.as_ref());
+        let encoded_secret = Zeroizing::new(encoded_key);
         HandoffPayload(Zeroizing::new(format!(
             "{QR_VERSION}:{}:{}:{SDK_DEFAULT_CLIENT_ID}",
             self.user_code.as_str(),

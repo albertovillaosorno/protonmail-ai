@@ -34,8 +34,6 @@
 
 use std::fmt;
 
-use std::borrow::Cow;
-
 use aes_gcm::aead::consts::{U12, U16};
 use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::aes::Aes256;
@@ -60,7 +58,8 @@ const FORK_USER_CODE_LEN: usize = 8;
 // authority or invoking AEAD. These bounds apply even without a live adapter.
 const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
 const MAX_ENCRYPTED_PAYLOAD_BYTES: usize = 65_536;
-const MAX_ENCODED_PAYLOAD_BYTES: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3) * 4;
+const ENCODED_PAYLOAD_CHUNKS: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3);
+const MAX_ENCODED_PAYLOAD_BYTES: usize = ENCODED_PAYLOAD_CHUNKS * 4;
 
 type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 
@@ -127,7 +126,7 @@ impl ProviderProfile {
     pub const fn sdk_model_bootstrap_request() -> RequestSpec<'static> {
         RequestSpec {
             method: RequestMethod::Post,
-            path: Cow::Borrowed(Self::SESSION_BOOTSTRAP_PATH),
+            path: RequestPath::Static(Self::SESSION_BOOTSTRAP_PATH),
             identity: ProviderRequestIdentity::sdk_model(),
             uid: None,
             bearer: None,
@@ -221,14 +220,31 @@ pub enum RequestMethod {
 /// Secret-aware outbound request specification.
 ///
 /// The specification borrows existing authority instead of copying token text.
-/// The optional serialized body is zeroized when the specification is dropped.
+/// Its optional serialized body and owned selector-scoped path are scrubbed
+/// on drop.
 pub struct RequestSpec<'authority> {
     method: RequestMethod,
-    path: Cow<'authority, str>,
+    path: RequestPath<'authority>,
     identity: ProviderRequestIdentity<'authority>,
     uid: Option<&'authority str>,
     bearer: Option<&'authority str>,
     body: Option<Zeroizing<String>>,
+}
+
+// Keep static public routes borrowed. A selector-bearing poll route is an
+// owned authorization artifact and must scrub its allocation on drop.
+enum RequestPath<'authority> {
+    Static(&'authority str),
+    Sensitive(Zeroizing<String>),
+}
+
+impl RequestPath<'_> {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Static(path) => path,
+            Self::Sensitive(path) => path.as_str(),
+        }
+    }
 }
 
 impl fmt::Debug for RequestSpec<'_> {
@@ -254,7 +270,7 @@ impl RequestSpec<'_> {
     /// Returns the relative provider API path.
     #[must_use]
     pub fn path(&self) -> &str {
-        self.path.as_ref()
+        self.path.as_str()
     }
 
     /// Returns the typed client identity required by the outbound transport.
@@ -284,7 +300,7 @@ impl RequestSpec<'_> {
 
 /// Anonymous provider authority required before allocating a fork challenge.
 pub struct AnonymousSession {
-    uid: String,
+    uid: Zeroizing<String>,
     access_token: SecretText,
     refresh_token: SecretText,
     scopes: Vec<String>,
@@ -329,7 +345,7 @@ impl AnonymousSession {
         }
 
         Ok(Self {
-            uid: raw.uid,
+            uid: Zeroizing::new(raw.uid),
             access_token: SecretText::new(raw.access_token),
             refresh_token: SecretText::new(raw.refresh_token),
             scopes: raw.scopes,
@@ -369,7 +385,7 @@ impl AnonymousSession {
         self.authenticated_request(
             identity,
             RequestMethod::Get,
-            Cow::Borrowed(ProviderProfile::FORK_START_PATH),
+            RequestPath::Static(ProviderProfile::FORK_START_PATH),
         )
     }
 
@@ -380,7 +396,8 @@ impl AnonymousSession {
         identity: ProviderRequestIdentity<'authority>,
         challenge: &ForkChallenge,
     ) -> RequestSpec<'authority> {
-        let path = Cow::Owned(challenge.poll_path());
+        let selector_path = Zeroizing::new(challenge.poll_path());
+        let path = RequestPath::Sensitive(selector_path);
         self.authenticated_request(identity, RequestMethod::Get, path)
     }
 
@@ -388,7 +405,7 @@ impl AnonymousSession {
         &'authority self,
         identity: ProviderRequestIdentity<'authority>,
         method: RequestMethod,
-        path: Cow<'authority, str>,
+        path: RequestPath<'authority>,
     ) -> RequestSpec<'authority> {
         RequestSpec {
             method,
@@ -404,8 +421,8 @@ impl AnonymousSession {
 /// Provider fork challenge returned before the user approves login.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ForkChallenge {
-    selector: String,
-    user_code: String,
+    selector: Zeroizing<String>,
+    user_code: Zeroizing<String>,
 }
 
 impl fmt::Debug for ForkChallenge {
@@ -437,7 +454,8 @@ impl ForkChallenge {
         // Poll selectors are inserted verbatim into one URL path segment.
         // Reject delimiters, encoded aliases, controls and non-ASCII bytes.
         let safe_selector = raw.selector.bytes().all(|byte| {
-            byte.is_ascii_graphic() && !matches!(byte, b'/' | b'\\' | b'%' | b'?' | b'#')
+            let forbidden = matches!(byte, b'/' | b'\\' | b'%' | b'?' | b'#');
+            byte.is_ascii_graphic() && !forbidden
         });
         // Approval codes are passed into a colon-delimited QR payload.
         let safe_code = raw
@@ -453,8 +471,8 @@ impl ForkChallenge {
         }
 
         Ok(Self {
-            selector: raw.selector,
-            user_code: raw.user_code,
+            selector: Zeroizing::new(raw.selector),
+            user_code: Zeroizing::new(raw.user_code),
         })
     }
 
@@ -476,7 +494,7 @@ impl ForkChallenge {
         format!(
             "{}/{selector}",
             ProviderProfile::FORK_START_PATH,
-            selector = self.selector
+            selector = self.selector.as_str()
         )
     }
 }
@@ -549,8 +567,8 @@ impl ForkPoll {
             .map(Zeroizing::new);
 
         Ok(Self::Complete(ForkSession {
-            uid: raw.auth.uid,
-            user_id,
+            uid: Zeroizing::new(raw.auth.uid),
+            user_id: Zeroizing::new(user_id),
             access_token: SecretText::new(raw.auth.access_token),
             refresh_token: SecretText::new(raw.auth.refresh_token),
             scopes: raw.auth.scopes,
@@ -561,8 +579,8 @@ impl ForkPoll {
 
 /// Completed child-session response with secret-bearing fields redacted.
 pub struct ForkSession {
-    uid: String,
-    user_id: String,
+    uid: Zeroizing<String>,
+    user_id: Zeroizing<String>,
     access_token: SecretText,
     refresh_token: SecretText,
     scopes: Vec<String>,
@@ -643,7 +661,7 @@ impl ForkSession {
         };
         Ok(RequestSpec {
             method: RequestMethod::Post,
-            path: Cow::Borrowed(ProviderProfile::REFRESH_PATH),
+            path: RequestPath::Static(ProviderProfile::REFRESH_PATH),
             identity,
             uid: Some(self.uid()),
             bearer: None,
@@ -659,7 +677,7 @@ impl ForkSession {
     ) -> RequestSpec<'authority> {
         RequestSpec {
             method: RequestMethod::Delete,
-            path: Cow::Borrowed(ProviderProfile::LOGOUT_PATH),
+            path: RequestPath::Static(ProviderProfile::LOGOUT_PATH),
             identity,
             uid: Some(self.uid()),
             bearer: Some(self.expose_access_token()),

@@ -181,7 +181,7 @@ fn challenge_parser_accepts_exact_provider_shape() {
 }
 
 #[test]
-fn session_fork_parsers_bound_provider_response_bodies_before_deserialization() {
+fn provider_auth_response_body_size_is_bounded() {
     const MAX_RESPONSE_BYTES: usize = 262_144;
     let challenge = json!({
         "Selector":SELECTOR,"UserCode":USER_CODE,"IgnoredPadding":""
@@ -217,8 +217,9 @@ fn session_fork_parsers_bound_provider_response_bodies_before_deserialization() 
         Err(ProtocolError::ResponseTooLarge)
     ));
 
+    let complete_fixture = complete_response(None);
     let mut completed: serde_json::Value =
-        serde_json::from_slice(&complete_response(None)).expect("complete fixture");
+        serde_json::from_slice(&complete_fixture).expect("complete fixture");
     completed["IgnoredPadding"] = json!("x".repeat(MAX_RESPONSE_BYTES));
     let oversized_fork = completed.to_string();
     assert!(oversized_fork.len() > MAX_RESPONSE_BYTES);
@@ -291,6 +292,21 @@ fn fork_challenge_refuses_selector_url_injection_and_control_bearing_codes() {
         .expect("safe printable opaque selector and approval code");
     assert_eq!(accepted.selector(), selector);
     assert_eq!(accepted.user_code(), "AB-CD_12");
+}
+
+#[test]
+fn cloned_fork_challenge_keeps_selector_scope_without_diagnostic_exposure() {
+    let challenge = challenge();
+    let cloned = challenge.clone();
+    assert_eq!(cloned, challenge);
+    let anonymous = anonymous_session();
+    let poll = anonymous.poll_request(sdk_identity(), &cloned);
+    assert_eq!(poll.path(), challenge.poll_path());
+    assert_eq!(cloned.selector(), SELECTOR);
+    assert_eq!(cloned.user_code(), USER_CODE);
+    let debug = format!("{challenge:?} {cloned:?} {poll:?}");
+    assert!(!debug.contains(SELECTOR));
+    assert!(!debug.contains(USER_CODE));
 }
 
 #[test]

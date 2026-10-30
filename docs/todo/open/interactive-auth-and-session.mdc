@@ -105,8 +105,8 @@ account credentials. The primary web UI login remains a separate P1 path.
   failure. The decrypted-fork input has a 64 KiB ciphertext ceiling, and the
   corresponding base64 payload is rejected before decoding if oversized.
   An exact-boundary challenge fixture remains valid; HTTP 422 remains pending
-  without parsing a provider body. Full live auth still requires provider
-  approval and transport/store integration.
+  without parsing a provider body; live auth still requires provider approval
+  and transport/store integration.
 
 ## Ephemeral handoff text custody
 
@@ -117,3 +117,12 @@ account credentials. The primary web UI login remains a separate P1 path.
   boundary and key transfer into the authenticated decoder are unchanged;
   synthetic ownership and payload-framing tests remain green. This reduces
   residual in-process copies but does not authorize live fork login.
+
+## Ephemeral session identifier custody
+
+- Validated fork selectors and approval codes, anonymous/forked session UIDs,
+  and account-binding user IDs now live in zeroizing owned strings. An owned
+  poll-request path containing a selector is scrubbed when its `RequestSpec`
+  drops; static provider paths remain borrowed. Existing explicit getters,
+  challenge cloning, poll URL framing, and redacted diagnostics are preserved
+  by synthetic tests. This only hardens the offline protocol model.
