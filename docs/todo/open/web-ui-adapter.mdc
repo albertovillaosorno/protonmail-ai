@@ -1572,3 +1572,9 @@ web application without requiring Bridge or a third-party direct API identity.
   Chromium launch. Red-first process tests prove refusal through both a direct
   XDG home and a symlink alias, without changing caller-owned directories;
   ordinary private parents and trusted sticky ancestors remain usable.
+
+- Content-bearing Mail row reads now reject isolated UTF-16 surrogate code
+  units in displayed subject and address attributes before CDP serialization.
+  `TextEncoder` silently replaces malformed surrogates with U+FFFD, so a
+  browser-owned preflight is needed even with Rust-side UTF-8 validation.
+  Red-first Node DOM regressions cover both fields and retain valid emoji.

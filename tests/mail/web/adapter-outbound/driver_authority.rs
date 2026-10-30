@@ -1157,14 +1157,15 @@ for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
  'bidi\\u202eoverride', 'isolate\\u2066mark',
  'zero\\u200bwidth',
  'soft\\u00adhyphen',
- 'bom\\ufeffmark', 'tag\\u{e0001}mark']){
+ 'bom\\ufeffmark', 'tag\\u{e0001}mark',
+ 'unpaired-high\\ud800unit', 'unpaired-low\\udcffunit']){
  subjectValue=invalidText;
  if(eval(script)!==null){throw Error('unsafe subject entered CDP');}
  subjectValue='synthetic subject';addressValue=invalidText;
  if(eval(script)!==null){throw Error('unsafe address entered CDP');}
  addressValue='sender@example.test';
 }
-subjectValue='heart\\u2764\\ufe0f';
+subjectValue='heart\\u2764\\ufe0f and face\\u{1f600}';
 addressValue='Name\\u200cpart <sender@example.test>';
 const rich=eval(script);
 if(rich?.[0]?.subject!==subjectValue||

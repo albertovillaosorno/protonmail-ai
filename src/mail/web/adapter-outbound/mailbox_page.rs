@@ -123,8 +123,11 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const addresses=sender.getAttribute('title');",
     "const bounded=(value,max)=>typeof value==='string'&&",
     "value.length<=max&&new TextEncoder().encode(value).length<=max;",
+    // Reject isolated UTF-16 surrogates before TextEncoder can replace them
+    // with U+FFFD. In Unicode regex mode, valid astral pairs remain intact.
     // Match the Rust content-text guard before anything reaches CDP.
     "const invalidText=/[\\u0000-\\u001f\\u007f-\\u009f",
+    "\\ud800-\\udfff",
     "\\u00ad\\u034f\\u061c\\u115f-\\u1160",
     "\\u0600-\\u0605\\u06dd\\u070f\\u0890-\\u0891\\u08e2",
     "\\u17b4-\\u17b5\\u180e-\\u180f",
