@@ -61,15 +61,15 @@ type HandoffResult<T> = Result<T, HandoffError>;
 
 /// A displayable QR/manual-code handoff payload.
 ///
-/// The value embeds a short-lived encryption key. Call [`Self::expose`] only
-/// at the explicit user-facing handoff boundary.
-pub struct HandoffPayload(String);
+/// The value embeds a short-lived encryption key. Its string is scrubbed on
+/// drop; call [`Self::expose`] only at the explicit user-facing boundary.
+pub struct HandoffPayload(Zeroizing<String>);
 
 impl HandoffPayload {
     /// Exposes the handoff value for QR rendering or deliberate user copy.
     #[must_use]
     pub fn expose(&self) -> &str {
-        &self.0
+        self.0.as_str()
     }
 }
 
@@ -91,7 +91,7 @@ pub enum HandoffError {
 /// Target-side state needed while waiting for the host device to approve login.
 pub struct TargetHandoff {
     secret: Zeroizing<[u8; SECRET_LEN]>,
-    user_code: String,
+    user_code: Zeroizing<String>,
 }
 
 impl TargetHandoff {
@@ -110,7 +110,7 @@ impl TargetHandoff {
     where
         T: Into<String>,
     {
-        let user_code = user_code.into();
+        let user_code = Zeroizing::new(user_code.into());
         if user_code.is_empty()
             || !user_code
                 .bytes()
@@ -130,11 +130,14 @@ impl TargetHandoff {
     /// Returns a redaction-aware QR/manual-code payload.
     #[must_use]
     pub fn payload(&self) -> HandoffPayload {
-        let encoded_secret = STANDARD.encode(self.secret.as_ref());
-        HandoffPayload(format!(
-            "{QR_VERSION}:{}:{encoded_secret}:{SDK_DEFAULT_CLIENT_ID}",
-            self.user_code
-        ))
+        // Both the encoded key and returned QR text must be scrubbed on drop;
+        // the original binary handoff key already uses Zeroizing storage.
+        let encoded_secret = Zeroizing::new(STANDARD.encode(self.secret.as_ref()));
+        HandoffPayload(Zeroizing::new(format!(
+            "{QR_VERSION}:{}:{}:{SDK_DEFAULT_CLIENT_ID}",
+            self.user_code.as_str(),
+            encoded_secret.as_str()
+        )))
     }
 
     /// Consumes the handoff and transfers exclusive key ownership to the

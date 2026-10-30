@@ -107,3 +107,13 @@ account credentials. The primary web UI login remains a separate P1 path.
   An exact-boundary challenge fixture remains valid; HTTP 422 remains pending
   without parsing a provider body. Full live auth still requires provider
   approval and transport/store integration.
+
+## Ephemeral handoff text custody
+
+- The offline QR/manual-code model previously held its base64 handoff key in
+  an ordinary temporary `String` and the resulting secret-bearing payload
+  in another ordinary `String`. Both use `Zeroizing<String>` now, as does the
+  temporary provider approval code owned by `TargetHandoff`. The `expose()`
+  boundary and key transfer into the authenticated decoder are unchanged;
+  synthetic ownership and payload-framing tests remain green. This reduces
+  residual in-process copies but does not authorize live fork login.

@@ -59,6 +59,17 @@ fn sdk_default_identity_never_claims_a_first_party_client() {
 }
 
 #[test]
+fn payload_remains_owned_and_redacted_after_transferring_handoff_key() {
+    let handoff = sdk_handoff();
+    let payload = handoff.payload();
+    let decoder = handoff.into_decoder();
+    assert_eq!(payload.expose().split(':').nth(1), Some("ABCDEFGH"));
+    assert_eq!(payload.expose().split(':').count(), 4);
+    assert_eq!(format!("{payload:?}"), "HandoffPayload([REDACTED])");
+    assert_eq!(format!("{decoder:?}"), "ForkPayloadDecoder([REDACTED])");
+}
+
+#[test]
 fn invalid_user_codes_fail_before_entropy_is_used() {
     assert!(matches!(
         TargetHandoff::new_for_sdk_model(""),
