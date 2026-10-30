@@ -27,6 +27,11 @@ bounded resource use.
 
 ## Additional synthetic lifecycle evidence
 
+- Serialized change-page next-cursor tokens and the managed browser's private
+  generation tag now scrub on drop. Change-page items continue to scrub their
+  normalized provider IDs independently. This narrows bearer-token lifetime
+  without changing authenticated event resume or cancellation behavior.
+
 - Retained bootstrap/poll watermark, normalized change-ID, and accumulated
   event-sequence strings now scrub on drop, including rejected continuations
   and cloned/coalesced changes. Sequence ownership uses explicit `take` when

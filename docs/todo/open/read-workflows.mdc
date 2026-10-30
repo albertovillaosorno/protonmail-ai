@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Opaque encrypted catalog continuation tokens and per-generation snapshot
+  boundary IDs now scrub on drop. Nested catalog items already erase private
+  names and identifiers, and the serialized page maintains its public cursor
+  and entry accessors. Red-first type checks and pagination/resume fixtures
+  retain the existing authenticated, scope-bound cursor behavior.
+
 - Catalog labels/folders and their parents, list row identifiers, exact
   conversation member and parent IDs, and attachment metadata identifiers
   now erase retained strings on drop. Nested item vectors retain explicit

@@ -53,6 +53,19 @@ const URL: &str = concat!(
 );
 
 #[test]
+fn encoded_event_continuation_has_scrub_on_drop_custody() {
+    use mail_web_adapter::SerializedMailboxChangePage;
+
+    #[expect(drop_bounds, reason = "require private cursor scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<SerializedMailboxChangePage>();
+}
+
+#[test]
 fn retained_event_watermarks_and_change_ids_require_drop_custody() {
     use mail_web_adapter::ObservedMailboxChange;
     use mail_web_adapter::ObservedMailboxEventSequence;

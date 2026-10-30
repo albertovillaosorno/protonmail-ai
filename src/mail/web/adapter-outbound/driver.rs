@@ -51,7 +51,7 @@ use mail_capability_domain::EventCursorBindingError;
 use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 use crate::attachment_metadata::AttachmentMetadataNetworkCapture;
 use crate::attachment_metadata::AttachmentMetadataNetworkError;
@@ -268,6 +268,16 @@ impl MailboxEventCancellation {
 #[derive(Clone, Eq, PartialEq)]
 struct WebAdapterGeneration(String);
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for WebAdapterGeneration {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
 impl WebAdapterGeneration {
     fn fresh() -> Result<Self, BrowserDriverError> {
         fresh_web_adapter_tag().map(Self)
@@ -369,6 +379,17 @@ pub struct SerializedMailboxChangePage {
     changes: Vec<ObservedMailboxChange>,
     count_changes: bool,
     next_cursor: String,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for SerializedMailboxChangePage {
+    fn drop(&mut self) {
+        self.next_cursor.zeroize();
+        // Normalized changes scrub their identifiers on drop.
+    }
 }
 
 impl SerializedMailboxChangePage {

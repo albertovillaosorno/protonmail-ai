@@ -31,6 +31,7 @@
 //! Immutable in-memory pagination for captured mailbox and label catalogs.
 
 use std::fmt;
+use zeroize::Zeroize as _;
 
 use mail_capability_domain::contract_v1::{DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE};
 
@@ -76,6 +77,16 @@ pub(crate) struct MailboxCatalogCursorState {
     kind: MailboxCatalogPageKind,
     page_size: u16,
     offset: usize,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for MailboxCatalogCursorState {
+    fn drop(&mut self) {
+        self.snapshot_boundary.zeroize();
+    }
 }
 
 impl MailboxCatalogCursorState {
@@ -136,6 +147,17 @@ pub(crate) struct MailboxCatalogSnapshot {
     boundary: String,
     kind: MailboxCatalogPageKind,
     items: Vec<ObservedMailboxCatalogItem>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for MailboxCatalogSnapshot {
+    fn drop(&mut self) {
+        self.boundary.zeroize();
+        // Item entries scrub their names and identifiers on drop.
+    }
 }
 
 impl MailboxCatalogSnapshot {
@@ -244,6 +266,19 @@ impl MailboxCatalogSnapshotPage {
 pub struct SerializedMailboxCatalogPage {
     items: Vec<ObservedMailboxCatalogItem>,
     next_cursor: Option<String>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for SerializedMailboxCatalogPage {
+    fn drop(&mut self) {
+        if let Some(token) = self.next_cursor.as_mut() {
+            token.zeroize();
+        }
+        // Catalog item entries scrub their names and identifiers on drop.
+    }
 }
 
 impl SerializedMailboxCatalogPage {

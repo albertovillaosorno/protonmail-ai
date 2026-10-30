@@ -95,6 +95,19 @@ fn failed(session: &str, id: &str) -> Value {
 }
 
 #[test]
+fn encoded_catalog_continuation_has_scrub_on_drop_custody() {
+    use mail_web_adapter::SerializedMailboxCatalogPage;
+
+    #[expect(drop_bounds, reason = "require private cursor scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<SerializedMailboxCatalogPage>();
+}
+
+#[test]
 fn retained_mailbox_catalog_values_require_drop_custody() {
     use mail_web_adapter::ObservedMailboxCatalogItem;
 
