@@ -78,6 +78,9 @@ impl ComposeInput {
             subject: None,
             body: None,
         };
+        // Delay any filesystem access until the command can actually produce
+        // a valid compose URL. Rejected flag sets must not inspect body files.
+        let mut body_file: Option<&str> = None;
         let mut index = 0usize;
         while index < args.len() {
             let flag = args.get(index).ok_or(ComposeInputError::MissingValue)?;
@@ -91,12 +94,32 @@ impl ComposeInput {
                 "--subject" => {
                     opt(&mut input.subject, value, "--subject")?;
                 }
-                "--body" => opt(&mut input.body, value, "--body")?,
-                "--body-file" => set_body_file(&mut input.body, value)?,
+                "--body" => {
+                    if body_file.is_some() {
+                        return Err(ComposeInputError::DuplicateFlag("--body"));
+                    }
+                    opt(&mut input.body, value, "--body")?;
+                }
+                "--body-file" => {
+                    if input.body.is_some() || body_file.is_some() {
+                        // jig-ignore-next-line: rustfmt fixed error variant.
+                        return Err(ComposeInputError::DuplicateFlag("--body/--body-file"));
+                    }
+                    if value.is_empty() {
+                        // jig-ignore-next-line: rustfmt fixed error variant.
+                        return Err(ComposeInputError::EmptyValue("--body-file"));
+                    }
+                    body_file = Some(value);
+                }
                 _ => return Err(ComposeInputError::UnknownFlag(flag.clone())),
             }
         }
         input.validate()?;
+        if let Some(path) = body_file {
+            let body = read_body_file(path)?;
+            validate_body(&body)?;
+            input.body = Some(body);
+        }
         Ok(input)
     }
 
@@ -248,18 +271,6 @@ fn opt(dst: &mut Option<String>, val: &str, key: &'static str) -> HResult<()> {
         return Err(ComposeInputError::EmptyValue(key));
     }
     *dst = Some(String::from(val));
-    Ok(())
-}
-
-fn set_body_file(target: &mut Option<String>, path: &str) -> HResult<()> {
-    if target.is_some() {
-        return Err(ComposeInputError::DuplicateFlag("--body/--body-file"));
-    }
-    if path.is_empty() {
-        return Err(ComposeInputError::EmptyValue("--body-file"));
-    }
-    let body = read_body_file(path)?;
-    *target = Some(body);
     Ok(())
 }
 

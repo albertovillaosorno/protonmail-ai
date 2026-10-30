@@ -132,6 +132,55 @@ fn subject_line_break_is_rejected() {
 }
 
 #[test]
+fn rejected_compose_args_do_not_open_body_files() {
+    // /dev/null is not a regular body file. An earlier argument error must
+    // prevail instead of touching a file the rejected command cannot use.
+    for (args, expected) in [
+        (
+            vec!["--body-file", "/dev/null"],
+            ComposeInputError::MissingTo,
+        ),
+        (
+            vec!["--to", "bad address", "--body-file", "/dev/null"],
+            ComposeInputError::InvalidRecipient,
+        ),
+        (
+            vec![
+                "--to",
+                "one@example.test",
+                "--body-file",
+                "/dev/null",
+                "--subject",
+                "first\nsecond",
+            ],
+            ComposeInputError::InvalidSubject,
+        ),
+        (
+            vec![
+                "--to",
+                "one@example.test",
+                "--body-file",
+                "/dev/null",
+                "--subject",
+                "first",
+                "--subject",
+                "second",
+            ],
+            ComposeInputError::DuplicateFlag("--subject"),
+        ),
+    ] {
+        let args = args.into_iter().map(String::from).collect::<Vec<_>>();
+        assert_eq!(ComposeInput::parse(&args), Err(expected));
+    }
+
+    let output = run(&["mail", "compose-url", "--body-file", "/dev/null"]);
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("--to is required"));
+    assert!(!stderr(&output).contains("cannot read body file"));
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
 fn body_file_is_encoded_without_putting_body_in_cli_arguments() {
     let path = body_path("body");
     fs::write(&path, "Hello\nFrom file \u{2615}").expect("write body");

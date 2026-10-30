@@ -133,3 +133,10 @@ to register as a local MCP server.
   scalar, because a lossy-decoded address cannot reliably establish one
   exact destination. Red-first CLI coverage proves To/Cc/Bcc rejection
   without rejecting replacement glyphs in ordinary subject text.
+
+- Human `mail compose-url --body-file` now defers the file open and bounded
+  read until flags and non-body fields pass validation. Previously invalid
+  recipient, missing `--to`, or a later duplicate/invalid subject could read
+  an otherwise unused private file before rejecting the command. Red-first
+  direct parser and CLI regressions prove rejected input fails without the
+  premature read; valid encoded file bodies remain supported.
