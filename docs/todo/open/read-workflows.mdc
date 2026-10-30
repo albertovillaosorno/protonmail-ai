@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- The strict provider/browser JSON decoder no longer exposes ordinary owned
+  response trees in production: both plaintext-text and byte-slice test-only
+  decoders are isolated behind `cfg(test)`. Production receives only a
+  scrub-on-drop `SensitiveValue`, including partial parse failures. Outbound
+  CDP commands now serialize straight into zeroizing frame bytes, covering
+  partial writer failures rather than guarding only successful serialization.
+
 - Opaque encrypted catalog continuation tokens and per-generation snapshot
   boundary IDs now scrub on drop. Nested catalog items already erase private
   names and identifiers, and the serialized page maintains its public cursor

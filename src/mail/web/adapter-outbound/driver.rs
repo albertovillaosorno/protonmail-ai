@@ -4357,9 +4357,11 @@ fn arm_frame_deadline(
 fn encode_cdp_request_frame(
     request: &strict_json::SensitiveValue,
 ) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
-    let bytes = serde_json::to_vec(&**request);
-    let bytes = bytes.map_err(|_error| BrowserDriverError::Protocol)?;
-    let mut frame = Zeroizing::new(bytes);
+    // Serialize directly into guarded bytes. A failed writer must never
+    // release an already-serialized private request prefix as a plain Vec.
+    let mut frame = Zeroizing::new(Vec::new());
+    serde_json::to_writer(&mut *frame, &**request)
+        .map_err(|_error| BrowserDriverError::Protocol)?;
     frame.push(0);
     Ok(frame)
 }

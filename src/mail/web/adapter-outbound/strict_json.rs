@@ -47,8 +47,10 @@ fn from_str(input: &str) -> Result<Value, serde_json::Error> {
     Ok(take(&mut value.0))
 }
 
-#[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
-pub(crate) fn from_slice(input: &[u8]) -> Result<Value, serde_json::Error> {
+// No ordinary full-response decoder is available in production. Unit tests
+// retain this helper to compare strict parsing against Serde Value semantics.
+#[cfg(test)]
+fn from_slice(input: &[u8]) -> Result<Value, serde_json::Error> {
     let mut value = serde_json::from_slice::<StrictValue>(input)?;
     Ok(take(&mut value.0))
 }
@@ -64,7 +66,8 @@ pub(crate) struct SensitiveValue(Value);
 #[expect(clippy::redundant_pub_crate, reason = "cursor-only private JSON guard")]
 // jig-ignore-next-line: rustfmt keeps the private cursor decode signature.
 pub(crate) fn from_sensitive_slice(input: &[u8]) -> Result<SensitiveValue, serde_json::Error> {
-    from_slice(input).map(SensitiveValue)
+    let mut decoded = serde_json::from_slice::<StrictValue>(input)?;
+    Ok(SensitiveValue(take(&mut decoded.0)))
 }
 
 impl SensitiveValue {
