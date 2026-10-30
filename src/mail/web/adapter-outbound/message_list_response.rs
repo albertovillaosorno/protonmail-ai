@@ -708,9 +708,9 @@ impl ObservedMessageListResponse {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(MessageListResponseError::BodyTooLarge);
         }
-        let value: Value =
+        let value =
     // jig-ignore-next-line: canonical rustfmt line.
-            strict_json::from_str(body).map_err(|_error| MessageListResponseError::Malformed)?;
+            strict_json::from_sensitive_slice(body.as_bytes()).map_err(|_error| MessageListResponseError::Malformed)?;
         if value
             .get("Code")
             .is_some_and(|code| code.as_u64() != Some(1000))

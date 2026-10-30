@@ -384,7 +384,7 @@ impl ObservedConversationDetailResponse {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(ConversationDetailResponseError::BodyTooLarge);
         }
-        let value: Value = strict_json::from_str(body)
+        let value = strict_json::from_sensitive_slice(body.as_bytes())
             .map_err(|_error| ConversationDetailResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(ConversationDetailResponseError::ProviderRejected);

@@ -39,8 +39,10 @@ use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Number, Value};
 use zeroize::{Zeroize as _, Zeroizing};
 
-#[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
-pub(crate) fn from_str(input: &str) -> Result<Value, serde_json::Error> {
+// This ordinary-Value decoder is test-only. Production read projectors must
+// hold the full untrusted provider JSON in SensitiveValue until it is dropped.
+#[cfg(test)]
+fn from_str(input: &str) -> Result<Value, serde_json::Error> {
     let mut value = serde_json::from_str::<StrictValue>(input)?;
     Ok(take(&mut value.0))
 }

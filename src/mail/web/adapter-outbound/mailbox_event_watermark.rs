@@ -626,9 +626,9 @@ impl ObservedLatestMailboxEventWatermark {
         if body.len() > MAX_EVENT_BODY_BYTES {
             return Err(MailboxEventWatermarkError::BodyTooLarge);
         }
-        let value: Value =
+        let value =
             // jig-ignore-next-line: canonical rustfmt line.
-            strict_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+            strict_json::from_sensitive_slice(body.as_bytes()).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
         validate_optional_event_code(&value)?;
         let event_id = value
             .get("EventID")
@@ -836,9 +836,9 @@ impl ObservedMailboxEventWatermark {
         if body.len() > MAX_EVENT_BODY_BYTES {
             return Err(MailboxEventWatermarkError::BodyTooLarge);
         }
-        let value: Value =
+        let value =
             // jig-ignore-next-line: canonical rustfmt line.
-            strict_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+            strict_json::from_sensitive_slice(body.as_bytes()).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
         validate_optional_event_code(&value)?;
         let response_event_id = value
             .get("EventID")

@@ -35,6 +35,38 @@ use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
 
 #[test]
+fn full_provider_reply_json_requires_scrub_on_drop_ownership() {
+    use super::SensitiveValue;
+
+    #[expect(drop_bounds, reason = "assert transient JSON erases on drop")]
+    fn require_guarded<T>(_: &T)
+    where
+        T: Drop,
+    {
+    }
+    fn require_value_projection(_: &Value) {}
+    fn require_sensitive_value(_: &SensitiveValue) {}
+
+    // A bounded metadata projector sees the entire raw response, including
+    // encrypted content and unselected provider fields. Those copies must
+    // remain in scrub-on-drop custody until projection finishes or fails.
+    let raw = br#"{"Code":1000,"Message":{"ID":"synthetic-id",
+        "Body":"synthetic-private-body","Header":"synthetic-private-header"}}"#;
+    let parsed = from_sensitive_slice(raw).expect("provider JSON");
+    require_sensitive_value(&parsed);
+    require_guarded(&parsed);
+    require_value_projection(&parsed);
+    assert_eq!(parsed["Message"]["Body"], "synthetic-private-body");
+    assert_eq!(parsed["Message"]["Header"], "synthetic-private-header");
+    drop(parsed);
+
+    // Partial body values are also destroyed by StrictValue when decoding
+    // aborts before a SensitiveValue can be returned.
+    let malformed = br#"{"Body":"synthetic-private","x":]"#;
+    assert!(from_sensitive_slice(malformed).is_err());
+}
+
+#[test]
 fn taking_nested_cdp_reply_values_transfers_guarded_ownership() {
     use super::SensitiveValue;
 
