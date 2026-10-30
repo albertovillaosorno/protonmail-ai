@@ -574,3 +574,13 @@ Ship useful read access before any mailbox mutation is enabled.
   compile-time ownership test and malformed/duplicate synthetic inputs cover
   this early-failure path. Provider JSON values returned successfully to
   non-cursor read projectors retain their existing ownership semantics.
+
+- CDP frame decoding now applies the existing `SensitiveValue` JSON guard to
+  every inbound browser notification and reply in the read-only driver.
+  `Network.requestWillBeSent` can carry Cookie/Authorization headers before
+  a narrow observer discards the event; previously the strict parser returned
+  an ordinary `Value`, leaving those raw decoded strings unzeroized on drop.
+  One private decoding boundary covers all 11 inbound call sites, including
+  invalid or irrelevant events. Red-first typed tests prove the decode guard
+  and strict duplicate refusal; normal returned command result values retain
+  their existing caller-owned representation.

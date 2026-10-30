@@ -1086,9 +1086,7 @@ impl ManagedBrowser {
                 return Err(BrowserDriverError::MailboxCatalogUnavailable);
             }
             let frame = read_frame(&mut self.reader)?;
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
         }
@@ -1885,9 +1883,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::MailboxEventResponseUnavailable);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             if let Some(request_id) =
@@ -1990,9 +1986,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::MailboxEventResponseUnavailable);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             // jig-ignore-next-line: canonical rustfmt line.
@@ -2036,9 +2030,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::MailboxEventResponseUnavailable);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2092,9 +2084,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::MailboxEventResponseUnavailable);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2286,9 +2276,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::ConversationDetailAmbiguous);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2446,9 +2434,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::ConversationListAmbiguous);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2692,9 +2678,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::AttachmentMetadataAmbiguous);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2834,9 +2818,7 @@ impl ManagedBrowser {
             if unsolicited > MAX_UNSOLICITED {
                 return Err(BrowserDriverError::MessageDetailAmbiguous);
             }
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -3111,9 +3093,7 @@ impl ManagedBrowser {
                 return Err(BrowserDriverError::MessageListResponseUnavailable);
             }
             let frame = read_frame(&mut self.reader)?;
-            let message: Value =
-                // jig-ignore-next-line: canonical rustfmt line.
-                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+            let message = decode_cdp_frame(&frame)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -3558,7 +3538,7 @@ impl ManagedBrowser {
             // Invalid JSON still occupies one bounded CDP frame. Remember
             // the protocol failure, but drain the genuine command reply before
             // Network cleanup rather than leaving the pipe out of sync.
-            let Ok(message) = strict_json::from_slice(&frame) else {
+            let Ok(message) = decode_cdp_frame(&frame) else {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
             };
@@ -4340,6 +4320,15 @@ fn arm_frame_deadline(
         .get_ref()
         .set_read_timeout(Some(remaining))
         .map_err(|_error| BrowserDriverError::PipeIo)
+}
+
+// Browser CDP notifications can contain cookies and bearer headers even
+// when the read-only observer retains only metadata. Keep the fully decoded
+// JSON graph scrub-on-drop, including failed validation and irrelevant events.
+// jig-ignore-next-line: canonical strict sensitive decoder signature.
+fn decode_cdp_frame(frame: &[u8]) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
+    let decoded = strict_json::from_sensitive_slice(frame);
+    decoded.map_err(|_error| BrowserDriverError::Protocol)
 }
 
 fn read_frame_waiting(

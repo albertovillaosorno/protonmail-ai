@@ -1902,6 +1902,21 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
 }
 
 #[test]
+fn decoded_cdp_notifications_scrub_parsed_private_fields_on_drop() {
+    use super::decode_cdp_frame;
+    use crate::strict_json::SensitiveValue;
+
+    fn require_scrubbed(_: &SensitiveValue) {}
+    let frame = br#"{"method":"Network.requestWillBeSent","params":{
+        "request":{"headers":{"Cookie":"private-session-cookie"}}}}"#;
+    let parsed = decode_cdp_frame(frame).expect("strict synthetic CDP frame");
+    require_scrubbed(&parsed);
+    let cookie = &parsed["params"]["request"]["headers"]["Cookie"];
+    assert_eq!(cookie, "private-session-cookie");
+    assert!(decode_cdp_frame(br#"{"id":1,"id":2}"#).is_err());
+}
+
+#[test]
 fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
     use super::{read_frame, read_frame_waiting};
     use std::io::{BufReader, Write as _};
