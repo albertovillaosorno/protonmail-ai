@@ -41,18 +41,21 @@ use std::process::ExitCode;
 use mail_capability_domain::planned_capabilities;
 use mail_web_adapter::WebLoginPlan;
 use web_handoff::ComposeInput;
+use zeroize::Zeroizing;
 
 fn main() -> ExitCode {
     // CLI arguments may contain arbitrary Unix bytes. Reject invalid UTF-8
     // without panicking or exposing recipients, bodies, or local file paths.
-    let args = env::args_os()
-        .skip(1)
-        .map(OsString::into_string)
-        .collect::<Result<Vec<_>, _>>();
-    let Ok(args) = args else {
-        eprintln!("invalid command arguments: non-UTF-8 input");
-        return ExitCode::FAILURE;
-    };
+    // Scrub already-converted arguments even if a later argument is not UTF-8.
+    // The deliberate stdout URL is the sole plaintext handoff output.
+    let mut args = Zeroizing::new(Vec::new());
+    for argument in env::args_os().skip(1) {
+        let Ok(argument) = OsString::into_string(argument) else {
+            eprintln!("invalid command arguments: non-UTF-8 input");
+            return ExitCode::FAILURE;
+        };
+        args.push(argument);
+    }
     match args.as_slice() {
         [mode, command] if is_auth_login(mode, command) => web_login(),
         [mode, command, rest @ ..] if is_mail(mode, command) => emit_url(rest),
@@ -92,7 +95,7 @@ fn is_mail(mode: &str, command: &str) -> bool {
 fn emit_url(args: &[String]) -> ExitCode {
     match ComposeInput::parse(args) {
         Ok(input) => {
-            println!("{}", input.web_url());
+            println!("{}", input.web_url().as_str());
             ExitCode::SUCCESS
         }
         Err(error) => {

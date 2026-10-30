@@ -39,6 +39,7 @@ use std::path::{Component, Path};
 
 use nix::fcntl::{OFlag, open, openat};
 use nix::sys::stat::Mode;
+use zeroize::Zeroizing;
 
 const WEB_HANDOFF_PREFIX: &str = "https://mail.proton.me/inbox/#mailto=";
 const MAX_RECIPIENT_FIELD_BYTES: usize = 8_192;
@@ -50,11 +51,11 @@ const HEX: &[u8; 16] = b"0123456789ABCDEF";
 /// Validated input for Proton Mail's web-composer handoff.
 #[derive(Clone, Eq, PartialEq)]
 pub struct ComposeInput {
-    to: String,
-    cc: Option<String>,
-    bcc: Option<String>,
-    subject: Option<String>,
-    body: Option<String>,
+    to: Zeroizing<String>,
+    cc: Option<Zeroizing<String>>,
+    bcc: Option<Zeroizing<String>>,
+    subject: Option<Zeroizing<String>>,
+    body: Option<Zeroizing<String>>,
 }
 
 impl fmt::Debug for ComposeInput {
@@ -72,7 +73,7 @@ impl ComposeInput {
     /// input.
     pub fn parse(args: &[String]) -> Result<Self, ComposeInputError> {
         let mut input = Self {
-            to: String::new(),
+            to: Zeroizing::new(String::new()),
             cc: None,
             bcc: None,
             subject: None,
@@ -111,7 +112,8 @@ impl ComposeInput {
                     }
                     body_file = Some(value);
                 }
-                _ => return Err(ComposeInputError::UnknownFlag(flag.clone())),
+                // jig-ignore-next-line: rustfmt canonical redacted flag branch.
+                _ => return Err(ComposeInputError::UnknownFlag(Zeroizing::new(flag.clone()))),
             }
         }
         input.validate()?;
@@ -125,9 +127,15 @@ impl ComposeInput {
 
     /// Builds the encoded Proton Mail web-composer URL.
     #[must_use]
-    pub fn web_url(&self) -> String {
+    pub fn web_url(&self) -> Zeroizing<String> {
         let mailto = self.mailto_uri();
-        format!("{WEB_HANDOFF_PREFIX}{}", percent_encode(&mailto))
+        let encoded = percent_encode(&mailto);
+        let mut url = Zeroizing::new(String::with_capacity(
+            WEB_HANDOFF_PREFIX.len().saturating_add(encoded.len()),
+        ));
+        url.push_str(WEB_HANDOFF_PREFIX);
+        url.push_str(&encoded);
+        url
     }
 
     fn validate(&self) -> Result<(), ComposeInputError> {
@@ -150,8 +158,8 @@ impl ComposeInput {
         Ok(())
     }
 
-    fn mailto_uri(&self) -> String {
-        let mut value = String::from("mailto:");
+    fn mailto_uri(&self) -> Zeroizing<String> {
+        let mut value = Zeroizing::new(String::from("mailto:"));
         value.push_str(&percent_encode(&self.to));
         let mut separator = '?';
         for (key, item) in [
@@ -184,7 +192,7 @@ pub enum ComposeInputError {
     /// A flag value was explicitly empty.
     EmptyValue(&'static str),
     /// An unsupported CLI flag was provided.
-    UnknownFlag(String),
+    UnknownFlag(Zeroizing<String>),
     /// Recipient text contains an unsafe control or direction marker.
     InvalidRecipient,
     /// Recipient text exceeds the bounded URL handoff size.
@@ -196,7 +204,7 @@ pub enum ComposeInputError {
     /// Body text contains a control byte other than tab or line breaks.
     InvalidBody,
     /// The requested UTF-8 body file could not be read.
-    BodyFileRead(String),
+    BodyFileRead(Zeroizing<String>),
     /// The message body exceeds the web-handoff size bound.
     BodyTooLarge,
 }
@@ -249,7 +257,7 @@ impl fmt::Display for ComposeInputError {
 }
 
 fn set_required(
-    target: &mut String,
+    target: &mut Zeroizing<String>,
     value: &str,
     flag: &'static str,
 ) -> Result<(), ComposeInputError> {
@@ -259,22 +267,23 @@ fn set_required(
     if value.is_empty() {
         return Err(ComposeInputError::EmptyValue(flag));
     }
-    *target = String::from(value);
+    *target = Zeroizing::new(String::from(value));
     Ok(())
 }
 
-fn opt(dst: &mut Option<String>, val: &str, key: &'static str) -> HResult<()> {
+// jig-ignore-next-line: canonical rustfmt private helper signature.
+fn opt(dst: &mut Option<Zeroizing<String>>, val: &str, key: &'static str) -> HResult<()> {
     if dst.is_some() {
         return Err(ComposeInputError::DuplicateFlag(key));
     }
     if val.is_empty() {
         return Err(ComposeInputError::EmptyValue(key));
     }
-    *dst = Some(String::from(val));
+    *dst = Some(Zeroizing::new(String::from(val)));
     Ok(())
 }
 
-fn read_body_file(path: &str) -> HResult<String> {
+fn read_body_file(path: &str) -> HResult<Zeroizing<String>> {
     // A caller-selected path may name a FIFO, device, or symlink to unrelated
     // content. Resolve every directory via no-follow descriptor-relative
     // opens, then inspect the final held inode before reading any bytes.
@@ -283,7 +292,7 @@ fn read_body_file(path: &str) -> HResult<String> {
     if !metadata.is_file() {
         return Err(body_file_error(path));
     }
-    let mut body = String::new();
+    let mut body = Zeroizing::new(String::new());
     file.take(MAX_BODY_READ_BYTES)
         .read_to_string(&mut body)
         .map_err(|_error| body_file_error(path))?;
@@ -333,7 +342,7 @@ fn open_body_file_without_links(path: &str) -> HResult<File> {
 }
 
 fn body_file_error(path: &str) -> ComposeInputError {
-    ComposeInputError::BodyFileRead(String::from(path))
+    ComposeInputError::BodyFileRead(Zeroizing::new(String::from(path)))
 }
 
 fn validate_recipients(value: &str) -> Result<(), ComposeInputError> {
@@ -412,8 +421,8 @@ const fn is_unsupported_body_byte(byte: u8) -> bool {
     byte.is_ascii_control() && !matches!(byte, b'\r' | b'\n' | b'\t')
 }
 
-fn percent_encode(value: &str) -> String {
-    let mut encoded = String::with_capacity(value.len());
+fn percent_encode(value: &str) -> Zeroizing<String> {
+    let mut encoded = Zeroizing::new(String::with_capacity(value.len()));
     for byte in value.bytes() {
         if is_unreserved(byte) {
             encoded.push(char::from(byte));

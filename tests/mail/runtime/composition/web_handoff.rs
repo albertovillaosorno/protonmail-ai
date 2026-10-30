@@ -47,6 +47,7 @@ use nix::unistd::mkfifo;
 pub mod web_handoff;
 
 use web_handoff::{ComposeInput, ComposeInputError};
+use zeroize::Zeroizing;
 
 fn run(args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
@@ -278,6 +279,28 @@ fn oversized_body_file_is_rejected_before_encoding() {
 }
 
 #[test]
+fn generated_composer_url_has_scrub_on_drop_ownership() {
+    // URL content is deliberately exposed by the CLI, but the returned owned
+    // allocation must not remain unzeroized in the composing process.
+    fn require_scrubbed_url(_: &Zeroizing<String>) {}
+
+    let input = ComposeInput::parse(&[
+        "--to".into(),
+        "private-recipient@example.test".into(),
+        "--subject".into(),
+        "private-subject".into(),
+        "--body".into(),
+        "private-body".into(),
+    ])
+    .expect("synthetic composition");
+    let url = input.web_url();
+    require_scrubbed_url(&url);
+    assert!(url.contains("private-recipient%2540example.test"));
+    assert!(url.contains("private-subject"));
+    assert!(url.contains("private-body"));
+}
+
+#[test]
 fn compose_input_and_error_debug_redact_mail_and_path_content() {
     let input = ComposeInput::parse(&[
         "--to".into(),
@@ -297,8 +320,10 @@ fn compose_input_and_error_debug_redact_mail_and_path_content() {
         );
     }
     let errors = [
-        ComposeInputError::BodyFileRead(String::from("secret-path-marker")),
-        ComposeInputError::UnknownFlag(String::from("--secret-flag-marker")),
+        // jig-ignore-next-line: rustfmt preserves clear synthetic path fixture.
+        ComposeInputError::BodyFileRead(Zeroizing::new("secret-path-marker".into())),
+        // jig-ignore-next-line: rustfmt preserves clear synthetic flag fixture.
+        ComposeInputError::UnknownFlag(Zeroizing::new("--secret-flag-marker".into())),
     ];
     for error in errors {
         let debug = format!("{error:?}");

@@ -27,6 +27,7 @@ getrandom = { workspace = true }
 mail_capability_domain = { workspace = true }
 mail_web_adapter = { workspace = true }
 nix = { workspace = true }
+zeroize = { workspace = true }
 
 [lints]
 workspace = true

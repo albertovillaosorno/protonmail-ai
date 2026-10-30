@@ -227,6 +227,7 @@ dependencies = [
  "mail_capability_domain",
  "mail_web_adapter",
  "nix",
+ "zeroize",
 ]
 
 [[package]]

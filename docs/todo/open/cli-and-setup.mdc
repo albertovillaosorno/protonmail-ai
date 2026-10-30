@@ -140,3 +140,11 @@ to register as a local MCP server.
   an otherwise unused private file before rejecting the command. Red-first
   direct parser and CLI regressions prove rejected input fails without the
   premature read; valid encoded file bodies remain supported.
+
+- Compose handoff now keeps copied CLI arguments, parsed recipient/subject/body
+  strings, bounded file bodies, encoded mailto intermediates, the returned URL,
+  and sensitive error paths/flags under scrub-on-drop ownership. A red-first
+  compile-time test proved the previously ordinary returned URL allocation,
+  and process-level synthetic URL/error tests still pass. Deliberate URL
+  printing remains explicit and caller-visible; OS-provided argument storage
+  and stdout consumers remain outside this in-process custody guarantee.
