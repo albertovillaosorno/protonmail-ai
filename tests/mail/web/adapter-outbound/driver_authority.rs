@@ -1902,6 +1902,36 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
 }
 
 #[test]
+fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
+    use super::{read_frame, read_frame_waiting};
+    use std::io::{BufReader, Write as _};
+    use std::os::unix::net::UnixStream;
+    use zeroize::Zeroizing;
+
+    // Browser CDP frames can carry message metadata and provider replies.
+    // The same scrub-on-drop custody must cover both reader entry points.
+    fn require_scrubbed(_: &Zeroizing<Vec<u8>>) {}
+
+    for waiting in [false, true] {
+        // jig-ignore-next-line: rustfmt canonical synthetic socket pair.
+        let (mut sender, receiver) = UnixStream::pair().expect("synthetic pipe");
+        sender
+            .write_all(b"private-CDP-payload\0")
+            .expect("synthetic frame");
+        let mut reader = BufReader::new(receiver);
+        let frame = if waiting {
+            read_frame_waiting(&mut reader)
+                .expect("waiting read")
+                .expect("frame present")
+        } else {
+            read_frame(&mut reader).expect("read frame")
+        };
+        require_scrubbed(&frame);
+        assert_eq!(frame.as_slice(), b"private-CDP-payload");
+    }
+}
+
+#[test]
 fn cdp_frame_readers_bound_total_time_not_each_byte_interval() {
     use super::{read_frame, read_frame_waiting};
     use std::io::{BufReader, Write as _};

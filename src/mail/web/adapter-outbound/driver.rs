@@ -51,6 +51,7 @@ use mail_capability_domain::EventCursorBindingError;
 use mail_capability_domain::EventCursorResumeFailure;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::{Value, json};
+use zeroize::Zeroizing;
 
 use crate::attachment_metadata::AttachmentMetadataNetworkCapture;
 use crate::attachment_metadata::AttachmentMetadataNetworkError;
@@ -4343,9 +4344,11 @@ fn arm_frame_deadline(
 
 fn read_frame_waiting(
     reader: &mut BufReader<UnixStream>,
-) -> Result<Option<Vec<u8>>, BrowserDriverError> {
+) -> Result<Option<Zeroizing<Vec<u8>>>, BrowserDriverError> {
     with_frame_deadline(reader, |reader, deadline| {
-        let mut frame = Vec::new();
+        // Raw CDP bytes may include account-scoped metadata; scrub on every
+        // exit path, including malformed frames and deadline failures.
+        let mut frame = Zeroizing::new(Vec::new());
         loop {
             if Instant::now() >= deadline {
                 return if frame.is_empty() {
@@ -4392,10 +4395,13 @@ fn read_frame_waiting(
     })
 }
 
-// jig-ignore-next-line: canonical rustfmt line.
-fn read_frame(reader: &mut BufReader<UnixStream>) -> Result<Vec<u8>, BrowserDriverError> {
+fn read_frame(
+    reader: &mut BufReader<UnixStream>,
+) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
     with_frame_deadline(reader, |reader, deadline| {
-        let mut frame = Vec::new();
+        // Raw CDP bytes may include account-scoped metadata; scrub on every
+        // exit path, including malformed frames and deadline failures.
+        let mut frame = Zeroizing::new(Vec::new());
         loop {
             arm_frame_deadline(reader, deadline)?;
             let available = reader

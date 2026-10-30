@@ -1614,3 +1614,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - Authenticated catalog cursor decode now uses the same drop-time sensitive
   JSON scrubber as event cursors, so temporary account/snapshot copies are
   zeroized after validation or a scope error without changing cursor framing.
+
+- Both bounded CDP response frame readers now allocate into
+  `Zeroizing<Vec<u8>>` immediately. Raw browser/provider bytes are scrubbed
+  when the frame is parsed or a malformed, oversized, or partial frame fails;
+  the waiting reader also scrubs when it times out after receiving bytes.
+  Red-first typed ownership and synthetic pipe tests cover both entry points,
+  preserving NUL-delimited framing, timeouts, and bounded message handling.
+  This covers retained frame allocations, not socket buffers, parsed CDP
+  JSON, or provider-generated copies outside this adapter.
