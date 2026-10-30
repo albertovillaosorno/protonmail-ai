@@ -575,7 +575,7 @@ impl ObservedMessageDetailResponse {
         if !safe_metadata_mime_type(&mime_type) {
             return Err(MessageDetailResponseError::Malformed);
         }
-        let attachments = parse_attachments(message.get("Attachments"))?;
+        let attachments = parse_attachments(message.get("Attachments"), &id)?;
         Ok(Self {
             message: ObservedMessageDetail {
                 id,
@@ -655,6 +655,8 @@ pub enum MessageDetailResponseError {
     IdentityMismatch,
     /// `Network.getResponseBody` returned an encoded envelope.
     UnsupportedEncoding,
+    /// A nested attachment claimed a different parent message identity.
+    AttachmentParentMismatch,
     /// A label or attachment identifier was duplicated.
     DuplicateIdentifier,
     /// A bounded list exceeded its maximum safe item count.
@@ -754,6 +756,7 @@ fn parse_label_ids(value: Option<&Value>) -> Result<Vec<String>, MessageDetailRe
 
 fn parse_attachments(
     value: Option<&Value>,
+    expected_message_id: &str,
 ) -> Result<Vec<ObservedAttachmentDescriptor>, MessageDetailResponseError> {
     let values = value
         .and_then(Value::as_array)
@@ -767,6 +770,22 @@ fn parse_attachments(
         let object = value
             .as_object()
             .ok_or(MessageDetailResponseError::Malformed)?;
+        // A detail response is already bound to its requested message. When
+        // the provider also declares an attachment parent, it must agree;
+        // missing or null optional metadata is not a contradictory assertion.
+        match object.get("MessageID") {
+            None | Some(Value::Null) => {}
+            Some(Value::String(parent)) => {
+                if !safe_read_id(parent, MAX_MESSAGE_ID_BYTES) {
+                    return Err(MessageDetailResponseError::Malformed);
+                }
+                if parent != expected_message_id {
+                    // jig-ignore-next-line: rustfmt long error variant.
+                    return Err(MessageDetailResponseError::AttachmentParentMismatch);
+                }
+            }
+            Some(_) => return Err(MessageDetailResponseError::Malformed),
+        }
         // jig-ignore-next-line: canonical rustfmt line.
         let id = bounded_optional_nonempty_string(object, "ID", MAX_ATTACHMENT_ID_BYTES)?;
         if id

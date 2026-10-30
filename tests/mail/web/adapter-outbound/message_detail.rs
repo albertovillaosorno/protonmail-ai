@@ -421,6 +421,28 @@ fn attachment_descriptor_accepts_unaddressable_optional_metadata() {
 }
 
 #[test]
+fn nested_attachment_parent_cannot_contradict_detail_message() {
+    let mut body = detail_body();
+    let parse = ObservedMessageDetailResponse::parse;
+    body["Message"]["Attachments"][0]["MessageID"] = json!("message-elsewhere");
+    assert_eq!(
+        parse("GET", MESSAGE_URL, &body.to_string()),
+        Err(MessageDetailResponseError::AttachmentParentMismatch)
+    );
+    for invalid in [json!(""), json!("message-1?x"), json!(3u8), json!({})] {
+        body["Message"]["Attachments"][0]["MessageID"] = invalid;
+        assert_eq!(
+            parse("GET", MESSAGE_URL, &body.to_string()),
+            Err(MessageDetailResponseError::Malformed)
+        );
+    }
+    body["Message"]["Attachments"][0]["MessageID"] = json!("message-1");
+    assert!(parse("GET", MESSAGE_URL, &body.to_string()).is_ok());
+    body["Message"]["Attachments"][0]["MessageID"] = json!(null);
+    assert!(parse("GET", MESSAGE_URL, &body.to_string()).is_ok());
+}
+
+#[test]
 fn detail_network_capture_bounds_unfinished_requests() {
     let mut capture = MessageDetailNetworkCapture::new("session-a");
     for index in 0..16u8 {
@@ -610,6 +632,46 @@ fn managed_browser_passively_observes_detail_without_navigation() {
     let log = fs::read_to_string(root.join("detail-log.txt")).expect("read passive detail log");
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove passive detail root");
+}
+
+#[test]
+fn mismatched_attachment_parent_disables_passive_capture() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    let root = detail_browser_root("attachment-parent-mismatch");
+    fs::create_dir_all(&root).expect("create synthetic detail root");
+    let browser = fake_detail_browser(&root, true, false);
+    let script = fs::read_to_string(&browser).expect("read synthetic browser");
+    let original = r#""Attachments":[],"Body""#;
+    let injected = concat!(
+        r#""Attachments":[{"ID":"attachment-1","#,
+        r#""MessageID":"message-2"}],"Body""#
+    );
+    assert!(script.contains(original));
+    fs::write(&browser, script.replace(original, injected))
+        .expect("install contradictory attachment metadata");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build synthetic browser plan");
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::MessageDetailResponse(
+            MessageDetailResponseError::AttachmentParentMismatch,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("CDP remains synchronized");
+    drop(managed);
+    let log_path = root.join("detail-log.txt");
+    let log = fs::read_to_string(log_path).expect("read Network lifecycle");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove synthetic browser root");
 }
 
 #[test]

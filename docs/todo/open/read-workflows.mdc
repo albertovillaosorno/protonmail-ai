@@ -528,3 +528,18 @@ Ship useful read access before any mailbox mutation is enabled.
   and display names. Bidirectional overrides, hidden separators and line
   controls remain refused, while literal message addresses retain a stricter
   safety rule. Opaque route IDs remain unchanged and strictly validated.
+
+## Nested attachment parent binding
+
+- A red-first synthetic detail-response fixture showed that a provider
+  `Attachment.MessageID` could disagree with the surrounding, URL-bound
+  `Message.ID` and still be retained as an addressable attachment. The
+  metadata-only projector now rejects a contradictory parent as a typed
+  `AttachmentParentMismatch` and malformed asserted IDs as `Malformed`. An
+  absent or null optional parent remains compatible with existing provider
+  shapes; a matching asserted parent is accepted.
+- A fake Chromium passive-capture fixture confirms that a contradictory
+  nested parent fails with a typed error, disables Network and retains safe
+  same-session Mail-shell inspection. Independent attachment metadata GETs
+  still require the caller-bound parent before output; this does not enable
+  plaintext attachment retrieval or public read tools.
