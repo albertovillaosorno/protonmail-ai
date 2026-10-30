@@ -69,6 +69,43 @@ fn canonical_synthetic_approval_validates_without_enabling_live_auth() {
 }
 
 #[test]
+fn approval_policy_requires_real_gregorian_evidence_dates() {
+    for impossible in [
+        "2026-00-01",
+        "2026-13-01",
+        "2026-02-29",
+        "2026-02-30",
+        "2026-04-31",
+        "2026-10-00",
+        "2026-99-99",
+        "1900-02-29",
+        "0000-01-01",
+    ] {
+        let invalid_approval = AuthorizationPolicy {
+            approved_on: Some(impossible),
+            ..synthetic_approved_policy()
+        };
+        assert!(invalid_approval.approved_identity().is_none());
+
+        let invalid_review = AuthorizationPolicy {
+            evidence_reviewed_on: impossible,
+            ..synthetic_approved_policy()
+        };
+        assert!(invalid_review.approved_identity().is_none());
+    }
+
+    // Gregorian leap years remain valid, including the 400-year rule.
+    for leap in ["2024-02-29", "2000-02-29"] {
+        let policy = AuthorizationPolicy {
+            evidence_reviewed_on: leap,
+            approved_on: Some(leap),
+            ..synthetic_approved_policy()
+        };
+        assert!(policy.approved_identity().is_some());
+    }
+}
+
+#[test]
 fn approval_policy_rejects_noncanonical_or_injected_api_origins() {
     for unsafe_api in [
         "https://",

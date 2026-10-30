@@ -264,11 +264,29 @@ const fn is_date_byte((index, byte): (usize, u8)) -> bool {
 
 fn validate_date(value: &str) -> Option<&str> {
     let bytes = value.as_bytes();
-    let valid = bytes.len() == 10
+    let valid_shape = bytes.len() == 10
         && bytes[4] == b'-'
         && bytes[7] == b'-'
         && bytes.iter().copied().enumerate().all(is_date_byte);
-    valid.then_some(value)
+    if !valid_shape {
+        return None;
+    }
+
+    let year = value.get(..4)?.parse::<u16>().ok()?;
+    let month = value.get(5..7)?.parse::<u8>().ok()?;
+    let day = value.get(8..10)?.parse::<u8>().ok()?;
+    let divisible_by_four = year.is_multiple_of(4);
+    let is_century = year.is_multiple_of(100);
+    let is_quadricentennial = year.is_multiple_of(400);
+    let leap_year = divisible_by_four && (!is_century || is_quadricentennial);
+    let days_in_month = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap_year => 29,
+        2 => 28,
+        _ => return None,
+    };
+    (year != 0 && (1..=days_in_month).contains(&day)).then_some(value)
 }
 
 /// A syntactically plausible third-party identity candidate.

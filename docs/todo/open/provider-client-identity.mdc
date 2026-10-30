@@ -86,3 +86,11 @@ path.
   Login paths must be ASCII root-relative without normalization hazards.
   Tests prove the actual repository authorization remains `Blocked` without
   evidence and cannot be unlocked by these synthetic fixtures.
+
+## Calendar-valid authorization evidence
+
+- Red-first private-policy tests found that date fields used by a complete
+  provider-approval record accepted impossible month/day combinations. Both
+  evidence-review and approval dates now require real Gregorian dates, including
+  leap-year rules; year zero is rejected. Synthetic 2000 and 2024 leap-day
+  fixtures remain valid, while the real provider identity remains blocked.
