@@ -3625,7 +3625,8 @@ impl ManagedBrowser {
         if !allowed_mail_cdp_request(session, method, params) {
             return Err(BrowserDriverError::Protocol);
         }
-        let request = session.map_or_else(
+        // jig-ignore-next-line: rustfmt CDP request ownership.
+        let request = strict_json::SensitiveValue::from_owned(session.map_or_else(
             || json!({"id": id, "method": method, "params": params}),
             |session_id| {
                 json!({
@@ -3635,11 +3636,8 @@ impl ManagedBrowser {
                     "sessionId": session_id
                 })
             },
-        );
-        let mut bytes =
-            // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::to_vec(&request).map_err(|_error| BrowserDriverError::Protocol)?;
-        bytes.push(0);
+        ));
+        let bytes = encode_cdp_request_frame(&request)?;
         self.writer
             .write_all(&bytes)
             .map_err(|_error| BrowserDriverError::PipeIo)?;
@@ -4330,6 +4328,19 @@ fn arm_frame_deadline(
         .get_ref()
         .set_read_timeout(Some(remaining))
         .map_err(|_error| BrowserDriverError::PipeIo)
+}
+
+// Outbound request data can include scoped target/session IDs. Hold the
+// serialized NUL-delimited frame in scrub-on-drop custody through write/flush
+// errors as well as successful sends.
+fn encode_cdp_request_frame(
+    request: &strict_json::SensitiveValue,
+) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
+    let bytes = serde_json::to_vec(&**request);
+    let bytes = bytes.map_err(|_error| BrowserDriverError::Protocol)?;
+    let mut frame = Zeroizing::new(bytes);
+    frame.push(0);
+    Ok(frame)
 }
 
 // Browser CDP notifications can contain cookies and bearer headers even

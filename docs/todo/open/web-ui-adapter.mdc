@@ -1623,3 +1623,11 @@ web application without requiring Bridge or a third-party direct API identity.
   preserving NUL-delimited framing, timeouts, and bounded message handling.
   This covers retained frame allocations, not socket buffers, parsed CDP
   JSON, or provider-generated copies outside this adapter.
+
+- Outbound CDP command construction now keeps the cloned request parameters
+  and target/session identifiers in a scrub-on-drop JSON graph. The encoded
+  NUL-delimited request frame also remains in a `Zeroizing<Vec<u8>>` through
+  the socket write and flush, including error paths. A red-first synthetic
+  encoder test asserts exact frame framing and typed ownership, preserving
+  the existing audited command allowlist. OS socket buffers and original
+  caller-owned parameter values are outside this local custody guarantee.

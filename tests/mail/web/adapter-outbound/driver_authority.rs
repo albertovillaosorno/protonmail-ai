@@ -1902,6 +1902,27 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
 }
 
 #[test]
+fn outbound_cdp_frame_encoder_uses_scrub_on_drop_bytes() {
+    use super::encode_cdp_request_frame;
+    use crate::strict_json::SensitiveValue;
+    use zeroize::Zeroizing;
+
+    fn requires_guarded_bytes(_: &Zeroizing<Vec<u8>>) {}
+    let command = SensitiveValue::from_owned(json!({
+        "id": 7u64, "method":"Runtime.evaluate",
+        "params":{"expression":"synthetic-private-cdp-parameter"},
+        "sessionId":"synthetic-private-session"
+    }));
+    // jig-ignore-next-line: rustfmt canonical synthetic command encoding.
+    let frame = encode_cdp_request_frame(&command).expect("synthetic CDP encoding");
+    requires_guarded_bytes(&frame);
+    assert_eq!(frame.last().copied(), Some(0));
+    let recovered: serde_json::Value =
+        serde_json::from_slice(&frame[..frame.len() - 1]).expect("parse frame");
+    assert_eq!(recovered, *command);
+}
+
+#[test]
 fn browser_command_and_runtime_returns_keep_scrub_on_drop_ownership() {
     use super::ManagedBrowser;
     use crate::strict_json::SensitiveValue;

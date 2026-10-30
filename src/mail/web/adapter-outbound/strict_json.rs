@@ -66,6 +66,11 @@ pub(crate) fn from_sensitive_slice(input: &[u8]) -> Result<SensitiveValue, serde
 }
 
 impl SensitiveValue {
+    // Guard a newly assembled browser command before serialization.
+    pub(crate) const fn from_owned(value: Value) -> Self {
+        Self(value)
+    }
+
     // Transfer an owned child without copying private strings or losing
     // zeroizing custody between the CDP envelope and its projected result.
     pub(crate) fn take_object_field(&mut self, field: &str) -> Option<Self> {
