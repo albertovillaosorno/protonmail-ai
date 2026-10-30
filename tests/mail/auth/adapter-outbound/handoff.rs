@@ -71,6 +71,23 @@ fn invalid_user_codes_fail_before_entropy_is_used() {
 }
 
 #[test]
+fn sdk_model_refuses_unprintable_manual_approval_codes() {
+    for code in [
+        "AB\nCDEFG",
+        "AB\rCDEFG",
+        "AB\tCDEFG",
+        "AB CDEFG",
+        "AB\0CDEFG",
+    ] {
+        assert!(matches!(
+            TargetHandoff::new_for_sdk_model(code),
+            Err(HandoffError::InvalidUserCode)
+        ));
+    }
+    assert!(TargetHandoff::new_for_sdk_model("AB-CD_12").is_ok());
+}
+
+#[test]
 fn debug_output_redacts_handoff_secret() {
     let handoff = sdk_handoff();
     let payload = handoff.payload();

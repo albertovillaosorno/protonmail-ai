@@ -111,7 +111,11 @@ impl TargetHandoff {
         T: Into<String>,
     {
         let user_code = user_code.into();
-        if user_code.is_empty() || user_code.contains(':') {
+        if user_code.is_empty()
+            || !user_code
+                .bytes()
+                .all(|byte| byte.is_ascii_graphic() && byte != b':')
+        {
             return Err(HandoffError::InvalidUserCode);
         }
 

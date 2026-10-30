@@ -181,6 +181,38 @@ fn challenge_parser_accepts_exact_provider_shape() {
 }
 
 #[test]
+fn fork_challenge_refuses_selector_url_injection_and_control_bearing_codes() {
+    // Selectors are interpolated verbatim into a single provider URL segment.
+    // Equal-byte-width bad inputs previously crossed the parser unmodified.
+    for bad in ['/', '\\', '%', '?', '#', '\n', '\r', '\t', ' ', '\0'] {
+        let selector = format!("{}{}", "A".repeat(19), bad);
+        let body = json!({"Selector":selector, "UserCode":USER_CODE});
+        assert_eq!(
+            ForkChallenge::parse(200, &body.to_string().into_bytes()),
+            Err(ProtocolError::InvalidChallenge),
+            "unsafe selector should not become a poll URL segment"
+        );
+    }
+    for bad in ['\n', '\r', '\t', ' ', '\0', ':'] {
+        let code = format!("ABCDEF{bad}H");
+        let body = json!({"Selector":SELECTOR, "UserCode":code});
+        assert_eq!(
+            ForkChallenge::parse(200, &body.to_string().into_bytes()),
+            Err(ProtocolError::InvalidChallenge),
+            "unsafe approval code should not reach a handoff"
+        );
+    }
+
+    let selector = "abcdefghijklmnop+_==";
+    assert_eq!(selector.len(), 20);
+    let body = json!({"Selector":selector,"UserCode":"AB-CD_12"});
+    let accepted = ForkChallenge::parse(200, &body.to_string().into_bytes())
+        .expect("safe printable opaque selector and approval code");
+    assert_eq!(accepted.selector(), selector);
+    assert_eq!(accepted.user_code(), "AB-CD_12");
+}
+
+#[test]
 fn fork_authority_debug_never_exposes_login_selectors_or_session_identity() {
     let challenge = challenge();
     let anonymous = anonymous_session();

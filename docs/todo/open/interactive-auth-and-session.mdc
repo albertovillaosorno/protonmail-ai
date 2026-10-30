@@ -84,3 +84,14 @@ account credentials. The primary web UI login remains a separate P1 path.
   diagnosable without copying authority, while explicit getters and provider
   request framing remain unchanged. Live direct login remains blocked by the
   provider-registration gate.
+
+## Fork challenge framing
+
+- Offline red-first tests found that 20-byte selectors containing URL segment
+  delimiters, encoded aliases or control characters were accepted and inserted
+  verbatim into a poll path. The challenge parser now requires a printable
+  single ASCII path segment without `/`, `\`, `%`, `?` or `#`; both provider
+  approval codes and SDK-model handoff codes refuse control and whitespace
+  characters. Explicitly valid printable base64-style selector/code fixtures
+  remain supported. These are parser safety checks, not evidence of live
+  provider authentication authorization.

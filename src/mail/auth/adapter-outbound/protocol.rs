@@ -423,9 +423,20 @@ impl ForkChallenge {
 
         let parsed = serde_json::from_slice::<RawChallenge>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
+        // Poll selectors are inserted verbatim into one URL path segment.
+        // Reject delimiters, encoded aliases, controls and non-ASCII bytes.
+        let safe_selector = raw.selector.bytes().all(|byte| {
+            byte.is_ascii_graphic() && !matches!(byte, b'/' | b'\\' | b'%' | b'?' | b'#')
+        });
+        // Approval codes are passed into a colon-delimited QR payload.
+        let safe_code = raw
+            .user_code
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() && byte != b':');
         if raw.selector.len() != FORK_SELECTOR_LEN
+            || !safe_selector
             || raw.user_code.len() != FORK_USER_CODE_LEN
-            || raw.user_code.contains(':')
+            || !safe_code
         {
             return Err(ProtocolError::InvalidChallenge);
         }
