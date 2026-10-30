@@ -32,6 +32,8 @@
 //! Fail-closed candidate validation for Proton Mail client identity.
 
 const SDK_DEFAULT_ID: &str = "Other";
+// Authorize no other host until Proton explicitly approves a different API.
+const TRUSTED_MAIL_API_BASE: &str = "https://mail.proton.me/api";
 // Pinned WebClients evidence: packages/shared/lib/constants.ts and the fork
 // authentication tests at revision 74773f0b10cc31d32e43e82c061da5d75fef96ce.
 const FIRST_PARTY_MAIL_IDS: [&str; 6] = [
@@ -242,12 +244,18 @@ fn validate_evidence_field(value: &str) -> Option<&str> {
 
 fn validate_api_base(value: &str) -> Option<&str> {
     let value = validate_evidence_field(value)?;
-    value.starts_with("https://").then_some(value)
+    (value == TRUSTED_MAIL_API_BASE).then_some(value)
 }
 
 fn validate_login_path(value: &str) -> Option<&str> {
     let value = validate_evidence_field(value)?;
-    value.starts_with('/').then_some(value)
+    // Block protocol-relative origins, backslash normalization, fragments,
+    // encoded delimiters and visually ambiguous non-ASCII path characters.
+    let safe_path = value.is_ascii()
+        && value.starts_with('/')
+        && !value.starts_with("//")
+        && !value.contains(['\\', '%', '#']);
+    safe_path.then_some(value)
 }
 
 const fn is_date_byte((index, byte): (usize, u8)) -> bool {
@@ -380,3 +388,7 @@ fn is_first_party_mail_id(value: &str) -> bool {
 const fn eq_ignore_ascii_case(left: &str, right: &str) -> bool {
     left.eq_ignore_ascii_case(right)
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/auth/adapter-outbound/identity_approval.rs"]
+mod approval_policy_tests;

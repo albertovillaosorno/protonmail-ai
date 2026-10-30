@@ -74,3 +74,15 @@ path.
 - Redacted fork-allocation transcript
 - Identity validation and fail-closed regression tests
 - Code/dossier authorization-state alignment test
+
+## Destination policy regression evidence
+
+- Synthetic private-policy regressions demonstrated that a complete-looking
+  `Approved` record previously accepted arbitrary HTTPS API origins and
+  protocol-relative, encoded or fragment-bearing desktop login paths. The
+  offline approval validator now accepts only the currently documented Mail
+  API base `https://mail.proton.me/api`; a newly provider-approved base
+  requires explicit source review before it can replace that constant.
+  Login paths must be ASCII root-relative without normalization hazards.
+  Tests prove the actual repository authorization remains `Blocked` without
+  evidence and cannot be unlocked by these synthetic fixtures.
