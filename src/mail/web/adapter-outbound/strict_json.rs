@@ -65,6 +65,15 @@ pub(crate) fn from_sensitive_slice(input: &[u8]) -> Result<SensitiveValue, serde
     from_slice(input).map(SensitiveValue)
 }
 
+impl SensitiveValue {
+    // Transfer an owned child without copying private strings or losing
+    // zeroizing custody between the CDP envelope and its projected result.
+    pub(crate) fn take_object_field(&mut self, field: &str) -> Option<Self> {
+        let child = self.0.as_object_mut()?.get_mut(field)?;
+        Some(Self(take(child)))
+    }
+}
+
 impl Deref for SensitiveValue {
     type Target = Value;
 

@@ -1902,6 +1902,22 @@ fn message_time_sort_requires_proven_primary_or_secondary_order() {
 }
 
 #[test]
+fn browser_command_and_runtime_returns_keep_scrub_on_drop_ownership() {
+    use super::ManagedBrowser;
+    use crate::strict_json::SensitiveValue;
+    use serde_json::Value;
+
+    // The result and extracted projection must remain guarded after the
+    // inbound CDP message itself has been dropped.
+    // jig-ignore-next-line: rustfmt canonical private call signature.
+    let _: fn(&mut ManagedBrowser, &str, &Value) -> Result<SensitiveValue, BrowserDriverError> =
+        ManagedBrowser::call;
+    // jig-ignore-next-line: rustfmt canonical private runtime signature.
+    let _: fn(&mut ManagedBrowser, &str, &str) -> Result<SensitiveValue, BrowserDriverError> =
+        ManagedBrowser::runtime_value;
+}
+
+#[test]
 fn decoded_cdp_notifications_scrub_parsed_private_fields_on_drop() {
     use super::decode_cdp_frame;
     use crate::strict_json::SensitiveValue;

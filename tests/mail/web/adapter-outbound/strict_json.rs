@@ -35,6 +35,28 @@ use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
 
 #[test]
+fn taking_nested_cdp_reply_values_transfers_guarded_ownership() {
+    use super::SensitiveValue;
+
+    fn requires_guard(_: &SensitiveValue) {}
+    let mut envelope = from_sensitive_slice(
+        br#"{
+        "id":1,"result":{"value":{"private":"synthetic-mail-body"}}
+    }"#,
+    )
+    .expect("synthetic CDP reply");
+    // jig-ignore-next-line: rustfmt canonical synthetic result extraction.
+    let mut result = envelope.take_object_field("result").expect("result field");
+    let value = result.take_object_field("value").expect("value field");
+    requires_guard(&value);
+    assert_eq!(value["private"], "synthetic-mail-body");
+    assert!(envelope["result"].is_null());
+    assert!(result["value"].is_null());
+    assert!(result.take_object_field("value").is_some());
+    assert!(result.take_object_field("missing").is_none());
+}
+
+#[test]
 fn map_keys_are_guarded_before_decoding_their_values() {
     use zeroize::Zeroizing;
 

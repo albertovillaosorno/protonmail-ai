@@ -714,7 +714,7 @@ impl ManagedBrowser {
         &mut self,
         session: &str,
         expression: &str,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         if !allowed_mail_runtime_expression(expression) {
             return Err(BrowserDriverError::Protocol);
         }
@@ -723,7 +723,7 @@ impl ManagedBrowser {
             "returnByValue": true
         });
         // jig-ignore-next-line: canonical rustfmt line.
-        let result = self.call_in_session(session, "Runtime.evaluate", &params)?;
+        let mut result = self.call_in_session(session, "Runtime.evaluate", &params)?;
         if result.get("exceptionDetails").is_some()
             || result
                 .get("wasThrown")
@@ -768,7 +768,12 @@ impl ManagedBrowser {
         if !type_matches || !subtype_matches {
             return Err(BrowserDriverError::Protocol);
         }
-        Ok(value.clone())
+        let mut remote = result
+            .take_object_field("result")
+            .ok_or(BrowserDriverError::Protocol)?;
+        remote
+            .take_object_field("value")
+            .ok_or(BrowserDriverError::Protocol)
     }
 
     fn query_ax_role(
@@ -776,7 +781,7 @@ impl ManagedBrowser {
         session: &str,
         node_id: u64,
         role: &str,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         self.call_in_session(
             session,
             "Accessibility.queryAXTree",
@@ -3403,8 +3408,8 @@ impl ManagedBrowser {
         }
         MailboxPageSnapshot::from_observations(
             &before,
-            rows_value.as_ref(),
-            second_rows_value.as_ref(),
+            rows_value.as_deref(),
+            second_rows_value.as_deref(),
             &final_list,
         )
     }
@@ -3452,8 +3457,11 @@ impl ManagedBrowser {
         Ok(())
     }
 
-    // jig-ignore-next-line: canonical rustfmt line.
-    fn call(&mut self, method: &str, params: &Value) -> Result<Value, BrowserDriverError> {
+    fn call(
+        &mut self,
+        method: &str,
+        params: &Value,
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         self.call_with_session(None, method, params)
     }
 
@@ -3462,7 +3470,7 @@ impl ManagedBrowser {
         session: &str,
         method: &str,
         params: &Value,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         self.call_with_session(Some(session), method, params)
     }
 
@@ -3471,7 +3479,7 @@ impl ManagedBrowser {
         session: Option<&str>,
         method: &str,
         params: &Value,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         self.call_with_session_observer(session, method, params, None)
     }
 
@@ -3481,7 +3489,7 @@ impl ManagedBrowser {
         method: &str,
         params: &Value,
         capture: &mut dyn CdpEventObserver,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         self.call_with_session_observer(Some(session), method, params, Some(capture))
     }
@@ -3526,7 +3534,7 @@ impl ManagedBrowser {
         method: &str,
         params: &Value,
         mut capture: Option<&mut dyn CdpEventObserver>,
-    ) -> Result<Value, BrowserDriverError> {
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         let id = self.allocate_id()?;
         self.send_request(id, session, method, params)?;
 
@@ -3538,7 +3546,7 @@ impl ManagedBrowser {
             // Invalid JSON still occupies one bounded CDP frame. Remember
             // the protocol failure, but drain the genuine command reply before
             // Network cleanup rather than leaving the pipe out of sync.
-            let Ok(message) = decode_cdp_frame(&frame) else {
+            let Ok(mut message) = decode_cdp_frame(&frame) else {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
             };
@@ -3591,7 +3599,9 @@ impl ManagedBrowser {
             if let Some(error) = observation_error {
                 return Err(error);
             }
-            return Ok(result.clone());
+            return message
+                .take_object_field("result")
+                .ok_or(BrowserDriverError::Protocol);
         }
         Err(BrowserDriverError::Protocol)
     }
