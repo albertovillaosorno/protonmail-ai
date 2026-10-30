@@ -1585,3 +1585,10 @@ web application without requiring Bridge or a third-party direct API identity.
   escapes could reach the retained paging snapshot; exact display names still
   preserve ordinary Unicode, emoji selectors, embedded LF, and NBSP without
   rewriting provider text. This does not yet expose public catalog tools.
+
+- Dedicated browser profile preparation now preflights the nearest existing
+  XDG/HOME data-home ancestor before recursively creating a missing selected
+  home. Previously an unsafe non-sticky shared-writable parent was rejected
+  only after mkdir left private-looking directories in that untrusted tree.
+  Red-first process tests prove no directory or browser launch side effect for
+  rejected paths and retain creation under trusted sticky parents.

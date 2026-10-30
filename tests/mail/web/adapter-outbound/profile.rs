@@ -299,6 +299,59 @@ fn shared_writable_data_home_cannot_hold_private_browser_profile() {
 }
 
 #[test]
+fn rejected_missing_data_home_is_not_created_under_untrusted_parent() {
+    for mode in [0o770u32, 0o777u32] {
+        let root = test_root(&format!("missing-shared-data-{mode}"));
+        let shared = root.join("shared");
+        let data_home = shared.join("nested").join("private-data");
+        fs::create_dir_all(&shared).expect("create synthetic shared parent");
+        fs::set_permissions(&shared, fs::Permissions::from_mode(mode))
+            .expect("make parent unsafe before login");
+        let browser = fake_browser(&root);
+        let output = login(&root, &browser, Some(&data_home));
+        assert!(!output.status.success());
+        assert!(!data_home.exists());
+        assert!(!shared.join("nested").exists());
+        assert!(!root.join("browser-args.txt").exists());
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn missing_data_home_is_not_created_through_untrusted_parent_alias() {
+    let root = test_root("missing-shared-alias");
+    let shared = root.join("shared");
+    let alias = root.join("shared-alias");
+    let data_home = alias.join("private-data");
+    fs::create_dir_all(&shared).expect("create shared target");
+    symlink(&shared, &alias).expect("create caller-owned directory alias");
+    fs::set_permissions(&shared, fs::Permissions::from_mode(0o777))
+        .expect("make resolved target unsafe");
+    let browser = fake_browser(&root);
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(!output.status.success());
+    assert!(!shared.join("private-data").exists());
+    assert!(!root.join("browser-args.txt").exists());
+    cleanup(&root);
+}
+
+#[test]
+fn missing_data_home_can_be_created_under_trusted_sticky_parent() {
+    let root = test_root("missing-sticky-parent");
+    let sticky = root.join("sticky");
+    let data_home = sticky.join("private-data");
+    fs::create_dir_all(&sticky).expect("create synthetic sticky parent");
+    fs::set_permissions(&sticky, fs::Permissions::from_mode(0o1777))
+        .expect("make parent sticky before login");
+    let browser = fake_browser(&root);
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(output.status.success());
+    wait_for_args(&root);
+    assert!(profile_under(&data_home).is_dir());
+    cleanup(&root);
+}
+
+#[test]
 fn shared_writable_parent_cannot_replace_private_data_home() {
     for mode in [0o770u32, 0o777u32] {
         let root = test_root(&format!("shared-data-parent-{mode}"));

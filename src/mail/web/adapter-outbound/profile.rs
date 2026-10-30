@@ -355,6 +355,8 @@ fn prepare_profile_dir(path: &Path) -> Result<(), WebLoginError> {
 fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
     let data_home = path.parent().ok_or(WebLoginError::MissingDataHome)?;
     // This is the caller-selected data home, not a project-owned component.
+    // Refuse unsafe existing ancestors before create_dir_all writes into them.
+    preflight_data_home_creation(data_home)?;
     fs::create_dir_all(data_home).map_err(|error| io_err(path, error))?;
     let root_flags = OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC;
     let data_fd =
@@ -378,6 +380,41 @@ fn prepare_project_dir(path: &Path) -> Result<File, WebLoginError> {
         WebLoginError::ProjectLink(path.to_path_buf()),
         create_error(path),
     )
+}
+
+// A missing selected home must not be created under a shared-writable
+// non-sticky parent, even when the final profile would later be rejected.
+// Resolve the closest existing ancestor without creating or chmodding it.
+fn preflight_data_home_creation(data_home: &Path) -> Result<(), WebLoginError> {
+    let mut existing = data_home;
+    loop {
+        match fs::symlink_metadata(existing) {
+            // An existing selected home has no mkdir side effect. Its own
+            // ownership/mode is checked after the held directory is opened.
+            Ok(_) if existing == data_home => return Ok(()),
+            Ok(_) => {
+                verify_data_home_ancestors(existing)?;
+                let metadata = fs::metadata(existing)
+                    .map_err(|_error| WebLoginError::UnsafeDataHomeAncestor)?;
+                let owner = geteuid().as_raw();
+                let uid = metadata.uid();
+                let trusted_owner = uid == owner || uid == 0;
+                let shared_write = metadata.permissions().mode() & 0o022 != 0;
+                let sticky = metadata.permissions().mode() & 0o1000 != 0;
+                let unsafe_mode = shared_write && !sticky;
+                if !metadata.is_dir() || !trusted_owner || unsafe_mode {
+                    return Err(WebLoginError::UnsafeDataHomeAncestor);
+                }
+                return Ok(());
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                existing = existing
+                    .parent()
+                    .ok_or(WebLoginError::UnsafeDataHomeAncestor)?;
+            }
+            Err(_error) => return Err(WebLoginError::UnsafeDataHomeAncestor),
+        }
+    }
 }
 
 // An attacker who can rename a data-home ancestor can replace its private
