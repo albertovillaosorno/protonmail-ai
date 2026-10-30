@@ -1518,6 +1518,42 @@ fn catalog_display_names_reject_terminal_and_bidirectional_spoofing() {
         ("audit\u{1b}[2J", MailboxCatalogKind::Label, LABEL_URL, 1u8),
         ("audit\u{7f}tail", MailboxCatalogKind::Label, LABEL_URL, 1u8),
         (
+            "audit\u{2028}tail",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+        (
+            "audit\u{2029}tail",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+        (
+            "audit\u{200b}tail",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+        (
+            "audit\u{2060}tail",
+            MailboxCatalogKind::Folder,
+            FOLDER_URL,
+            3u8,
+        ),
+        (
+            "audit\u{00ad}tail",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+        (
+            "audit\u{feff}tail",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+        (
             "audit\u{202e}fdp",
             MailboxCatalogKind::Folder,
             FOLDER_URL,
@@ -1551,9 +1587,13 @@ fn catalog_display_names_reject_terminal_and_bidirectional_spoofing() {
 
 #[test]
 fn catalog_identity_safety_preserves_arbitrary_display_names() {
+    let display_name = concat!(
+        "Name / ? # \n \u{a0} test ",
+        "\u{1f469}\u{200d}\u{1f4bb} \u{2665}\u{fe0f}"
+    );
     let labels = json!({
         "Code":1000u16,
-        "Labels":[{"ID":"label+_~=", "Name":"Name / ? # \n \u{a0} test",
+        "Labels":[{"ID":"label+_~=", "Name":display_name,
             "Type":1u8,"Order":2i64}]
     })
     .to_string();
@@ -1563,7 +1603,7 @@ fn catalog_identity_safety_preserves_arbitrary_display_names() {
             // jig-ignore-next-line: canonical rustfmt line.
             .expect("printable opaque ID with user-controlled name is accepted");
     assert_eq!(projected.items()[0].id(), "label+_~=");
-    assert_eq!(projected.items()[0].name(), "Name / ? # \n \u{a0} test");
+    assert_eq!(projected.items()[0].name(), display_name);
     let folders = json!({
         "Code":1000u16,
         "Labels":[{"ID":"folder+_~=", "Name":"Project / Root", "Type":3u8,

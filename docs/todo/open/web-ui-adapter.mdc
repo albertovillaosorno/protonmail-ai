@@ -1592,3 +1592,9 @@ web application without requiring Bridge or a third-party direct API identity.
   only after mkdir left private-looking directories in that untrusted tree.
   Red-first process tests prove no directory or browser launch side effect for
   rejected paths and retain creation under trusted sticky parents.
+
+- Follow-up catalog display regression: Unicode paragraph/line separators,
+  zero-width or soft-hyphen marks, and remaining invisible format controls
+  also fail closed instead of being exported as folder/label display names.
+  This aligns the catalog guard with existing visible-message text rules while
+  retaining explicitly supported LF, NBSP, emoji ZWJ and variation selectors.

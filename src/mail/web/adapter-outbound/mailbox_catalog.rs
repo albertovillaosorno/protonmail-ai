@@ -653,14 +653,22 @@ fn parse_item(
 }
 
 // Preserve provider names verbatim, including the existing newline and
-// printable Unicode behavior, but never export terminal escape sequences or
-// direction overrides that could spoof a displayed mailbox or label.
+// natural Unicode behavior, but reject the hidden display format controls
+// refused in visible message metadata. Emoji joiners/selectors remain valid.
 const fn unsafe_catalog_name_character(character: char) -> bool {
     (character.is_control() && character != '\n')
         || matches!(
             character,
-            '\u{061c}' | '\u{200e}'..='\u{200f}' | '\u{202a}'..='\u{202e}'
-                | '\u{2066}'..='\u{2069}'
+            '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{0600}'..='\u{0605}'
+                | '\u{06dd}' | '\u{070f}' | '\u{0890}'..='\u{0891}' | '\u{08e2}'
+                | '\u{115f}'..='\u{1160}' | '\u{17b4}'..='\u{17b5}'
+                | '\u{180e}'..='\u{180f}' | '\u{1bca0}'..='\u{1bca3}'
+                | '\u{200b}' | '\u{200e}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+                | '\u{2800}' | '\u{3164}' | '\u{feff}' | '\u{ffa0}'
+                | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
+                | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
         )
 }
 
