@@ -1511,6 +1511,45 @@ fn mailbox_catalog_refuses_unsafe_label_and_folder_identifiers() {
 }
 
 #[test]
+fn catalog_display_names_reject_terminal_and_bidirectional_spoofing() {
+    // These would be retained as literal label/folder names and later shown
+    // by read-only clients; no renderer-specific escaping is yet guaranteed.
+    for (name, kind, url, code) in [
+        ("audit\u{1b}[2J", MailboxCatalogKind::Label, LABEL_URL, 1u8),
+        ("audit\u{7f}tail", MailboxCatalogKind::Label, LABEL_URL, 1u8),
+        (
+            "audit\u{202e}fdp",
+            MailboxCatalogKind::Folder,
+            FOLDER_URL,
+            3u8,
+        ),
+        (
+            "audit\u{2066}hidden",
+            MailboxCatalogKind::Folder,
+            FOLDER_URL,
+            3u8,
+        ),
+        (
+            "audit\u{2069}hidden",
+            MailboxCatalogKind::Label,
+            LABEL_URL,
+            1u8,
+        ),
+    ] {
+        let body = json!({
+            "Code":1000u16,
+            "Labels":[{"ID":"test-id","Name":name,"Type":code,"Order":1i64}]
+        })
+        .to_string();
+        assert_eq!(
+            ObservedMailboxCatalogResponse::parse(kind, "GET", url, &body),
+            Err(MailboxCatalogResponseError::Malformed),
+            "unsafe display mark must not reach catalog pages"
+        );
+    }
+}
+
+#[test]
 fn catalog_identity_safety_preserves_arbitrary_display_names() {
     let labels = json!({
         "Code":1000u16,

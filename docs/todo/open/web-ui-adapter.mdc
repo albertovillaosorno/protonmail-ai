@@ -1578,3 +1578,10 @@ web application without requiring Bridge or a third-party direct API identity.
   `TextEncoder` silently replaces malformed surrogates with U+FFFD, so a
   browser-owned preflight is needed even with Rust-side UTF-8 validation.
   Red-first Node DOM regressions cover both fields and retain valid emoji.
+
+- Catalog response projection now refuses terminal control bytes (except the
+  previously supported embedded LF) and Unicode bidirectional overrides in
+  untrusted folder/label names. Red-first synthetic label/folder cases proved
+  escapes could reach the retained paging snapshot; exact display names still
+  preserve ordinary Unicode, emoji selectors, embedded LF, and NBSP without
+  rewriting provider text. This does not yet expose public catalog tools.

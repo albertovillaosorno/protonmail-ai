@@ -623,6 +623,9 @@ fn parse_item(
         return Err(MailboxCatalogResponseError::Malformed);
     }
     let name = bounded_string(value, "Name", MAX_CATALOG_NAME_BYTES)?;
+    if name.chars().any(unsafe_catalog_name_character) {
+        return Err(MailboxCatalogResponseError::Malformed);
+    }
     let item_kind = value
         .get("Type")
         .and_then(Value::as_u64)
@@ -647,6 +650,18 @@ fn parse_item(
         order,
         parent_id,
     })
+}
+
+// Preserve provider names verbatim, including the existing newline and
+// printable Unicode behavior, but never export terminal escape sequences or
+// direction overrides that could spoof a displayed mailbox or label.
+const fn unsafe_catalog_name_character(character: char) -> bool {
+    (character.is_control() && character != '\n')
+        || matches!(
+            character,
+            '\u{061c}' | '\u{200e}'..='\u{200f}' | '\u{202a}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+        )
 }
 
 fn bounded_string(
