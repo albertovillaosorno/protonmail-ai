@@ -584,3 +584,12 @@ Ship useful read access before any mailbox mutation is enabled.
   invalid or irrelevant events. Red-first typed tests prove the decode guard
   and strict duplicate refusal; normal returned command result values retain
   their existing caller-owned representation.
+
+- A follow-up to strict JSON partial-tree scrubbing now guards object keys
+  before decoding their values. Serde's combined `next_entry<String, ...>`
+  previously released an already-decoded key as an ordinary String if the
+  associated value failed to parse. The visitor now uses separate `next_key`
+  and `next_value` calls with `Zeroizing<String>` intermediate ownership;
+  completed keys move into the existing scrub-on-drop object guard without
+  creating copies. A red-first typed key test and malformed nested-map cases
+  preserve strict refusal and ordinary successful projection.

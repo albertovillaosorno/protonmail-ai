@@ -30,9 +30,29 @@
 
 //! Offline typed JSON decoding coverage.
 
-use super::{StrictValue, from_sensitive_slice, from_slice};
+use super::{StrictValue, from_sensitive_slice, from_slice, guarded_json_key};
 use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
+
+#[test]
+fn map_keys_are_guarded_before_decoding_their_values() {
+    use zeroize::Zeroizing;
+
+    fn require_guarded_key(_: &Zeroizing<String>) {}
+    let key = guarded_json_key(String::from("private-field-key"));
+    require_guarded_key(&key);
+    assert_eq!(key.as_str(), "private-field-key");
+
+    // The visitor must also preserve strict error semantics when a value
+    // fails after its key was successfully decoded.
+    for invalid in [
+        r#"{"private-field-key":]"#,
+        r#"{"first":"private-value","private-field-key":truX}"#,
+        r#"{"outer":{"private-field-key":]}}"#,
+    ] {
+        assert!(from_sensitive_slice(invalid.as_bytes()).is_err());
+    }
+}
 
 #[test]
 fn incomplete_strict_json_trees_have_explicit_scrub_on_drop() {

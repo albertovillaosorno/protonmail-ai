@@ -37,7 +37,7 @@ use core::ops::Deref;
 use serde::de::{Error as DeError, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Number, Value};
-use zeroize::Zeroize as _;
+use zeroize::{Zeroize as _, Zeroizing};
 
 #[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
 pub(crate) fn from_str(input: &str) -> Result<Value, serde_json::Error> {
@@ -101,6 +101,13 @@ fn zeroize_json_strings(value: &mut Value) {
         }
         Value::Null | Value::Bool(_) | Value::Number(_) => {}
     }
+}
+
+// Retain map keys in scrub-on-drop storage while their value is decoded.
+// A malformed value otherwise causes Serde's combined next_entry helper to
+// release its already parsed key as an ordinary unzeroized String.
+fn guarded_json_key(key: String) -> Zeroizing<String> {
+    Zeroizing::new(key)
 }
 
 // Every partially decoded tree must scrub owned strings if Serde aborts
@@ -203,14 +210,14 @@ impl<'de> Deserialize<'de> for StrictValue {
             // jig-ignore-next-line: Serde visitor method signature.
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
                 let mut object = StrictValue(Value::Object(Map::new()));
-                // jig-ignore-next-line: canonical Serde map-entry signature.
-                while let Some((mut key, mut value)) = map.next_entry::<String, StrictValue>()? {
+                while let Some(key) = map.next_key::<String>()? {
+                    let mut key = guarded_json_key(key);
+                    let mut value = map.next_value::<StrictValue>()?;
                     if let Value::Object(entries) = &mut object.0 {
-                        if entries.contains_key(&key) {
-                            key.zeroize();
+                        if entries.contains_key(key.as_str()) {
                             return Err(A::Error::custom("duplicate key"));
                         }
-                        entries.insert(key, take(&mut value.0));
+                        entries.insert(take(&mut *key), take(&mut value.0));
                     }
                 }
                 Ok(object)
