@@ -27,6 +27,15 @@ bounded resource use.
 
 ## Additional synthetic lifecycle evidence
 
+- Retained bootstrap/poll watermark, normalized change-ID, and accumulated
+  event-sequence strings now scrub on drop, including rejected continuations
+  and cloned/coalesced changes. Sequence ownership uses explicit `take` when
+  transferring fields from a droppable page, scrubs the previous watermark on
+  replacement, and erases visited-watermark set entries. Synthetic red-first
+  type assertions and existing sequence/cursor compatibility tests cover this
+  custody boundary. Caller-owned input strings and browser copies are outside
+  its scope.
+
 - Both latest-event bootstrap and v5 event-loop CDP classifiers now bound
   retained completed request IDs to 32 combined lifecycle slots and a 512-byte
   per-ID ceiling. A completed ID cannot be replayed after consumption, while

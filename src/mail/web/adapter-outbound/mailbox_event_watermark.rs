@@ -35,11 +35,13 @@ use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
+use std::mem::take;
 
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::{EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const CORE_EVENT_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "core/v5/events/");
@@ -610,6 +612,16 @@ pub struct ObservedLatestMailboxEventWatermark {
     event_id: String,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedLatestMailboxEventWatermark {
+    fn drop(&mut self) {
+        self.event_id.zeroize();
+    }
+}
+
 impl ObservedLatestMailboxEventWatermark {
     /// Projects one exact legacy latest-event response.
     ///
@@ -729,6 +741,16 @@ pub struct ObservedMailboxChange {
     id: String,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMailboxChange {
+    fn drop(&mut self) {
+        self.id.zeroize();
+    }
+}
+
 impl ObservedMailboxChange {
     /// Returns the provider-neutral entity kind.
     #[must_use]
@@ -768,6 +790,17 @@ pub struct ObservedMailboxEventWatermark {
     refresh: bool,
     changes: Vec<ObservedMailboxChange>,
     count_changes: bool,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMailboxEventWatermark {
+    fn drop(&mut self) {
+        self.requested_event_id.zeroize();
+        self.response_event_id.zeroize();
+    }
 }
 
 impl ObservedMailboxEventWatermark {
@@ -934,6 +967,21 @@ pub struct ObservedMailboxEventSequence {
     settled: bool,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMailboxEventSequence {
+    fn drop(&mut self) {
+        self.start_event_id.zeroize();
+        self.next_event_id.zeroize();
+        // BTreeSet<String> does not scrub the values it deallocates.
+        for mut watermark in take(&mut self.visited_watermarks) {
+            watermark.zeroize();
+        }
+    }
+}
+
 impl ObservedMailboxEventSequence {
     /// Starts one event sequence from a validated provider response.
     ///
@@ -950,17 +998,19 @@ impl ObservedMailboxEventSequence {
         {
             return Err(MailboxEventSequenceError::NonAdvancingContinuation);
         }
+        // Move owned strings out through take so rejected and consumed pages
+        // retain a Drop owner; avoid an ordinary duplicate Set insertion.
+        let mut first = first;
         let seen_changes = first.changes.iter().cloned().collect();
-        let visited_watermarks = [
-            first.requested_event_id.clone(),
-            first.response_event_id.clone(),
-        ]
-        .into_iter()
-        .collect();
+        let mut visited_watermarks = BTreeSet::new();
+        visited_watermarks.insert(first.requested_event_id.clone());
+        if first.response_event_id != first.requested_event_id {
+            visited_watermarks.insert(first.response_event_id.clone());
+        }
         Ok(Self {
-            start_event_id: first.requested_event_id,
-            next_event_id: first.response_event_id,
-            changes: first.changes,
+            start_event_id: take(&mut first.requested_event_id),
+            next_event_id: take(&mut first.response_event_id),
+            changes: take(&mut first.changes),
             seen_changes,
             visited_watermarks,
             count_changes: first.count_changes,
@@ -1002,9 +1052,10 @@ impl ObservedMailboxEventSequence {
             return Err(MailboxEventSequenceError::RepeatedWatermark);
         }
         // Stage a complete page so a rejected continuation leaves state intact.
+        let mut page = page;
         let mut new_changes = Vec::new();
         let mut newly_seen = BTreeSet::new();
-        for change in page.changes {
+        for change in take(&mut page.changes) {
             // jig-ignore-next-line: canonical rustfmt line.
             if !self.seen_changes.contains(&change) && newly_seen.insert(change.clone()) {
                 if self.changes.len().saturating_add(new_changes.len())
@@ -1018,9 +1069,13 @@ impl ObservedMailboxEventSequence {
         self.seen_changes.extend(newly_seen);
         self.changes.extend(new_changes);
         self.count_changes |= page.count_changes;
-        self.visited_watermarks
-            .insert(page.response_event_id.clone());
-        self.next_event_id = page.response_event_id;
+        if !self.visited_watermarks.contains(&page.response_event_id) {
+            self.visited_watermarks
+                .insert(page.response_event_id.clone());
+        }
+        // Assignment would otherwise release the previous cursor unchanged.
+        self.next_event_id.zeroize();
+        self.next_event_id = take(&mut page.response_event_id);
         self.page_count = self
             .page_count
             .checked_add(1)
@@ -1138,9 +1193,10 @@ impl ObservedMailboxChangePage {
         scope: EventCursorScope,
         sequence: ObservedMailboxEventSequence,
     ) -> Result<Self, MailboxEventSequenceError> {
+        let mut sequence = sequence;
         let next_cursor = sequence.bind_next_cursor(scope)?;
         Ok(Self {
-            changes: sequence.changes,
+            changes: take(&mut sequence.changes),
             count_changes: sequence.count_changes,
             next_cursor,
         })

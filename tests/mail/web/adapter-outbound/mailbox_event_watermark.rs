@@ -53,6 +53,23 @@ const URL: &str = concat!(
 );
 
 #[test]
+fn retained_event_watermarks_and_change_ids_require_drop_custody() {
+    use mail_web_adapter::ObservedMailboxChange;
+    use mail_web_adapter::ObservedMailboxEventSequence;
+
+    #[expect(drop_bounds, reason = "require explicit event metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedLatestMailboxEventWatermark>();
+    requires_scrub_on_drop::<ObservedMailboxEventWatermark>();
+    requires_scrub_on_drop::<ObservedMailboxChange>();
+    requires_scrub_on_drop::<ObservedMailboxEventSequence>();
+}
+
+#[test]
 fn latest_event_projection_retains_only_bounded_watermark() {
     let body = r#"{"EventID":"event-bootstrap","decoy":"secret"}"#;
     let latest = ObservedLatestMailboxEventWatermark::parse(
