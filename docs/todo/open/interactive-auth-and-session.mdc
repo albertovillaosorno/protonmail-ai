@@ -176,4 +176,4 @@ account credentials. The primary web UI login remains a separate P1 path.
   even if a later array value fails to parse. Red-first private field-type
   tests cover both raw and accepted models; public `scopes()` values remain
   unchanged. Input transport bytes and parser-owned incomplete string tokens
-  remain outside this custody guarantee. No live fork is enabled.
+  remain outside this custody guarantee; no live fork is enabled.
