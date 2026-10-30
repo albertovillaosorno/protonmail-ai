@@ -64,7 +64,7 @@ enum AttachmentMetadataRequestState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct TrackedAttachmentMetadataRequest {
     state: AttachmentMetadataRequestState,
-    attachment_id: String,
+    attachment_id: Zeroizing<String>,
 }
 
 /// Bounded CDP Network lifecycle state for exact attachment-metadata GETs.
@@ -116,8 +116,12 @@ impl AttachmentMetadataNetworkCapture {
             .iter()
             // jig-ignore-next-line: canonical rustfmt line.
             .filter(|(_id, request)| request.state == AttachmentMetadataRequestState::Finished)
-            // jig-ignore-next-line: canonical rustfmt line.
-            .map(|(request_id, request)| (request_id.clone(), request.attachment_id.clone()))
+            .map(|(request_id, request)| {
+                (
+                    request_id.clone(),
+                    String::from(request.attachment_id.as_str()),
+                )
+            })
             .collect::<Vec<_>>();
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
@@ -189,7 +193,7 @@ impl AttachmentMetadataNetworkCapture {
             String::from(request_id),
             TrackedAttachmentMetadataRequest {
                 state: AttachmentMetadataRequestState::Requested,
-                attachment_id: String::from(attachment_id),
+                attachment_id: Zeroizing::new(String::from(attachment_id)),
             },
         );
         Ok(())

@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Exact message, conversation, and attachment Network request trackers now
+  guard provider entity selectors in `Zeroizing<String>`. Request retries and
+  failed or consumed lifecycle entries erase their stored selector strings;
+  callers still receive the same bounded explicit identifier fields. No
+  request URL, headers, or body are retained by these trackers.
+
 - Finished message-list request state now erases private request IDs and
   cursor-anchor identifiers when dropped. The captured list bundle scrubs
   its sort label and moves the owned response vector with `take` during

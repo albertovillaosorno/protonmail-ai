@@ -58,7 +58,7 @@ enum ConversationDetailRequestState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct TrackedConversationDetailRequest {
     state: ConversationDetailRequestState,
-    conversation_id: String,
+    conversation_id: Zeroizing<String>,
 }
 
 /// Bounded CDP lifecycle state for exact unparameterized conversation GETs.
@@ -108,8 +108,12 @@ impl ConversationDetailNetworkCapture {
             .iter()
             // jig-ignore-next-line: canonical rustfmt line.
             .filter(|(_id, request)| request.state == ConversationDetailRequestState::Finished)
-            // jig-ignore-next-line: canonical rustfmt line.
-            .map(|(request_id, request)| (request_id.clone(), request.conversation_id.clone()))
+            .map(|(request_id, request)| {
+                (
+                    request_id.clone(),
+                    String::from(request.conversation_id.as_str()),
+                )
+            })
             .collect::<Vec<_>>();
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
@@ -181,7 +185,7 @@ impl ConversationDetailNetworkCapture {
             String::from(request_id),
             TrackedConversationDetailRequest {
                 state: ConversationDetailRequestState::Requested,
-                conversation_id: String::from(conversation_id),
+                conversation_id: Zeroizing::new(String::from(conversation_id)),
             },
         );
         Ok(())
