@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail's legacy core event loop.
 
+use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -627,7 +628,7 @@ impl ObservedLatestMailboxEventWatermark {
         }
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+            strict_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
         validate_optional_event_code(&value)?;
         let event_id = value
             .get("EventID")
@@ -837,7 +838,7 @@ impl ObservedMailboxEventWatermark {
         }
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
+            strict_json::from_str(body).map_err(|_error| MailboxEventWatermarkError::Malformed)?;
         validate_optional_event_code(&value)?;
         let response_event_id = value
             .get("EventID")

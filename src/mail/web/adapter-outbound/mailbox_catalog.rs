@@ -32,6 +32,7 @@
 
 //! Content-minimizing projection of Proton Mail mailbox and label inventory.
 
+use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -395,7 +396,7 @@ impl ObservedMailboxCatalogResponse {
         }
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::from_str(body).map_err(|_error| MailboxCatalogResponseError::Malformed)?;
+            strict_json::from_str(body).map_err(|_error| MailboxCatalogResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(MailboxCatalogResponseError::ProviderRejected);
         }

@@ -30,6 +30,7 @@
 
 //! Managed Chromium `DevTools` pipe for the dedicated Proton Mail profile.
 
+use crate::strict_json;
 use nix::errno::Errno;
 
 use std::collections::HashSet;
@@ -1086,7 +1087,7 @@ impl ManagedBrowser {
             let frame = read_frame(&mut self.reader)?;
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
         }
@@ -1885,7 +1886,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             if let Some(request_id) =
@@ -1990,7 +1991,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture.observe_event(&message)?;
             // jig-ignore-next-line: canonical rustfmt line.
@@ -2036,7 +2037,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2092,7 +2093,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2286,7 +2287,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2446,7 +2447,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2692,7 +2693,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -2834,7 +2835,7 @@ impl ManagedBrowser {
             }
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)
@@ -3111,7 +3112,7 @@ impl ManagedBrowser {
             let frame = read_frame(&mut self.reader)?;
             let message: Value =
                 // jig-ignore-next-line: canonical rustfmt line.
-                serde_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
+                strict_json::from_slice(&frame).map_err(|_error| BrowserDriverError::Protocol)?;
             validate_cdp_notification(&message)?;
             capture
                 .observe(&message)

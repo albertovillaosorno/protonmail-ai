@@ -218,6 +218,31 @@ fn detail_projection_rejects_endpoint_identity_and_provider_drift() {
 }
 
 #[test]
+fn detail_projection_refuses_duplicate_json_keys_at_any_depth() {
+    let parse = ObservedMessageDetailResponse::parse;
+    let body = detail_body().to_string();
+    let normal_code = "\"Code\":1000";
+    let ambiguous_code = "\"Code\":2500,\"Code\":1000";
+    let duplicate_code = body.replacen(normal_code, ambiguous_code, 1);
+    assert_ne!(duplicate_code, body);
+    assert_eq!(
+        parse("GET", MESSAGE_URL, &duplicate_code),
+        Err(MessageDetailResponseError::Malformed)
+    );
+
+    let nested = body.replacen(
+        "\"ID\":\"message-1\"",
+        "\"ID\":\"message-other\",\"ID\":\"message-1\"",
+        1,
+    );
+    assert_ne!(nested, body);
+    assert_eq!(
+        parse("GET", MESSAGE_URL, &nested),
+        Err(MessageDetailResponseError::Malformed)
+    );
+}
+
+#[test]
 fn detail_projection_rejects_duplicates_bad_bounds_and_encoded_body() {
     let mut duplicate_label = detail_body();
     duplicate_label["Message"]["LabelIDs"] = json!(["0", "0"]);
@@ -662,6 +687,43 @@ fn mismatched_attachment_parent_disables_passive_capture() {
         managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
         Err(BrowserDriverError::MessageDetailResponse(
             MessageDetailResponseError::AttachmentParentMismatch,
+        ))
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("CDP remains synchronized");
+    drop(managed);
+    let log_path = root.join("detail-log.txt");
+    let log = fs::read_to_string(log_path).expect("read Network lifecycle");
+    assert_eq!(log, "enable\nbody\ndisable\n");
+    fs::remove_dir_all(&root).expect("remove synthetic browser root");
+}
+
+#[test]
+fn duplicate_provider_code_disables_passive_capture() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    let root = detail_browser_root("duplicate-provider-code");
+    fs::create_dir_all(&root).expect("create synthetic detail root");
+    let browser = fake_detail_browser(&root, true, false);
+    let script = fs::read_to_string(&browser).expect("read synthetic browser");
+    let original = r#"{"Code":1000,"Message":{"ID""#;
+    let injected = r#"{"Code":2500,"Code":1000,"Message":{"ID""#;
+    assert!(script.contains(original));
+    fs::write(&browser, script.replace(original, injected))
+        .expect("install duplicate provider response key");
+    let plan = ManagedBrowserPlan::under_data_home(
+        browser.to_str().expect("synthetic browser path UTF-8"),
+        &root.join("data"),
+    )
+    .expect("build synthetic browser plan");
+    let mut managed = ManagedBrowser::launch(&plan).expect("launch browser");
+    let page = managed.provider_page().expect("discover Mail page");
+    assert_eq!(
+        managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+        Err(BrowserDriverError::MessageDetailResponse(
+            MessageDetailResponseError::Malformed,
         ))
     );
     managed

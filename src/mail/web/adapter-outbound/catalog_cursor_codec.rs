@@ -30,6 +30,7 @@
 
 //! Opaque authenticated web-adapter cursors for mailbox and label snapshots.
 
+use crate::strict_json;
 use std::fmt;
 
 use aes_gcm::aead::consts::U12;
@@ -175,7 +176,7 @@ impl WebCatalogCursorCodec {
             )
             .map(Zeroizing::new)
             .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
-        let value: Value = serde_json::from_slice(plaintext.as_slice())
+        let value: Value = strict_json::from_slice(plaintext.as_slice())
             .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
         let object = value
             .as_object()

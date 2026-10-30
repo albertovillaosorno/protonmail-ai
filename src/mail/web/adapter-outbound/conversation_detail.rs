@@ -31,6 +31,7 @@
 
 //! Complete bounded membership projection for one Proton Mail conversation.
 
+use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -383,7 +384,7 @@ impl ObservedConversationDetailResponse {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(ConversationDetailResponseError::BodyTooLarge);
         }
-        let value: Value = serde_json::from_str(body)
+        let value: Value = strict_json::from_str(body)
             .map_err(|_error| ConversationDetailResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(ConversationDetailResponseError::ProviderRejected);

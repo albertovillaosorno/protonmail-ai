@@ -409,6 +409,16 @@ destination_license=GPL-3.0-only
 modifications=original-rust-cdp-command-authority-tests-from-protocol-facts
 
 [file]
+path=src/mail/web/adapter-outbound/strict_json.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-project-code
+
+[file]
 path=src/mail/web/adapter-outbound/shell.rs
 origin=fact-informed
 source_id=proton-webclients
@@ -687,6 +697,16 @@ source_revision=74773f0b10cc31d32e43e82c061da5d75fef96ce
 source_license=GPL-3.0
 destination_license=GPL-3.0-only
 modifications=original-rust-single-message-metadata-projection
+
+[file]
+path=tests/mail/web/adapter-outbound/strict_json.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-project-code
 
 [file]
 path=tests/mail/web/adapter-outbound/message_detail.rs

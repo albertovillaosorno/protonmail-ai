@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail conversation-list responses.
 
+use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -399,7 +400,7 @@ impl ObservedConversationListResponse {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(ConversationListResponseError::BodyTooLarge);
         }
-        let value: Value = serde_json::from_str(body)
+        let value: Value = strict_json::from_str(body)
             .map_err(|_error| ConversationListResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(ConversationListResponseError::ProviderRejected);

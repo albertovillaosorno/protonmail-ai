@@ -35,6 +35,7 @@
 
 //! Bounded Proton attachment metadata projection with parent-message binding.
 
+use crate::strict_json;
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -382,7 +383,7 @@ impl ObservedAttachmentMetadataResponse {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(AttachmentMetadataResponseError::BodyTooLarge);
         }
-        let value: Value = serde_json::from_str(body)
+        let value: Value = strict_json::from_str(body)
             .map_err(|_error| AttachmentMetadataResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(AttachmentMetadataResponseError::ProviderRejected);

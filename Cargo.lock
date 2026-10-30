@@ -239,6 +239,7 @@ dependencies = [
  "getrandom",
  "mail_capability_domain",
  "nix",
+ "serde",
  "serde_json",
  "zeroize",
 ]

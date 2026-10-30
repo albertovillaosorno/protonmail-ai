@@ -543,3 +543,15 @@ Ship useful read access before any mailbox mutation is enabled.
   same-session Mail-shell inspection. Independent attachment metadata GETs
   still require the caller-bound parent before output; this does not enable
   plaintext attachment retrieval or public read tools.
+
+## Duplicate-key ambiguity in read JSON
+
+- Untrusted provider response and CDP JSON previously used the last value for
+  duplicate object keys. This could mask conflicting provider `Code`, message
+  IDs or nested attachment metadata before policy checks. A shared strict
+  Serde visitor now rejects duplicates recursively, including equivalent
+  escaped key names, without changing valid JSON projections.
+- All bounded web-adapter provider response projectors, browser CDP frame
+  readers and authenticated in-memory cursor payload decoders now use it.
+  Red-first synthetic detail tests, parser parity cases and fake-browser
+  cleanup evidence cover ambiguity rejection without provider contact.

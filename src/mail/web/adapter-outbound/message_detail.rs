@@ -34,6 +34,7 @@
 
 //! Bounded metadata projection for one Proton Mail message-detail response.
 
+use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -526,7 +527,7 @@ impl ObservedMessageDetailResponse {
         }
         let value: Value =
             // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::from_str(body).map_err(|_error| MessageDetailResponseError::Malformed)?;
+            strict_json::from_str(body).map_err(|_error| MessageDetailResponseError::Malformed)?;
         if value.get("Code").and_then(Value::as_u64) != Some(1000) {
             return Err(MessageDetailResponseError::ProviderRejected);
         }

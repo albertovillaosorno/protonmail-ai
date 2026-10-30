@@ -31,6 +31,7 @@
 
 //! Authenticated opaque serialization for web-adapter event cursors.
 
+use crate::strict_json;
 use std::fmt;
 
 use aes_gcm::aead::consts::U12;
@@ -193,7 +194,7 @@ impl WebEventCursorCodec {
             )
             .map(Zeroizing::new)
             .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
-        let value: Value = serde_json::from_slice(plaintext.as_slice())
+        let value: Value = strict_json::from_slice(plaintext.as_slice())
             .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
         let object = value
             .as_object()

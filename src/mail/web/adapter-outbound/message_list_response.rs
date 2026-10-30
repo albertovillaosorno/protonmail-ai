@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail message-list responses.
 
+use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -709,7 +710,7 @@ impl ObservedMessageListResponse {
         }
         let value: Value =
     // jig-ignore-next-line: canonical rustfmt line.
-            serde_json::from_str(body).map_err(|_error| MessageListResponseError::Malformed)?;
+            strict_json::from_str(body).map_err(|_error| MessageListResponseError::Malformed)?;
         if value
             .get("Code")
             .is_some_and(|code| code.as_u64() != Some(1000))

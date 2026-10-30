@@ -57,6 +57,7 @@ mod opaque_read_id;
 mod policy;
 mod profile;
 mod shell;
+mod strict_json;
 
 pub use attachment_metadata::AttachmentMetadataNetworkCapture;
 pub use attachment_metadata::AttachmentMetadataNetworkError;
