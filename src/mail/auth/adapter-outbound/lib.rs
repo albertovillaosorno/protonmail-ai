@@ -57,6 +57,15 @@ pub const SDK_DEFAULT_CLIENT_ID: &str = "Other";
 
 const QR_VERSION: u8 = 0;
 const SECRET_LEN: usize = 32;
+const FORK_USER_CODE_LEN: usize = 8;
+
+// The SDK handoff and provider challenge must agree on approval-code syntax.
+fn safe_fork_user_code(value: &str) -> bool {
+    value.len() == FORK_USER_CODE_LEN
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() && byte != b':')
+}
 type HandoffResult<T> = Result<T, HandoffError>;
 
 /// A displayable QR/manual-code handoff payload.
@@ -103,19 +112,16 @@ impl TargetHandoff {
     ///
     /// # Errors
     ///
-    /// Returns [`HandoffError::InvalidUserCode`] when colon framing would be
-    /// ambiguous, or [`HandoffError::EntropyUnavailable`] when secure random
+    /// Returns [`HandoffError::InvalidUserCode`] unless the code has the
+    /// provider's eight-byte printable ASCII framing without a colon, or
+    /// [`HandoffError::EntropyUnavailable`] when secure random
     /// bytes cannot be obtained from the operating system.
     pub fn new_for_sdk_model<T>(user_code: T) -> HandoffResult<Self>
     where
         T: Into<String>,
     {
         let user_code = Zeroizing::new(user_code.into());
-        if user_code.is_empty()
-            || !user_code
-                .bytes()
-                .all(|byte| byte.is_ascii_graphic() && byte != b':')
-        {
+        if !safe_fork_user_code(&user_code) {
             return Err(HandoffError::InvalidUserCode);
         }
 

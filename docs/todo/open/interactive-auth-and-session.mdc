@@ -126,3 +126,11 @@ account credentials. The primary web UI login remains a separate P1 path.
   drops; static provider paths remain borrowed. Existing explicit getters,
   challenge cloning, poll URL framing, and redacted diagnostics are preserved
   by synthetic tests. This only hardens the offline protocol model.
+
+## Shared eight-byte approval-code shape
+
+- Red-first SDK-model tests found that the handoff constructor still accepted
+  short or arbitrarily long printable approval codes, unlike the provider
+  challenge parser. Both now use one eight-byte printable ASCII predicate
+  with colon framing excluded. Synthetic parser and QR tests confirm valid
+  approval codes retain their previous behavior.

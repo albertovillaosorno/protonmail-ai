@@ -45,6 +45,7 @@ use zeroize::Zeroizing;
 
 use crate::identity::ApprovedMailIdentity;
 use crate::identity::ProviderAuthorizationSnapshot;
+use crate::safe_fork_user_code;
 
 const HTTP_OK: u16 = 200;
 const HTTP_UNPROCESSABLE_ENTITY: u16 = 422;
@@ -53,7 +54,6 @@ const LEGACY_NONCE_LEN: usize = 16;
 const GCM_TAG_LEN: usize = 16;
 const FORK_AAD: &[u8] = b"fork";
 const FORK_SELECTOR_LEN: usize = 20;
-const FORK_USER_CODE_LEN: usize = 8;
 // Restrict provider-controlled JSON and ciphertext before allocating parsed
 // authority or invoking AEAD. These bounds apply even without a live adapter.
 const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
@@ -458,15 +458,9 @@ impl ForkChallenge {
             byte.is_ascii_graphic() && !forbidden
         });
         // Approval codes are passed into a colon-delimited QR payload.
-        let safe_code = raw
-            .user_code
-            .bytes()
-            .all(|byte| byte.is_ascii_graphic() && byte != b':');
-        if raw.selector.len() != FORK_SELECTOR_LEN
-            || !safe_selector
-            || raw.user_code.len() != FORK_USER_CODE_LEN
-            || !safe_code
-        {
+        let safe_code = safe_fork_user_code(&raw.user_code);
+        let correct_selector_length = raw.selector.len() == FORK_SELECTOR_LEN;
+        if !correct_selector_length || !safe_selector || !safe_code {
             return Err(ProtocolError::InvalidChallenge);
         }
 

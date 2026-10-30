@@ -82,6 +82,17 @@ fn invalid_user_codes_fail_before_entropy_is_used() {
 }
 
 #[test]
+fn sdk_model_requires_the_eight_byte_provider_approval_code_shape() {
+    for bad in ["ABCDEF", "ABCDEFGHI", "A", "abcdefghijklmnop"] {
+        assert!(matches!(
+            TargetHandoff::new_for_sdk_model(bad),
+            Err(HandoffError::InvalidUserCode)
+        ));
+    }
+    assert!(TargetHandoff::new_for_sdk_model("AB-CD_12").is_ok());
+}
+
+#[test]
 fn sdk_model_refuses_unprintable_manual_approval_codes() {
     for code in [
         "AB\nCDEFG",

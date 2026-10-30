@@ -285,6 +285,14 @@ fn fork_challenge_refuses_selector_url_injection_and_control_bearing_codes() {
         );
     }
 
+    for bad in ["ABCDEFG", "ABCDEFGHI"] {
+        let body = json!({"Selector":SELECTOR, "UserCode":bad});
+        assert_eq!(
+            ForkChallenge::parse(200, &body.to_string().into_bytes()),
+            Err(ProtocolError::InvalidChallenge)
+        );
+    }
+
     let selector = "abcdefghijklmnop+_==";
     assert_eq!(selector.len(), 20);
     let body = json!({"Selector":selector,"UserCode":"AB-CD_12"});
