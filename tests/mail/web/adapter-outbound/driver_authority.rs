@@ -40,6 +40,23 @@ use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runt
 use serde_json::json;
 
 #[test]
+fn managed_browser_target_and_message_list_state_require_scrub_on_drop() {
+    use super::CapturedMessageListResponses;
+    use super::CompletedMessageListRequest;
+    use super::ProviderPage;
+
+    #[expect(drop_bounds, reason = "require browser identifier scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ProviderPage>();
+    requires_scrub_on_drop::<CompletedMessageListRequest>();
+    requires_scrub_on_drop::<CapturedMessageListResponses>();
+}
+
+#[test]
 fn only_audited_cdp_methods_are_accepted_in_their_session_scope() {
     for command in [
         "Browser.getVersion",

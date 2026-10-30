@@ -36,6 +36,7 @@ use nix::errno::Errno;
 use std::collections::HashSet;
 use std::fmt;
 use std::io::{BufRead as _, BufReader, Error as IoError, ErrorKind, Write as _};
+use std::mem::take;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
@@ -166,6 +167,20 @@ struct CompletedMessageListRequest {
     anchor_id: Option<String>,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for CompletedMessageListRequest {
+    fn drop(&mut self) {
+        self.request_id.zeroize();
+        self.sort_key.zeroize();
+        if let Some(anchor) = self.anchor_id.as_mut() {
+            anchor.zeroize();
+        }
+    }
+}
+
 struct CapturedConversationListResponse {
     response: ObservedConversationListResponse,
     requested_page: Option<u32>,
@@ -179,6 +194,17 @@ struct CapturedMessageListResponses {
     initial_limit: usize,
     initial_sort_key: String,
     initial_descending: bool,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for CapturedMessageListResponses {
+    fn drop(&mut self) {
+        self.initial_sort_key.zeroize();
+        // Owned response rows scrub their identifiers individually.
+    }
 }
 
 impl CapturedMessageListResponses {
@@ -362,6 +388,16 @@ impl fmt::Debug for ProviderPage {
             .field("origin", &self.origin)
             .field("target_id", &"<redacted>")
             .finish()
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ProviderPage {
+    fn drop(&mut self) {
+        self.target_id.zeroize();
     }
 }
 
@@ -2950,8 +2986,8 @@ impl ManagedBrowser {
         if observed.responses.len() != 1 {
             return Err(BrowserDriverError::MessageListResponseAmbiguous);
         }
-        observed
-            .responses
+        let mut observed = observed;
+        take(&mut observed.responses)
             .into_iter()
             .next()
             .ok_or(BrowserDriverError::Protocol)

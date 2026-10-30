@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Finished message-list request state now erases private request IDs and
+  cursor-anchor identifiers when dropped. The captured list bundle scrubs
+  its sort label and moves the owned response vector with `take` during
+  single-batch extraction; red-first Drop checks and existing batch/paging
+  fixtures retain previous behavior.
+
 - All passive read-only Network collectors now retain their flattened CDP
   session identifier in `Zeroizing<String>`, including request-list captures,
   exact message/conversation/attachment captures, and catalog observation.

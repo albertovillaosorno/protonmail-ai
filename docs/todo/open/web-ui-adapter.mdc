@@ -60,6 +60,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- The managed browser's selected target identity now scrubs its CDP ID on
+  drop, including origin/mode rejection paths. Its public origin classifier
+  and fail-closed page targeting behavior are unchanged.
+
 - Bounded visible Mail row snapshots now scrub copied row IDs, subjects, and
   displayed correspondent strings when dropped; list-state evidence also
   erases opaque IDs during unstable-page rejection. The duplicate-ID guard
