@@ -30,7 +30,7 @@
 
 //! Offline typed JSON decoding coverage.
 
-use super::{from_slice, from_str};
+use super::{from_sensitive_slice, from_slice, from_str, zeroize_json_strings};
 use serde_json::{Value, json};
 
 #[test]
@@ -81,4 +81,30 @@ fn strict_decoder_distinguishes_unicode_escaped_equivalent_keys() {
     );
     assert!(from_slice(b"[").is_err());
     assert_eq!(from_str("null").expect("parse null"), Value::Null);
+}
+
+#[test]
+fn sensitive_cursor_json_keeps_strict_duplicate_key_guard() {
+    let body = br#"{"account":"account-secret","state":"event-next"}"#;
+    let value = from_sensitive_slice(body).expect("strict decoded cursor JSON");
+    assert_eq!(value["account"], "account-secret");
+    assert_eq!(value["state"], "event-next");
+    drop(value);
+    let duplicate = br#"{"account":"one","account":"two"}"#;
+    assert!(from_sensitive_slice(duplicate).is_err());
+}
+
+#[test]
+fn sensitive_json_scrubber_clears_nested_values_and_object_keys() {
+    let mut value = serde_json::json!({
+        "secret-key": ["secret-string", {"nested-secret": "nested-value"}],
+        "boolean": true,
+        "number": 42i32,
+    });
+    zeroize_json_strings(&mut value);
+    assert_eq!(value, serde_json::json!({}));
+
+    let mut simple = serde_json::json!(["synthetic-password", false, null]);
+    zeroize_json_strings(&mut simple);
+    assert_eq!(simple, serde_json::json!(["", false, null]));
 }

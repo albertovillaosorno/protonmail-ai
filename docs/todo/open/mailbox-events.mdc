@@ -237,3 +237,9 @@ bounded resource use.
   private account identifiers and provider watermarks in a transient JSON
   Value. Authenticated cursor fields, generation binding, and decoding remain
   unchanged; existing round-trip/tamper regressions cover compatibility.
+
+- Authenticated event-cursor decode now wraps strict JSON values in a
+  drop-time scrubber, clearing owned strings, nested strings, and object keys
+  even when later scope validation rejects the cursor. The shared provider
+  JSON parser remains unchanged for all other read paths; synthetic duplicate-
+  key and recursive scrubber tests exercise the cursor-specific wrapper.

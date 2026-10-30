@@ -31,10 +31,13 @@
 //! Strict JSON decoding for untrusted provider and browser responses.
 
 use core::fmt;
+use core::mem::take;
+use core::ops::Deref;
 
 use serde::de::{Error as DeError, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Number, Value};
+use zeroize::Zeroize as _;
 
 #[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
 pub(crate) fn from_str(input: &str) -> Result<Value, serde_json::Error> {
@@ -44,6 +47,58 @@ pub(crate) fn from_str(input: &str) -> Result<Value, serde_json::Error> {
 #[expect(clippy::redundant_pub_crate, reason = "shared private module helper")]
 pub(crate) fn from_slice(input: &[u8]) -> Result<Value, serde_json::Error> {
     serde_json::from_slice::<StrictValue>(input).map(|value| value.0)
+}
+
+// AES cursor decoding uses the same strict duplicate-key rejection, but its
+// parsed Value contains copies of decrypted account and watermark strings.
+// Destroy those owned strings and all object keys before releasing the heap.
+// jig-ignore-next-line: rustfmt requires one-line private lint attribute.
+#[expect(clippy::redundant_pub_crate, reason = "cursor-only private JSON guard")]
+pub(crate) struct SensitiveValue(Value);
+
+// jig-ignore-next-line: rustfmt requires one-line private lint attribute.
+#[expect(clippy::redundant_pub_crate, reason = "cursor-only private JSON guard")]
+// jig-ignore-next-line: rustfmt keeps the private cursor decode signature.
+pub(crate) fn from_sensitive_slice(input: &[u8]) -> Result<SensitiveValue, serde_json::Error> {
+    from_slice(input).map(SensitiveValue)
+}
+
+impl Deref for SensitiveValue {
+    type Target = Value;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop has no stable additional methods to implement"
+)]
+impl Drop for SensitiveValue {
+    fn drop(&mut self) {
+        zeroize_json_strings(&mut self.0);
+    }
+}
+
+fn zeroize_json_strings(value: &mut Value) {
+    match value {
+        Value::String(text) => text.zeroize(),
+        Value::Array(items) => {
+            for item in items {
+                zeroize_json_strings(item);
+            }
+        }
+        Value::Object(object) => {
+            // Draining permits zeroizing keys too. On drop nobody may
+            // retain a reference into the parsed JSON tree.
+            for (mut key, mut item) in take(object) {
+                key.zeroize();
+                zeroize_json_strings(&mut item);
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+    }
 }
 
 struct StrictValue(Value);

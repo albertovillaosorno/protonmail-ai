@@ -205,7 +205,9 @@ impl WebEventCursorCodec {
             )
             .map(Zeroizing::new)
             .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
-        let value: Value = strict_json::from_slice(plaintext.as_slice())
+        // Keep validated decoded strings zeroizing, including early-return
+        // error paths after authenticated decryption.
+        let value = strict_json::from_sensitive_slice(plaintext.as_slice())
             .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
         let object = value
             .as_object()
