@@ -40,6 +40,7 @@ use aes_gcm::aes::Aes256;
 use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
+use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -303,7 +304,7 @@ pub struct AnonymousSession {
     uid: Zeroizing<String>,
     access_token: SecretText,
     refresh_token: SecretText,
-    scopes: Vec<String>,
+    scopes: Zeroizing<Vec<String>>,
 }
 
 impl fmt::Debug for AnonymousSession {
@@ -373,7 +374,7 @@ impl AnonymousSession {
     /// Returns the provider scopes attached to the anonymous authority.
     #[must_use]
     pub fn scopes(&self) -> &[String] {
-        &self.scopes
+        self.scopes.as_slice()
     }
 
     /// Builds the authenticated request that allocates a fork challenge.
@@ -582,7 +583,7 @@ pub struct ForkSession {
     user_id: Zeroizing<String>,
     access_token: SecretText,
     refresh_token: SecretText,
-    scopes: Vec<String>,
+    scopes: Zeroizing<Vec<String>>,
     payload: Option<Zeroizing<Vec<u8>>>,
 }
 
@@ -615,7 +616,7 @@ impl ForkSession {
     /// Returns the granted provider scopes.
     #[must_use]
     pub fn scopes(&self) -> &[String] {
-        &self.scopes
+        self.scopes.as_slice()
     }
 
     /// Exposes the access token only at a secret-aware storage/transport
@@ -812,7 +813,8 @@ struct RawAuth {
     access_token: Zeroizing<String>,
     #[serde(deserialize_with = "read_sensitive")]
     refresh_token: Zeroizing<String>,
-    scopes: Vec<String>,
+    #[serde(deserialize_with = "read_sensitive_scopes")]
+    scopes: Zeroizing<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -859,6 +861,41 @@ where
 {
     let value = Option::<String>::deserialize(deserializer)?;
     Ok(value.map(Zeroizing::new))
+}
+
+// Keep already-read scope strings guarded even if a later scope in the
+// untrusted provider array fails to deserialize.
+// jig-ignore-next-line: canonical rustfmt sensitive Serde sequence signature.
+fn read_sensitive_scopes<'de, D>(deserializer: D) -> Result<Zeroizing<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct ScopeVisitor;
+
+    #[expect(
+        clippy::missing_trait_methods,
+        reason = "Serde Visitor defaults reject non-sequences"
+    )]
+    impl<'de> Visitor<'de> for ScopeVisitor {
+        type Value = Zeroizing<Vec<String>>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("an array of authorization scopes")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut scopes = Zeroizing::new(Vec::new());
+            while let Some(scope) = seq.next_element::<String>()? {
+                scopes.push(scope);
+            }
+            Ok(scopes)
+        }
+    }
+
+    deserializer.deserialize_seq(ScopeVisitor)
 }
 
 struct SecretText(Zeroizing<String>);

@@ -166,3 +166,14 @@ account credentials. The primary web UI login remains a separate P1 path.
   selector shape; encoded aliases, route delimiters and other reserved syntax
   remain rejected. This is offline parser hardening, not authority to make
   provider requests or a claim of live fork compatibility.
+
+## Authorization-scope parse custody
+
+- Anonymous and child-session `Scopes` are now stored in scrub-on-drop
+  string vectors, including accepted authority and raw early-return models.
+  The provider JSON scope-array visitor constructs its zeroizing vector before
+  consuming any elements so previously accumulated scope strings are scrubbed
+  even if a later array value fails to parse. Red-first private field-type
+  tests cover both raw and accepted models; public `scopes()` values remain
+  unchanged. Input transport bytes and parser-owned incomplete string tokens
+  remain outside this custody guarantee. No live fork is enabled.
