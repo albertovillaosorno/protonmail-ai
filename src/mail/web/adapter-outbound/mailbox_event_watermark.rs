@@ -66,7 +66,7 @@ enum EventRequestState {
 #[derive(Clone, Debug)]
 struct TrackedEventRequest {
     state: EventRequestState,
-    event_id: String,
+    event_id: Zeroizing<String>,
     url_fingerprint: [u64; 2],
 }
 
@@ -421,7 +421,7 @@ impl MailboxEventNetworkCapture {
             .iter()
             // jig-ignore-next-line: canonical rustfmt line.
             .filter(|(_id, request)| request.state == EventRequestState::Finished)
-            .map(|(id, request)| (id.clone(), request.event_id.clone()))
+            .map(|(id, request)| (id.clone(), request.event_id.to_string()))
             .collect::<Vec<_>>();
         self.requests
             // jig-ignore-next-line: canonical rustfmt line.
@@ -489,7 +489,7 @@ impl MailboxEventNetworkCapture {
             String::from(request_id),
             TrackedEventRequest {
                 state: EventRequestState::Requested,
-                event_id: String::from(event_id),
+                event_id: Zeroizing::new(String::from(event_id)),
                 // jig-ignore-next-line: canonical rustfmt line.
                 url_fingerprint: self.url_hashers.each_ref().map(|state| state.hash_one(url)),
             },
@@ -537,7 +537,7 @@ impl MailboxEventNetworkCapture {
         }
         if status != Some(200)
             || mime != Some("application/json")
-            || event_id != request.event_id
+            || event_id != request.event_id.as_str()
             || url_fingerprint != request.url_fingerprint
         {
             return Err(MailboxEventNetworkError::ResponseRejected);

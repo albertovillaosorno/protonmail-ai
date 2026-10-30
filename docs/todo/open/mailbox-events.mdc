@@ -27,6 +27,11 @@ bounded resource use.
 
 ## Additional synthetic lifecycle evidence
 
+- The passive event poll request tracker now retains provider event IDs in
+  zeroizing custody while validating response URL and lifecycle transitions.
+  Failed, retried, or consumed trackers erase those copies; explicit return
+  tuples preserve existing caller-facing identifier ownership.
+
 - Initial and resumed mailbox-event Network collectors also scrub their
   copied CDP session ID on drop, including failed and cancelled observation.
   Session correlation and exact endpoint rules are unchanged.

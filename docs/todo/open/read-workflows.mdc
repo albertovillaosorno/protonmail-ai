@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- In-flight message-list continuation `AnchorID` selectors are now held in
+  zeroizing custody through exact URL/response matching. Completed requests
+  retain the explicit caller-facing identifier tuple, and tracker removal
+  erases the extra stored selector copy. Existing bounded batch fixtures
+  continue to prove continuation identity requirements.
+
 - Exact message, conversation, and attachment Network request trackers now
   guard provider entity selectors in `Zeroizing<String>`. Request retries and
   failed or consumed lifecycle entries erase their stored selector strings;

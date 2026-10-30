@@ -82,7 +82,7 @@ struct TrackedMessageListRequest {
     sort_key: MessageListSortKey,
     descending: bool,
     anchor: Option<u64>,
-    anchor_id: Option<String>,
+    anchor_id: Option<Zeroizing<String>>,
 }
 
 /// Bounded CDP Network event state for exact message-list GET requests.
@@ -219,7 +219,10 @@ impl MessageListNetworkCapture {
                     }),
                     request.descending,
                     request.anchor,
-                    request.anchor_id.clone(),
+                    request
+                        .anchor_id
+                        .as_ref()
+                        .map(|id| String::from(id.as_str())),
                 )
             })
             .collect::<Vec<_>>();
@@ -305,7 +308,7 @@ impl MessageListNetworkCapture {
                 sort_key,
                 descending,
                 anchor,
-                anchor_id,
+                anchor_id: anchor_id.map(Zeroizing::new),
             },
         );
         Ok(())
@@ -359,6 +362,7 @@ impl MessageListNetworkCapture {
             .ok_or(MessageListNetworkError::ResponseRejected)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let (kind, limit, page, sort_key, descending, anchor, anchor_id) = shape;
+        let saved_anchor_id = request.anchor_id.as_ref().map(|id| id.as_str());
         if request.kind != kind
             || request.limit != limit
             || request.page != page
@@ -366,7 +370,7 @@ impl MessageListNetworkCapture {
             || request.descending != descending
             || self.context_fingerprint != Some(context_fingerprint)
             || request.anchor != anchor
-            || request.anchor_id != anchor_id
+            || saved_anchor_id != anchor_id.as_deref()
         {
             return Err(MessageListNetworkError::ResponseRejected);
         }
