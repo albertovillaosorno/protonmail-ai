@@ -27,6 +27,10 @@ bounded resource use.
 
 ## Additional synthetic lifecycle evidence
 
+- Initial and resumed mailbox-event Network collectors also scrub their
+  copied CDP session ID on drop, including failed and cancelled observation.
+  Session correlation and exact endpoint rules are unchanged.
+
 - Serialized change-page next-cursor tokens and the managed browser's private
   generation tag now scrub on drop. Change-page items continue to scrub their
   normalized provider IDs independently. This narrows bearer-token lifetime

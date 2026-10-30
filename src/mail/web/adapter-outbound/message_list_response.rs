@@ -39,7 +39,7 @@ use std::hash::BuildHasher as _;
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
-use zeroize::Zeroize as _;
+use zeroize::{Zeroize as _, Zeroizing};
 
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
@@ -88,7 +88,7 @@ struct TrackedMessageListRequest {
 /// Bounded CDP Network event state for exact message-list GET requests.
 #[derive(Clone)]
 pub struct MessageListNetworkCapture {
-    session_id: String,
+    session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedMessageListRequest>,
     completed_ids: BTreeSet<String>,
     context_fingerprint: Option<[u64; 2]>,
@@ -121,7 +121,7 @@ impl MessageListNetworkCapture {
     #[must_use]
     pub fn new(session_id: &str) -> Self {
         Self {
-            session_id: String::from(session_id),
+            session_id: Zeroizing::new(String::from(session_id)),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
             context_fingerprint: None,

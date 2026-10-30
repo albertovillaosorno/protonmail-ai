@@ -40,7 +40,7 @@ use crate::display_text_safety::unsafe_display_character;
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
-use zeroize::Zeroize as _;
+use zeroize::{Zeroize as _, Zeroizing};
 
 const LABELS_URL_PREFIX: &str = "https://mail.proton.me/api/core/v4/labels";
 const MAX_CATALOG_ITEMS: usize = 2_048;
@@ -94,7 +94,7 @@ struct TrackedCatalogRequest {
 /// Bounded CDP Network lifecycle state for exact mail catalog GETs.
 #[derive(Clone, Eq, PartialEq)]
 pub struct MailboxCatalogNetworkCapture {
-    session_id: String,
+    session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedCatalogRequest>,
     completed_ids: BTreeSet<String>,
 }
@@ -104,7 +104,7 @@ impl MailboxCatalogNetworkCapture {
     #[must_use]
     pub fn new(session_id: &str) -> Self {
         Self {
-            session_id: String::from(session_id),
+            session_id: Zeroizing::new(String::from(session_id)),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
         }

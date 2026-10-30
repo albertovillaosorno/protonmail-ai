@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- All passive read-only Network collectors now retain their flattened CDP
+  session identifier in `Zeroizing<String>`, including request-list captures,
+  exact message/conversation/attachment captures, and catalog observation.
+  This erases session identity copies on success, rejection, and early drop;
+  synthetic lifecycle tests continue to enforce exact-session correlation.
+
 - The strict provider/browser JSON decoder no longer exposes ordinary owned
   response trees in production: both plaintext-text and byte-slice test-only
   decoders are isolated behind `cfg(test)`. Production receives only a

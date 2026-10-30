@@ -43,7 +43,7 @@ use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
-use zeroize::Zeroize as _;
+use zeroize::{Zeroize as _, Zeroizing};
 
 // jig-ignore-next-line: canonical rustfmt line.
 const ATTACHMENT_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/attachments/";
@@ -70,7 +70,7 @@ struct TrackedAttachmentMetadataRequest {
 /// Bounded CDP Network lifecycle state for exact attachment-metadata GETs.
 #[derive(Clone, Eq, PartialEq)]
 pub struct AttachmentMetadataNetworkCapture {
-    session_id: String,
+    session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedAttachmentMetadataRequest>,
     completed_ids: BTreeSet<String>,
 }
@@ -80,7 +80,7 @@ impl AttachmentMetadataNetworkCapture {
     #[must_use]
     pub fn new(session_id: &str) -> Self {
         Self {
-            session_id: String::from(session_id),
+            session_id: Zeroizing::new(String::from(session_id)),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
         }
