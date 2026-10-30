@@ -79,6 +79,7 @@ fn debug_output_redacts_handoff_secret() {
     assert_eq!(format!("{payload:?}"), "HandoffPayload([REDACTED])");
     assert!(!format!("{handoff:?}").contains(&exposed));
     assert!(format!("{handoff:?}").contains("[REDACTED]"));
+    assert!(!format!("{handoff:?}").contains("ABCDEFGH"));
 }
 
 fn sdk_handoff() -> TargetHandoff {

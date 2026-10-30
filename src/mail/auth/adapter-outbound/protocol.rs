@@ -230,7 +230,7 @@ impl fmt::Debug for RequestSpec<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RequestSpec")
             .field("method", &self.method)
-            .field("path", &self.path)
+            .field("path", &"[REDACTED]")
             .field("identity", &self.identity)
             .field("uid", &self.uid.map(|_| "[REDACTED]"))
             .field("bearer", &self.bearer.map(|_| "[REDACTED]"))
@@ -288,10 +288,10 @@ pub struct AnonymousSession {
 impl fmt::Debug for AnonymousSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AnonymousSession")
-            .field("uid", &self.uid)
+            .field("uid", &"[REDACTED]")
             .field("access_token", &"[REDACTED]")
             .field("refresh_token", &"[REDACTED]")
-            .field("scopes", &self.scopes)
+            .field("scope_count", &self.scopes.len())
             .finish()
     }
 }
@@ -394,10 +394,19 @@ impl AnonymousSession {
 }
 
 /// Provider fork challenge returned before the user approves login.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ForkChallenge {
     selector: String,
     user_code: String,
+}
+
+impl fmt::Debug for ForkChallenge {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ForkChallenge")
+            .field("selector", &"[REDACTED]")
+            .field("user_code", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl ForkChallenge {
@@ -531,11 +540,11 @@ pub struct ForkSession {
 impl fmt::Debug for ForkSession {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ForkSession")
-            .field("uid", &self.uid)
-            .field("user_id", &self.user_id)
+            .field("uid", &"[REDACTED]")
+            .field("user_id", &"[REDACTED]")
             .field("access_token", &"[REDACTED]")
             .field("refresh_token", &"[REDACTED]")
-            .field("scopes", &self.scopes)
+            .field("scope_count", &self.scopes.len())
             .field("payload", &self.payload.as_ref().map(|_| "[REDACTED]"))
             .finish()
     }

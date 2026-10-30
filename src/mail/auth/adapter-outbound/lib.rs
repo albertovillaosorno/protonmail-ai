@@ -144,7 +144,7 @@ impl TargetHandoff {
 impl fmt::Debug for TargetHandoff {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TargetHandoff")
-            .field("user_code", &self.user_code)
+            .field("user_code", &"[REDACTED]")
             .field("secret", &"[REDACTED]")
             .finish()
     }

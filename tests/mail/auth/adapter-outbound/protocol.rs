@@ -181,6 +181,37 @@ fn challenge_parser_accepts_exact_provider_shape() {
 }
 
 #[test]
+fn fork_authority_debug_never_exposes_login_selectors_or_session_identity() {
+    let challenge = challenge();
+    let anonymous = anonymous_session();
+    let poll = anonymous.poll_request(sdk_identity(), &challenge);
+    let completed = complete_response(None);
+    let session = completed_session(&completed);
+    let debug = format!("{challenge:?} {anonymous:?} {poll:?} {session:?}");
+
+    for sensitive in [
+        SELECTOR,
+        USER_CODE,
+        "synthetic-anonymous-uid",
+        "synthetic-session-uid",
+        "synthetic-user-id",
+        ACCESS_TOKEN,
+        REFRESH_TOKEN,
+    ] {
+        assert!(
+            !debug.contains(sensitive),
+            "session identity or short-lived approval material was logged"
+        );
+    }
+    assert!(debug.contains("[REDACTED]"));
+    // Explicit transport and user-facing access must not be altered.
+    assert_eq!(challenge.selector(), SELECTOR);
+    assert_eq!(challenge.user_code(), USER_CODE);
+    assert_eq!(poll.path(), challenge.poll_path());
+    assert_eq!(session.uid(), "synthetic-session-uid");
+}
+
+#[test]
 fn polling_422_is_pending_not_auth_failure() {
     assert!(matches!(
         ForkPoll::parse(422, b"provider pending body is intentionally ignored"),

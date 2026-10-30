@@ -73,3 +73,14 @@ account credentials. The primary web UI login remains a separate P1 path.
 - Authentication state-machine tests
 - Credential-store integration tests
 - Redacted opt-in live QR-login transcript
+
+## Sensitive diagnostics boundary
+
+- Offline red-first session-fork regression tests demonstrated that `Debug`
+  exposed the approval selector via `ForkChallenge` and dynamic poll-request
+  paths, the human approval code via `ForkChallenge` and `TargetHandoff`,
+  and provider session UID/user identity through auth-session structures.
+  These are now structurally redacted; request methods and scope counts remain
+  diagnosable without copying authority, while explicit getters and provider
+  request framing remain unchanged. Live direct login remains blocked by the
+  provider-registration gate.
