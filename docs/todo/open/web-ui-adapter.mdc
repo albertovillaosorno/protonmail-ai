@@ -1598,3 +1598,10 @@ web application without requiring Bridge or a third-party direct API identity.
   also fail closed instead of being exported as folder/label display names.
   This aligns the catalog guard with existing visible-message text rules while
   retaining explicitly supported LF, NBSP, emoji ZWJ and variation selectors.
+
+- Visible mailbox rows, message-detail subject/recipient names, and catalog
+  folder/label names now reuse one private Unicode display-safety predicate.
+  Previously three near-identical copies could drift independently; catalog
+  retains its single historical LF exception. Direct synthetic Unicode tests
+  and existing per-adapter fixtures lock hidden-control refusal and emoji
+  joiner/selector compatibility without expanding the public adapter API.

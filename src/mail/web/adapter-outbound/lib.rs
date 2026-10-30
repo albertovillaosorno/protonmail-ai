@@ -39,6 +39,7 @@ mod attachment_metadata;
 mod catalog_cursor_codec;
 mod conversation_detail;
 mod conversation_list_response;
+mod display_text_safety;
 mod driver;
 mod event_cursor_codec;
 mod lease;
