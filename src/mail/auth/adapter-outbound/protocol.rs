@@ -396,8 +396,7 @@ impl AnonymousSession {
         identity: ProviderRequestIdentity<'authority>,
         challenge: &ForkChallenge,
     ) -> RequestSpec<'authority> {
-        let selector_path = Zeroizing::new(challenge.poll_path());
-        let path = RequestPath::Sensitive(selector_path);
+        let path = RequestPath::Sensitive(challenge.poll_path());
         self.authenticated_request(identity, RequestMethod::Get, path)
     }
 
@@ -483,13 +482,16 @@ impl ForkChallenge {
     }
 
     /// Returns the exact relative path used to poll this selector.
+    ///
+    /// The owned path embeds short-lived approval authority and is scrubbed
+    /// when dropped. Callers must not convert it into a plain owned string.
     #[must_use]
-    pub fn poll_path(&self) -> String {
-        format!(
+    pub fn poll_path(&self) -> Zeroizing<String> {
+        Zeroizing::new(format!(
             "{}/{selector}",
             ProviderProfile::FORK_START_PATH,
             selector = self.selector.as_str()
-        )
+        ))
     }
 }
 

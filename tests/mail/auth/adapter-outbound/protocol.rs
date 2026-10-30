@@ -44,6 +44,7 @@ use mail_auth_fork_adapter::TargetHandoff;
 use mail_auth_fork_adapter::{AnonymousSession, ForkChallenge, ForkPoll};
 use mail_auth_fork_adapter::{ProtocolError, ProviderProfile, RequestMethod};
 use serde_json::json;
+use zeroize::Zeroizing;
 
 const SELECTOR: &str = "0123456789ABCDEFGHIJ";
 const USER_CODE: &str = "ABCDEFGH";
@@ -141,7 +142,20 @@ fn challenge_poll_path_is_selector_scoped() {
     let challenge = parsed.expect("challenge must parse");
 
     assert_eq!(
-        challenge.poll_path(),
+        challenge.poll_path().as_str(),
+        "/auth/v4/sessions/forks/0123456789ABCDEFGHIJ"
+    );
+}
+
+#[test]
+fn public_poll_path_remains_zeroizing_until_caller_drops_it() {
+    fn require_scrubbed_path(_: &Zeroizing<String>) {}
+
+    let challenge = challenge();
+    let path = challenge.poll_path();
+    require_scrubbed_path(&path);
+    assert_eq!(
+        path.as_str(),
         "/auth/v4/sessions/forks/0123456789ABCDEFGHIJ"
     );
 }
@@ -159,7 +173,7 @@ fn fork_start_and_poll_requests_borrow_anonymous_authority() {
     assert_eq!(start.expose_bearer(), Some(ACCESS_TOKEN));
     assert_eq!(start.request_identity(), sdk_identity());
     assert_eq!(poll.method(), RequestMethod::Get);
-    assert_eq!(poll.path(), challenge.poll_path());
+    assert_eq!(poll.path(), challenge.poll_path().as_str());
     assert_eq!(poll.expose_uid(), Some("synthetic-anonymous-uid"));
     assert_eq!(poll.expose_bearer(), Some(ACCESS_TOKEN));
     assert_eq!(poll.request_identity(), sdk_identity());
@@ -309,7 +323,7 @@ fn cloned_fork_challenge_keeps_selector_scope_without_diagnostic_exposure() {
     assert_eq!(cloned, challenge);
     let anonymous = anonymous_session();
     let poll = anonymous.poll_request(sdk_identity(), &cloned);
-    assert_eq!(poll.path(), challenge.poll_path());
+    assert_eq!(poll.path(), challenge.poll_path().as_str());
     assert_eq!(cloned.selector(), SELECTOR);
     assert_eq!(cloned.user_code(), USER_CODE);
     let debug = format!("{challenge:?} {cloned:?} {poll:?}");
@@ -344,7 +358,7 @@ fn fork_authority_debug_never_exposes_login_selectors_or_session_identity() {
     // Explicit transport and user-facing access must not be altered.
     assert_eq!(challenge.selector(), SELECTOR);
     assert_eq!(challenge.user_code(), USER_CODE);
-    assert_eq!(poll.path(), challenge.poll_path());
+    assert_eq!(poll.path(), challenge.poll_path().as_str());
     assert_eq!(session.uid(), "synthetic-session-uid");
 }
 

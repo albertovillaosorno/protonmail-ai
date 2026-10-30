@@ -147,3 +147,12 @@ account credentials. The primary web UI login remains a separate P1 path.
   response models. The input HTTP byte buffer and Serde's internal parsing
   temporaries are outside this ownership guarantee; live authentication remains
   blocked pending provider registration and credential-store integration.
+
+## Public poll-path custody
+
+- A red-first compile-time regression found `ForkChallenge::poll_path()`
+  returned a plain owned `String` embedding the approval selector. This public
+  accessor now returns `Zeroizing<String>` and the authenticated request takes
+  ownership directly without a second wrapper. Synthetic tests confirm the
+  path, request framing, and scrub-on-drop type. Callers still must avoid
+  deliberately copying the borrowed path into an unprotected allocation.
