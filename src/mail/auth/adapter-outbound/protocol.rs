@@ -345,7 +345,7 @@ impl AnonymousSession {
         }
 
         Ok(Self {
-            uid: Zeroizing::new(raw.uid),
+            uid: raw.uid,
             access_token: SecretText::new(raw.access_token),
             refresh_token: SecretText::new(raw.refresh_token),
             scopes: raw.scopes,
@@ -465,8 +465,8 @@ impl ForkChallenge {
         }
 
         Ok(Self {
-            selector: Zeroizing::new(raw.selector),
-            user_code: Zeroizing::new(raw.user_code),
+            selector: raw.selector,
+            user_code: raw.user_code,
         })
     }
 
@@ -555,14 +555,14 @@ impl ForkPoll {
         }
         let payload = raw
             .payload
-            .map(|encoded| STANDARD.decode(encoded))
+            .map(|encoded| STANDARD.decode(encoded.as_bytes()))
             .transpose()
             .map_err(|_error| ProtocolError::InvalidPayloadEncoding)?
             .map(Zeroizing::new);
 
         Ok(Self::Complete(ForkSession {
-            uid: Zeroizing::new(raw.auth.uid),
-            user_id: Zeroizing::new(user_id),
+            uid: raw.auth.uid,
+            user_id,
             access_token: SecretText::new(raw.auth.access_token),
             refresh_token: SecretText::new(raw.auth.refresh_token),
             scopes: raw.auth.scopes,
@@ -750,7 +750,7 @@ impl ForkPayloadDecoder {
         let bytes = plaintext.as_slice();
         let parsed = serde_json::from_slice::<RawForkPayload>(bytes);
         let decoded = parsed.map_err(|_json| ProtocolError::MalformedPayload)?;
-        Ok(KeyPassword(Zeroizing::new(decoded.key_password)))
+        Ok(KeyPassword(decoded.key_password))
     }
 }
 
@@ -790,20 +790,23 @@ type PlainResult = ForkResult<Plaintext>;
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawChallenge {
-    selector: String,
-    #[serde(rename = "UserCode")]
-    user_code: String,
+    #[serde(deserialize_with = "read_sensitive")]
+    selector: Zeroizing<String>,
+    #[serde(rename = "UserCode", deserialize_with = "read_sensitive")]
+    user_code: Zeroizing<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawAuth {
-    #[serde(rename = "UID")]
-    uid: String,
-    #[serde(rename = "UserID")]
-    user_id: Option<String>,
-    access_token: String,
-    refresh_token: String,
+    #[serde(rename = "UID", deserialize_with = "read_sensitive")]
+    uid: Zeroizing<String>,
+    #[serde(rename = "UserID", default, deserialize_with = "read_opt_secret")]
+    user_id: Option<Zeroizing<String>>,
+    #[serde(deserialize_with = "read_sensitive")]
+    access_token: Zeroizing<String>,
+    #[serde(deserialize_with = "read_sensitive")]
+    refresh_token: Zeroizing<String>,
     scopes: Vec<String>,
 }
 
@@ -812,13 +815,15 @@ struct RawAuth {
 struct RawForkSession {
     #[serde(flatten)]
     auth: RawAuth,
-    payload: Option<String>,
+    #[serde(default, deserialize_with = "read_opt_secret")]
+    payload: Option<Zeroizing<String>>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawForkPayload {
-    key_password: String,
+    #[serde(deserialize_with = "read_sensitive")]
+    key_password: Zeroizing<String>,
 }
 
 #[derive(Serialize)]
@@ -831,11 +836,31 @@ struct RefreshBody<'secret> {
     redirect_uri: &'static str,
 }
 
+// Sensitive fields are wrapped *while* the JSON model is constructed, so
+// validation failures also scrub already-deserialized values when it drops.
+type SensitiveString = Zeroizing<String>;
+type SensitiveOption = Option<SensitiveString>;
+
+fn read_sensitive<'de, D>(deserializer: D) -> Result<SensitiveString, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer).map(Zeroizing::new)
+}
+
+fn read_opt_secret<'de, D>(deserializer: D) -> Result<SensitiveOption, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.map(Zeroizing::new))
+}
+
 struct SecretText(Zeroizing<String>);
 
 impl SecretText {
-    fn new(value: String) -> Self {
-        Self(Zeroizing::new(value))
+    const fn new(value: Zeroizing<String>) -> Self {
+        Self(value)
     }
 
     fn expose(&self) -> &str {
@@ -894,3 +919,7 @@ fn decrypt_standard(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
         .map(Zeroizing::new)
         .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/auth/adapter-outbound/raw_protocol_custody.rs"]
+mod raw_protocol_custody_tests;

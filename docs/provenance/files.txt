@@ -209,6 +209,16 @@ destination_license=GPL-3.0-only
 modifications=original-project-code
 
 [file]
+path=tests/mail/auth/adapter-outbound/raw_protocol_custody.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=original-project-code
+
+[file]
 path=tests/mail/auth/adapter-outbound/protocol.rs
 origin=original
 source_id=project

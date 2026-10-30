@@ -134,3 +134,16 @@ account credentials. The primary web UI login remains a separate P1 path.
   challenge parser. Both now use one eight-byte printable ASCII predicate
   with colon framing excluded. Synthetic parser and QR tests confirm valid
   approval codes retain their previous behavior.
+
+## Raw provider response secret custody
+
+- Parsed auth, challenge, encoded fork payload, and decrypted password fields
+  previously began life as plain `String` values and could be dropped without
+  scrubbing on policy rejection (for example an unexpected bootstrap `UserID`,
+  unsafe selector, or invalid base64 fork payload). These fields now deserialize
+  directly into `Zeroizing<String>` ownership; accepted values move into the
+  existing secret-aware models without recreating ordinary-string allocations.
+  Compile-time typed synthetic tests cover both rejected-input and accepted
+  response models. The input HTTP byte buffer and Serde's internal parsing
+  temporaries are outside this ownership guarantee; live authentication remains
+  blocked pending provider registration and credential-store integration.
