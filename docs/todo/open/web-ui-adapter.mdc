@@ -60,6 +60,13 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- Bounded visible Mail row snapshots now scrub copied row IDs, subjects, and
+  displayed correspondent strings when dropped; list-state evidence also
+  erases opaque IDs during unstable-page rejection. The duplicate-ID guard
+  borrows input JSON strings instead of leaving ordinary-heap HashSet clones.
+  Red-first Drop checks and existing page/pagination fixtures preserve behavior.
+  This guards Rust-side copies, not Chromium DOM or OS allocations.
+
 - The synthetic visible-login lease-during-ETXTBSY regression now
   keeps the executable write lock until the runner exits. Releasing it
   immediately after acquiring the lease could let an already-checked

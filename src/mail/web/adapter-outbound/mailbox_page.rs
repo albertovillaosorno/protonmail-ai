@@ -35,6 +35,7 @@ use std::collections::HashSet;
 use std::fmt;
 
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 use crate::display_text_safety::unsafe_display_character;
 use crate::driver::BrowserDriverError;
@@ -167,6 +168,18 @@ impl fmt::Debug for VisibleMailboxRow {
             .field("displayed_addresses", &"<redacted>")
             .field("unread", &self.unread)
             .finish()
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for VisibleMailboxRow {
+    fn drop(&mut self) {
+        self.id.zeroize();
+        self.subject.zeroize();
+        self.displayed_addresses.zeroize();
     }
 }
 
@@ -381,10 +394,17 @@ fn parse_rows(value: &Value) -> Result<Vec<VisibleMailboxRow>, BrowserDriverErro
         if row.as_object().is_none_or(|fields| fields.len() != 4) {
             return Err(BrowserDriverError::MailboxPageIncompatible);
         }
-        let id = bounded_string(row, "id", MAX_ROW_ID_BYTES, false)?;
-        if !safe_read_id(&id, MAX_ROW_ID_BYTES) || !seen.insert(id.clone()) {
+        // Borrow row IDs from the guarded input JSON for duplicate detection.
+        // Copying into a HashSet<String> would leave private identifiers in
+        // ordinary heap memory on early parser failure and after success.
+        let raw_id = row
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or(BrowserDriverError::MailboxPageIncompatible)?;
+        if !safe_read_id(raw_id, MAX_ROW_ID_BYTES) || !seen.insert(raw_id) {
             return Err(BrowserDriverError::MailboxPageIncompatible);
         }
+        let id = bounded_string(row, "id", MAX_ROW_ID_BYTES, false)?;
         let subject = bounded_string(row, "subject", MAX_SUBJECT_BYTES, true)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let displayed_addresses = bounded_string(row, "addresses", MAX_ADDRESSES_BYTES, true)?;

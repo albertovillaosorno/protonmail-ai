@@ -36,6 +36,19 @@ use super::parse_rows;
 use crate::driver::BrowserDriverError;
 
 #[test]
+fn visible_mailbox_rows_require_explicit_scrub_on_drop() {
+    use super::VisibleMailboxRow;
+
+    #[expect(drop_bounds, reason = "require visible row scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<VisibleMailboxRow>();
+}
+
+#[test]
 fn rust_row_projection_refuses_unsafe_ids_independently_of_list_guard() {
     for id in [
         ".",

@@ -35,6 +35,7 @@ use std::fmt;
 
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(() => {",
@@ -193,6 +194,18 @@ impl fmt::Debug for MailboxListEvidence {
             .field("row_count", &self.row_ids.len())
             .field("state", &self.state)
             .finish()
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for MailboxListEvidence {
+    fn drop(&mut self) {
+        for id in &mut self.row_ids {
+            id.zeroize();
+        }
     }
 }
 

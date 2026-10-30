@@ -198,6 +198,19 @@ fn inspect(
 }
 
 #[test]
+fn mailbox_list_evidence_requires_explicit_scrub_on_drop() {
+    use mail_web_adapter::MailboxListEvidence;
+
+    #[expect(drop_bounds, reason = "require mailbox list scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<MailboxListEvidence>();
+}
+
+#[test]
 fn settled_rows_expose_only_opaque_ids_and_paging_state() {
     let evidence =
         // jig-ignore-next-line: canonical rustfmt line.
