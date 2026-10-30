@@ -3557,7 +3557,7 @@ impl ManagedBrowser {
             // Invalid JSON still occupies one bounded CDP frame. Remember
             // the protocol failure, but drain the genuine command reply before
             // Network cleanup rather than leaving the pipe out of sync.
-            let Ok(message) = serde_json::from_slice::<Value>(&frame) else {
+            let Ok(message) = strict_json::from_slice(&frame) else {
                 observation_error.get_or_insert(BrowserDriverError::Protocol);
                 continue;
             };

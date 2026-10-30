@@ -555,3 +555,12 @@ Ship useful read access before any mailbox mutation is enabled.
   readers and authenticated in-memory cursor payload decoders now use it.
   Red-first synthetic detail tests, parser parity cases and fake-browser
   cleanup evidence cover ambiguity rejection without provider contact.
+
+## CDP command-reply stream ambiguity
+
+- A red-first fake-browser regression found the central CDP command-response
+  reader still used last-wins JSON even after passive readers were hardened.
+  Its parser now rejects duplicated unsolicited method keys, remembers the
+  protocol error, drains the authentic command reply and disables Network.
+  Subsequent same-session shell inspection remains possible. This closes the
+  remaining web-adapter raw `Value` JSON decoding exception.

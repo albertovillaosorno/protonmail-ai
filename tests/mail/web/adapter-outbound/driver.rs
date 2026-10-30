@@ -1202,6 +1202,13 @@ fn malformed_unsolicited_cdp_envelopes_drain_enable_reply_and_disable_network() 
             "event-number-session",
             r#"{"method":"Network.loadingFinished","sessionId":4}"#,
         ),
+        (
+            "duplicate-method-key",
+            concat!(
+                r#"{"method":"Security.securityStateChanged","#,
+                r#""method":"Security.securityStateChanged","params":{}}"#,
+            ),
+        ),
         ("not-json", "not-json"),
         ("partial-json", "{\"id\":"),
         (
