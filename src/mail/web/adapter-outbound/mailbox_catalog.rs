@@ -40,6 +40,7 @@ use crate::display_text_safety::unsafe_display_character;
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 const LABELS_URL_PREFIX: &str = "https://mail.proton.me/api/core/v4/labels";
 const MAX_CATALOG_ITEMS: usize = 2_048;
@@ -320,6 +321,20 @@ pub struct ObservedMailboxCatalogItem {
     name: String,
     order: i64,
     parent_id: Option<String>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMailboxCatalogItem {
+    fn drop(&mut self) {
+        self.id.zeroize();
+        self.name.zeroize();
+        if let Some(parent) = self.parent_id.as_mut() {
+            parent.zeroize();
+        }
+    }
 }
 
 impl ObservedMailboxCatalogItem {

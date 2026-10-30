@@ -39,6 +39,7 @@ use std::hash::BuildHasher as _;
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const MESSAGE_LIST_URL_PREFIX: &str = concat!("https://mail.proton.me/api/", "mail/v4/messages");
@@ -650,6 +651,16 @@ pub struct ObservedMessageMetadata {
     id: String,
     time: u64,
     order: i64,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedMessageMetadata {
+    fn drop(&mut self) {
+        self.id.zeroize();
+    }
 }
 
 impl ObservedMessageMetadata {

@@ -25,6 +25,14 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Catalog labels/folders and their parents, list row identifiers, exact
+  conversation member and parent IDs, and attachment metadata identifiers
+  now erase retained strings on drop. Nested item vectors retain explicit
+  element-level custody, while projection into browser-independent typed
+  responses and redacted Debug behavior remain unchanged. Compile-failing
+  first-pass tests prove the previously missing Drop contracts, and synthetic
+  parser tests preserve message and conversation membership behavior.
+
 - Retained single-message metadata now erases copied subject, sender/recipient
   names and addresses, label and identity strings, and original attachment
   names on drop. The reusable sanitized filename leaf also scrubs its String

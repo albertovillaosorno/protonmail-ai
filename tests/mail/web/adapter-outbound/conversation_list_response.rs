@@ -98,6 +98,19 @@ const fn body() -> &'static str {
 }
 
 #[test]
+fn retained_conversation_list_response_values_require_drop_custody() {
+    use mail_web_adapter::ObservedConversationListMetadata;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedConversationListMetadata>();
+}
+
+#[test]
 fn exact_list_projects_only_bounded_thread_metadata() {
     let observed = ObservedConversationListResponse::parse("GET", URL, body())
         .expect("project synthetic conversation list");

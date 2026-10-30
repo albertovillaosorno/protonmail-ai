@@ -38,6 +38,7 @@ use std::fmt;
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const CONVERSATION_DETAIL_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/conversations/";
@@ -293,6 +294,16 @@ pub struct ObservedConversationMember {
     time: u64,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedConversationMember {
+    fn drop(&mut self) {
+        self.message_id.zeroize();
+    }
+}
+
 impl ObservedConversationMember {
     /// Returns the opaque provider message identifier.
     #[must_use]
@@ -322,6 +333,17 @@ pub struct ObservedConversationDetail {
     conversation_id: String,
     reported_message_count: usize,
     members: Vec<ObservedConversationMember>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedConversationDetail {
+    fn drop(&mut self) {
+        self.conversation_id.zeroize();
+        // Members own and scrub their message IDs.
+    }
 }
 
 impl ObservedConversationDetail {

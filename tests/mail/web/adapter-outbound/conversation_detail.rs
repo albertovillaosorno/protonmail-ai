@@ -132,6 +132,21 @@ fn conversation_body() -> Value {
 }
 
 #[test]
+fn retained_conversation_detail_values_require_drop_custody() {
+    use mail_web_adapter::ObservedConversationDetail;
+    use mail_web_adapter::ObservedConversationMember;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedConversationMember>();
+    requires_scrub_on_drop::<ObservedConversationDetail>();
+}
+
+#[test]
 fn complete_projection_keeps_only_identity_count_and_provider_order() {
     let observed =
         // jig-ignore-next-line: canonical rustfmt line.

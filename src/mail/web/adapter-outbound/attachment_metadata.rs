@@ -43,6 +43,7 @@ use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
 use mail_capability_domain::SanitizedAttachmentFilename;
 use serde_json::Value;
+use zeroize::Zeroize as _;
 
 // jig-ignore-next-line: canonical rustfmt line.
 const ATTACHMENT_URL_PREFIX: &str = "https://mail.proton.me/api/mail/v4/attachments/";
@@ -302,6 +303,19 @@ pub struct ObservedAttachmentMetadata {
     sanitized_name: Option<SanitizedAttachmentFilename>,
     declared_size: u64,
     mime_type: String,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop is the explicit scrub-on-drop contract"
+)]
+impl Drop for ObservedAttachmentMetadata {
+    fn drop(&mut self) {
+        self.attachment_id.zeroize();
+        self.message_id.zeroize();
+        self.mime_type.zeroize();
+        // Sanitized filename scrubs its own private string.
+    }
 }
 
 impl ObservedAttachmentMetadata {

@@ -106,6 +106,19 @@ fn metadata_body() -> Value {
 }
 
 #[test]
+fn retained_attachment_metadata_values_require_drop_custody() {
+    use mail_web_adapter::ObservedAttachmentMetadata;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedAttachmentMetadata>();
+}
+
+#[test]
 fn metadata_projection_binds_parent_and_drops_crypto_fields() {
     let body = metadata_body().to_string();
     // jig-ignore-next-line: canonical rustfmt line.

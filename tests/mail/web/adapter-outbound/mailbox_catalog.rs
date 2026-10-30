@@ -95,6 +95,19 @@ fn failed(session: &str, id: &str) -> Value {
 }
 
 #[test]
+fn retained_mailbox_catalog_values_require_drop_custody() {
+    use mail_web_adapter::ObservedMailboxCatalogItem;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedMailboxCatalogItem>();
+}
+
+#[test]
 #[expect(
     clippy::default_numeric_fallback,
     reason = "synthetic JSON numbers mirror provider fields"

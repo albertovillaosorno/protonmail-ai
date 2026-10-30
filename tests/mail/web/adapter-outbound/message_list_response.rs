@@ -41,6 +41,19 @@ const URL: &str = concat!(
 );
 
 #[test]
+fn retained_message_list_response_values_require_drop_custody() {
+    use mail_web_adapter::ObservedMessageMetadata;
+
+    #[expect(drop_bounds, reason = "require metadata scrubbing")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<ObservedMessageMetadata>();
+}
+
+#[test]
 fn exact_get_list_response_projects_only_required_metadata() {
     let body = r#"{
         "Code":1000,
