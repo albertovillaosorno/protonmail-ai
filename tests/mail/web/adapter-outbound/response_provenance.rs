@@ -272,6 +272,25 @@ fn malformed_json_mime_extension_parameters_are_not_http_evidence() {
 }
 
 #[test]
+fn duplicate_json_mime_extension_parameter_names_are_ambiguous() {
+    for content_type in [
+        "application/json; profile=v1; profile=v2",
+        "application/json; profile=v1; PROFILE=v1",
+        "application/json; format=short; FORMAT=full; charset=utf-8",
+    ] {
+        let extra = json!({"params":{"statusCode":200u16,
+            "headers":{"Content-Type":content_type}}});
+        assert!(!direct_extra_status_is_200(&extra));
+        let initial = json!({"headers":{"Content-Type":content_type}});
+        assert!(!uncached_provider_response(&initial));
+    }
+    let valid_type = "application/json; profile=v1; format=full";
+    let distinct = json!({"params":{"statusCode":200u16,
+        "headers":{"Content-Type":valid_type}}});
+    assert!(direct_extra_status_is_200(&distinct));
+}
+
+#[test]
 fn extra_status_wire_content_type_must_confirm_json_response() {
     for valid in [
         "application/json",

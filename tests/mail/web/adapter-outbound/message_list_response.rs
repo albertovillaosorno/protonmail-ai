@@ -711,6 +711,32 @@ fn raw_initial_response_headers_cannot_launder_list_capture() {
 }
 
 #[test]
+fn duplicate_mime_extension_parameters_cannot_complete_mail_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"duplicate-mime", "request":{
+                "method":"GET", "url":URL}}
+        }))
+        .expect("canonical Mail GET");
+    let duplicate_type = "application/json; profile=v1; PROFILE=v2";
+    let event = json!({
+        "sessionId":"session-1", "method":"Network.responseReceived",
+        "params":{"requestId":"duplicate-mime", "response":{
+            "url":URL, "status":200u16, "mimeType":"application/json",
+            "headers":{"Content-Type":duplicate_type}}}
+    });
+    assert_eq!(
+        capture.observe(&event),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+}
+
+#[test]
 fn malformed_mime_parameter_cannot_complete_mail_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

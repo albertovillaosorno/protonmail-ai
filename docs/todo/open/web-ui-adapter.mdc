@@ -2678,3 +2678,10 @@ web application without requiring Bridge or a third-party direct API identity.
   admitted these non-application-initiated requests. Script and unclassified
   `other` initiators remain compatible; omission remains legacy-compatible.
   This validation only inspects synthetic source metadata, not mailbox data.
+
+- JSON Content-Type now rejects duplicate MIME extension parameter names,
+  including case aliases such as `profile` and `PROFILE`. Red-first shared
+  HTTP response and message-list capture fixtures showed conflicting profile
+  values could previously pass as an otherwise canonical JSON response. The
+  check scans only borrowed, bounded metadata; distinct extension names and
+  one valid UTF-8 charset remain accepted, with no account data accessed.

@@ -1005,8 +1005,7 @@ fn json_content_type(value: &str) -> bool {
     {
         return false;
     }
-    let mut seen_charset = false;
-    for part in parts {
+    for (seen_parameters, part) in parts.enumerate() {
         let Some((name, parameter)) = part.trim_ascii().split_once('=') else {
             return false;
         };
@@ -1017,14 +1016,30 @@ fn json_content_type(value: &str) -> bool {
         if !valid_name || !valid_value {
             return false;
         }
-        if name.eq_ignore_ascii_case("charset") {
-            if seen_charset
-                || !parameter.eq_ignore_ascii_case("utf-8")
-                    && !parameter.eq_ignore_ascii_case("\"utf-8\"")
-            {
-                return false;
-            }
-            seen_charset = true;
+        // HTTP media parameter names are case-insensitive singletons. Scan
+        // only the already reviewed segments of this bounded header, without
+        // allocating or retaining private header names.
+        let repeated_name = value
+            .split(';')
+            .skip(1)
+            .take(seen_parameters)
+            .any(|previous| {
+                previous
+                    .trim_ascii()
+                    .split_once('=')
+                    .is_some_and(|(key, _)| {
+                        let previous_name = key.trim_ascii();
+                        previous_name.eq_ignore_ascii_case(name)
+                    })
+            });
+        if repeated_name {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("charset")
+            && !parameter.eq_ignore_ascii_case("utf-8")
+            && !parameter.eq_ignore_ascii_case("\"utf-8\"")
+        {
+            return false;
         }
     }
     true
