@@ -2283,3 +2283,8 @@ web application without requiring Bridge or a third-party direct API identity.
   browser-serialized ASCII graphical form. Red-first raw spaces, controls,
   Unicode whitespace and non-ASCII query text previously entered read
   metadata; percent-encoded search terms remain valid without decoding.
+
+- Conversation-list passive capture and standalone response projection now
+  require browser-serialized graphical ASCII URLs. Red-first synthetic raw
+  whitespace, control and Unicode query text previously authorized a GET;
+  canonical percent-encoded search terms still prove passive request shape.

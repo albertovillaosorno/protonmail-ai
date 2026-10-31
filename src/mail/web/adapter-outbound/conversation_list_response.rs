@@ -216,6 +216,14 @@ impl ConversationListNetworkCapture {
             .get("url")
             .and_then(Value::as_str)
             .ok_or(ConversationListNetworkError::MalformedEvent)?;
+        // CDP URLs are serialized by Chromium. Raw whitespace or non-ASCII
+        // query text cannot prove an exact provider request's selectors.
+        let endpoint_path = url.split_once('?').map_or(url, |(path, _)| path);
+        let exact_endpoint = endpoint_path == CONVERSATION_LIST_URL_PREFIX;
+        let canonical = url.bytes().all(|byte| byte.is_ascii_graphic());
+        if method == "GET" && exact_endpoint && !canonical {
+            return Err(ConversationListNetworkError::InvalidPagination);
+        }
         let exact_get = method == "GET" && is_conversation_list_url(url);
         if self.completed_ids.contains(request_id) {
             return Err(ConversationListNetworkError::InvalidSequence);
@@ -711,6 +719,9 @@ pub enum ConversationListResponseError {
 }
 
 fn is_conversation_list_url(url: &str) -> bool {
+    if !url.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return false;
+    }
     let Some(remainder) = url.strip_prefix(CONVERSATION_LIST_URL_PREFIX) else {
         return false;
     };

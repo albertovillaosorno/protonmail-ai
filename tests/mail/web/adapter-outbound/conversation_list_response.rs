@@ -1750,6 +1750,30 @@ fn malformed_event_during_network_disable_keeps_cdp_synchronized() {
 }
 
 #[test]
+fn raw_noncanonical_conversation_list_urls_cannot_prove_provider_evidence() {
+    for invalid in [" ", "\t", "\n", "\r", "\u{a0}", "\u{2003}", "\u{e9}"] {
+        let url = format!("{URL}{invalid}");
+        let got = ObservedConversationListResponse::parse("GET", &url, body());
+        assert_eq!(got, Err(ConversationListResponseError::UnexpectedEndpoint));
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let request = request_event("session-a", "noncanonical", "GET", &url);
+        assert_eq!(
+            capture.observe(&request),
+            Err(ConversationListNetworkError::InvalidPagination)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    let encoded = format!("{URL}%20%C3%A9");
+    let got = ObservedConversationListResponse::parse("GET", &encoded, body());
+    assert!(got.is_ok(), "encoded keyword remains a valid exact GET");
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "encoded", "GET", &encoded))
+        .expect("encoded request remains passive evidence");
+    assert_eq!(capture.tracked_request_count(), 1);
+}
+
+#[test]
 fn fragment_bearing_conversation_list_url_cannot_be_an_exact_get() {
     use mail_web_adapter::ConversationListNetworkError;
     use serde_json::json;
