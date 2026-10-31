@@ -1046,6 +1046,33 @@ fn raw_http_request_headers_must_confirm_bodyless_mail_get() {
 }
 
 #[test]
+fn non_http_response_protocol_cannot_prove_direct_mail_json() {
+    let ordinary = json!({"params":{"type":"Fetch", "response":{
+        "url":"https://mail.proton.me/api/mail/v4/messages",
+        "status":200u16, "mimeType":"application/json"}}});
+    assert!(direct_cdp_read_response(&ordinary));
+    for protocol in ["http/1.0", "http/1.1", "h2", "h3"] {
+        let mut valid = ordinary.clone();
+        valid["params"]["response"]["protocol"] = json!(protocol);
+        assert!(direct_cdp_read_response(&valid), "HTTP {protocol} is valid");
+    }
+    for invalid in [
+        json!("data"),
+        json!("file"),
+        json!("ws"),
+        json!("h2c"),
+        json!("http"),
+        json!(""),
+        json!(null),
+        json!(1i32),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["response"]["protocol"] = invalid;
+        assert!(!direct_cdp_read_response(&event), "not direct HTTP");
+    }
+}
+
+#[test]
 fn response_event_resource_type_must_be_a_known_active_read() {
     let ordinary = json!({
         "params": {"type": "Fetch", "response": {

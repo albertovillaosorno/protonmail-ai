@@ -2629,3 +2629,12 @@ web application without requiring Bridge or a third-party direct API identity.
   and empty or malformed parameters under an otherwise JSON media type.
   Red-first synthetic initial, extra-info and message-list cases now reject
   these ambiguous decodings while allowing missing or quoted UTF-8 charset.
+
+- Passive Mail read response provenance now corroborates an explicit CDP
+  `Network.Response.protocol` against known HTTP transports. Red-first
+  synthetic shared-gate and message-list capture fixtures previously allowed
+  a nominal JSON 200 with `data`, `file`, `ws`, or cleartext `h2c` protocol
+  metadata to count as direct provider HTTP. The common guard now refuses
+  these contradictions and malformed hints across all passive readers while
+  preserving optional omission and canonical HTTP/1.x, h2, and h3 values.
+  No live browser or account was used.

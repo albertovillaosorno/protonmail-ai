@@ -787,8 +787,21 @@ fn uncached_source_fields(fields: &Map<String, Value>) -> bool {
     let security_valid = fields
         .get("securityState")
         .is_none_or(|state| state.as_str() == Some("secure"));
+    // CDP also reports the transport protocol used to fetch the response.
+    // A non-HTTP source cannot prove a direct provider JSON GET just because
+    // the claimed URL, status, and browser MIME metadata resemble HTTP 200.
+    // Omitted legacy metadata stays compatible with older Chromium versions.
+    let http_protocol = match fields.get("protocol") {
+        None => true,
+        Some(Value::String(protocol)) => matches!(
+            protocol.as_str(),
+            "http/1.0" | "http/1.1" | "h2" | "h3" | "http/2" | "http/3"
+        ),
+        Some(_) => false,
+    };
     !unknown_source_marker
         && security_valid
+        && http_protocol
         && source_flags.iter().all(|field| {
             let value = fields.get(*field);
             matches!(value, None | Some(Value::Bool(false)))

@@ -584,6 +584,35 @@ fn raw_refined_request_headers_cannot_launder_mail_list_get() {
 }
 
 #[test]
+fn non_http_response_protocol_cannot_complete_mail_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for protocol in ["data", "file", "ws", "h2c"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1", "method":"Network.requestWillBeSent",
+                "params":{"requestId":"protocol", "type":"Fetch", "request":{
+                    "method":"GET", "url":URL}}
+            }))
+            .expect("track canonical Mail GET");
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"protocol", "type":"Fetch", "response":{
+                "url":URL, "status":200u16, "mimeType":"application/json",
+                "protocol":protocol}}
+        });
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected),
+            "non-HTTP protocol must not prove Mail list capture"
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn raw_initial_response_headers_cannot_launder_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
