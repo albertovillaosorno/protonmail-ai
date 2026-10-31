@@ -443,7 +443,14 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         Some(Value::String(url)) => serialized_mail_document_url(url),
         Some(_) => false,
     };
+    // A redirect's extra-info hint is meaningful only alongside the
+    // redirectResponse it describes. Reject detached hints without changing
+    // the read observers' dedicated redirect-response failure contract.
+    let has_extra_hint = params.contains_key("redirectHasExtraInfo");
+    let has_redirect_response = params.contains_key("redirectResponse");
+    let redirect_shape = !has_extra_hint || has_redirect_response;
     let request_active = normal_link && normal_hints && normal_purpose;
+    let request_active = request_active && redirect_shape;
     let request_active = request_active && normal_fetch_metadata;
     let request_active = request_active && normal_same_site;
     let event_active = normal_event_hints && normal_resource;

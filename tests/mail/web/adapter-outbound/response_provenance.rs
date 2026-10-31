@@ -1034,6 +1034,25 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
 }
 
 #[test]
+fn detached_redirect_extra_info_hint_cannot_prove_direct_mail_get() {
+    let ordinary = json!({"params":{
+        "type":"Fetch", "initiator":{"type":"script"},
+        "request":{"method":"GET"}}});
+    assert!(non_speculative_cdp_get(&ordinary));
+    for hint in [json!(true), json!(false), json!(null), json!("false")] {
+        let mut event = ordinary.clone();
+        event["params"]["redirectHasExtraInfo"] = hint;
+        assert!(!non_speculative_cdp_get(&event));
+    }
+    let mut redirected = ordinary;
+    redirected["params"]["redirectResponse"] = json!({
+        "status":302u16, "url":"https://mail.proton.me/other"
+    });
+    // The observer still owns the distinct RedirectedAway error contract.
+    assert!(non_speculative_cdp_get(&redirected));
+}
+
+#[test]
 fn parser_and_signed_exchange_initiators_cannot_authorize_mail_ajax() {
     // A parser or signed exchange can fetch a resource, but it is not an
     // application-initiated XHR/Fetch even if that independent type is set.

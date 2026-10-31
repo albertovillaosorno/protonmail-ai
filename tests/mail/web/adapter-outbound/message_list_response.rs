@@ -128,6 +128,25 @@ fn redirected_into_exact_message_list_get_is_not_fresh_evidence() {
 }
 
 #[test]
+fn detached_redirect_has_extra_info_cannot_authorize_list_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let event = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"redirect-hint", "type":"Fetch",
+            "redirectHasExtraInfo":false,
+            "request":{"method":"GET", "url":URL}}
+    });
+    assert_eq!(
+        capture.observe(&event),
+        Err(MessageListNetworkError::MalformedEvent)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn parser_or_signed_exchange_cannot_initiate_passive_mail_ajax_read() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

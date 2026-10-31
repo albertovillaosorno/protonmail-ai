@@ -2709,3 +2709,10 @@ web application without requiring Bridge or a third-party direct API identity.
   `Private`, `Local`, or unknown address space previously established Mail
   activity. The check works for either notification order, accepts `Public`
   and omitted legacy hints, and retains no private network metadata.
+
+- A detached `Network.requestWillBeSent.redirectHasExtraInfo` marker now
+  fails request-origin validation even when it is explicitly false. CDP only
+  defines the flag for events carrying `redirectResponse`; red-first shared
+  and message-list fixtures proved malformed standalone redirect hints could
+  otherwise become passive Mail GET evidence. Actual `redirectResponse`
+  retains its distinct `RedirectedAway` observer error. No account data used.
