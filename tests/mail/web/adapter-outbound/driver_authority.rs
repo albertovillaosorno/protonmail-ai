@@ -1046,7 +1046,8 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=()=>({visibility:'visible',opacity:'1'});
 globalThis.currentSubject='ordinary subject';
 globalThis.currentAddresses='reader@example.test';
-const visible={parentElement:null,getClientRects:()=>[{}],closest:()=>null};
+const visible={parentElement:null,
+ getClientRects:()=>[{width:90,height:18}],closest:()=>null};
 const header={...visible,id:'heading',getAttribute:(key)=>
   key==='title'?currentSubject:null};
 const sender={...visible,getAttribute:(key)=>
@@ -1292,6 +1293,7 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let ancestorContentHidden=false;
+let headingZeroArea=false,senderZeroArea=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let ariaHiddenUpper=false;
@@ -1303,11 +1305,13 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',
  getAttribute:()=>{titleReads++;return subjectValue;},
-  getClientRects:()=>[{}],
+  getClientRects:()=>[{width:headingZeroArea?0:80,
+   height:headingZeroArea?0:14}],
   closest:(q)=>(ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const sender={getAttribute:()=>{titleReads++;return addressValue;},
-  getClientRects:()=>[{}],
+  getClientRects:()=>[{width:senderZeroArea?0:80,
+   height:senderZeroArea?0:14}],
   closest:(q)=>(ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const ancestor={parentElement:null};
@@ -1380,7 +1384,17 @@ const hidden=eval(script);
 if(hidden!==null){
  throw Error('hidden subject remained readable');
 }
-heading.getClientRects=()=>[{}];
+heading.getClientRects=()=>[{width:headingZeroArea?0:80,
+ height:headingZeroArea?0:14}];
+headingZeroArea=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('zero-area subject exposed title');
+}
+headingZeroArea=false;senderZeroArea=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('zero-area sender exposed title');
+}
+senderZeroArea=false;
 subjectOpacity='0';
 if(eval(script)!==null){throw Error('opacity-zero heading exposed');}
 subjectOpacity='1';senderOpacity='0';
@@ -1481,16 +1495,19 @@ let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false;
+let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
 const row={getAttribute:()=>rowId,
- getClientRects:()=>rowHidden?[]:[{}],
+ getClientRects:()=>rowHidden?[]:[{width:rowZeroArea?0:90,
+ height:rowZeroArea?0:18}],
  closest:(q)=>(rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
-const empty={getClientRects:()=>[{}],
+const empty={getClientRects:()=>[{width:emptyZeroArea?0:90,
+ height:emptyZeroArea?0:18}],
  closest:(q)=>(rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
 const loaded={parentElement:ancestor,querySelectorAll:(q)=>
@@ -1509,7 +1526,8 @@ next.closest=(q)=>(rootInert&&q.includes('[inert]')||
 next.getAttribute=(key)=>key==='aria-disabled'&&
  (nextDisabled||nextAriaUpper)?(nextAriaUpper?'TRUE':'true'):null;
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
-const current={getClientRects:()=>[{}],
+const current={getClientRects:()=>[{width:currentZeroArea?0:45,
+ height:currentZeroArea?0:20}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
 globalThis.document={querySelector:(q)=>
@@ -1539,7 +1557,9 @@ if(eval(expression)!==null){throw Error('duplicate list IDs accepted');}
 duplicateRows=false;
 rowHidden=true;
 if(eval(expression)!==null){throw Error('hidden row was accepted');}
-rowHidden=false;
+rowHidden=false;rowZeroArea=true;
+if(eval(expression)!==null){throw Error('zero-area list row accepted');}
+rowZeroArea=false;
 ancestorOpacity='0';
 if(eval(expression)!==null){throw Error('hidden list root was accepted');}
 ancestorOpacity='1';ancestorContentHidden=true;
@@ -1557,14 +1577,18 @@ if(eval(expression)!==null){throw Error('opacity-zero row was accepted');}
 rowOpacity='1';
 currentOpacity='0';
 if(eval(expression)!==null){throw Error('invisible page was accepted');}
-currentOpacity='1';
+currentOpacity='1';currentZeroArea=true;
+if(eval(expression)!==null){throw Error('zero-area current page accepted');}
+currentZeroArea=false;
 showEmpty=true;nextDisabled=true;
 if(eval(expression).emptyMarker!==true){
  throw Error('visible explicit-empty title was not detected');
 }
 emptyOpacity='0';
 if(eval(expression)!==null){throw Error('invisible empty title was accepted');}
-emptyOpacity='1';showEmpty=false;nextDisabled=false;
+emptyOpacity='1';emptyZeroArea=true;
+if(eval(expression)!==null){throw Error('zero-area empty title accepted');}
+emptyZeroArea=false;showEmpty=false;nextDisabled=false;
 showLoading=true;
 if(eval(expression)!==null){throw Error('two active roots were accepted');}
 showLoading=false;

@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Collapsed content is not a visible mailbox snapshot
+
+- Red-first executable synthetic browser fixtures exposed nonempty but
+  zero-area client rectangles on displayed list rows, current pagination
+  controls, empty placeholders, and message subject/sender nodes. Previously
+  these elements could establish list readiness or release title content.
+  Shared positive-area checks now reject this geometry before exposing list
+  evidence or reading sensitive titles. Ordinary visible fixtures remain valid;
+  no live provider, account, or mailbox data was involved.
+
 ## Collapsed Next controls are not list readiness evidence
 
 - A red-first executable synthetic list proved that a zero-width/height Next

@@ -80,6 +80,10 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",
+    // Nonzero layout areas are required before reading private title text.
+    // A CSS transform may collapse a still-addressable DOM element.
+    "const hasArea=(node)=>[...node.getClientRects()].some(",
+    "(rect)=>rect.width>0&&rect.height>0);",
     "const base='[data-shortcut-target=\"item-container\"]';",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
@@ -119,6 +123,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const localHeading=headingNodes[0],sender=senders[0];",
     "if(localHeading.getClientRects().length===0||",
     "sender.getClientRects().length===0||",
+    "!hasArea(localHeading)||!hasArea(sender)||",
     "localHeading.closest('[aria-hidden=\"true\" i],[inert]')||",
     "sender.closest('[aria-hidden=\"true\" i],[inert]')||",
     "getComputedStyle(localHeading).visibility!=='visible'||",
