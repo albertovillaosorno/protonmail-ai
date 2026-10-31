@@ -1841,6 +1841,7 @@ let zeroOptionArea=false,zeroToggleArea=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
 let optionParentDisabled=false;
+let optionParentBusy=false,toggleParentBusy=false;
 const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
@@ -1848,7 +1849,8 @@ const toggleParent={parentElement:null};
 const option={getClientRects:()=>hidden?[]:[{left:10,top:10,
  width:zeroOptionArea?0:40,height:zeroOptionArea?0:20}],
  closest:(q)=>(sortInert&&q.includes('[inert]')||
- optionParentDisabled&&q.includes('[aria-disabled'))?optionParent:null,
+ (optionParentDisabled&&q.includes('[aria-disabled')||
+ optionParentBusy&&q.includes('[aria-busy=')))?optionParent:null,
  contains:()=>false,parentElement:optionParent};
 const toggle=new HTMLButtonElement();
 toggle.type='button';toggle.form=null;
@@ -1857,7 +1859,8 @@ toggle.getClientRects=()=>[{left:90,top:10,
  width:zeroToggleArea?0:60,height:zeroToggleArea?0:20}];
 toggle.contains=()=>false;
 toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
- parentAriaDisabled&&q.includes('[aria-disabled'))?toggleParent:null;
+ (parentAriaDisabled&&q.includes('[aria-disabled')||
+ toggleParentBusy&&q.includes('[aria-busy=')))?toggleParent:null;
 toggle.getAttribute=()=>(disabled||ariaOnlyDisabled)?
  (uppercaseAriaDisabled?'TRUE':'true'):null;
 toggle.click=()=>{clicks++;isOpen=!isOpen;};
@@ -1929,7 +1932,11 @@ optionParentClip=false;optionLegacyClip=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('legacy-clipped sort options authorized action');
 }
-optionLegacyClip=false;optionCovered=true;
+optionLegacyClip=false;optionParentBusy=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('busy sort options authorized action');
+}
+optionParentBusy=false;optionCovered=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('covered sort options authorized programmatic click');
 }
@@ -1976,7 +1983,11 @@ toggleParentFilter=false;toggleLegacyClip=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('legacy-clipped sort toggle received click');
 }
-toggleLegacyClip=false;toggleCovered=true;
+toggleLegacyClip=false;toggleParentBusy=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('busy sort toggle received programmatic click');
+}
+toggleParentBusy=false;toggleCovered=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('covered sort toggle was programmatically opened');
 }
@@ -2084,6 +2095,7 @@ let overlayCoversNext=false,offViewportNext=false;
 let descendantHitNext=false,invalidNextCoordinates=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
+let parentBusy=false;
 let parentPointerBlocked=false,parentContentHidden=false;
 let parentClip=false,parentFilter=false,parentMasked=false;
 let parentLegacyClip=false;
@@ -2101,7 +2113,8 @@ next.getClientRects=()=>hidden?[]:[{left:invalidNextCoordinates?NaN:10,
  top:10,width:80,height:20}];
 const nextChild={};next.contains=(hit)=>hit===nextChild;
 next.closest=(q)=>(parentInert&&q.includes('[inert]')||
- parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
+ (parentAriaDisabled&&q.includes('[aria-disabled')||
+ parentBusy&&q.includes('[aria-busy=')))?parent:null;
 next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
@@ -2188,7 +2201,11 @@ if(eval(script).clicked||clicks!==1){
 }
 next.getClientRects=()=>hidden?[]:[{left:10,top:10,
  width:80,height:20}];
-parentInert=true;
+parentBusy=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('busy Next received programmatic click');
+}
+parentBusy=false;parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
 parentInert=false;parentAriaDisabled=true;
 if(eval(script).clicked||clicks!==1){

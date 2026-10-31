@@ -87,6 +87,7 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "getComputedStyle(node).visibility!=='visible'||",
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
+    "node.closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
     "node.closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return null;}",
     "return {alreadyOpen:true,clicked:false};}",
@@ -106,6 +107,7 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",
     "getComputedStyle(nodes[0]).opacity==='0'||",
     "!visibleTree(nodes[0])||",
+    "nodes[0].closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
     "nodes[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]')){return null;}",
     "nodes[0].click();",
@@ -164,6 +166,7 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "getComputedStyle(node).visibility!=='visible'||",
     "getComputedStyle(node).opacity==='0'||",
     "!visibleTree(node)||",
+    "node.closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
     "node.closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return null;}",
     "const pressed=(node)=>{const value=node.getAttribute('aria-pressed');",
@@ -224,6 +227,7 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "getComputedStyle(group[0]).visibility!=='visible'||",
     "getComputedStyle(group[0]).opacity==='0'||",
     "!visibleTree(group[0])||",
+    "group[0].closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
     "group[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return false;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
@@ -241,6 +245,7 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "getComputedStyle(nodes[0]).pointerEvents==='none'||",
     "getComputedStyle(nodes[0]).opacity==='0'||",
     "!visibleTree(nodes[0])||",
+    "nodes[0].closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible CSS ancestor-state selector.
     "nodes[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]')){return false;}",
     "nodes[0].click();return true;",

@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Busy controls must not receive programmatic read-only clicks
+
+- Red-first synthetic Node DOM fixtures showed that Next and sort controls
+  inside an `aria-busy="true"` ancestor still received programmatic clicks
+  even though that accessibility state marks content as transitional. Audited
+  sort-menu state and open/close checks, and Next click, now refuse busy
+  ancestry independently of layout, opacity, pointer events or hit testing.
+  The test exercises only synthetic elements with no provider interaction.
+
 ## Transitional ARIA-busy Mail regions are not settled snapshots
 
 - Red-first synthetic DOM fixtures showed that a loaded root or row with

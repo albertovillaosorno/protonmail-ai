@@ -90,6 +90,7 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "getComputedStyle(next).pointerEvents==='none'||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
+    "next.closest('[aria-busy=true i]')||",
     // jig-ignore-next-line: indivisible audited ARIA state check.
     "next.closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]')){",
     "return {present:true,disabled:null,clicked:false};}",
