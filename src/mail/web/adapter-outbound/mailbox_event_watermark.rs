@@ -35,9 +35,9 @@ use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
 use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::bodyless_cdp_get;
+use crate::response_provenance::direct_cdp_read_response;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::non_speculative_cdp_get;
-use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -345,7 +345,7 @@ impl LatestMailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
-            || !uncached_provider_response(response)
+            || !direct_cdp_read_response(event)
             || mime != Some("application/json")
             || !is_latest_event_url(url)
             || url_fingerprint != request.url_fingerprint
@@ -659,7 +659,7 @@ impl MailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
-            || !uncached_provider_response(response)
+            || !direct_cdp_read_response(event)
             || mime != Some("application/json")
             || event_id != request.event_id.as_str()
             || url_fingerprint != request.url_fingerprint

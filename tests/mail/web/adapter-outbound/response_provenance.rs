@@ -32,6 +32,7 @@
 
 use super::ExtraStatusEvidence;
 use super::bodyless_cdp_get;
+use super::direct_cdp_read_response;
 use super::direct_extra_status_is_200;
 use super::non_speculative_cdp_get;
 use super::uncached_provider_response;
@@ -326,4 +327,38 @@ fn request_document_origin_cannot_be_laundered_as_mail_activity() {
         .expect("synthetic params object")
         .remove("documentURL");
     assert!(non_speculative_cdp_get(&legacy));
+}
+
+#[test]
+fn response_event_resource_type_must_be_a_known_active_read() {
+    let ordinary = json!({
+        "params": {"type": "Fetch", "response": {
+            "status": 200u16, "mimeType": "application/json",
+            "fromDiskCache": false, "fromServiceWorker": false
+        }}
+    });
+    assert!(direct_cdp_read_response(&ordinary));
+    for invalid in [
+        json!("Prefetch"),
+        json!("Preflight"),
+        json!("FedCM"),
+        json!("prefetch"),
+        json!("futureResource"),
+        json!(null),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["type"] = invalid;
+        assert!(!direct_cdp_read_response(&event));
+    }
+    let mut legacy = ordinary.clone();
+    legacy["params"]
+        .as_object_mut()
+        .expect("synthetic params object")
+        .remove("type");
+    assert!(direct_cdp_read_response(&legacy));
+    for invalid in [json!(true), json!({}), json!("network")] {
+        let mut event = ordinary.clone();
+        event["params"]["response"]["fromDiskCache"] = invalid;
+        assert!(!direct_cdp_read_response(&event));
+    }
 }

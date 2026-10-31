@@ -36,9 +36,9 @@ use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
 use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::bodyless_cdp_get;
+use crate::response_provenance::direct_cdp_read_response;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::non_speculative_cdp_get;
-use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -268,7 +268,7 @@ impl ConversationDetailNetworkCapture {
         let mime = response.get("mimeType").and_then(Value::as_str);
         if response_conversation_id != Some(request.conversation_id.as_str())
             || status != Some(200)
-            || !uncached_provider_response(response)
+            || !direct_cdp_read_response(event)
             || mime != Some("application/json")
         {
             return Err(ConversationDetailNetworkError::ResponseRejected);

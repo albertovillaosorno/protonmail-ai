@@ -476,6 +476,19 @@ web application without requiring Bridge or a third-party direct API identity.
   metadata. All eight read observers share this rule without retaining the
   URL, headers, or request body.
 
+## Type the response event before consuming passive read evidence
+
+- A synthetic message-list lifecycle with a normal `Fetch` GET but a
+  `Network.responseReceived` ResourceType of `Prefetch` previously reached
+  successful response state. Every passive observer now checks the response
+  event's optional ResourceType against the same closed non-speculative enum
+  before admitting provider HTTP provenance.
+
+- Shared unit and message-list regressions reject prefetch, preflight, FedCM,
+  invalid spellings, and future types while preserving ordinary XHR/Fetch and
+  omitted legacy hints. This does not claim that request and response types
+  are byte-for-byte identical, or prove an absent hint from browser metadata.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

@@ -48,6 +48,30 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
     })
 }
 
+// Allow only documented, non-speculative CDP ResourceType variants. New
+// enum values cannot silently establish either request or response evidence.
+fn active_cdp_resource_type(kind: &str) -> bool {
+    matches!(
+        kind,
+        "Document"
+            | "Stylesheet"
+            | "Image"
+            | "Media"
+            | "Font"
+            | "Script"
+            | "TextTrack"
+            | "XHR"
+            | "Fetch"
+            | "EventSource"
+            | "WebSocket"
+            | "Manifest"
+            | "SignedExchange"
+            | "Ping"
+            | "CSPViolationReport"
+            | "Other"
+    )
+}
+
 // A speculative preload or prefetch can fetch an endpoint and return 200
 // without the active Mail view requesting those records. Chromium reports
 // these separately in Request, requestWillBeSent resource type and initiator.
@@ -74,25 +98,7 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     // active reads, and FedCM belongs to authentication, not mailbox access.
     let normal_resource = match params.get("type") {
         None => true,
-        Some(Value::String(kind)) => matches!(
-            kind.as_str(),
-            "Document"
-                | "Stylesheet"
-                | "Image"
-                | "Media"
-                | "Font"
-                | "Script"
-                | "TextTrack"
-                | "XHR"
-                | "Fetch"
-                | "EventSource"
-                | "WebSocket"
-                | "Manifest"
-                | "SignedExchange"
-                | "Ping"
-                | "CSPViolationReport"
-                | "Other"
-        ),
+        Some(Value::String(kind)) => active_cdp_resource_type(kind),
         Some(_) => false,
     };
     let normal_initiator = match params.get("initiator") {
@@ -202,6 +208,28 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
         && source_hints
             .iter()
             .all(|field| fields.get(*field).is_none())
+}
+
+// The request's resource hint alone cannot prove that the response belongs
+// to an active read: responseReceived has its own ResourceType. Reject new,
+// speculative or authentication types before any response-body consumption.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "private sibling read observers share response type provenance"
+)]
+pub(super) fn direct_cdp_read_response(event: &Value) -> bool {
+    let Some(params) = event.get("params").and_then(Value::as_object) else {
+        return false;
+    };
+    let normal_type = match params.get("type") {
+        None => true,
+        Some(Value::String(kind)) => active_cdp_resource_type(kind),
+        Some(_) => false,
+    };
+    normal_type
+        && params
+            .get("response")
+            .is_some_and(uncached_provider_response)
 }
 
 // CDP can report a nominal 200 in responseReceived before the actual HTTP

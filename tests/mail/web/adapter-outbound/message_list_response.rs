@@ -1937,3 +1937,42 @@ fn foreign_document_get_cannot_prove_visible_mail_message_batch() {
     });
     assert_eq!(trusted.observe(&request), Ok(()));
 }
+
+#[test]
+fn speculative_response_type_cannot_prove_mail_message_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId": "session-1", "method": "Network.requestWillBeSent",
+        "params": {"requestId": "typed-list", "type": "Fetch",
+            "request": {"method": "GET", "url": URL}}
+    });
+    for kind in ["Prefetch", "Preflight", "FedCM", "prefetch", "future"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(capture.observe(&request), Ok(()));
+        let response = json!({
+            "sessionId": "session-1", "method": "Network.responseReceived",
+            "params": {"requestId": "typed-list", "type": kind,
+                "response": {"url": URL, "status": 200u16,
+                    "mimeType": "application/json"}}
+        });
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected),
+            "untrusted response ResourceType {kind}"
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    for kind in ["XHR", "Fetch"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(capture.observe(&request), Ok(()));
+        let response = json!({
+            "sessionId": "session-1", "method": "Network.responseReceived",
+            "params": {"requestId": "typed-list", "type": kind,
+                "response": {"url": URL, "status": 200u16,
+                    "mimeType": "application/json"}}
+        });
+        assert_eq!(capture.observe(&response), Ok(()));
+    }
+}
