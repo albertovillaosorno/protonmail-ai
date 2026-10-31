@@ -184,3 +184,26 @@ fn unknown_response_source_markers_cannot_prove_direct_http() {
     }
     assert!(!uncached_provider_response(&json!(null)));
 }
+
+#[test]
+fn non_ascii_cdp_response_field_names_cannot_prove_direct_http() {
+    // CDP response metadata names are ASCII protocol identifiers. Unicode
+    // lookalikes must not hide a cache/source hint from our provenance gate.
+    let ordinary = json!({
+        "status":200u16, "mimeType":"application/json",
+        "fromDiskCache":false, "fromServiceWorker":false
+    });
+    assert!(uncached_provider_response(&ordinary));
+    for (name, value) in [
+        ("fromDiskCa\u{0441}he", json!(true)),
+        ("securitySt\u{0430}te", json!("insecure")),
+        ("\u{5b89}\u{5168}", json!(null)),
+    ] {
+        let mut response = ordinary.clone();
+        response[name] = value;
+        assert!(
+            !uncached_provider_response(&response),
+            "non-ASCII CDP field {name} cannot prove direct HTTP"
+        );
+    }
+}

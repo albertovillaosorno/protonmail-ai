@@ -59,6 +59,11 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
     // or `responseSource` is ambiguous even though it does not start with a
     // known prefix. Avoid allocating or retaining untrusted field content.
     let unknown_source_marker = fields.keys().any(|field| {
+        // CDP response properties are ASCII protocol names. A Unicode
+        // lookalike can disguise a source/security marker from ASCII checks.
+        if !field.is_ascii() {
+            return true;
+        }
         let contains_marker = [
             "cache",
             "prefetch",

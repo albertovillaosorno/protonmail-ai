@@ -2308,3 +2308,9 @@ web application without requiring Bridge or a third-party direct API identity.
   URLs before a requested event ID can establish polling provenance. Red-first
   raw Unicode selectors previously created apparently valid event cursors;
   canonical event URLs and bounded audited query flags remain supported.
+
+- Passive CDP response source checks now reject non-ASCII metadata property
+  names, including Unicode lookalikes of cache and security-state flags.
+  Red-first direct and synthetic message-list lifecycles previously accepted
+  these unaudited source extensions as fresh HTTP. Canonical ASCII CDP
+  response fields remain compatible without retaining private metadata.

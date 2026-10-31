@@ -413,6 +413,9 @@ fn cached_message_list_network_reply_is_not_fresh_evidence() {
         ("serviceWorkerRouterInfo", json!(null)),
         ("fromDiskCache", json!(null)),
         ("fromServiceWorker", json!("false")),
+        // Confusable Unicode names are not CDP response-schema fields.
+        ("fromDiskCa\u{0441}he", json!(true)),
+        ("securitySt\u{0430}te", json!("insecure")),
     ] {
         let mut capture = MessageListNetworkCapture::new("session-1");
         let request = json!({
