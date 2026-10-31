@@ -416,7 +416,8 @@ fn malformed_ax_backend_dom_node_id_cannot_prove_landmarks() {
             "invalid optional backend identity {label} must fail closed"
         );
     }
-    for (label, id) in [("small-backend-id", 1i32), ("max-backend-id", i32::MAX)] {
+    let valid_ids = [("small-backend-id", 1i32), ("max-backend-id", i32::MAX)];
+    for (label, id) in valid_ids {
         let navigation = format!(r#"{base},"backendDOMNodeId":{id}}}]"#);
         let roles = RoleFixture {
             navigation: &navigation,
@@ -433,6 +434,54 @@ fn malformed_ax_backend_dom_node_id_cannot_prove_landmarks() {
             .ready()
         );
     }
+}
+
+#[test]
+fn malformed_ax_frame_id_cannot_prove_landmarks() {
+    // Page.FrameId is a bounded opaque browser identity when supplied.
+    let base = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}"#
+    );
+    for (label, frame) in [
+        ("empty-frame-id", String::from(r#""""#)),
+        ("null-frame-id", String::from("null")),
+        ("numeric-frame-id", String::from("123")),
+        ("hidden-frame-id", String::from(r#""f\u200b1""#)),
+        ("control-frame-id", String::from(r#""f\n1""#)),
+        ("oversized-frame-id", format!("\"{}\"", "f".repeat(513))),
+    ] {
+        let navigation = format!(r#"{base},"frameId":{frame}}}]"#);
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "invalid optional frame identity {label} must fail closed"
+        );
+    }
+    let navigation = format!(r#"{base},"frameId":"frame-A1_2"}}]"#);
+    let roles = RoleFixture {
+        navigation: &navigation,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "ordinary-frame-id",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("valid optional browser frame identity")
+        .ready()
+    );
 }
 
 #[test]

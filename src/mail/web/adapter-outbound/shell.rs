@@ -144,6 +144,15 @@ fn visible_match<'role_nodes>(
         }) {
             return Err(());
         }
+        // AXNode.frameId is an optional opaque Page.FrameId. Never accept
+        // invisible or malformed browser frame identities as shell evidence;
+        // absence is compatible with Chromium responses that omit this field.
+        if let Some(frame) = node.get("frameId") {
+            let frame = frame.as_str().ok_or(())?;
+            if !valid_ax_node_id(frame) {
+                return Err(());
+            }
+        }
         let role = node.get("role").ok_or(())?;
         let kind = role.get("type").and_then(Value::as_str);
         let value = role.get("value").and_then(Value::as_str);

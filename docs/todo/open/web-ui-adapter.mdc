@@ -105,6 +105,15 @@ web application without requiring Bridge or a third-party direct API identity.
   32-bit protocol integer. Omitted identities and in-range IDs remain valid;
   no accessible names, DOM text, or live account data are inspected.
 
+## Refuse malformed optional accessibility frame identities
+
+- Red-first fake-browser query results proved a search/navigation landmark
+  could report an empty, numeric, null, control-bearing, or oversized optional
+  CDP `frameId` and still establish Mail-shell readiness. Optional frame IDs
+  now have bounded printable ASCII identity syntax. Missing frame IDs remain
+  compatible, and a normal browser frame token still establishes a shell
+  without reading accessible names or message content.
+
 ## Require full document-root evidence before AX inspection
 
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`
