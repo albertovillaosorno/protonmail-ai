@@ -524,6 +524,89 @@ fn refined_wire_headers_cannot_contradict_passive_message_list_get() {
 }
 
 #[test]
+fn contradictory_request_extra_info_cannot_authorize_mail_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"synthetic-list", "type":"Fetch",
+            "request":{"method":"GET", "url":URL,
+                "headers":{"Host":"mail.proton.me"}}}
+    });
+    let actual_headers = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSentExtraInfo",
+        "params":{"requestId":"synthetic-list",
+            "headers":{"Host":"foreign.invalid", "Content-Length":"13"}}
+    });
+    // CDP documents that the extra-info notification can precede or follow
+    // requestWillBeSent. Neither ordering can authorize a contradictory GET.
+    for extra_first in [false, true] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        if extra_first {
+            capture
+                .observe(&actual_headers)
+                .expect("remember early wire evidence");
+            assert_eq!(
+                capture.observe(&request),
+                Err(MessageListNetworkError::MalformedEvent)
+            );
+        } else {
+            capture.observe(&request).expect("track provisional GET");
+            assert_eq!(
+                capture.observe(&actual_headers),
+                Err(MessageListNetworkError::ResponseRejected)
+            );
+        }
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
+fn safe_and_unrelated_extra_info_preserve_message_list_lifecycle() {
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let unrelated = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSentExtraInfo",
+        "params":{"requestId":"other-request",
+            "headers":{"Host":"other.invalid"}}
+    });
+    capture
+        .observe(&unrelated)
+        .expect("unrelated request cannot block read");
+    let early = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSentExtraInfo",
+        "params":{"requestId":"synthetic-list",
+            "headers":{"Host":"mail.proton.me", "Sec-Fetch-Mode":"cors"}}
+    });
+    capture.observe(&early).expect("canonical wire headers");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"synthetic-list", "type":"Fetch",
+                "request":{"method":"GET", "url":URL,
+                    "headers":{"Host":"mail.proton.me"}}}
+        }))
+        .expect("canonical GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"synthetic-list", "type":"Fetch",
+                "response":{"url":URL, "status":200u16,
+                    "mimeType":"application/json"}}
+        }))
+        .expect("canonical response");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":"synthetic-list"}
+        }))
+        .expect("finished request");
+    assert_eq!(capture.take_finished_request_ids(), vec!["synthetic-list"]);
+}
+
+#[test]
 fn network_capture_tracks_only_exact_get_list_lifecycle() {
     use mail_web_adapter::MessageListNetworkCapture;
     use serde_json::json;

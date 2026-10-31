@@ -30,8 +30,12 @@
 
 //! Shared cached-response provenance gate for passive provider evidence.
 
+use crate::driver::safe_cdp_request_id;
 use serde_json::Map;
 use serde_json::Value;
+use std::collections::BTreeSet;
+use std::mem::take;
+use zeroize::Zeroize as _;
 
 // Validate the HTTP field shape, not its private content. A malformed CDP
 // Headers object cannot establish a meaningful body-free HTTP request.
@@ -40,7 +44,33 @@ fn cdp_header_token_byte(byte: u8) -> bool {
 }
 
 fn cdp_header_name_is_token(name: &str) -> bool {
+    if name.starts_with(':') {
+        // CDP can report HTTP/2 and HTTP/3 request pseudo-headers in the
+        // raw wire map. Admit only their exact lowercase standard spellings.
+        return matches!(name, ":authority" | ":method" | ":scheme" | ":path");
+    }
     !name.is_empty() && name.bytes().all(cdp_header_token_byte)
+}
+
+const fn mail_http_authority(value: &str) -> bool {
+    // jig-ignore-next-line: canonical rustfmt logical expression.
+    value.eq_ignore_ascii_case("mail.proton.me") || value.eq_ignore_ascii_case("mail.proton.me:443")
+}
+
+fn safe_http_pseudo_header(name: &str, value: &Value) -> bool {
+    match name {
+        ":authority" => value.as_str().is_some_and(mail_http_authority),
+        ":method" => value.as_str() == Some("GET"),
+        ":scheme" => value.as_str() == Some("https"),
+        ":path" => value.as_str().is_some_and(|path| {
+            path.len() <= 16 * 1024
+                && path.starts_with("/api/")
+                && path
+                    .bytes()
+                    .all(|byte| byte.is_ascii_graphic() && byte != b'#')
+        }),
+        _ => false,
+    }
 }
 
 // An HTTP method-override header makes the effective operation ambiguous
@@ -77,6 +107,9 @@ fn bodyless_cdp_headers(headers: &Map<String, Value>) -> bool {
         let safe_value = cdp_header_value_is_safe(value);
         if !safe_value || method_override_header(name) {
             return false;
+        }
+        if name.starts_with(':') {
+            return safe_http_pseudo_header(name, value);
         }
         if name.eq_ignore_ascii_case("content-length") {
             if seen_content_length {
@@ -225,6 +258,9 @@ fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
         if proxy_routing_header(name) {
             return false;
         }
+        if name.starts_with(':') {
+            return safe_http_pseudo_header(name, value);
+        }
         if name.eq_ignore_ascii_case("Cache-Control") {
             return value
                 .as_str()
@@ -234,10 +270,7 @@ fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
             // A conflicting HTTP authority cannot establish a direct
             // Mail read merely because the observed URL looks exact.
             let host = value.as_str();
-            return host.is_some_and(|value| {
-                value.eq_ignore_ascii_case("mail.proton.me")
-                    || value.eq_ignore_ascii_case("mail.proton.me:443")
-            });
+            return host.is_some_and(mail_http_authority);
         }
         if name.eq_ignore_ascii_case("Origin") {
             // A foreign/sandboxed document cannot become Mail-owned just
@@ -378,6 +411,66 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     let request_active = request_active && normal_same_site;
     let event_active = normal_event_hints && normal_resource;
     request_active && event_active && normal_initiator && normal_document
+}
+
+// Network.requestWillBeSentExtraInfo reports the actual request headers,
+// independently of provisional Request.headers and optional response headers.
+// CDP may deliver this notification before requestWillBeSent, so retain only
+// bounded IDs with contradictory evidence until their request can be matched.
+// Never retain any request-header text or values.
+const MAX_UNSAFE_EXTRA_REQUEST_IDS: usize = 1_024;
+
+#[derive(Clone, Default, Eq, PartialEq)]
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "sibling CDP readers share wire header evidence"
+)]
+pub(super) struct RequestExtraInfoEvidence {
+    unsafe_ids: BTreeSet<String>,
+}
+
+#[expect(
+    clippy::allow_attributes,
+    reason = "Drop lint behavior differs between toolchains"
+)]
+#[allow(clippy::missing_trait_methods, reason = "Drop::pin_drop is unstable")]
+impl Drop for RequestExtraInfoEvidence {
+    fn drop(&mut self) {
+        for mut id in take(&mut self.unsafe_ids) {
+            id.zeroize();
+        }
+    }
+}
+
+impl RequestExtraInfoEvidence {
+    // Returns the borrowed, validated correlation ID or None for a malformed
+    // event or exhausted bounded custody. Unsafe headers are remembered even
+    // if this event precedes the corresponding requestWillBeSent.
+    // jig-ignore-next-line: canonical rustfmt lifetime signature.
+    pub(super) fn note_event<'event>(&mut self, event: &'event Value) -> Option<&'event str> {
+        let params = event.get("params")?.as_object()?;
+        let request_id = params.get("requestId")?.as_str()?;
+        if !safe_cdp_request_id(request_id) {
+            return None;
+        }
+        let headers = params.get("headers")?.as_object()?;
+        let safe_headers = bodyless_cdp_headers(headers)
+            && active_mail_fetch_headers(headers)
+            && !headers.keys().any(|key| speculative_purpose_header(key));
+        if !safe_headers {
+            if !self.unsafe_ids.contains(request_id)
+                && self.unsafe_ids.len() >= MAX_UNSAFE_EXTRA_REQUEST_IDS
+            {
+                return None;
+            }
+            self.unsafe_ids.insert(String::from(request_id));
+        }
+        Some(request_id)
+    }
+
+    pub(super) fn rejects(&self, request_id: &str) -> bool {
+        self.unsafe_ids.contains(request_id)
+    }
 }
 
 // Browser source flags may be absent on some CDP versions, but present values

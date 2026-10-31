@@ -39,6 +39,7 @@ use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
 use crate::response_provenance::ExtraStatusEvidence;
+use crate::response_provenance::RequestExtraInfoEvidence;
 use crate::response_provenance::bodyless_cdp_get;
 use crate::response_provenance::direct_cdp_read_response;
 use crate::response_provenance::direct_extra_status_is_200;
@@ -92,6 +93,7 @@ pub struct AttachmentMetadataNetworkCapture {
     session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedAttachmentMetadataRequest>,
     completed_ids: BTreeSet<String>,
+    extra_request_headers: RequestExtraInfoEvidence,
 }
 
 #[expect(
@@ -112,6 +114,7 @@ impl AttachmentMetadataNetworkCapture {
             session_id: Zeroizing::new(String::from(session_id)),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
+            extra_request_headers: RequestExtraInfoEvidence::default(),
         }
     }
 
@@ -130,6 +133,22 @@ impl AttachmentMetadataNetworkCapture {
         }
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.requestWillBeSentExtraInfo") => {
+                let request_id = self
+                    .extra_request_headers
+                    .note_event(event)
+                    .ok_or(AttachmentMetadataNetworkError::MalformedEvent)?;
+                if self.completed_ids.contains(request_id) {
+                    return Err(AttachmentMetadataNetworkError::InvalidSequence);
+                }
+                if self.requests.contains_key(request_id)
+                    && self.extra_request_headers.rejects(request_id)
+                {
+                    // jig-ignore-next-line: canonical rustfmt error variant.
+                    return Err(AttachmentMetadataNetworkError::ResponseRejected);
+                }
+                Ok(())
+            }
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
@@ -218,7 +237,10 @@ impl AttachmentMetadataNetworkCapture {
             return Ok(());
         };
         // A GET URL alone cannot prove body-free read semantics.
-        if !bodyless_cdp_get(request) || !non_speculative_cdp_get(event) {
+        if !bodyless_cdp_get(request)
+            || !non_speculative_cdp_get(event)
+            || self.extra_request_headers.rejects(request_id)
+        {
             return Err(AttachmentMetadataNetworkError::MalformedEvent);
         }
         // A redirect from an ignored URL cannot establish fresh GET evidence.
@@ -358,6 +380,7 @@ impl Debug for AttachmentMetadataNetworkCapture {
             .field("session_id", &"<redacted>")
             .field("tracked_request_count", &self.requests.len())
             .field("completed_request_count", &self.completed_ids.len())
+            .field("extra_request_headers", &"<redacted>")
             .finish()
     }
 }

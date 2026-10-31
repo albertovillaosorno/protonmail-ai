@@ -2544,3 +2544,17 @@ web application without requiring Bridge or a third-party direct API identity.
   headers, including comma-separated case-insensitive directives; ordinary
   `no-cache` and omitted Cache-Control remain supported without retaining
   header values or accessing a real browser.
+
+- Passive Mail CDP collectors now inspect
+  `Network.requestWillBeSentExtraInfo.headers`, the wire request headers that
+  may differ from provisional `Request.headers` and optional refined response
+  metadata. Red-first synthetic message-list events previously accepted a
+  foreign Host and positive Content-Length from that notification as a fresh
+  Mail JSON GET. All eight read observers now correlate contradictory extra
+  headers by bounded, scrubbed request ID both before and after the initial
+  request event. Unrelated requests and valid first-party wire evidence remain
+  compatible; no header values, tokens, or mailbox content are retained.
+
+- HTTP/2 and HTTP/3 standard request pseudo-headers are checked for secure
+  Mail authority, GET, HTTPS and a bounded API path instead of being mistaken
+  for malformed HTTP/1 header names. No live account was used.

@@ -32,6 +32,7 @@
 
 use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
 use crate::response_provenance::ExtraStatusEvidence;
+use crate::response_provenance::RequestExtraInfoEvidence;
 use crate::response_provenance::bodyless_cdp_get;
 use crate::response_provenance::direct_cdp_read_response;
 use crate::response_provenance::direct_extra_status_is_200;
@@ -115,6 +116,7 @@ pub struct MessageListNetworkCapture {
     session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedMessageListRequest>,
     completed_ids: BTreeSet<String>,
+    extra_request_headers: RequestExtraInfoEvidence,
     context_fingerprint: Option<[u64; 2]>,
     fingerprint_hashers: [RandomState; 2],
 }
@@ -130,6 +132,7 @@ impl PartialEq for MessageListNetworkCapture {
         self.session_id == other.session_id
             && self.requests == other.requests
             && self.completed_ids == other.completed_ids
+            && self.extra_request_headers == other.extra_request_headers
             && context_bound == other_context_bound
     }
 }
@@ -158,6 +161,7 @@ impl MessageListNetworkCapture {
             session_id: Zeroizing::new(String::from(session_id)),
             requests: BTreeMap::new(),
             completed_ids: BTreeSet::new(),
+            extra_request_headers: RequestExtraInfoEvidence::default(),
             context_fingerprint: None,
             fingerprint_hashers: [RandomState::new(), RandomState::new()],
         }
@@ -182,6 +186,21 @@ impl MessageListNetworkCapture {
         let method = event.get("method").and_then(Value::as_str);
         match method {
             Some("Network.requestWillBeSent") => self.observe_request(event),
+            Some("Network.requestWillBeSentExtraInfo") => {
+                let request_id = self
+                    .extra_request_headers
+                    .note_event(event)
+                    .ok_or(MessageListNetworkError::MalformedEvent)?;
+                if self.completed_ids.contains(request_id) {
+                    return Err(MessageListNetworkError::InvalidSequence);
+                }
+                if self.requests.contains_key(request_id)
+                    && self.extra_request_headers.rejects(request_id)
+                {
+                    return Err(MessageListNetworkError::ResponseRejected);
+                }
+                Ok(())
+            }
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
@@ -329,7 +348,10 @@ impl MessageListNetworkCapture {
             return Ok(());
         }
         // A GET URL alone cannot prove body-free read semantics.
-        if !bodyless_cdp_get(request) || !non_speculative_cdp_get(event) {
+        if !bodyless_cdp_get(request)
+            || !non_speculative_cdp_get(event)
+            || self.extra_request_headers.rejects(request_id)
+        {
             return Err(MessageListNetworkError::MalformedEvent);
         }
         // CDP reuses requestId across redirects, including from untracked URLs.
@@ -522,6 +544,7 @@ impl fmt::Debug for MessageListNetworkCapture {
             .field("completed_request_count", &self.completed_ids.len())
             .field("context_fingerprint", &"<redacted>")
             .field("fingerprint_hashers", &"<redacted>")
+            .field("extra_request_headers", &"<redacted>")
             .finish()
     }
 }

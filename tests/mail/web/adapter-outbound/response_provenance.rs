@@ -31,12 +31,92 @@
 //! Synthetic shared CDP provenance and extra-status regression coverage.
 
 use super::ExtraStatusEvidence;
+use super::RequestExtraInfoEvidence;
 use super::bodyless_cdp_get;
 use super::direct_cdp_read_response;
 use super::direct_extra_status_is_200;
 use super::non_speculative_cdp_get;
 use super::uncached_provider_response;
 use serde_json::json;
+
+#[test]
+fn http2_pseudo_headers_must_prove_the_same_mail_get() {
+    let ordinary = json!({"params":{"requestId":"h2-request", "headers":{
+        ":authority":"mail.proton.me", ":method":"GET", ":scheme":"https",
+        ":path":"/api/mail/v4/messages?Page=0", "Accept":"application/json"
+    }}});
+    let mut evidence = RequestExtraInfoEvidence::default();
+    assert!(evidence.note_event(&ordinary).is_some());
+    assert!(!evidence.rejects("h2-request"));
+
+    for (header, value) in [
+        (":authority", "foreign.invalid"),
+        (":method", "POST"),
+        (":scheme", "http"),
+        (":path", "/logout"),
+        (":path", "/api/mail/v4/messages#fragment"),
+    ] {
+        let mut contradictory = ordinary.clone();
+        contradictory["params"]["headers"][header] = json!(value);
+        let mut probe = RequestExtraInfoEvidence::default();
+        assert!(probe.note_event(&contradictory).is_some());
+        assert!(probe.rejects("h2-request"));
+    }
+    let mut future = ordinary.clone();
+    future["params"]["headers"][":future"] = json!("unknown");
+    assert!(evidence.note_event(&future).is_some());
+    assert!(evidence.rejects("h2-request"));
+}
+
+#[test]
+fn wire_request_extra_info_custody_is_bounded_and_header_only() {
+    let mut evidence = RequestExtraInfoEvidence::default();
+    let safe = json!({"params":{"requestId":"safe",
+        "headers":{"Host":"mail.proton.me", "Content-Length":"0",
+            "Sec-Fetch-Mode":"cors"}}});
+    assert_eq!(evidence.note_event(&safe), Some("safe"));
+    assert!(!evidence.rejects("safe"));
+
+    for (id, header, value) in [
+        ("foreign", "Host", "foreign.invalid"),
+        ("framed", "Content-Length", "12"),
+        ("replayed", "Cache-Control", "only-if-cached"),
+        ("method", "X-HTTP-Method-Override", "POST"),
+        ("speculative", "Purpose", "prefetch"),
+    ] {
+        let event = json!({"params":{"requestId":id,
+            "headers":{header:value}}});
+        assert_eq!(evidence.note_event(&event), Some(id));
+        assert!(evidence.rejects(id));
+    }
+    let later_safe = json!({"params":{"requestId":"foreign",
+        "headers":{"Host":"mail.proton.me"}}});
+    assert_eq!(evidence.note_event(&later_safe), Some("foreign"));
+    assert!(
+        evidence.rejects("foreign"),
+        "later headers cannot erase rejection"
+    );
+    for malformed in [
+        json!({"params":{"requestId":"missing"}}),
+        json!({"params":{"requestId":"string", "headers":"untyped"}}),
+        json!({"params":{"requestId":"nonprint\n", "headers":{}}}),
+    ] {
+        assert_eq!(evidence.note_event(&malformed), None);
+    }
+
+    // Only a bounded number of early untrusted request IDs may be retained;
+    // neither header maps nor their values become part of capture state.
+    let mut bounded = RequestExtraInfoEvidence::default();
+    for index in 0..super::MAX_UNSAFE_EXTRA_REQUEST_IDS {
+        let event = json!({"params":{"requestId":format!("synthetic-{index}"),
+            "headers":{"Host":"foreign.invalid"}}});
+        assert!(bounded.note_event(&event).is_some());
+    }
+    let over_limit = json!({"params":{"requestId":"over-limit",
+        "headers":{"Host":"foreign.invalid"}}});
+    assert!(bounded.note_event(&over_limit).is_none());
+    assert!(!bounded.rejects("over-limit"));
+}
 
 #[test]
 fn extra_status_presence_and_type_bind_completion() {
