@@ -58,13 +58,23 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
     // Do not silently treat an unknown source-like key as direct HTTP, even
     // when its current value appears false or spells a known key differently.
     let unknown_source_marker = fields.keys().any(|field| {
-        let marker = ["from", "serviceWorker", "cacheStorage", "securityState"]
-            .iter()
-            .any(|prefix| {
-                field
-                    .get(..prefix.len())
-                    .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
-            });
+        let marker = [
+            "from",
+            "isFrom",
+            "servedFrom",
+            "wasServedFrom",
+            "cache",
+            "prefetch",
+            "serviceWorker",
+            "source",
+            "securityState",
+        ]
+        .iter()
+        .any(|prefix| {
+            field
+                .get(..prefix.len())
+                .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+        });
         marker
             && !source_flags.contains(&field.as_str())
             && !source_hints.contains(&field.as_str())

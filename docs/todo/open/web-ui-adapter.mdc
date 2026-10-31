@@ -125,6 +125,16 @@ web application without requiring Bridge or a third-party direct API identity.
   Unreviewed security-state spelling variants and extensions also fail closed,
   rather than bypassing a valid `securityState` with a contradictory alias.
 
+## Reject additional unreviewed cache and response-source markers
+
+- Red-first synthetic direct-provider HTTP metadata still passed when unknown
+  cache hints used `isFrom...`, `servedFrom...`, `wasServedFrom...`, `cache...`,
+  `prefetch...`, or `source...` keys outside the existing source flag prefix
+  checks, including contradictory true values. The shared passive response
+  gate now rejects these unreviewed source-key families case-insensitively,
+  including false-valued aliases. The documented exact CDP flags remain
+  compatible, so all passive collectors share the same stricter provenance.
+
 ## Require canonical URL characters in browser origin metadata
 
 - Red-first synthetic `TargetInfo.url` and DOM `documentURL` evidence could

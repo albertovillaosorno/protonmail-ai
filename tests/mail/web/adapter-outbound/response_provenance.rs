@@ -159,6 +159,13 @@ fn unknown_response_source_markers_cannot_prove_direct_http() {
         ("ServiceWorkerRouterInfo", json!(null)),
         ("cacheStorageFuture", json!({})),
         ("CacheStorageCacheName", json!("cache")),
+        ("isFromDiskCache", json!(true)),
+        ("ISFROMDISKCACHE", json!(false)),
+        ("servedFromCache", json!(true)),
+        ("wasServedFromCache", json!(false)),
+        ("cacheEntrySource", json!("disk")),
+        ("prefetchResponseSource", json!("network")),
+        ("sourceKind", json!("cache")),
     ] {
         let mut response = ordinary_response.clone();
         response[name] = marker;
