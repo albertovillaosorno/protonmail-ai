@@ -48,28 +48,11 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
     })
 }
 
-// Allow only documented, non-speculative CDP ResourceType variants. New
-// enum values cannot silently establish either request or response evidence.
-fn active_cdp_resource_type(kind: &str) -> bool {
-    matches!(
-        kind,
-        "Document"
-            | "Stylesheet"
-            | "Image"
-            | "Media"
-            | "Font"
-            | "Script"
-            | "TextTrack"
-            | "XHR"
-            | "Fetch"
-            | "EventSource"
-            | "WebSocket"
-            | "Manifest"
-            | "SignedExchange"
-            | "Ping"
-            | "CSPViolationReport"
-            | "Other"
-    )
+// The audited Mail API endpoints return JSON to application XHR/Fetch reads.
+// A navigation, image, script, or other resource may independently GET the
+// same URL, but must not establish the active mailbox's API read evidence.
+fn read_api_cdp_resource_type(kind: &str) -> bool {
+    matches!(kind, "XHR" | "Fetch")
 }
 
 // A speculative preload or prefetch can fetch an endpoint and return 200
@@ -94,11 +77,11 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         None | Some(Value::Bool(false))
     );
     // CDP resource and initiator types are closed enums, not arbitrary text.
-    // In particular, unknown spellings or future fetch types cannot prove
-    // active reads, and FedCM belongs to authentication, not mailbox access.
+    // Browser navigations and resource fetches cannot prove Mail API reads.
+    // In particular, unknown, speculative, or FedCM types fail closed.
     let normal_resource = match params.get("type") {
         None => true,
-        Some(Value::String(kind)) => active_cdp_resource_type(kind),
+        Some(Value::String(kind)) => read_api_cdp_resource_type(kind),
         Some(_) => false,
     };
     let normal_initiator = match params.get("initiator") {
@@ -227,7 +210,7 @@ pub(super) fn direct_cdp_read_response(event: &Value) -> bool {
     };
     let normal_type = match params.get("type") {
         None => true,
-        Some(Value::String(kind)) => active_cdp_resource_type(kind),
+        Some(Value::String(kind)) => read_api_cdp_resource_type(kind),
         Some(_) => false,
     };
     normal_type

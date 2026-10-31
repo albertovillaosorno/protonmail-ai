@@ -2002,3 +2002,40 @@ fn event_level_cache_notice_cannot_prove_message_list_read() {
     );
     assert!(capture.take_finished_request_ids().is_empty());
 }
+
+#[test]
+fn non_ajax_resource_cannot_prove_message_list_api_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for kind in ["Image", "Document", "Script", "Other"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let event = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "image-list", "type": kind,
+                "request": {"method": "GET", "url": URL}}
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "non-AJAX request {kind} must not count as a Mail list read"
+        );
+    }
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let normal = json!({
+        "sessionId": "session-1", "method": "Network.requestWillBeSent",
+        "params": {"requestId": "ajax-list", "type": "XHR",
+            "request": {"method": "GET", "url": URL}}
+    });
+    assert_eq!(capture.observe(&normal), Ok(()));
+    let disguised = json!({
+        "sessionId": "session-1", "method": "Network.responseReceived",
+        "params": {"requestId": "ajax-list", "type": "Image",
+            "response": {"url": URL, "status": 200u16,
+                "mimeType": "application/json"}}
+    });
+    assert_eq!(
+        capture.observe(&disguised),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+}

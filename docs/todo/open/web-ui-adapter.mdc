@@ -502,6 +502,19 @@ web application without requiring Bridge or a third-party direct API identity.
   All eight read observers inherit the shared gate. This does not infer a
   network source when the optional CDP metadata is absent.
 
+## Require an API read resource kind for passive JSON endpoint proof
+
+- A red-first message-list fixture using `Network.requestWillBeSent` type
+  `Image`, `Document`, or `Script` passed as a Mail JSON API read. An unrelated
+  navigation or subresource can fetch the same endpoint without the active
+  mailbox view requesting an API batch. Reported request and response CDP
+  ResourceType values now must be `XHR` or `Fetch` at these read boundaries.
+
+- Shared and message-list tests reject non-AJAX types even with an exact
+  Mail URL, status 200, and `application/json` MIME. Missing optional type
+  hints stay compatible with legacy Chromium events. This narrows accepted
+  evidence; it does not create new browser traffic or access a live account.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

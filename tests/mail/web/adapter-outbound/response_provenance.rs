@@ -282,8 +282,8 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
     for (resource, initiator) in [
         ("Fetch", "script"),
         ("XHR", "parser"),
-        ("Other", "other"),
-        ("Script", "SignedExchange"),
+        ("Fetch", "other"),
+        ("XHR", "SignedExchange"),
     ] {
         let mut event = ordinary.clone();
         event["params"]["type"] = json!(resource);
@@ -386,6 +386,49 @@ fn response_event_level_source_markers_cannot_override_direct_http() {
         assert!(
             !direct_cdp_read_response(&event),
             "event-level response provenance {name} cannot prove direct HTTP"
+        );
+    }
+}
+
+#[test]
+fn passive_mail_reads_require_ajax_resource_type_when_reported() {
+    let request = json!({
+        "params": {"request": {"method": "GET"}, "type": "Fetch",
+            "initiator": {"type": "script"}}
+    });
+    let response = json!({
+        "params": {"type": "XHR", "response": {
+            "status": 200u16, "mimeType": "application/json"}}
+    });
+    assert!(non_speculative_cdp_get(&request));
+    assert!(direct_cdp_read_response(&response));
+    for type_name in [
+        "Document",
+        "Stylesheet",
+        "Image",
+        "Media",
+        "Font",
+        "Script",
+        "TextTrack",
+        "EventSource",
+        "WebSocket",
+        "Manifest",
+        "Ping",
+        "SignedExchange",
+        "CSPViolationReport",
+        "Other",
+    ] {
+        let mut request_with_non_mail_type = request.clone();
+        request_with_non_mail_type["params"]["type"] = json!(type_name);
+        assert!(
+            !non_speculative_cdp_get(&request_with_non_mail_type),
+            "non-API resource {type_name} cannot prove a Mail JSON GET"
+        );
+        let mut response_with_non_mail_type = response.clone();
+        response_with_non_mail_type["params"]["type"] = json!(type_name);
+        assert!(
+            !direct_cdp_read_response(&response_with_non_mail_type),
+            "non-API response {type_name} cannot prove Mail JSON data"
         );
     }
 }
