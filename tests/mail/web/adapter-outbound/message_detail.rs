@@ -1879,3 +1879,32 @@ fn borrowed_private_fields_do_not_enter_late_failure_diagnostics() {
     assert_eq!(result, Err(MessageDetailResponseError::DuplicateIdentifier));
     assert!(!format!("{result:?}").contains(private_label));
 }
+
+#[test]
+fn body_bearing_get_cannot_prove_message_detail_evidence() {
+    // CDP may advertise a request payload without retaining the body itself.
+    // None of these apparent exact GETs proves a normal read-only response.
+    let session_id = "session-1";
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        // jig-ignore-next-line: canonical rustfmt preserves this fixture call.
+        let mut event = request_event(session_id, "payload-get", "GET", MESSAGE_URL);
+        event["params"]["request"][field] = value;
+        let mut capture = MessageDetailNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageDetailNetworkError::MalformedEvent),
+            "unexpected request-body hint {field}"
+        );
+    }
+    // jig-ignore-next-line: canonical rustfmt preserves this fixture call.
+    let mut ordinary = request_event(session_id, "normal-get", "GET", MESSAGE_URL);
+    ordinary["params"]["request"]["hasPostData"] = json!(false);
+    assert_eq!(
+        MessageDetailNetworkCapture::new("session-1").observe(&ordinary),
+        Ok(())
+    );
+}

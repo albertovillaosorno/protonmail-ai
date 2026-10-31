@@ -1192,3 +1192,29 @@ fn borrowed_member_ids_survive_late_rejection_without_error_diagnostics() {
     let diagnostic = format!("{observed:?}");
     assert!(!diagnostic.contains(other_parent));
 }
+
+#[test]
+fn body_bearing_get_cannot_prove_conversation_detail_evidence() {
+    // CDP may advertise a request payload without retaining the body itself.
+    // None of these apparent exact GETs proves a normal read-only response.
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        let mut event = request_event("session-1", "payload-get", "GET", URL);
+        event["params"]["request"][field] = value;
+        let mut capture = ConversationDetailNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(ConversationDetailNetworkError::MalformedEvent),
+            "unexpected request-body hint {field}"
+        );
+    }
+    let mut ordinary = request_event("session-1", "normal-get", "GET", URL);
+    ordinary["params"]["request"]["hasPostData"] = json!(false);
+    assert_eq!(
+        ConversationDetailNetworkCapture::new("session-1").observe(&ordinary),
+        Ok(())
+    );
+}

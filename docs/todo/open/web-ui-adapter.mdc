@@ -2314,3 +2314,11 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first direct and synthetic message-list lifecycles previously accepted
   these unaudited source extensions as fresh HTTP. Canonical ASCII CDP
   response fields remain compatible without retaining private metadata.
+
+- Exact passive GET captures now refuse CDP Request metadata that reports a
+  possible request body: `hasPostData` other than false, `postData`, or
+  `postDataEntries`, even when the URL and method look read-only. The common
+  body-free guard covers message/conversation lists, detail/attachment
+  metadata, mailbox catalogs, and both core-event paths. Synthetic red-first
+  message-list and event tests exposed the previous acceptance; negative
+  `hasPostData:false` remains compatible with ordinary browser GETs.

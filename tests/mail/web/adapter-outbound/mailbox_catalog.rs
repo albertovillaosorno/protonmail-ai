@@ -2192,3 +2192,29 @@ fn rejected_catalog_fields_never_expose_private_id_or_display_name() {
         assert!(!diagnostic.contains(secret_name));
     }
 }
+
+#[test]
+fn body_bearing_get_cannot_prove_mailbox_catalog_evidence() {
+    // CDP may advertise a request payload without retaining the body itself.
+    // None of these apparent exact GETs proves a normal read-only response.
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        let mut event = request("session-1", "payload-get", "GET", LABEL_URL);
+        event["params"]["request"][field] = value;
+        let mut capture = MailboxCatalogNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(MailboxCatalogNetworkError::MalformedEvent),
+            "unexpected request-body hint {field}"
+        );
+    }
+    let mut ordinary = request("session-1", "normal-get", "GET", LABEL_URL);
+    ordinary["params"]["request"]["hasPostData"] = json!(false);
+    assert_eq!(
+        MailboxCatalogNetworkCapture::new("session-1").observe(&ordinary),
+        Ok(())
+    );
+}

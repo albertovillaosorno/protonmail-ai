@@ -39,6 +39,7 @@ use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
 use crate::response_provenance::ExtraStatusEvidence;
+use crate::response_provenance::bodyless_cdp_get;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -215,6 +216,10 @@ impl AttachmentMetadataNetworkCapture {
         let Some(attachment_id) = attachment_id else {
             return Ok(());
         };
+        // A GET URL alone cannot prove body-free read semantics.
+        if !bodyless_cdp_get(request) {
+            return Err(AttachmentMetadataNetworkError::MalformedEvent);
+        }
         // A redirect from an ignored URL cannot establish fresh GET evidence.
         if params.get("redirectResponse").is_some() {
             return Err(AttachmentMetadataNetworkError::RedirectedAway);

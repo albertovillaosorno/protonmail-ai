@@ -32,6 +32,22 @@
 
 use serde_json::Value;
 
+// A CDP Request claiming GET does not prove body-free read semantics when
+// transport metadata also reports payload bytes. `Network.enable` may omit
+// postData text, so the boolean and entry-array flags need checking too.
+// Absence and an explicit false boolean are normal browser GET metadata.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "private sibling read observers share one request-body predicate"
+)]
+pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
+    request.as_object().is_some_and(|fields| {
+        matches!(fields.get("hasPostData"), None | Some(Value::Bool(false)))
+            && !fields.contains_key("postData")
+            && !fields.contains_key("postDataEntries")
+    })
+}
+
 // Browser source flags may be absent on some CDP versions, but present values
 // must be explicitly false. Other optional cache/SW hints cannot prove a
 // direct provider response even if the booleans are absent or contradictory.

@@ -2200,3 +2200,29 @@ fn conflicting_conversation_sort_query_selectors_fail_closed() {
         assert_eq!(capture.tracked_request_count(), 0);
     }
 }
+
+#[test]
+fn body_bearing_get_cannot_prove_conversation_list_evidence() {
+    // CDP may advertise a request payload without retaining the body itself.
+    // None of these apparent exact GETs proves a normal read-only response.
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        let mut event = request_event("session-1", "payload-get", "GET", URL);
+        event["params"]["request"][field] = value;
+        let mut capture = ConversationListNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(ConversationListNetworkError::MalformedEvent),
+            "unexpected request-body hint {field}"
+        );
+    }
+    let mut ordinary = request_event("session-1", "normal-get", "GET", URL);
+    ordinary["params"]["request"]["hasPostData"] = json!(false);
+    assert_eq!(
+        ConversationListNetworkCapture::new("session-1").observe(&ordinary),
+        Ok(())
+    );
+}

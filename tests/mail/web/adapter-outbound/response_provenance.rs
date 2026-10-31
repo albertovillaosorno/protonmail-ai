@@ -31,6 +31,7 @@
 //! Synthetic shared CDP provenance and extra-status regression coverage.
 
 use super::ExtraStatusEvidence;
+use super::bodyless_cdp_get;
 use super::direct_extra_status_is_200;
 use super::uncached_provider_response;
 use serde_json::json;
@@ -205,5 +206,26 @@ fn non_ascii_cdp_response_field_names_cannot_prove_direct_http() {
             !uncached_provider_response(&response),
             "non-ASCII CDP field {name} cannot prove direct HTTP"
         );
+    }
+}
+
+#[test]
+fn only_explicitly_bodyless_cdp_requests_can_prove_read_only_get() {
+    for request in [
+        json!({"method":"GET","url":"https://mail.proton.me/"}),
+        json!({"method":"GET","hasPostData":false}),
+    ] {
+        assert!(bodyless_cdp_get(&request));
+    }
+    for request in [
+        json!(null),
+        json!({"method":"GET","hasPostData":true}),
+        json!({"method":"GET","hasPostData":null}),
+        json!({"method":"GET","hasPostData":"false"}),
+        json!({"method":"GET","postData":"private"}),
+        json!({"method":"GET","postData":null}),
+        json!({"method":"GET","postDataEntries":[]}),
+    ] {
+        assert!(!bodyless_cdp_get(&request));
     }
 }

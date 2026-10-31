@@ -32,6 +32,7 @@
 
 use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
 use crate::response_provenance::ExtraStatusEvidence;
+use crate::response_provenance::bodyless_cdp_get;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -237,6 +238,10 @@ impl ConversationListNetworkCapture {
         }
         if !exact_get {
             return Ok(());
+        }
+        // A GET URL alone cannot prove body-free read semantics.
+        if !bodyless_cdp_get(request) {
+            return Err(ConversationListNetworkError::MalformedEvent);
         }
         // A redirect may enter the exact endpoint from an ignored request.
         if params.get("redirectResponse").is_some() {

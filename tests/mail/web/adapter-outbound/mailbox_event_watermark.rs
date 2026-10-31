@@ -3603,3 +3603,35 @@ fn redirected_into_event_gets_is_not_fresh_evidence() {
     assert!(latest.take_finished_request_ids().is_empty());
     assert!(poll.take_finished_request_ids().is_empty());
 }
+
+#[test]
+fn event_gets_with_body_metadata_cannot_establish_mailbox_watermarks() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+    let request_method = "Network.requestWillBeSent";
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-event-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        let mut bootstrap = LatestMailboxEventNetworkCapture::new("session-1");
+        // jig-ignore-next-line: canonical rustfmt preserves this fixture call.
+        let mut boot_event = cdp_lifecycle_event(request_method, "latest", latest);
+        boot_event["params"]["request"][field] = value.clone();
+        assert_eq!(
+            bootstrap.observe(&boot_event),
+            Err(MailboxEventNetworkError::MalformedEvent),
+            "body-bearing latest GET {field}"
+        );
+        let mut poll = MailboxEventNetworkCapture::new("session-1");
+        let mut poll_event = cdp_lifecycle_event(request_method, "poll", URL);
+        poll_event["params"]["request"][field] = value;
+        assert_eq!(
+            poll.observe(&poll_event),
+            Err(MailboxEventNetworkError::MalformedEvent),
+            "body-bearing poll GET {field}"
+        );
+    }
+}

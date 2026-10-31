@@ -1388,3 +1388,29 @@ fn borrowed_attachment_fields_refuse_late_mime_injection_without_leakage() {
     assert!(!diagnostic.contains("attachment-1"));
     assert!(!diagnostic.contains("X-Secret"));
 }
+
+#[test]
+fn body_bearing_get_cannot_prove_attachment_metadata_evidence() {
+    // CDP may advertise a request payload without retaining the body itself.
+    // None of these apparent exact GETs proves a normal read-only response.
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("postData", json!("synthetic-body")),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+    ] {
+        let mut event = request_event("session-1", "payload-get", "GET", URL);
+        event["params"]["request"][field] = value;
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(AttachmentMetadataNetworkError::MalformedEvent),
+            "unexpected request-body hint {field}"
+        );
+    }
+    let mut ordinary = request_event("session-1", "normal-get", "GET", URL);
+    ordinary["params"]["request"]["hasPostData"] = json!(false);
+    assert_eq!(
+        AttachmentMetadataNetworkCapture::new("session-1").observe(&ordinary),
+        Ok(())
+    );
+}

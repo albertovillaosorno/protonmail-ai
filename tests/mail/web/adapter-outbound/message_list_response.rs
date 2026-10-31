@@ -1808,3 +1808,42 @@ fn rejected_private_continuation_selector_never_reaches_capture_diagnostics() {
     assert!(!diagnostic.contains("synthetic-private-anchor"));
     assert!(!diagnostic.contains("other-folder"));
 }
+
+#[test]
+fn apparent_message_list_get_with_body_cannot_prove_read_only_request() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (field, value) in [
+        ("hasPostData", json!(true)),
+        ("hasPostData", json!(null)),
+        ("hasPostData", json!("false")),
+        ("postData", json!("synthetic-payload")),
+        ("postData", json!(null)),
+        ("postDataEntries", json!([{"bytes":"c3ludGhldGlj"}])),
+        ("postDataEntries", json!([])),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let mut event = json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"body-bearing-get","request":{
+                "method":"GET","url":URL
+            }}
+        });
+        event["params"]["request"][field] = value;
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "body-bearing GET {field} is not read-only proof"
+        );
+    }
+    // An explicit negative flag is a normal CDP representation of a GET.
+    let mut clean = MessageListNetworkCapture::new("session-1");
+    let event = json!({
+        "sessionId":"session-1","method":"Network.requestWillBeSent",
+        "params":{"requestId":"no-body","request":{
+            "method":"GET","url":URL,"hasPostData":false
+        }}
+    });
+    assert_eq!(clean.observe(&event), Ok(()));
+}
