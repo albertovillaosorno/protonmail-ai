@@ -62,8 +62,9 @@ impl Drop for SanitizedAttachmentFilename {
 impl SanitizedAttachmentFilename {
     /// Sanitizes untrusted provider filename metadata into one portable leaf.
     ///
-    /// Path separators, ASCII controls, and characters reserved by common
-    /// desktop filesystems become `_`. Leading dots and Windows device names
+    /// Path separators, ASCII controls, Unicode noncharacters, and characters
+    /// reserved by common desktop filesystems become `_`. Leading dots and
+    /// Windows device names
     /// are neutralized, trailing spaces/dots are removed, and the result is
     /// truncated on UTF-8 boundaries to [`MAX_ATTACHMENT_FILENAME_BYTES`].
     #[must_use]
@@ -134,7 +135,7 @@ impl AttachmentRelativePath {
     /// # Errors
     ///
     /// Rejects empty/absolute destinations, traversal, nonportable Windows
-    /// path punctuation, NUL/control, hidden Unicode formatting, device
+    /// path punctuation, NUL/control, hidden Unicode or noncharacters, device
     /// components, trailing dots/spaces, and drive/stream colon syntax.
     /// Destinations must also fit 4,096 total bytes, 64 path components,
     /// and 255 bytes per path component.
@@ -244,24 +245,35 @@ const fn unsafe_filename_character(character: char) -> bool {
         || unsafe_filename_format(character)
 }
 
+// Noncharacters have no stable interchange meaning as filenames or paths.
+#[expect(
+    clippy::as_conversions,
+    reason = "lossless scalar conversion inside portable const filename guard"
+)]
+const fn is_filename_noncharacter(character: char) -> bool {
+    let codepoint = character as u32;
+    matches!(codepoint, 0xfdd0..=0xfdef) || codepoint & 0xfffe == 0xfffe
+}
+
 // Unicode formatting characters can disguise file extensions or path leaves.
 const fn unsafe_filename_format(character: char) -> bool {
-    matches!(
-        character,
-        '\u{00a0}' | '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{1680}'
-            | '\u{600}'..='\u{605}' | '\u{6dd}' | '\u{70f}'
-            | '\u{890}'..='\u{891}' | '\u{8e2}'
-            | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
-            | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
-            | '\u{115f}' | '\u{1160}' | '\u{180b}'..='\u{180f}'
-            | '\u{17b4}'..='\u{17b5}' | '\u{1bca0}'..='\u{1bca3}'
-            | '\u{2000}'..='\u{200f}' | '\u{2028}'..='\u{202f}'
-            | '\u{205f}' | '\u{2060}'..='\u{206f}' | '\u{2800}'
-            | '\u{3000}' | '\u{3164}'
-            | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
-            | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
-            | '\u{e0100}'..='\u{e01ef}'
-    )
+    is_filename_noncharacter(character)
+        || matches!(
+            character,
+            '\u{00a0}' | '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{1680}'
+                | '\u{600}'..='\u{605}' | '\u{6dd}' | '\u{70f}'
+                | '\u{890}'..='\u{891}' | '\u{8e2}'
+                | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
+                | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
+                | '\u{115f}' | '\u{1160}' | '\u{180b}'..='\u{180f}'
+                | '\u{17b4}'..='\u{17b5}' | '\u{1bca0}'..='\u{1bca3}'
+                | '\u{2000}'..='\u{200f}' | '\u{2028}'..='\u{202f}'
+                | '\u{205f}' | '\u{2060}'..='\u{206f}' | '\u{2800}'
+                | '\u{3000}' | '\u{3164}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}'
+        )
 }
 
 fn windows_reserved_filename(filename: &str) -> bool {

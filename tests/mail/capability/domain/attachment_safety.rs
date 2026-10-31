@@ -89,12 +89,29 @@ fn filename_sanitization_neutralizes_spoofing_format_controls() {
 
 #[test]
 fn untrusted_attachment_paths_neutralize_all_unicode_format_controls() {
-    // Unicode 16 Cf formatting controls are not portable visible filename
-    // content, even when they are outside the familiar bidi/ZWJ ranges.
+    // Unicode formatting controls and noncharacters are not portable
+    // filename content, even outside familiar bidi/ZWJ ranges.
     for point in [
-        // jig-ignore-next-line: rustfmt canonical Unicode code point array.
-        0x600, 0x605, 0x6dd, 0x70f, 0x890, 0x891, 0x8e2, 0xfff9, 0xfffb, 0x110bd, 0x110cd, 0x13430,
-        0x1343f, 0x1d173, 0x1d17a,
+        0x600,
+        0x605,
+        0x6dd,
+        0x70f,
+        0x890,
+        0x891,
+        0x8e2,
+        0xfff9,
+        0xfffb,
+        0x110bd,
+        0x110cd,
+        0x13430,
+        0x1343f,
+        0x1d173,
+        0x1d17a,
+        0xfdd0,
+        0xfdef,
+        0xfffe,
+        0x0001_fffe,
+        0x0010_ffff,
     ] {
         let mark = char::from_u32(point).expect("valid Unicode scalar");
         let filename = format!("report{mark}archive.pdf");

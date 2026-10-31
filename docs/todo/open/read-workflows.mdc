@@ -651,6 +651,12 @@ Ship useful read access before any mailbox mutation is enabled.
   that Arabic, Syriac, annotation, Kaithi, hieroglyph, and musical markers
   previously survived as filename/path text; printable Unicode stays valid.
 
+- Attachment filename sanitization now replaces Unicode noncharacters with
+  `_`, and caller-supplied relative output paths reject them before filesystem
+  access. Red-first pure fixtures covered U+FDD0/U+FDEF, BMP U+FFFE, and
+  supplementary plane endings through U+10FFFF; normal Unicode filenames
+  remain portable and unmodified.
+
 - The file-output partial inode now uses fresh OS-generated 128-bit random
   names rather than predictable process IDs and sequence numbers. A red-first
   synthetic directory fixture pre-created 512 old-style guesses and proved
