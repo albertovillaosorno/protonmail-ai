@@ -1301,6 +1301,7 @@ let ancestorLegacyClip=false;
 let ancestorWebkitMasked=false;
 let headingZeroArea=false,senderZeroArea=false;
 let headingCovered=false,senderCovered=false,offscreenTitles=false;
+let headingBusy=false,senderBusy=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let ariaHiddenUpper=false,ancestorBusy=false,rowBusy=false;
@@ -1322,13 +1323,15 @@ const heading={contains:()=>false,id:'heading-id',
  getAttribute:()=>{titleReads++;return subjectValue;},
   getClientRects:()=>[{left:10,top:10,width:headingZeroArea?0:80,
    height:headingZeroArea?0:14}],
-  closest:(q)=>(ancestorInert&&q.includes('[inert]')||
+  closest:(q)=>(headingBusy&&q.includes('[aria-busy=')||
+  ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const sender={contains:()=>false,
  getAttribute:()=>{titleReads++;return addressValue;},
   getClientRects:()=>[{left:120,top:10,width:senderZeroArea?0:80,
    height:senderZeroArea?0:14}],
-  closest:(q)=>(ancestorInert&&q.includes('[inert]')||
+  closest:(q)=>(senderBusy&&q.includes('[aria-busy=')||
+  ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const ancestor={parentElement:null};
 const row={closest:(q)=>rowBusy&&q.includes('[aria-busy=')?row:null,
@@ -1368,7 +1371,15 @@ ancestorBusy=false;rowBusy=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('ARIA-busy loaded row exposed private title');
 }
-rowBusy=false;headingCovered=true;titleReads=0;
+rowBusy=false;headingBusy=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('busy heading caused private subject title read');
+}
+headingBusy=false;senderBusy=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('busy sender caused private address title read');
+}
+senderBusy=false;headingCovered=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('covered subject exposed private title');
 }
@@ -1570,6 +1581,7 @@ let ancestorMasked=false;
 let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
 let loadedBusy=false,rowBusy=false;
+let currentBusy=false,emptyBusy=false,nextBusy=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
@@ -1584,7 +1596,8 @@ const row={contains:()=>false,getAttribute:()=>rowId,
 const empty={contains:()=>false,
  getClientRects:()=>[{left:110,top:10,width:emptyZeroArea?0:90,
  height:emptyZeroArea?0:18}],
- closest:(q)=>(rootInert&&q.includes('[inert]')||
+ closest:(q)=>emptyBusy&&q.includes('[aria-busy=')?empty:
+ (rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
 const loaded={parentElement:ancestor,
  closest:(q)=>loadedBusy&&q.includes('[aria-busy=')?loaded:null,
@@ -1600,7 +1613,8 @@ next.disabled=false;
 next.getClientRects=()=>[{left:310,top:10,width:zeroNextArea?0:60,
  height:zeroNextArea?0:20}];
 next.contains=()=>false;
-next.closest=(q)=>(rootInert&&q.includes('[inert]')||
+next.closest=(q)=>(nextBusy&&q.includes('[aria-busy=')||
+ rootInert&&q.includes('[inert]')||
  nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&
  (nextDisabled||nextAriaUpper)?(nextAriaUpper?'TRUE':'true'):null;
@@ -1608,7 +1622,8 @@ next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 const current={contains:()=>false,
  getClientRects:()=>[{left:210,top:10,width:currentZeroArea?0:45,
  height:currentZeroArea?0:20}],
- closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
+ closest:(q)=>currentBusy&&q.includes('[aria-busy=')?current:
+ rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
 globalThis.document={querySelector:(q)=>
  (modal&&q.includes('dialog')||
@@ -1635,7 +1650,15 @@ loadedBusy=false;rowBusy=true;
 if(eval(expression)!==null){
  throw Error('ARIA-busy loaded row released list ID');
 }
-rowBusy=false;overlayNext=true;
+rowBusy=false;currentBusy=true;
+if(eval(expression)!==null){
+ throw Error('busy current-page marker proved settled page');
+}
+currentBusy=false;nextBusy=true;
+if(eval(expression)!==null){
+ throw Error('busy Next button reported actionable');
+}
+nextBusy=false;overlayNext=true;
 if(eval(expression)!==null){
  throw Error('covered enabled Next reported actionable');
 }
@@ -1713,7 +1736,11 @@ showEmpty=true;nextDisabled=true;
 if(eval(expression).emptyMarker!==true){
  throw Error('visible explicit-empty title was not detected');
 }
-emptyCovered=true;
+emptyBusy=true;
+if(eval(expression)!==null){
+ throw Error('busy empty-state marker proved no messages');
+}
+emptyBusy=false;emptyCovered=true;
 if(eval(expression)!==null){
  throw Error('covered empty-title marker proved empty Mail');
 }

@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Individual busy read markers and private title nodes
+
+- Red-first browser-synthetic fixtures reproduced busy subject/sender title
+  access and busy current/empty/Next marker readiness with no busy loaded
+  root. Before reading title attributes or projecting list page evidence, the
+  audited browser scripts now also reject those nodes in `aria-busy="true"`
+  subtrees. This is separate from root and row busy checks, and ordinary
+  settled fixtures remain accepted. No live mailbox was accessed.
+
 ## Busy controls must not receive programmatic read-only clicks
 
 - Red-first synthetic Node DOM fixtures showed that Next and sort controls

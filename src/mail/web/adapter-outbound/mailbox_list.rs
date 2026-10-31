@@ -128,6 +128,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(emptyNode).visibility!=='visible'||",
     "getComputedStyle(emptyNode).opacity==='0'||",
     "!visibleTree(emptyNode)||",
+    "emptyNode.closest('[aria-busy=true i]')||",
     "emptyNode.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     "const empty=!!emptyNode;",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
@@ -141,6 +142,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(current).visibility!=='visible'||",
     "getComputedStyle(current).opacity==='0'||",
     "!visibleTree(current)||",
+    "current.closest('[aria-busy=true i]')||",
     "current.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     "const inheritedDisabled=next?",
     "!!next.closest('[aria-disabled=\"true\" i]'):false;",
@@ -156,6 +158,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(!pointerTree(next)||!hitTest(next)))||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
+    "next.closest('[aria-busy=true i]')||",
     "next.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     // Unicode noncharacters have no interchange identity. Reject every plane
     // before Chrome serializes the ID or projects any message text.
