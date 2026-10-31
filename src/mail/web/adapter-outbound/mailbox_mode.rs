@@ -88,11 +88,14 @@ const MAILBOX_MODE_EXPRESSION: &str = concat!(
     "\\u2028-\\u202e\\u2060-\\u206f\\u2800\\u3164",
     "\\ufe00-\\ufe0f\\ufeff\\uffa0",
     "\\u{e0001}\\u{e0020}-\\u{e007f}\\u{e0100}-\\u{e01ef}]/u;",
+    // A Unicode noncharacter cannot prove visible user search intent, even
+    // though its code point is formally allowed in UTF-8/URLSearchParams.
+    "const visiblePoint=(c)=>{const n=c.codePointAt(0);",
+    "return n>=32&&n!==127&&n!==65533&&",
+    "!(n>=0xFDD0&&n<=0xFDEF)&&(n&0xFFFE)!==0xFFFE;};",
     "const validText=(value)=>!!value&&value.length<=2048&&",
     "value.trim().length>0&&!hiddenText.test(value)&&",
-    "[...value].every((c)=>",
-    "c.codePointAt(0)>=32&&c.codePointAt(0)!==127&&",
-    "c.codePointAt(0)!==65533);",
+    "[...value].every(visiblePoint);",
     "const validNumeric=(value)=>{",
     "if(!value||value.length>20||!/^\\d+$/.test(value)){return false;}",
     "if(value.length>1&&value.startsWith('0')){return false;}",

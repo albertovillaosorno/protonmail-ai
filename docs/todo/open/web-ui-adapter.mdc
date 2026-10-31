@@ -83,6 +83,16 @@ web application without requiring Bridge or a third-party direct API identity.
   and control-bearing account IDs; valid printable Unicode and the exact
   512-byte UTF-8 limit remain compatible. No live mailbox is accessed.
 
+## Invisible search-mode selector refusal
+
+- A real Node evaluation of the browser-owned message-mode expression
+  reproduced a noncharacter-only search hash being treated as proof of a
+  message list. The same selector can be present on a forced message route.
+  The script now rejects non-interchange Unicode noncharacters across all
+  planes before treating decoded search text as reliable mode evidence;
+  ordinary visible Unicode searches remain valid. No page content leaves the
+  browser or live provider login is attempted.
+
 ## Noncharacter refusal for route-bound Mail IDs
 
 - Red-first synthetic message-list and detail responses accepted Unicode
