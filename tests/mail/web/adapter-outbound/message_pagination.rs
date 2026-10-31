@@ -41,7 +41,9 @@ use mail_web_adapter::PageOrigin;
 use mail_web_adapter::ProviderPage;
 use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
-const VISIBLE_AX: &str = r#"[{"ignored":false}]"#;
+const VISIBLE_AX: &str =
+    // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
+    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const ABSENT_AX: &str = "[]";
 
 #[derive(Clone, Copy)]
@@ -167,6 +169,11 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='__ABSENT_AX__';;
         *) exit 91;;
       esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{"nodes":%s}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;
@@ -346,7 +353,7 @@ fn login_expiry_after_next_click_cannot_return_message_rows() {
     let ready = format!("nodes='{VISIBLE_AX}'");
     let late_expiry = format!(
         // jig-ignore-next-line: indivisible synthetic shell fixture.
-        "nodes='{VISIBLE_AX}'; if [ \"$clicked\" -eq 1 ]; then nodes='[{{\"ignored\":true}}]'; fi"
+        "nodes='{VISIBLE_AX}'; if [ \"$clicked\" -eq 1 ]; then nodes='[{{\"ignored\":true,\"nodeId\":\"ax-1\",\"role\":{{\"type\":\"role\",\"value\":\"__AX_ROLE__\"}}}}]'; fi"
     );
     assert!(script.contains(&ready));
     fs::write(&browser, script.replace(&ready, &late_expiry))

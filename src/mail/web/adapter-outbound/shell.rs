@@ -31,6 +31,7 @@
 //! Translation-independent Proton Mail shell evidence.
 
 use serde_json::Value;
+use std::collections::HashSet;
 
 const MAX_AX_ROLE_MATCH_NODES: usize = 256;
 
@@ -91,16 +92,24 @@ fn visible_match(result: &Value, expected_role: &str) -> Result<bool, ()> {
         return Err(());
     }
     let mut any_visible = false;
+    let mut ids = HashSet::with_capacity(nodes.len());
     for node in nodes {
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;
-        // Role is optional in AXNode, but an explicit contradictory value
-        // invalidates the role-filtered browser query. Never retain names.
-        if let Some(role) = node.get("role") {
-            let kind = role.get("type").and_then(Value::as_str);
-            let value = role.get("value").and_then(Value::as_str);
-            if kind != Some("role") || value != Some(expected_role) {
-                return Err(());
-            }
+        // CDP AXNode requires a unique string nodeId and a typed role. A
+        // sparse or aliased node cannot prove a visible browser landmark.
+        let id = node.get("nodeId").and_then(Value::as_str).ok_or(())?;
+        if id.is_empty()
+            || id.len() > 512
+            || !id.bytes().all(|byte| byte.is_ascii_graphic())
+            || !ids.insert(id)
+        {
+            return Err(());
+        }
+        let role = node.get("role").ok_or(())?;
+        let kind = role.get("type").and_then(Value::as_str);
+        let value = role.get("value").and_then(Value::as_str);
+        if kind != Some("role") || value != Some(expected_role) {
+            return Err(());
         }
         // Even after a visible landmark is found, malformed later nodes
         // invalidate the query instead of being silently skipped.

@@ -58,6 +58,17 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-vs-mutation control boundary tests
 - Draft/send side-effect tests
 - Redacted opt-in Free-account transcript
+## Require complete accessibility shell identities
+
+- The Chrome DevTools `Accessibility.AXNode` schema requires a string `nodeId`,
+  `ignored` boolean and typed `role`. Red-first fake-browser tests proved the
+  Mail shell previously accepted a visible search landmark with no node ID
+  or role at all. Shell readiness now requires a bounded, nonempty, printable
+  node ID, matching typed role, and unique node IDs within each role query,
+  including ignored nodes. Incomplete or contradictory CDP evidence fails
+  closed, while valid synthetic Chromium replies, role-count limits and
+  late-origin checks remain supported without projecting accessible names.
+
 ## Exact shape for browser-origin evidence
 
 - A red-first fake-Chromium CDP reply proved that an extended location

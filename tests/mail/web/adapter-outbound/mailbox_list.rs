@@ -40,8 +40,12 @@ use mail_web_adapter::PageOrigin;
 use mail_web_adapter::{BrowserDriverError, MailboxListState, NextPageControl};
 use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
 
-const VISIBLE_AX: &str = r#"[{"ignored":false}]"#;
-const IGNORED_AX: &str = r#"[{"ignored":true}]"#;
+const VISIBLE_AX: &str =
+    // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
+    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+const IGNORED_AX: &str =
+    // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
+    r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const ABSENT_AX: &str = "[]";
 
 const ROWS: &str = r#"{
@@ -154,6 +158,11 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='{ABSENT_AX}';;
         *) exit 91;;
       esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{{"nodes":%s}}}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;

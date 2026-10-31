@@ -195,10 +195,16 @@ while IFS= read -r -d '' message <&3; do
     *'Accessibility.queryAXTree'*)
       case "$message" in
         *'"role":"navigation"'*|*'"role":"search"'*)
-          nodes='[{"ignored":false}]';;
+          # jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
+          nodes='[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]';;
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       printf '{"id":%s,"sessionId":"session-1","result":{"nodes":%s}}\0' \
         "$id" "$nodes" >&4;;
     *'Network.enable'*)

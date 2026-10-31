@@ -1372,10 +1372,16 @@ while IFS= read -r -d '' message <&3; do
     *'Accessibility.queryAXTree'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       if [[ "$message" == *'"role":"navigation"'* || "$message" == *'"role":"search"'* ]]; then
-        nodes='[{{"ignored":false}}]'
+        # jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
+        nodes='[{{"ignored":false,"nodeId":"ax-1","role":{{"type":"role","value":"__AX_ROLE__"}}}}]'
       else
         nodes='[]'
       fi
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{{"nodes":%s}}}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;

@@ -41,8 +41,9 @@ use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
 const VISIBLE: &str =
     // jig-ignore-next-line: indivisible synthetic AX privacy fixture.
-    r#"[{"ignored":false,"name":{"value":"no-leer"},"value":{"value":"secreto"}}]"#;
-const IGNORED: &str = r#"[{"ignored":true,"name":{"value":"no-leer"}}]"#;
+    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"},"value":{"value":"secreto"}}]"#;
+// jig-ignore-next-line: indivisible synthetic AXNode fixture.
+const IGNORED: &str = r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"}}]"#;
 const ABSENT: &str = "[]";
 
 struct RoleFixture<'fixture> {
@@ -112,6 +113,11 @@ while IFS= read -r -d '' message <&3; do
         *'"role":"dialog"'*) nodes='{dialog}';;
         *) exit 91;;
       esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{{"nodes":%s}}}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;
@@ -322,6 +328,45 @@ fn malformed_role_query_is_protocol_failure() {
 }
 
 #[test]
+fn missing_or_ambiguous_ax_node_identity_cannot_prove_mail_shell() {
+    for (label, node) in [
+        (
+            "missing-ax-id",
+            r#"[{"ignored":false,"role":{"type":"role","value":"search"}}]"#,
+        ),
+        (
+            "missing-ax-role",
+            r#"[{"ignored":false,"nodeId":"search-1"}]"#,
+        ),
+        (
+            "numeric-ax-id",
+            // jig-ignore-next-line: synthetic invalid AX protocol fixture.
+            r#"[{"ignored":false,"nodeId":42,"role":{"type":"role","value":"search"}}]"#,
+        ),
+        (
+            "duplicate-ax-id",
+            // jig-ignore-next-line: synthetic invalid AX protocol fixture.
+            r#"[{"ignored":false,"nodeId":"search-1","role":{"type":"role","value":"search"}},{"ignored":true,"nodeId":"search-1","role":{"type":"role","value":"search"}}]"#,
+        ),
+    ] {
+        let roles = RoleFixture {
+            search: node,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles,
+            ),
+            Err(BrowserDriverError::Protocol),
+            "invalid accessibility identity must fail before shell readiness"
+        );
+    }
+}
+
+#[test]
 fn ax_explicit_role_contradictions_fail_closed() {
     for (label, roles) in [
         (
@@ -360,7 +405,7 @@ fn ax_explicit_role_contradictions_fail_closed() {
     }
     let roles = RoleFixture {
         // jig-ignore-next-line: indivisible synthetic AX role fixture.
-        search: r#"[{"ignored":false,"role":{"type":"role","value":"search"}}]"#,
+        search: r#"[{"ignored":false,"nodeId":"ax-matched","role":{"type":"role","value":"search"}}]"#,
         ..RoleFixture::ready()
     };
     assert!(
@@ -429,17 +474,23 @@ fn visible_ax_landmark_cannot_hide_malformed_trailing_nodes() {
     for (label, malformed) in [
         (
             "missing-ignored",
-            r#"[{"ignored":false},{"name":"synthetic"}]"#,
+            // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+            r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"name":"synthetic"}]"#,
         ),
         (
             "wrong-ignored-type",
-            r#"[{"ignored":false},{"ignored":"false"}]"#,
+            // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+            r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":"false"}]"#,
         ),
-        ("null-node", r#"[{"ignored":false},null]"#),
+        (
+            "null-node",
+            // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+            r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},null]"#,
+        ),
         (
             "late-conflicting-role",
             // jig-ignore-next-line: indivisible synthetic AX role fixture.
-            r#"[{"ignored":false},{"ignored":false,"role":{"type":"role","value":"button"}}]"#,
+            r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":false,"nodeId":"ax-2","role":{"type":"role","value":"button"}}]"#,
         ),
     ] {
         for (role_name, roles) in [
@@ -491,10 +542,11 @@ fn visible_ax_landmark_cannot_hide_malformed_trailing_nodes() {
 fn well_formed_multiple_role_nodes_preserve_ready_shell_without_names() {
     let roles = RoleFixture {
         // jig-ignore-next-line: canonical rustfmt line.
-        navigation: r#"[{"ignored":false,"name":{"value":"secret"}},{"ignored":true}]"#,
+        navigation: r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"secret"}},{"ignored":true,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
         // jig-ignore-next-line: canonical rustfmt line.
-        search: r#"[{"ignored":true},{"ignored":false,"name":{"value":"hidden"}}]"#,
-        dialog: r#"[{"ignored":true},{"ignored":true}]"#,
+        search: r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":false,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"hidden"}}]"#,
+        // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+        dialog: r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":true,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
         alertdialog: ABSENT,
     };
     let evidence = inspect(
@@ -512,21 +564,17 @@ fn well_formed_multiple_role_nodes_preserve_ready_shell_without_names() {
 
 #[test]
 fn accessibility_role_query_has_bounded_node_count() {
-    use std::iter::{once, repeat_n};
-    let bounded = format!(
-        "[{}]",
-        once(r#"{"ignored":false}"#)
-            .chain(repeat_n(r#"{"ignored":true}"#, 255))
-            .collect::<Vec<_>>()
-            .join(",")
-    );
-    let oversized = format!(
-        "{},{}]",
-        bounded
-            .strip_suffix(']')
-            .expect("bounded AX array terminator"),
-        r#"{"ignored":true}"#
-    );
+    let nodes = (0usize..=256)
+        .map(|index| {
+            format!(
+                // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+                r#"{{"ignored":{},"nodeId":"ax-{index}","role":{{"type":"role","value":"__AX_ROLE__"}}}}"#,
+                index != 0
+            )
+        })
+        .collect::<Vec<_>>();
+    let bounded = format!("[{}]", nodes[..256].join(","));
+    let oversized = format!("[{}]", nodes.join(","));
     let valid = RoleFixture {
         navigation: &bounded,
         ..RoleFixture::ready()

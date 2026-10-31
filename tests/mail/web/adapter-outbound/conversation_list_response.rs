@@ -822,7 +822,12 @@ while IFS= read -r -d '' message <&3; do
       printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       # jig-ignore-next-line: indivisible synthetic shell fixture.
-      case "$message" in *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false}]';; *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';; *) exit 91;; esac
+      case "$message" in *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]';; *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';; *) exit 91;; esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{"nodes":%s}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;

@@ -780,6 +780,10 @@ fn detail_browser_root(label: &str) -> PathBuf {
     ))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Synthetic fake-Chromium script must stay in one audited fixture"
+)]
 // jig-ignore-next-line: canonical rustfmt line.
 fn fake_detail_browser(root: &Path, emit_detail: bool, late_during_disable: bool) -> PathBuf {
     use std::os::unix::fs::PermissionsExt as _;
@@ -811,10 +815,15 @@ while IFS= read -r -d '' message <&3; do
     *'Accessibility.queryAXTree'*)
       case "$message" in
         # jig-ignore-next-line: indivisible synthetic shell fixture.
-        *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false}]';;
+        *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]';;
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac
+      # QueryAXTree commands carry one exact, reviewed role filter.
+      requested_role=$(printf '%s' "$message" |
+        sed -n 's/.*"role":"\([^"]*\)".*/\1/p')
+      [ -n "$requested_role" ] || exit 91
+      nodes=$(printf '%s' "$nodes" | sed "s/__AX_ROLE__/$requested_role/g")
       reply_format='{"id":%s,"sessionId":"session-1",'
       reply_format+='"result":{"nodes":%s}}\0'
       printf "$reply_format" "$id" "$nodes" >&4;;
