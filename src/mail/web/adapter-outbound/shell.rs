@@ -119,6 +119,28 @@ fn visible_match<'role_nodes>(
         if kind != Some("role") || value != Some(expected_role) {
             return Err(());
         }
+        // A node claiming to be visible cannot simultaneously describe
+        // reasons why the accessibility tree ignored it. Bound and type
+        // check optional reasons even for ignored nodes, without retaining
+        // their descriptions or any other private AX properties.
+        if let Some(reasons) = node.get("ignoredReasons") {
+            let reasons = reasons.as_array().ok_or(())?;
+            if reasons.len() > 64 || (!ignored && !reasons.is_empty()) {
+                return Err(());
+            }
+            for reason in reasons {
+                let name = reason.get("name").and_then(Value::as_str);
+                if name.is_none_or(|name| name.is_empty() || name.len() > 128)
+                    || reason
+                        .get("value")
+                        .and_then(|value| value.get("type"))
+                        .and_then(Value::as_str)
+                        .is_none()
+                {
+                    return Err(());
+                }
+            }
+        }
         // Even after a visible landmark is found, malformed later nodes
         // invalidate the query instead of being silently skipped.
         any_visible |= !ignored;

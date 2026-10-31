@@ -79,6 +79,14 @@ web application without requiring Bridge or a third-party direct API identity.
   response. Distinct-role fixtures still prove ready and blocked states, and
   no accessible names or account data are retained.
 
+## Reject contradictory accessibility hidden reasons
+
+- Red-first synthetic AX role queries showed a node marked `ignored:false`
+  could still report a nonempty `ignoredReasons` array and establish Mail
+  shell readiness. The bounded classifier now rejects that contradiction,
+  validates optional reason metadata even on ignored nodes, and retains
+  ordinary visible nodes with empty reasons. No accessible names are read.
+
 ## Require full document-root evidence before AX inspection
 
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`

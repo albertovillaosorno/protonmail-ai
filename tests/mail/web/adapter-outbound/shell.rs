@@ -200,6 +200,112 @@ fn structural_roles_make_mail_shell_ready_without_using_names() {
 }
 
 #[test]
+fn visible_accessibility_landmarks_cannot_report_hidden_reasons() {
+    // CDP ignoredReasons describes why a node is hidden. An explicitly
+    // visible navigation landmark cannot also carry a nonempty hidden reason.
+    let contradictory = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation", "#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"},"#,
+        r#""ignoredReasons":[{"name":"notVisible","#,
+        r#""value":{"type":"boolean","value":true}}]}]"#
+    );
+    let roles = RoleFixture {
+        navigation: contradictory,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "visible-with-hidden-reason",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
+}
+
+#[test]
+fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
+    let bounded_reason = concat!(
+        r#"{"name":"notVisible","#,
+        r#""value":{"type":"boolean","value":true}}"#
+    );
+    let oversized = format!("[{}]", vec![bounded_reason; 65].join(","));
+    for (label, reasons) in [
+        ("wrong-reasons-shape", String::from("true")),
+        (
+            "missing-ignored-reason-value",
+            String::from(r#"[{"name":"notVisible"}]"#),
+        ),
+        ("overlarge-ignored-reasons", oversized),
+    ] {
+        let node = format!(
+            concat!(
+                r#"[{{"ignored":true,"nodeId":"ax-search","#,
+                r#""role":{{"type":"role","value":"__AX_ROLE__"}},"#,
+                r#""ignoredReasons":{reasons}}}]"#
+            ),
+            reasons = reasons
+        );
+        let roles = RoleFixture {
+            search: &node,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol)
+        );
+    }
+}
+
+#[test]
+fn ordinary_accessibility_ignored_reasons_remain_compatible() {
+    let visible = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"},"#,
+        r#""ignoredReasons":[]}]"#
+    );
+    let hidden = concat!(
+        r#"[{"ignored":true,"nodeId":"ax-search","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"},"#,
+        r#""ignoredReasons":[{"name":"notVisible","#,
+        r#""value":{"type":"boolean","value":true}}]}]"#
+    );
+    let visible_roles = RoleFixture {
+        navigation: visible,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "empty-ignored-reasons",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &visible_roles
+        )
+        .expect("empty reasons")
+        .ready()
+    );
+    let ignored_roles = RoleFixture {
+        search: hidden,
+        ..visible_roles
+    };
+    let evidence = inspect(
+        "typed-hidden-reasons",
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        &ignored_roles,
+    )
+    .expect("ignored reason");
+    assert!(!evidence.search_visible());
+    assert!(!evidence.ready());
+}
+
+#[test]
 fn one_accessibility_node_cannot_prove_two_different_shell_roles() {
     // One AX node cannot prove incompatible navigation and search roles.
     let shared =
