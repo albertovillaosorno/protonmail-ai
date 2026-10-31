@@ -2233,3 +2233,9 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first fake Chromium replies previously let one DOM element claim both
   navigation and search landmarks with different AX IDs. Distinct bounded
   backend IDs remain compatible; missing optional IDs remain supported.
+
+- Observed AX parent links now agree with any explicitly reported childIds
+  list from that parent, including an empty list. Previously a navigation
+  node listing no children could still be accepted as the parent of a search
+  landmark in a different role reply. Red-first fake Chromium tests prove
+  rejection; omitted optional lists and consistent lists still work.

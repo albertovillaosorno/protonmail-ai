@@ -51,6 +51,7 @@ struct AxGraph<'nodes> {
     ids: BTreeSet<&'nodes str>,
     parents: BTreeMap<&'nodes str, &'nodes str>,
     child_owners: BTreeMap<&'nodes str, &'nodes str>,
+    explicit_child_lists: BTreeSet<&'nodes str>,
     backend_owners: BTreeMap<u64, &'nodes str>,
     landmark_frame: Option<&'nodes str>,
 }
@@ -166,6 +167,7 @@ fn ax_visible<'role_nodes>(
         }
         if let Some(children) = node.get("childIds") {
             let children = children.as_array().ok_or(())?;
+            graph.explicit_child_lists.insert(id);
             if children.len() > 4096 {
                 return Err(());
             }
@@ -303,6 +305,16 @@ fn valid_ax_parent_graph(graph: &AxGraph<'_>) -> bool {
             .parents
             .get(child)
             .is_some_and(|parent| parent != owner)
+        {
+            return false;
+        }
+    }
+    // An optional childIds list may be missing, but once present it
+    // enumerates the parent's children. A separately observed child's
+    // parentId must be represented there, even for an empty explicit list.
+    for (child, parent) in &graph.parents {
+        if graph.explicit_child_lists.contains(parent)
+            && graph.child_owners.get(child) != Some(parent)
         {
             return false;
         }

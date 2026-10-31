@@ -1114,6 +1114,63 @@ fn cross_query_child_parent_contradictions_cannot_prove_mail_shell() {
 }
 
 #[test]
+fn explicit_ax_child_list_must_include_observed_parent_links() {
+    use serde_json::json;
+
+    let search = json!([{
+        "ignored":false, "nodeId":"ax-search",
+        "parentId":"ax-navigation",
+        "role":{"type":"role","value":"search"}
+    }])
+    .to_string();
+    for (label, children) in [
+        ("empty-parent-child-list", vec![]),
+        ("omits-observed-child", vec!["ax-other"]),
+    ] {
+        let navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "childIds":children,
+            "role":{"type":"role","value":"navigation"}
+        }])
+        .to_string();
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &RoleFixture {
+                    navigation: &navigation,
+                    search: &search,
+                    ..RoleFixture::ready()
+                }
+            ),
+            Err(BrowserDriverError::Protocol),
+            "explicit child list cannot omit an observed child's parent edge"
+        );
+    }
+    // Absence, unlike an explicit empty list, is not complete child evidence.
+    let navigation = json!([{
+        "ignored":false, "nodeId":"ax-navigation",
+        "role":{"type":"role","value":"navigation"}
+    }])
+    .to_string();
+    assert!(
+        inspect(
+            "omitted-parent-child-list",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &RoleFixture {
+                navigation: &navigation,
+                search: &search,
+                ..RoleFixture::ready()
+            }
+        )
+        .expect("omitted optional list permits a parent-only edge")
+        .ready()
+    );
+}
+
+#[test]
 fn normal_cross_query_child_chain_preserves_shell_readiness() {
     use serde_json::json;
 
