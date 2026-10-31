@@ -80,6 +80,10 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(!style||style.pointerEvents==='none'){return false;}",
     "current=current.parentElement;}",
     "return false;};",
+    // Nonempty client-rect arrays can contain only collapsed boxes.
+    // Require real button area before calling the Next control visible.
+    "const hasArea=(node)=>[...node.getClientRects()].some(",
+    "(rect)=>rect.width>0&&rect.height>0);",
     "if(!visibleTree(root)){return null;}",
     // Loading is a non-authoritative state. Do not inspect or serialize
     // transient row IDs, skeleton details, or pagination while it is active.
@@ -123,6 +127,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(next&&(!(next instanceof HTMLButtonElement)||",
     "next.type!=='button'||next.form!==null||",
     "next.getClientRects().length===0||",
+    "!hasArea(next)||",
     "getComputedStyle(next).visibility!=='visible'||",
     "(!next.matches(':disabled')&&!next.disabled&&",
     "next.getAttribute('aria-disabled')?.toLowerCase()!=='true'&&",

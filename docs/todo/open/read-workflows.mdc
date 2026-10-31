@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Collapsed Next controls are not list readiness evidence
+
+- A red-first executable synthetic list proved that a zero-width/height Next
+  button with a nonempty DOMRectList still reported enabled, contradicting the
+  action's positive-area preflight. The content-free list projection now rejects
+  this geometry before claiming a settled actionable page; an ordinarily
+  disabled, positive-area Next control remains observable. No browser account
+  interaction was involved.
+
 ## Zero-area control safety
 
 - Red-first executable synthetic DOM tests proved that zero-width/height

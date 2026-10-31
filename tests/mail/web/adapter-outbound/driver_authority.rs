@@ -1477,7 +1477,7 @@ globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let duplicateRows=false;
 let fieldsetDisabled=false;
-let pointerBlocked=false,parentPointerBlocked=false;
+let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false;
@@ -1502,7 +1502,8 @@ const next=new HTMLButtonElement();
 next.parentElement=loaded;
 next.type='button';next.form=null;
 next.disabled=false;
-next.getClientRects=()=>[{}];
+next.getClientRects=()=>[{width:zeroNextArea?0:60,
+ height:zeroNextArea?0:20}];
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
  nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&
@@ -1626,10 +1627,14 @@ pointerBlocked=false;parentPointerBlocked=true;
 if(eval(expression)!==null){
  throw Error('enabled Next beneath pointer-blocked parent was accepted');
 }
-parentPointerBlocked=false;
+parentPointerBlocked=false;zeroNextArea=true;
+if(eval(expression)!==null){
+ throw Error('zero-area Next was reported actionable');
+}
+zeroNextArea=false;
 next.getClientRects=()=>[];
 if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
-next.getClientRects=()=>[{}];rootInert=true;
+next.getClientRects=()=>[{width:60,height:20}];rootInert=true;
 if(eval(expression)!==null){throw Error('inert list was exposed');}
 rootInert=false;modal=true;
 if(eval(expression)!==null){throw Error('modal exposed list state');}
