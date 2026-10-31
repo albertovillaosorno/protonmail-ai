@@ -990,6 +990,7 @@ type SensitiveOption = Option<SensitiveString>;
 
 // An omitted Code is tolerated until the fork wire schema is fully proven.
 // If present, a null/float/string is not equivalent to a missing success code.
+// jig-ignore-next-line: canonical serde deserializer signature.
 fn read_present_provider_code<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
 where
     D: serde::Deserializer<'de>,

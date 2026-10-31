@@ -101,6 +101,7 @@ pub const fn apply(current: SessionState, event: SessionEvent) -> SessionState {
         // acceptance can confirm an installed session or a successful refresh
         // of its expired authority, but cannot create local authority.
         LoginInstalled => SessionState::Valid,
+        // jig-ignore-next-line: canonical state-machine transition guard.
         ProviderAccepted if matches!(current, SessionState::Valid | SessionState::Expired) => {
             SessionState::Valid
         }

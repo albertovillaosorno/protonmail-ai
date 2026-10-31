@@ -80,10 +80,12 @@ account credentials. The primary web UI login remains a separate P1 path.
   `AccountMismatch`, `Revoked`, or `StoreUnavailable`. Only a verified durable
   `LoginInstalled` event may authorize those states. Already installed
   `Valid` sessions and expired sessions with a successful provider refresh may
-  still become `Valid`. Synthetic red-first transition tests cover each
-  blocked recovery, reinstallation, and expiry refresh without a live store.
-  An expiry event also cannot relabel a blocked or absent state as refreshable,
-  preventing a later provider-accepted event from laundering lost authority.
+  still become `Valid`.
+
+- Synthetic red-first transition tests cover blocked recovery, reinstallation,
+  and expiry refresh without a live store. An expiry event also cannot relabel
+  a blocked or absent state as refreshable, preventing a later provider-accepted
+  event from laundering lost authority.
 
 ## Sensitive diagnostics boundary
 

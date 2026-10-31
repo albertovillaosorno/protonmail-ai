@@ -122,9 +122,11 @@ fn explicit_provider_failure_cannot_authorize_synthetic_fork_state() {
         "Scopes":["loggedin"]
     });
     let challenge = json!({"Selector":SELECTOR, "UserCode":USER_CODE});
-    let complete: serde_json::Value =
-        serde_json::from_slice(&complete_response(None)).expect("complete synthetic fork fixture");
-    for (kind, mut response) in [bootstrap, challenge, complete].into_iter().enumerate() {
+    let fixture = complete_response(None);
+    let parsed: Result<serde_json::Value, _> = serde_json::from_slice(&fixture);
+    let complete = parsed.expect("complete synthetic fork fixture");
+    let fixtures = [bootstrap, challenge, complete];
+    for (kind, mut response) in fixtures.into_iter().enumerate() {
         // Each distinct response family must reject an explicit failure;
         // success and absent Code stay compatible with existing fixtures.
         let parse = |body: &[u8]| -> Result<(), ProtocolError> {
@@ -144,7 +146,17 @@ fn explicit_provider_failure_cannot_authorize_synthetic_fork_state() {
                 Err(ProtocolError::ProviderRejected)
             );
         }
-        for malformed in [json!("1000"), json!(null), json!(-1i64), json!(1000.5f64)] {
+        let malformed_codes = [
+            json!("1000"),
+            json!(null),
+            json!(-1i64),
+            json!(1000.5f64),
+            json!(true),
+            json!(false),
+            json!({}),
+            json!([]),
+        ];
+        for malformed in malformed_codes {
             response["Code"] = malformed;
             assert_eq!(
                 parse(response.to_string().as_bytes()),
