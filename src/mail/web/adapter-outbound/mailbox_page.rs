@@ -90,6 +90,13 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // A CSS transform may collapse a still-addressable DOM element.
     "const hasArea=(node)=>[...node.getClientRects()].some(",
     "(rect)=>rect.width>0&&rect.height>0);",
+    // Occluded or off-viewport content is not a visible mailbox snapshot.
+    "const hitTest=(node)=>[...node.getClientRects()].some((rect)=>{",
+    "if(!(rect.width>0&&rect.height>0)){return false;}",
+    "const x=rect.left+rect.width/2,y=rect.top+rect.height/2;",
+    "if(!Number.isFinite(x)||!Number.isFinite(y)){return false;}",
+    "const hit=document.elementFromPoint(x,y);",
+    "return !!hit&&(hit===node||node.contains(hit));});",
     "const base='[data-shortcut-target=\"item-container\"]';",
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
@@ -130,6 +137,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "if(localHeading.getClientRects().length===0||",
     "sender.getClientRects().length===0||",
     "!hasArea(localHeading)||!hasArea(sender)||",
+    "!hitTest(localHeading)||!hitTest(sender)||",
     "localHeading.closest('[aria-hidden=\"true\" i],[inert]')||",
     "sender.closest('[aria-hidden=\"true\" i],[inert]')||",
     "getComputedStyle(localHeading).visibility!=='visible'||",

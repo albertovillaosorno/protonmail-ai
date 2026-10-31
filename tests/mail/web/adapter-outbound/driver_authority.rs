@@ -1046,11 +1046,13 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=()=>({visibility:'visible',opacity:'1'});
 globalThis.currentSubject='ordinary subject';
 globalThis.currentAddresses='reader@example.test';
-const visible={parentElement:null,
- getClientRects:()=>[{width:90,height:18}],closest:()=>null};
+const visible={parentElement:null,contains:()=>false,
+ getClientRects:()=>[{left:10,top:10,width:90,height:18}],
+ closest:()=>null};
 const header={...visible,id:'heading',getAttribute:(key)=>
   key==='title'?currentSubject:null};
-const sender={...visible,getAttribute:(key)=>
+const sender={...visible,getClientRects:()=>[
+ {left:120,top:10,width:90,height:18}],getAttribute:(key)=>
   key==='title'?currentAddresses:null};
 const row={...visible,classList:{contains:()=>false},
  getAttribute:(key)=>key==='data-element-id'?'row-a':
@@ -1058,6 +1060,7 @@ const row={...visible,classList:{contains:()=>false},
  querySelectorAll:(selector)=>selector==='[id]'?[header]:[sender]};
 const root={...visible,querySelectorAll:()=>[row]};
 globalThis.document={querySelector:()=>null,
+ elementFromPoint:(x)=>x<100?header:sender,
  querySelectorAll:(selector)=>selector.includes('message-list-loaded')?
  [root]:[]};
 const valid=eval(expression);
@@ -1296,6 +1299,7 @@ let ancestorContentHidden=false;
 let ancestorClip=false,ancestorFilter=false,ancestorMasked=false;
 let ancestorWebkitMasked=false;
 let headingZeroArea=false,senderZeroArea=false;
+let headingCovered=false,senderCovered=false,offscreenTitles=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let ariaHiddenUpper=false;
@@ -1311,14 +1315,15 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  'linear-gradient(transparent,transparent)':'none',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
-const heading={id:'heading-id',
+const heading={contains:()=>false,id:'heading-id',
  getAttribute:()=>{titleReads++;return subjectValue;},
-  getClientRects:()=>[{width:headingZeroArea?0:80,
+  getClientRects:()=>[{left:10,top:10,width:headingZeroArea?0:80,
    height:headingZeroArea?0:14}],
   closest:(q)=>(ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
-const sender={getAttribute:()=>{titleReads++;return addressValue;},
-  getClientRects:()=>[{width:senderZeroArea?0:80,
+const sender={contains:()=>false,
+ getAttribute:()=>{titleReads++;return addressValue;},
+  getClientRects:()=>[{left:120,top:10,width:senderZeroArea?0:80,
    height:senderZeroArea?0:14}],
   closest:(q)=>(ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
@@ -1336,7 +1341,9 @@ const brokenRow={getAttribute:(key)=>key==='data-element-id'?'row-b':
 brokenHeading.parentElement=brokenRow;brokenRow.parentElement=ancestor;
 const root={querySelectorAll:()=>duplicateRows?[row,row]:
  invalidSecondRow?[row,brokenRow]:[row]};
-globalThis.document={querySelector:(q)=>
+globalThis.document={elementFromPoint:(x)=>
+ offscreenTitles?null:x<100?(headingCovered?{}:heading):
+ (senderCovered?{}:sender),querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
@@ -1347,7 +1354,19 @@ if(!Array.isArray(projected)||projected.length!==1||
  projected[0].addresses!=='sender@example.test'||!projected[0].unread){
  throw Error('visible row projection failed');
 }
-duplicateRows=true;titleReads=0;
+headingCovered=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('covered subject exposed private title');
+}
+headingCovered=false;senderCovered=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('covered correspondent exposed private title');
+}
+senderCovered=false;offscreenTitles=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('offscreen subject exposed private title');
+}
+offscreenTitles=false;duplicateRows=true;titleReads=0;
 if(eval(script)!==null){throw Error('duplicate IDs were projected');}
 if(titleReads!==0){throw Error('duplicate IDs caused content reads');}
 duplicateRows=false;loadingOverlay=true;titleReads=0;
@@ -1392,7 +1411,8 @@ const hidden=eval(script);
 if(hidden!==null){
  throw Error('hidden subject remained readable');
 }
-heading.getClientRects=()=>[{width:headingZeroArea?0:80,
+heading.getClientRects=()=>[{left:10,top:10,
+ width:headingZeroArea?0:80,
  height:headingZeroArea?0:14}];
 headingZeroArea=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
@@ -1521,6 +1541,7 @@ let duplicateRows=false;
 let fieldsetDisabled=false;
 let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
 let overlayNext=false,viewportNext=false;
+let rowCovered=false,emptyCovered=false,currentCovered=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false,ancestorClip=false,ancestorFilter=false;
@@ -1531,12 +1552,14 @@ let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
 const ancestor={parentElement:null};
-const row={getAttribute:()=>rowId,
- getClientRects:()=>rowHidden?[]:[{width:rowZeroArea?0:90,
+const row={contains:()=>false,getAttribute:()=>rowId,
+ getClientRects:()=>rowHidden?[]:[{left:10,top:10,
+ width:rowZeroArea?0:90,
  height:rowZeroArea?0:18}],
  closest:(q)=>(rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
-const empty={getClientRects:()=>[{width:emptyZeroArea?0:90,
+const empty={contains:()=>false,
+ getClientRects:()=>[{left:110,top:10,width:emptyZeroArea?0:90,
  height:emptyZeroArea?0:18}],
  closest:(q)=>(rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
@@ -1549,7 +1572,7 @@ const next=new HTMLButtonElement();
 next.parentElement=loaded;
 next.type='button';next.form=null;
 next.disabled=false;
-next.getClientRects=()=>[{left:10,top:10,width:zeroNextArea?0:60,
+next.getClientRects=()=>[{left:310,top:10,width:zeroNextArea?0:60,
  height:zeroNextArea?0:20}];
 next.contains=()=>false;
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
@@ -1557,14 +1580,18 @@ next.closest=(q)=>(rootInert&&q.includes('[inert]')||
 next.getAttribute=(key)=>key==='aria-disabled'&&
  (nextDisabled||nextAriaUpper)?(nextAriaUpper?'TRUE':'true'):null;
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
-const current={getClientRects:()=>[{width:currentZeroArea?0:45,
+const current={contains:()=>false,
+ getClientRects:()=>[{left:210,top:10,width:currentZeroArea?0:45,
  height:currentZeroArea?0:20}],
  closest:(q)=>rootInert&&q.includes('[inert]')?loaded:null,
  getAttribute:()=>pageId};
 globalThis.document={querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
- elementFromPoint:()=>viewportNext?null:overlayNext?{}:next,
+ elementFromPoint:(x)=>x<100?(rowCovered?{}:row):
+ x<205?(emptyCovered?{}:empty):
+ x<300?(currentCovered?{}:current):
+ (viewportNext?null:overlayNext?{}:next),
  querySelectorAll:(q)=>q.includes('message-list-loading')?
    (showLoading?[{querySelectorAll:()=>[]}]:[]):
    q.includes('message-list-loaded')?[loaded]:
@@ -1588,7 +1615,15 @@ if(eval(expression)!==null){
  throw Error('off-viewport enabled Next reported actionable');
 }
 viewportNext=false;
-nextAriaUpper=true;
+rowCovered=true;
+if(eval(expression)!==null){
+ throw Error('covered loaded row reported visible');
+}
+rowCovered=false;currentCovered=true;
+if(eval(expression)!==null){
+ throw Error('covered page marker proved pagination');
+}
+currentCovered=false;nextAriaUpper=true;
 if(eval(expression)?.nextDisabled!==true){
  throw Error('uppercase ARIA-disabled Next was reported enabled');
 }
@@ -1641,7 +1676,11 @@ showEmpty=true;nextDisabled=true;
 if(eval(expression).emptyMarker!==true){
  throw Error('visible explicit-empty title was not detected');
 }
-emptyOpacity='0';
+emptyCovered=true;
+if(eval(expression)!==null){
+ throw Error('covered empty-title marker proved empty Mail');
+}
+emptyCovered=false;emptyOpacity='0';
 if(eval(expression)!==null){throw Error('invisible empty title was accepted');}
 emptyOpacity='1';emptyZeroArea=true;
 if(eval(expression)!==null){throw Error('zero-area empty title accepted');}

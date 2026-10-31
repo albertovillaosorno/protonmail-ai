@@ -23,6 +23,17 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Occluded visible list and title evidence
+
+- Red-first synthetic browser fixtures exposed a mismatch between layout-visible
+  nodes and user-visible Mail evidence: an unrelated overlay could cover a
+  loaded row, current page, explicit-empty marker, subject or sender while the
+  adapter still projected IDs or read private title attributes. Bounded DOM
+  projections now require a real same-element or descendant viewport hit on
+  each evidence node; off-viewport and covered titles are refused before
+  reading content attributes. Existing ordinary visible fixtures remain
+  accepted and no live account or provider request was involved.
+
 ## Enabled Next readiness must agree with viewport hit testing
 
 - A red-first synthetic list DOM reported enabled Next while an overlay
