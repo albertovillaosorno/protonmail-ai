@@ -2241,6 +2241,44 @@ fn provider_context_id_requires_proven_default_browser_context() {
 }
 
 #[test]
+fn duplicated_target_ids_across_target_types_cannot_select_mail_page() {
+    use serde_json::json;
+    for (label, first_type) in [
+        ("worker-then-mail-duplicate", "service_worker"),
+        ("other-page-then-mail-duplicate", "page"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let extra = if first_type == "page" {
+            json!({
+                "type":"page", "targetId":"mail-1",
+                "url":"https://example.test/"
+            })
+        } else {
+            json!({"type":"service_worker", "targetId":"mail-1"})
+        };
+        let targets = json!([
+            extra,
+            {
+                "type":"page", "targetId":"mail-1",
+                "url":"https://mail.proton.me/u/0/inbox"
+            }
+        ]);
+        let catalog = targets.to_string();
+        let browser = fake_browser(&root, &catalog, "mail.proton.me");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        assert_eq!(
+            managed.provider_page(),
+            Err(BrowserDriverError::Protocol),
+            "{label} cannot select a reused target ID"
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn unrelated_duplicate_target_id_cannot_hide_foreign_provider_context() {
     use serde_json::json;
     let root = test_root("duplicate-unrelated-target-id");

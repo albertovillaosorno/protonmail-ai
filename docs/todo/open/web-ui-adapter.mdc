@@ -1806,3 +1806,10 @@ web application without requiring Bridge or a third-party direct API identity.
   duplicate-ID gaps. When older Chromium omits the optional target context ID,
   origin verification remains necessary but default-context proof from this
   method is unavailable. No account or live browser is used.
+
+- Target discovery now also rejects repeated or invalid CDP `targetId` fields
+  across the entire bounded target catalog, not only multiple provider pages.
+  An unrelated worker or non-Proton tab cannot borrow the selected Mail page's
+  identity to launder an ambiguous attachment. Red-first synthetic browser
+  catalog cases show the prior worker/page duplicate-ID bypass; the same valid
+  catalog is accepted unchanged when all listed IDs are unique.

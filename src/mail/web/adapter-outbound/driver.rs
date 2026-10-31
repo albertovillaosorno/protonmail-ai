@@ -750,7 +750,20 @@ impl ManagedBrowser {
             return Err(BrowserDriverError::Protocol);
         }
         let mut selected = None;
+        let mut known_ids = HashSet::new();
         for info in infos {
+            // CDP target IDs are unique for the browser, not just for pages.
+            // An unselected worker or unrelated tab may not reuse a selected
+            // Mail target's ID and make attachment or context proof ambiguous.
+            if let Some(target_id) = info.get("targetId") {
+                let id = target_id
+                    .as_str()
+                    .filter(|id| safe_cdp_endpoint_id(id))
+                    .ok_or(BrowserDriverError::Protocol)?;
+                if !known_ids.insert(id) {
+                    return Err(BrowserDriverError::Protocol);
+                }
+            }
             let Some(page) = provider_page_from_target(info)? else {
                 continue;
             };

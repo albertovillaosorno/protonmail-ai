@@ -191,6 +191,7 @@ fn only_audited_cdp_methods_are_accepted_in_their_session_scope() {
         "Browser.getVersion",
         "Browser.close",
         "Target.getTargets",
+        "Target.getBrowserContexts",
         "Target.attachToTarget",
         "Target.detachFromTarget",
     ] {
@@ -226,6 +227,24 @@ fn only_audited_cdp_methods_are_accepted_in_their_session_scope() {
         assert!(!allowed_mail_cdp_method(None, denied));
         assert!(!allowed_mail_cdp_method(Some("session-a"), denied));
     }
+}
+
+#[test]
+fn browser_context_catalog_command_is_exact_and_browser_scoped() {
+    let method = "Target.getBrowserContexts";
+    assert!(allowed_mail_cdp_request(None, method, &json!({})));
+    for params in [
+        json!({"browserContextId":"incognito"}),
+        json!({"id":1i32}),
+        json!([]),
+    ] {
+        assert!(!allowed_mail_cdp_request(None, method, &params));
+    }
+    assert!(!allowed_mail_cdp_request(
+        Some("session-a"),
+        method,
+        &json!({}),
+    ));
 }
 
 #[test]
