@@ -80,6 +80,9 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // Rectangles remain positive for fully clipped or filtered-out trees.
     "(style.clipPath&&style.clipPath!=='none')||",
     "(style.filter&&style.filter!=='none')||",
+    // CSS masks can hide all painted pixels without altering box geometry.
+    "(style.maskImage&&style.maskImage!=='none')||",
+    "(style.webkitMaskImage&&style.webkitMaskImage!=='none')||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",

@@ -1293,7 +1293,8 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let ancestorContentHidden=false;
-let ancestorClip=false,ancestorFilter=false;
+let ancestorClip=false,ancestorFilter=false,ancestorMasked=false;
+let ancestorWebkitMasked=false;
 let headingZeroArea=false,senderZeroArea=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
@@ -1304,6 +1305,10 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
  filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
+ maskImage:node===ancestor&&ancestorMasked?
+ 'linear-gradient(transparent,transparent)':'none',
+ webkitMaskImage:node===ancestor&&ancestorWebkitMasked?
+ 'linear-gradient(transparent,transparent)':'none',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',
@@ -1416,7 +1421,15 @@ ancestorClip=false;ancestorFilter=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('filtered-out parent exposed private row titles');
 }
-ancestorFilter=false;
+ancestorFilter=false;ancestorMasked=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('masked parent exposed private row titles');
+}
+ancestorMasked=false;ancestorWebkitMasked=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('WebKit-masked parent exposed private row titles');
+}
+ancestorWebkitMasked=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1496,6 +1509,8 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
  filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
+ maskImage:node===ancestor&&ancestorMasked?
+ 'linear-gradient(transparent,transparent)':'none',
  pointerEvents:node===loaded&&parentPointerBlocked?'none':
  node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
  opacity:node===row?rowOpacity:node===current?currentOpacity:
@@ -1508,6 +1523,7 @@ let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false,ancestorClip=false,ancestorFilter=false;
+let ancestorMasked=false;
 let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
@@ -1587,7 +1603,11 @@ ancestorClip=false;ancestorFilter=true;
 if(eval(expression)!==null){
  throw Error('filtered-out loaded list reported visible rows');
 }
-ancestorFilter=false;
+ancestorFilter=false;ancestorMasked=true;
+if(eval(expression)!==null){
+ throw Error('masked list reported visible rows');
+}
+ancestorMasked=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1723,6 +1743,7 @@ let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let optionParentContentHidden=false,toggleParentContentHidden=false;
 let optionParentClip=false,toggleParentFilter=false;
+let optionParentMasked=false,toggleParentMasked=false;
 let zeroOptionArea=false,zeroToggleArea=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
@@ -1755,6 +1776,9 @@ globalThis.getComputedStyle=(node)=>({
  (node===toggleParent&&toggleParentContentHidden)?'hidden':'visible',
  clipPath:node===optionParent&&optionParentClip?'inset(100%)':'none',
  filter:node===toggleParent&&toggleParentFilter?'opacity(0)':'none',
+ maskImage:node===optionParent&&optionParentMasked||
+ node===toggleParent&&toggleParentMasked?
+ 'linear-gradient(transparent,transparent)':'none',
  pointerEvents:(node===optionParent&&optionParentPointerBlocked)||
  (node===toggleParent&&toggleParentPointerBlocked)?'none':'auto',
  opacity:node===option?optionOpacity:
@@ -1809,7 +1833,11 @@ optionParentClip=false;optionCovered=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('covered sort options authorized programmatic click');
 }
-optionCovered=false;zeroOptionArea=true;
+optionCovered=false;optionParentMasked=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('masked sort options authorized programmatic action');
+}
+optionParentMasked=false;zeroOptionArea=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('zero-area sort options passed geometry proof');
 }
@@ -1848,7 +1876,11 @@ toggleParentFilter=false;toggleCovered=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('covered sort toggle was programmatically opened');
 }
-toggleCovered=false;zeroToggleArea=true;
+toggleCovered=false;toggleParentMasked=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('masked sort toggle was programmatically opened');
+}
+toggleParentMasked=false;zeroToggleArea=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('zero-area sort toggle received programmatic click');
 }
@@ -1949,7 +1981,8 @@ let descendantHitNext=false,invalidNextCoordinates=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 let parentPointerBlocked=false,parentContentHidden=false;
-let parentClip=false,parentFilter=false;
+let parentClip=false,parentFilter=false,parentMasked=false;
+let parentWebkitMasked=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
@@ -1971,6 +2004,10 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===parent&&parentContentHidden?'hidden':'visible',
  clipPath:node===parent&&parentClip?'inset(100%)':'none',
  filter:node===parent&&parentFilter?'opacity(0)':'none',
+ maskImage:node===parent&&parentMasked?
+ 'linear-gradient(transparent,transparent)':'none',
+ webkitMaskImage:node===parent&&parentWebkitMasked?
+ 'linear-gradient(transparent,transparent)':'none',
  pointerEvents:node===parent&&parentPointerBlocked?'none':'auto',
  opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
@@ -2013,7 +2050,15 @@ parentClip=false;parentFilter=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('filtered-out Next parent permitted programmatic click');
 }
-parentFilter=false;overlayCoversNext=true;
+parentFilter=false;parentMasked=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('masked Next parent permitted programmatic click');
+}
+parentMasked=false;parentWebkitMasked=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('WebKit-masked Next parent received a click');
+}
+parentWebkitMasked=false;overlayCoversNext=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('overlay-covered Next was programmatically clicked');
 }

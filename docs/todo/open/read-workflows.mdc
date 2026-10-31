@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Mask-hidden Mail content and controls
+
+- Red-first synthetic Node fixtures proved that a CSS `mask-image` rendering
+  fully transparent pixels still left ordinary DOM rectangles and CSS opacity
+  intact. The loaded Mail list, private row titles, Next pagination, and sort
+  menu all treated those hidden elements as visible. Their bounded ancestor
+  tests now reject non-default `mask-image` (including the WebKit alias)
+  before release or navigation; ordinary unmasked fixtures still pass.
+  No provider account or live browser was involved.
+
 ## Hit-test programmatic read-only navigation controls
 
 - Red-first Node DOM fixtures showed that Next and sort menu controls
