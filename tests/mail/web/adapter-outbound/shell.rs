@@ -449,6 +449,49 @@ fn malformed_accessibility_source_values_cannot_prove_shell() {
 }
 
 #[test]
+fn contradictory_nested_ax_scalar_kinds_cannot_prove_shell() {
+    use serde_json::json;
+
+    for (label, scalar) in [
+        ("token-boolean", json!({"type":"token", "value":true})),
+        ("tristate-number", json!({"type":"tristate", "value":42i32})),
+        ("idref-number", json!({"type":"idref", "value":17i32})),
+        (
+            "boolean-undefined-text",
+            json!({"type":"booleanOrUndefined", "value":"true"}),
+        ),
+        (
+            "undefined-with-value",
+            json!({"type":"valueUndefined", "value":false}),
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false,
+            "nodeId":"ax-navigation",
+            "role":{
+                "type":"role", "value":"navigation",
+                "sources":[{"type":"implicit", "value":scalar}]
+            }
+        }])
+        .to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "contradictory AXValue scalar {label} must not prove shell"
+        );
+    }
+}
+
+#[test]
 fn primitive_nested_ax_source_values_preserve_shell_readiness() {
     use serde_json::json;
 
@@ -459,7 +502,16 @@ fn primitive_nested_ax_source_values_preserve_shell_readiness() {
                 {"type":"implicit",
                  "value":{"type":"tristate", "value":"mixed"}},
                 {"type":"attribute", "value":{"type":"token", "value":"valid"}},
-                {"type":"implicit", "value":{"type":"valueUndefined"}}
+                {"type":"implicit", "value":{"type":"valueUndefined"}},
+                {"type":"implicit", "value":{"type":"idref", "value":"id-A"}},
+                {
+                    "type":"implicit",
+                    "value":{"type":"booleanOrUndefined", "value":true}
+                },
+                {
+                    "type":"attribute",
+                    "value":{"type":"tokenList", "value":"one two"}
+                }
             ]
         }
     }])

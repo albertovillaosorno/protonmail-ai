@@ -476,9 +476,22 @@ fn valid_ax_nested_value(value: &Value, depth: usize) -> bool {
 }
 
 fn valid_ax_scalar(kind: &str, value: Option<&Value>) -> bool {
-    let text_kinds = ["string", "computedString", "role", "internalRole"];
+    let text_kinds = [
+        "string",
+        "computedString",
+        "role",
+        "internalRole",
+        "idref",
+        "idrefList",
+        "token",
+        "tokenList",
+        "tristate",
+    ];
     match (kind, value) {
-        ("boolean", Some(raw)) => raw.is_boolean(),
+        // An undefined AXValue cannot also carry a concrete scalar. A
+        // boolean-or-undefined value cannot claim a string or number.
+        ("valueUndefined", Some(_)) => false,
+        ("boolean" | "booleanOrUndefined", Some(raw)) => raw.is_boolean(),
         ("integer", Some(raw)) => raw.as_i64().is_some(),
         ("number", Some(raw)) => raw.is_number(),
         (_, Some(raw)) if text_kinds.contains(&kind) => raw.is_string(),

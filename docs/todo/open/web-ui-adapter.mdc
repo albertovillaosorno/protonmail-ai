@@ -2199,3 +2199,10 @@ web application without requiring Bridge or a third-party direct API identity.
   `isCached` and `responseSource` extensions previously passed as fresh HTTP;
   ordinary documented source flags still pass when explicitly false. The
   check allocates no response-field copies and applies to all read collectors.
+
+- Nested CDP AXValue scalars now honor their declared primitive kinds before
+  optional role sources can establish a visible Mail shell. Red-first fake
+  Chromium fixtures previously accepted numeric `tristate`/`idref`, boolean
+  `token`, textual `booleanOrUndefined`, and concrete `valueUndefined` claims.
+  Realistic text tokens, boolean-or-undefined, and missing undefined values
+  remain compatible. Source metadata is checked but never projected.
