@@ -83,6 +83,15 @@ web application without requiring Bridge or a third-party direct API identity.
   and control-bearing account IDs; valid printable Unicode and the exact
   512-byte UTF-8 limit remain compatible. No live mailbox is accessed.
 
+## Noncharacter refusal for route-bound Mail IDs
+
+- Red-first synthetic message-list and detail responses accepted Unicode
+  noncharacters (`U+FDD0`, `U+FFFE`, and `U+10FFFF`) as opaque IDs that could
+  later be reused as exact URL path components. The shared ID guard now
+  rejects the entire `U+FDD0..U+FDEF` range and the final two code points of
+  every Unicode plane; ordinary printable opaque IDs remain compatible.
+  This does not reinterpret or normalize provider identities.
+
 ## Trusting the complete browser origin
 
 - The public `PageOrigin` policy now requires the normalized `location.port`

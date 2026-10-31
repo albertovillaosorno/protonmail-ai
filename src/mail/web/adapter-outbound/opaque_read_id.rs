@@ -49,7 +49,15 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
                 // U+FFFD cannot prove the original exact route identity.
                 || character == '\u{fffd}'
                 || is_invisible_format(character)
+                || is_unicode_noncharacter(character)
         })
+}
+
+// Unicode noncharacters are valid scalar values but have no interchange
+// meaning. They cannot prove an unambiguous provider URL path identity.
+fn is_unicode_noncharacter(character: char) -> bool {
+    let codepoint = u32::from(character);
+    (0xfdd0..=0xfdef).contains(&codepoint) || codepoint & 0xfffe == 0xfffe
 }
 
 /// Refuse hidden formatting and direction controls that obscure exact identity.
