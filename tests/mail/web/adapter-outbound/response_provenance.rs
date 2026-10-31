@@ -197,6 +197,27 @@ fn network_status_accepts_only_exact_integer_200() {
 }
 
 #[test]
+fn extra_status_http2_pseudo_header_must_confirm_200() {
+    let real_http2 = json!({"params":{"statusCode":200u16,
+        "headers":{":status":"200", "content-type":"application/json"}}});
+    assert!(direct_extra_status_is_200(&real_http2));
+    for (pseudo, value) in [
+        (":status", "304"),
+        (":status", "200 OK"),
+        (":method", "GET"),
+        (":authority", "mail.proton.me"),
+    ] {
+        let mut invalid = real_http2.clone();
+        invalid["params"]["headers"]
+            .as_object_mut()
+            .expect("headers map")
+            .remove(":status");
+        invalid["params"]["headers"][pseudo] = json!(value);
+        assert!(!direct_extra_status_is_200(&invalid));
+    }
+}
+
+#[test]
 fn extra_status_wire_content_type_must_confirm_json_response() {
     for valid in [
         "application/json",

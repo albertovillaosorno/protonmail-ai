@@ -2576,3 +2576,8 @@ web application without requiring Bridge or a third-party direct API identity.
   to be unambiguous `application/json`, allowing ordinary charset parameters,
   absent legacy headers and consistent JSON 200. No response bodies or header
   values are retained.
+
+- HTTP/2 and HTTP/3 wire response headers may include `:status`. The
+  extra-status header gate accepts only an explicit `:status: 200` consistent
+  with CDP statusCode 200; request pseudo-headers and mismatched values fail
+  closed. Synthetic evidence covers accepted and rejected variants.

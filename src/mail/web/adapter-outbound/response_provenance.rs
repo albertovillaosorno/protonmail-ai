@@ -762,6 +762,14 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
     // responseReceived reported a compatible MIME type. Omission is allowed.
     let mut seen_content_type = false;
     for (name, value) in headers {
+        if name.starts_with(':') {
+            // Response pseudo-headers are not request pseudo-headers. The
+            // actual HTTP/2/3 :status must agree with the reported 200.
+            if name != ":status" || value.as_str() != Some("200") {
+                return false;
+            }
+            continue;
+        }
         if !cdp_header_name_is_token(name) || !cdp_header_value_is_safe(value) {
             return false;
         }
