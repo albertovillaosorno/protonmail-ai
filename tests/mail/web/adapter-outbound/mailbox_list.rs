@@ -494,3 +494,31 @@ fn maximal_rendered_page_cannot_advertise_unrepresentable_successor() {
     assert_eq!(evidence.current_page(), Some(u32::MAX));
     assert_eq!(evidence.next_page(), NextPageControl::Disabled);
 }
+
+#[test]
+fn late_pagination_rejection_does_not_release_unowned_private_row_ids() {
+    use serde_json::{Value, json};
+
+    let secret_id = "synthetic-private-row-identifier";
+    let mut observed: Value = serde_json::from_str(ROWS).expect("rows");
+    observed["rowIds"] = json!([secret_id]);
+    observed["nextDisabled"] = json!("not-a-boolean");
+    let rejected = inspect(
+        "late-private-id-rejection",
+        &observed.to_string(),
+        VISIBLE_AX,
+        "mail.proton.me",
+    );
+    assert_eq!(rejected, Err(BrowserDriverError::MailboxListIncompatible));
+    assert!(!format!("{rejected:?}").contains(secret_id));
+
+    observed["nextDisabled"] = json!(false);
+    let accepted = inspect(
+        "private-id-accepted",
+        &observed.to_string(),
+        VISIBLE_AX,
+        "mail.proton.me",
+    )
+    .expect("valid late pagination metadata");
+    assert_eq!(accepted.row_ids(), [secret_id]);
+}

@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Mailbox list readiness/evidence now validates and deduplicates borrowed row
+  IDs before checking skeleton state and pagination. It allocates copies only
+  once the entire observation is accepted into `MailboxListEvidence`, whose
+  Drop scrubs every ID. Invalid late selector metadata cannot leave ordinary
+  unprotected row-ID allocations on an error path.
+
 - Visible mailbox row projection now borrows ID, subject, and address text
   until all per-row checks, including the unread bit, pass. Accepted rows
   allocate only inside `VisibleMailboxRow`, whose explicit Drop scrubs text.

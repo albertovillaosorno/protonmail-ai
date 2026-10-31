@@ -308,7 +308,8 @@ impl MailboxListEvidence {
         Ok(Self {
             current_page,
             next_page,
-            row_ids,
+            // Allocate only into the accepted evidence's scrub-on-drop owner.
+            row_ids: row_ids.into_iter().map(String::from).collect(),
             state,
         })
     }
@@ -344,7 +345,7 @@ fn usize_field(value: &Value, key: &str) -> Result<usize, ()> {
     usize::try_from(raw).map_err(|_error| ())
 }
 
-fn row_ids(value: &Value) -> Result<Vec<String>, ()> {
+fn row_ids(value: &Value) -> Result<Vec<&str>, ()> {
     let rows = value.get("rowIds").and_then(Value::as_array).ok_or(())?;
     if rows.len() > MAX_VISIBLE_ROWS {
         return Err(());
@@ -356,7 +357,9 @@ fn row_ids(value: &Value) -> Result<Vec<String>, ()> {
         if !safe_read_id(id, MAX_ROW_ID_BYTES) || !unique.insert(id) {
             return Err(());
         }
-        ids.push(String::from(id));
+        // Keep identifiers borrowed from the guarded CDP response until
+        // the remaining list and pagination metadata passes validation.
+        ids.push(id);
     }
     Ok(ids)
 }
