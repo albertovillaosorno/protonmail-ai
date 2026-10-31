@@ -112,6 +112,12 @@ to register as a local MCP server.
   recipients and subjects; content-free refusal now covers to/cc/bcc and
   subject without restricting ordinary international printable text or body.
 
+- Red-first CLI tests found non-interchange Unicode code points accepted as
+  literal To/Cc/Bcc recipients and subjects, then included in the handoff
+  URL. The shared single-line header guard now rejects Unicode noncharacters
+  across all planes before URL encoding, without restricting legitimate
+  international subjects, emoji selectors, or multiline message bodies.
+
 - The explicit `--body-file` helper now opens with `O_NOFOLLOW` as well as
   `O_NONBLOCK`. A red-first synthetic CLI fixture proved an existing symlink
   could redirect a chosen body path into unrelated file bytes; the CLI now

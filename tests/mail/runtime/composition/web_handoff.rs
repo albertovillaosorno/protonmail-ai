@@ -678,6 +678,9 @@ fn composer_header_fields_reject_invisible_formatting_characters() {
         '\u{1d17a}',
         '\u{e0001}',
         '\u{e0100}',
+        '\u{fdd0}',
+        '\u{fffe}',
+        '\u{10ffff}',
     ] {
         let recipient = format!("support{mark}@example.test");
         for flag in ["--to", "--cc", "--bcc"] {

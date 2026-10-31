@@ -409,11 +409,23 @@ const fn invalid_subject_character(character: char) -> bool {
         )
 }
 
+// Unicode noncharacters have no stable display semantics in an outgoing
+// header; unlike message bodies, recipient and subject fields must be clear.
+#[expect(
+    clippy::as_conversions,
+    reason = "lossless char to scalar conversion inside stable const validator"
+)]
+const fn is_header_noncharacter(character: char) -> bool {
+    let codepoint = character as u32;
+    matches!(codepoint, 0xfdd0..=0xfdef) || codepoint & 0xfffe == 0xfffe
+}
+
 // A visually hidden selector, bidirectional override, or Unicode newline
 // can make the apparent recipient/subject differ from the encoded header.
 // Preserve ordinary printable Unicode; the body is intentionally multiline.
 const fn invalid_single_line_character(character: char) -> bool {
     character.is_control()
+        || is_header_noncharacter(character)
         || matches!(
             character,
             '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{0600}'..='\u{0605}'
