@@ -2693,3 +2693,11 @@ web application without requiring Bridge or a third-party direct API identity.
   passed provisional, refined, and raw-wire request checks; message-list
   capture accepted a forwarded path. The shared gate now closes those header
   families without retaining the values; ordinary Mail GETs remain valid.
+
+- Passive response extra-status verification now disqualifies an explicit
+  `resourceIPAddressSpace` of `Private`, `Local`, `Unknown`, or an invalid
+  value for the public Mail provider, even when CDP reports JSON HTTP 200.
+  Red-first shared status and message-list capture tests showed private
+  network replies previously passed the wire provenance gate in either
+  notification order. `Public` and omission for older CDP remain supported;
+  no remote addresses, cookies, response bodies, or account data are kept.

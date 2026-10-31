@@ -222,6 +222,28 @@ fn network_status_accepts_only_exact_integer_200() {
 }
 
 #[test]
+fn private_response_address_space_cannot_prove_public_mail_http() {
+    let ordinary = json!({"params":{"statusCode":200u16,
+        "headers":{"Content-Type":"application/json"}}});
+    assert!(direct_extra_status_is_200(&ordinary));
+    let mut public = ordinary;
+    public["params"]["resourceIPAddressSpace"] = json!("Public");
+    assert!(direct_extra_status_is_200(&public));
+    for invalid in [
+        json!("Private"),
+        json!("Local"),
+        json!("Unknown"),
+        json!("public"),
+        json!(null),
+        json!(true),
+    ] {
+        let mut changed = public.clone();
+        changed["params"]["resourceIPAddressSpace"] = invalid;
+        assert!(!direct_extra_status_is_200(&changed));
+    }
+}
+
+#[test]
 fn extra_status_http2_pseudo_header_must_confirm_200() {
     let real_http2 = json!({"params":{"statusCode":200u16,
         "headers":{":status":"200", "content-type":"application/json"}}});

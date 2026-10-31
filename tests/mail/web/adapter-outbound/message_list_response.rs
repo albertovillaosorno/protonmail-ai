@@ -849,6 +849,39 @@ fn conflicting_response_extra_content_type_rejects_mail_list_get() {
 }
 
 #[test]
+fn private_response_address_space_cannot_complete_mail_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({"sessionId":"session-1",
+        "method":"Network.requestWillBeSent", "params":{
+            "requestId":"private-response", "type":"Fetch",
+            "request":{"method":"GET", "url":URL}}});
+    let initial = json!({"sessionId":"session-1",
+        "method":"Network.responseReceived", "params":{
+            "requestId":"private-response", "hasExtraInfo":true,
+            "response":{"url":URL, "status":200u16,
+                "mimeType":"application/json"}}});
+    let extra = json!({"sessionId":"session-1",
+        "method":"Network.responseReceivedExtraInfo", "params":{
+            "requestId":"private-response", "statusCode":200u16,
+            "resourceIPAddressSpace":"Private",
+            "headers":{"Content-Type":"application/json"}}});
+    for extra_first in [true, false] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture.observe(&request).expect("ordinary Mail GET");
+        if !extra_first {
+            capture.observe(&initial).expect("preliminary JSON");
+        }
+        assert_eq!(
+            capture.observe(&extra),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn wire_http2_path_must_match_the_observed_mail_endpoint() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

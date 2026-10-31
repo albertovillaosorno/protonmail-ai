@@ -1093,6 +1093,18 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
     if params.get("statusCode").and_then(Value::as_u64) != Some(200) {
         return false;
     }
+    // This adapter targets a public HTTPS Mail provider. An explicitly local,
+    // private, unknown, or malformed resource address-space hint contradicts
+    // public network ownership even if the wire status and media type are 200.
+    // Older Chromium event shapes may omit this experimental CDP property.
+    let public_network = match params.get("resourceIPAddressSpace") {
+        None => true,
+        Some(Value::String(space)) => space == "Public",
+        Some(_) => false,
+    };
+    if !public_network {
+        return false;
+    }
     let headers = match params.get("headers") {
         None => None,
         Some(Value::Object(headers)) => Some(headers),
