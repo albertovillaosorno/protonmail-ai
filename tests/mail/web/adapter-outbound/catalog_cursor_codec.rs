@@ -163,3 +163,33 @@ fn malformed_base64_refuses_partially_decoded_token_bytes() {
     let malformed = "AAEC?___";
     assert!(decode_guarded_token(malformed).is_err());
 }
+
+#[test]
+fn catalog_cursor_rejects_ambiguous_account_binding() {
+    use super::{WebCatalogCursorCodecError, validate_catalog_account};
+
+    for bad in [
+        "account\n",
+        "account\u{00a0}",
+        "account\u{034f}",
+        "account\u{200b}",
+        "account\u{202e}",
+        "account\u{2800}",
+        "account\u{fe0f}",
+        "account\u{e0100}",
+    ] {
+        assert_eq!(
+            validate_catalog_account(bad),
+            Err(WebCatalogCursorCodecError::InvalidCursor)
+        );
+    }
+    assert_eq!(
+        validate_catalog_account("compte-\u{e9}t\u{e9}-\u{5e33}\u{6236}"),
+        Ok(())
+    );
+    assert_eq!(validate_catalog_account(&"\u{e9}".repeat(256)), Ok(()));
+    assert_eq!(
+        validate_catalog_account(&"\u{e9}".repeat(257)),
+        Err(WebCatalogCursorCodecError::InvalidCursor)
+    );
+}

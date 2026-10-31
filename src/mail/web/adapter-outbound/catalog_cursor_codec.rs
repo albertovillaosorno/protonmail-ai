@@ -39,6 +39,7 @@ use aes_gcm::aead::{AeadInOut as _, KeyInit as _};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use mail_capability_domain::EventCursorScope;
 use serde_json::Value;
 use zeroize::{Zeroize as _, Zeroizing};
 
@@ -50,7 +51,6 @@ const CURSOR_AAD_PREFIX: &[u8] = b"protonmail-ai:web-catalog-cursor:v1:";
 const CURSOR_KEY_BYTES: usize = 32;
 const CURSOR_NONCE_BYTES: usize = 12;
 const MAX_ENCODED_CURSOR_BYTES: usize = 4_096;
-const MAX_ACCOUNT_BYTES: usize = 512;
 const GENERATION_TAG_CHARS: usize = 32;
 const CURSOR_AAD_BYTES: usize = CURSOR_AAD_PREFIX.len() + GENERATION_TAG_CHARS;
 const SNAPSHOT_TAG_CHARS: usize = 32;
@@ -299,13 +299,11 @@ fn validate_generation(value: &str) -> Result<(), WebCatalogCursorCodecError> {
     clippy::redundant_pub_crate,
     reason = "sibling driver validates account before provider observation"
 )]
-pub(crate) const fn validate_catalog_account(
-    value: &str,
-) -> Result<(), WebCatalogCursorCodecError> {
-    if value.is_empty() || value.len() > MAX_ACCOUNT_BYTES {
-        return Err(WebCatalogCursorCodecError::InvalidCursor);
-    }
-    Ok(())
+// jig-ignore-next-line: rustfmt fixes the account validator signature.
+pub(crate) fn validate_catalog_account(value: &str) -> Result<(), WebCatalogCursorCodecError> {
+    // Catalog and event cursors must bind the same unambiguous account text.
+    EventCursorScope::validate_account(value)
+        .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)
 }
 
 fn valid_hex_tag(value: &str, expected_chars: usize) -> bool {

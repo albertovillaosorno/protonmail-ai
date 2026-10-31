@@ -67,6 +67,15 @@ bounded resource use.
   Returned change rows still scrub owned IDs on drop. Synthetic nonadjacent
   duplicates and cross-entity equal IDs preserve exact coalescing semantics.
 
+## Cursor account binding evidence
+
+- The provider-neutral event-cursor scope now rejects ambiguous account IDs
+  containing controls, whitespace, default-ignorable formatting, or Unicode
+  invisible aliases before binding a resume state. The account identity stays
+  opaque and printable Unicode remains valid up to 512 UTF-8 bytes. Red-first
+  synthetic regressions prove malformed accounts never create a scope, while
+  adapter and generation matching rules remain unchanged.
+
 ## Watermark input safety
 
 - Cursor-bound `EventID` values are now rejected when they contain ASCII

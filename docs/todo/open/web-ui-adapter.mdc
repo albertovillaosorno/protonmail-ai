@@ -66,6 +66,14 @@ web application without requiring Bridge or a third-party direct API identity.
   location script before checking protocol, hostname and port. This fails
   closed on runtime reply drift without accepting new origins or selectors.
 
+## Unambiguous mailbox-catalog cursor accounts
+
+- The browser-owned catalog continuation codec now applies the same bounded
+  provider-neutral event-cursor account policy before snapshot reads or token
+  encoding/decoding. Red-first synthetic tests reject invisible, whitespace,
+  and control-bearing account IDs; valid printable Unicode and the exact
+  512-byte UTF-8 limit remain compatible. No live mailbox is accessed.
+
 ## Trusting the complete browser origin
 
 - The public `PageOrigin` policy now requires the normalized `location.port`

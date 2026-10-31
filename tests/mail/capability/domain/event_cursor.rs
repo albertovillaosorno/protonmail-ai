@@ -116,6 +116,31 @@ fn malformed_scope_components_fail_closed() {
 }
 
 #[test]
+fn cursor_account_rejects_ambiguous_identity_without_normalizing_unicode() {
+    for bad in [
+        "account\n",
+        "account\u{00a0}",
+        "account\u{034f}",
+        "account\u{200b}",
+        "account\u{202e}",
+        "account\u{2800}",
+        "account\u{fe0f}",
+        "account\u{e0100}",
+    ] {
+        assert_eq!(
+            EventCursorScope::new(bad, "web", "generation"),
+            Err(EventCursorBindingError::MalformedScope)
+        );
+    }
+    let printable = "compte-\u{e9}t\u{e9}-\u{5e33}\u{6236}";
+    let scope = EventCursorScope::new(printable, "web", "generation")
+        .expect("printable Unicode remains an opaque account identity");
+    assert_eq!(scope.binding_components().0, printable);
+    let max_account = "\u{e9}".repeat(256);
+    assert!(EventCursorScope::new(&max_account, "web", "generation").is_ok());
+}
+
+#[test]
 fn diagnostics_redact_scope_and_provider_state() {
     let scope = EventCursorScope::new(
         "synthetic-account-secret",
