@@ -114,6 +114,16 @@ web application without requiring Bridge or a third-party direct API identity.
   source types and known outer properties. Canonical optional source and
   related-node objects remain accepted without retaining their content.
 
+## Validate typed accessibility source metadata
+
+- Red-first fake-browser roles accepted optional AXValueSource fields with
+  numeric attributes, string booleans, unknown native-source enums, and
+  untyped nested AXValue payloads while claiming a ready Mail shell. These
+  fields now require documented CDP shapes; recursive source values have a
+  small bounded nesting budget. Documented optional source fields, including
+  nested related-node identities, remain accepted. The same checks protect
+  hidden-reason source metadata without projecting accessible names.
+
 ## Reject contradictory accessibility reason value types
 
 - Red-first synthetic AX replies showed ignored nodes could report boolean

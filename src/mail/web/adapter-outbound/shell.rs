@@ -30,7 +30,7 @@
 
 //! Translation-independent Proton Mail shell evidence.
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::HashSet;
 
 const MAX_AX_ROLE_MATCH_NODES: usize = 256;
@@ -225,28 +225,23 @@ fn valid_ax_hidden_reason(reason: &Value) -> bool {
         )
     });
     let arrays_valid = valid_ax_value_arrays(value_fields);
-    let text_kinds = ["string", "computedString", "role", "internalRole"];
-    let string_kind = text_kinds.contains(&kind);
-    let scalar_valid = match (kind, value_fields.get("value")) {
-        ("boolean", Some(raw)) => raw.is_boolean(),
-        ("integer", Some(raw)) => raw.as_i64().is_some(),
-        ("number", Some(raw)) => raw.is_number(),
-        (_, Some(raw)) if string_kind => raw.is_string(),
-        _ => true,
-    };
     fields.len() == 2
         && name.len() <= 128
         && valid_ax_hidden_reason_name(name)
         && valid_ax_value_type(kind)
         && known
         && arrays_valid
-        && scalar_valid
+        && valid_ax_scalar(kind, value_fields.get("value"))
 }
 
 // AXValue's optional collections cannot contain untyped JSON. Validate
 // browser-owned relationship identifiers and source kinds without retaining
-// their private text or recursively projecting their content.
-fn valid_ax_value_arrays(fields: &serde_json::Map<String, Value>) -> bool {
+// their private text or forwarding their content.
+fn valid_ax_value_arrays(fields: &Map<String, Value>) -> bool {
+    valid_ax_arrays_depth(fields, 3)
+}
+
+fn valid_ax_arrays_depth(fields: &Map<String, Value>, depth: usize) -> bool {
     ["relatedNodes", "sources"]
         .iter()
         .all(|field| match fields.get(*field) {
@@ -256,7 +251,7 @@ fn valid_ax_value_arrays(fields: &serde_json::Map<String, Value>) -> bool {
                 bounded
                     && entries.iter().all(|entry| match *field {
                         "relatedNodes" => valid_ax_related_node(entry),
-                        "sources" => valid_ax_source(entry),
+                        "sources" => valid_ax_source(entry, depth),
                         _ => false,
                     })
             }
@@ -282,7 +277,7 @@ fn valid_ax_related_node(node: &Value) -> bool {
     valid_backend && known && text_valid
 }
 
-fn valid_ax_source(source: &Value) -> bool {
+fn valid_ax_source(source: &Value, depth: usize) -> bool {
     let Some(fields) = source.as_object() else {
         return false;
     };
@@ -308,7 +303,72 @@ fn valid_ax_source(source: &Value) -> bool {
         "invalidReason",
     ];
     let known = fields.keys().all(|field| allowed.contains(&field.as_str()));
-    known_kind && known
+    let text_valid = ["attribute", "invalidReason"]
+        .iter()
+        .all(|key| fields.get(*key).is_none_or(valid_ax_text));
+    let boolean_valid = ["superseded", "invalid"]
+        .iter()
+        .all(|key| fields.get(*key).is_none_or(Value::is_boolean));
+    let native_kinds = [
+        "description",
+        "figcaption",
+        "label",
+        "labelfor",
+        "labelwrapped",
+        "legend",
+        "rubyannotation",
+        "tablecaption",
+        "title",
+        "other",
+    ];
+    let native_valid = fields.get("nativeSource").is_none_or(|value| {
+        value
+            .as_str()
+            .is_some_and(|kind| native_kinds.contains(&kind))
+    });
+    // These optional fields are AXValue objects themselves. Limit nesting
+    // so a source cannot smuggle an unbounded private object graph into a
+    // structural role proof. Values are validated, never copied or logged.
+    let nested_valid = ["value", "attributeValue", "nativeSourceValue"]
+        .iter()
+        .all(|key| {
+            fields.get(*key).is_none_or(|value| {
+                depth
+                    .checked_sub(1)
+                    .is_some_and(|next| valid_ax_nested_value(value, next))
+            })
+        });
+    let valid = text_valid && boolean_valid && native_valid && nested_valid;
+    known_kind && known && valid
+}
+
+fn valid_ax_text(value: &Value) -> bool {
+    value.as_str().is_some_and(|text| text.len() <= 16_384)
+}
+
+fn valid_ax_nested_value(value: &Value, depth: usize) -> bool {
+    let Some(fields) = value.as_object() else {
+        return false;
+    };
+    let Some(kind) = fields.get("type").and_then(Value::as_str) else {
+        return false;
+    };
+    let allowed = ["type", "value", "relatedNodes", "sources"];
+    valid_ax_value_type(kind)
+        && fields.keys().all(|key| allowed.contains(&key.as_str()))
+        && valid_ax_scalar(kind, fields.get("value"))
+        && valid_ax_arrays_depth(fields, depth)
+}
+
+fn valid_ax_scalar(kind: &str, value: Option<&Value>) -> bool {
+    let text_kinds = ["string", "computedString", "role", "internalRole"];
+    match (kind, value) {
+        ("boolean", Some(raw)) => raw.is_boolean(),
+        ("integer", Some(raw)) => raw.as_i64().is_some(),
+        ("number", Some(raw)) => raw.is_number(),
+        (_, Some(raw)) if text_kinds.contains(&kind) => raw.is_string(),
+        _ => true,
+    }
 }
 
 // CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.

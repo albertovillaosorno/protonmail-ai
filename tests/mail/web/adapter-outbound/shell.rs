@@ -236,6 +236,70 @@ fn unreviewed_accessibility_role_value_fields_cannot_prove_shell() {
 }
 
 #[test]
+fn malformed_accessibility_source_values_cannot_prove_shell() {
+    use serde_json::json;
+
+    for (label, source) in [
+        (
+            "attribute-number",
+            json!({"type":"attribute", "attribute":42i32}),
+        ),
+        (
+            "superseded-text",
+            json!({"type":"implicit", "superseded":"yes"}),
+        ),
+        ("invalid-null", json!({"type":"implicit", "invalid":null})),
+        (
+            "invalid-reason-object",
+            json!({"type":"implicit", "invalidReason":{}}),
+        ),
+        (
+            "unknown-native",
+            json!({"type":"implicit", "nativeSource":"future"}),
+        ),
+        ("value-number", json!({"type":"implicit", "value":3i32})),
+        (
+            "attribute-value-array",
+            json!({"type":"attribute", "attributeValue":[]}),
+        ),
+        (
+            "native-value-type",
+            json!({"type":"implicit", "nativeSourceValue":{"type":"future"}}),
+        ),
+        (
+            "nested-source-attribute",
+            json!({
+                "type":"implicit", "value":{
+                    "type":"string",
+                    "sources":[{"type":"attribute", "attribute":7i32}]
+                }
+            }),
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false,
+            "nodeId":"ax-navigation",
+            "role":{"type":"role", "value":"navigation", "sources":[source]}
+        }])
+        .to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "malformed optional AXValueSource: {label}"
+        );
+    }
+}
+
+#[test]
 fn oversized_accessibility_role_arrays_cannot_prove_shell() {
     let oversized = format!("[{}]", vec!["null"; 257].join(","));
     for field in ["relatedNodes", "sources"] {
@@ -270,7 +334,12 @@ fn documented_optional_accessibility_role_arrays_remain_compatible() {
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
         r#""role":{"type":"role","value":"__AX_ROLE__","#,
         r#""relatedNodes":[{"backendDOMNodeId":3}],"#,
-        r#""sources":[{"type":"implicit"}]}}]"#
+        r#""sources":[{"type":"attribute","attribute":"aria-label","#,
+        r#""attributeValue":{"type":"string","value":"test"},"#,
+        r#""nativeSource":"description","superseded":false,"#,
+        r#""value":{"type":"nodeList","relatedNodes":["#,
+        r#"{"backendDOMNodeId":7}]},"#,
+        r#""invalid":false,"invalidReason":"none"}]}}]"#
     );
     let roles = RoleFixture {
         navigation,
@@ -377,6 +446,14 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
             String::from(concat!(
                 r#"[{"name":"notVisible","#,
                 r#""value":{"type":"boolean","sources":[{"type":"future"}]}}]"#
+            )),
+        ),
+        (
+            "reason-invalid-source-boolean",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","sources":[{"type":"implicit","#,
+                r#""invalid":"false"}]}}]"#
             )),
         ),
         ("ordinary-property-as-reason", reason("selected", "boolean")),
