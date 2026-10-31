@@ -89,9 +89,7 @@ impl SanitizedAttachmentFilename {
             safe.push(mapped);
         }
 
-        while safe.ends_with([' ', '.']) {
-            safe.pop();
-        }
+        trim_filename_suffix(&mut safe);
         if safe.is_empty() {
             safe.push_str(FALLBACK_ATTACHMENT_FILENAME);
         }
@@ -108,9 +106,7 @@ impl SanitizedAttachmentFilename {
             safe.insert(0, '_');
             // The byte removed for the prefix can expose an earlier trailing
             // dot or space, even though the original leaf was already trimmed.
-            while safe.ends_with([' ', '.']) {
-                safe.pop();
-            }
+            trim_filename_suffix(&mut safe);
         }
         Self(safe)
     }
@@ -305,6 +301,15 @@ fn reserved_numbered_device(stem: &str, prefix: &str) -> bool {
         })
 }
 
+// Removing a private UTF-8 suffix only by pop/truncate leaves its bytes in
+// String capacity, outside the live length that Drop::zeroize later erases.
+// Zeroize the removed span with volatile writes before changing length.
+// Its bytes remain addressable as a mutable UTF-8 substring until then.
+fn trim_filename_suffix(value: &mut String) {
+    let retained = value.trim_end_matches([' ', '.']).len();
+    truncate_utf8(value, retained);
+}
+
 fn truncate_utf8(value: &mut String, maximum_bytes: usize) {
     if value.len() <= maximum_bytes {
         return;
@@ -313,5 +318,9 @@ fn truncate_utf8(value: &mut String, maximum_bytes: usize) {
     while !value.is_char_boundary(boundary) {
         boundary = boundary.saturating_sub(1);
     }
+    value
+        .get_mut(boundary..)
+        .expect("truncation index is a checked UTF-8 boundary")
+        .zeroize();
     value.truncate(boundary);
 }

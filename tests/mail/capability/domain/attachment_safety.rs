@@ -174,6 +174,27 @@ fn reserved_filename_prefixing_preserves_the_byte_ceiling() {
 }
 
 #[test]
+fn sanitization_discards_private_suffix_without_changing_visible_leaf() {
+    for (input, expected) in [
+        ("report.txt.  ", "report.txt"),
+        ("report.txt   ", "report.txt"),
+        ("...", "attachment"),
+        ("CON.  ", "_CON"),
+        ("COM1.  ", "_COM1"),
+    ] {
+        assert_eq!(SanitizedAttachmentFilename::new(input).as_str(), expected);
+    }
+    // The reserved-device prefix reduces the 255-byte input allowance by
+    // one. The final four-byte emoji must be scrubbed before truncation.
+    let stem = "x".repeat(247);
+    let name = format!("CON.{stem}\u{1f680}");
+    assert_eq!(name.len(), MAX_ATTACHMENT_FILENAME_BYTES);
+    let safe = SanitizedAttachmentFilename::new(&name);
+    assert_eq!(safe.as_str(), format!("_CON.{stem}"));
+    assert!(safe.as_str().len() <= MAX_ATTACHMENT_FILENAME_BYTES);
+}
+
+#[test]
 fn reserved_name_prefixing_never_reintroduces_trailing_dots_or_spaces() {
     for device in ["CON.", "LPT1.", "NUL."] {
         for suffix in ['.', ' '] {
