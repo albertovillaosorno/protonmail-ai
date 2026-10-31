@@ -2262,3 +2262,8 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first synthetic Network GET lifecycles previously completed as a normal
   initial batch. The observer now ignores these recovery-range responses,
   preserving normal initial and continuation pagination without body reads.
+
+- Message-list captures now reject repeated scalar `Keyword` and `Unread`
+  selectors before any request can become a tracked provider batch.
+  Red-first requests with conflicting scalar values were accepted previously;
+  multi-valued canonical `LabelID` continues to support ordered repeats.

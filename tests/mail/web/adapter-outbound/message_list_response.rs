@@ -1512,6 +1512,29 @@ fn message_list_body_envelope_rejects_unexpected_cdp_fields() {
 }
 
 #[test]
+fn duplicate_scalar_message_list_filters_cannot_be_batch_evidence() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (label, filters) in [
+        ("duplicate-keyword", "Keyword=a&Keyword=b"),
+        ("duplicate-unread", "Unread=1&Unread=0"),
+    ] {
+        let url = format!("{URL}&{filters}");
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let event = json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":label,"request":{"method":"GET","url":url}}
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "conflicting scalar filter {label} cannot prove a batch"
+        );
+    }
+}
+
+#[test]
 fn case_aliased_message_filter_keys_cannot_enter_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

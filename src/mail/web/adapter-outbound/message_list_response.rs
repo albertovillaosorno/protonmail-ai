@@ -39,6 +39,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::hash::BuildHasher as _;
+use std::mem::replace;
 
 use crate::driver::safe_cdp_request_id;
 use crate::opaque_read_id::safe_read_id;
@@ -624,8 +625,20 @@ fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkEr
     // but their wire spelling cannot change. Case-aliased names may collapse
     // into an ambiguous effective filter after provider query parsing.
     if let Some((_path, query)) = url.split_once('?') {
+        let mut keyword_seen = false;
+        let mut unread_seen = false;
         for pair in query.split('&') {
             let key = pair.split_once('=').map_or(pair, |(key, _value)| key);
+            // LabelID intentionally supports multiple values, but Keyword
+            // and Unread are scalar selectors with one unambiguous value.
+            let repeated_scalar = match key {
+                "Keyword" => replace(&mut keyword_seen, true),
+                "Unread" => replace(&mut unread_seen, true),
+                _ => false,
+            };
+            if repeated_scalar {
+                return Err(MessageListNetworkError::MalformedEvent);
+            }
             if ["LabelID", "Keyword", "Unread"]
                 .iter()
                 .any(|known| known.eq_ignore_ascii_case(key) && *known != key)
