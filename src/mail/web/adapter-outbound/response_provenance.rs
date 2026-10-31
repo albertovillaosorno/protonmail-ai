@@ -142,6 +142,13 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     reason = "private sibling read observers share one provenance predicate"
 )]
 pub(super) fn uncached_provider_response(response: &Value) -> bool {
+    response.as_object().is_some_and(uncached_source_fields)
+}
+
+// Interpret source/security markers consistently in the response metadata
+// and in the enclosing CDP event. Otherwise contradictory explicit origin
+// flags at the event level could silently authorize a passive read.
+fn uncached_source_fields(fields: &serde_json::Map<String, Value>) -> bool {
     let source_flags = [
         "fromDiskCache",
         "fromServiceWorker",
@@ -153,9 +160,6 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
         "cacheStorageCacheName",
         "serviceWorkerRouterInfo",
     ];
-    let Some(fields) = response.as_object() else {
-        return false;
-    };
     // Future CDP releases may introduce cache/SW or security-state markers.
     // Check markers anywhere in the name: an extension such as `isCached`
     // or `responseSource` is ambiguous even though it does not start with a
@@ -227,6 +231,7 @@ pub(super) fn direct_cdp_read_response(event: &Value) -> bool {
         Some(_) => false,
     };
     normal_type
+        && uncached_source_fields(params)
         && params
             .get("response")
             .is_some_and(uncached_provider_response)

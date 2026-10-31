@@ -489,6 +489,19 @@ web application without requiring Bridge or a third-party direct API identity.
   omitted legacy hints. This does not claim that request and response types
   are byte-for-byte identical, or prove an absent hint from browser metadata.
 
+## Reject response-event origin metadata contradictions
+
+- A red-first synthetic message-list HTTP-200 response with
+  `params.fromDiskCache:true` and `response.fromDiskCache:false` previously
+  passed as a direct provider read. The shared passive response gate now
+  applies the same bounded cache, service-worker, and security-source rules
+  to event-level fields before examining the response object.
+
+- Tests also reject unknown event-level cache/source marker extensions and
+  preserve ordinary response metadata without reading private content.
+  All eight read observers inherit the shared gate. This does not infer a
+  network source when the optional CDP metadata is absent.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

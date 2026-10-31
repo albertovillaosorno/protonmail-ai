@@ -1976,3 +1976,29 @@ fn speculative_response_type_cannot_prove_mail_message_read() {
         assert_eq!(capture.observe(&response), Ok(()));
     }
 }
+
+#[test]
+fn event_level_cache_notice_cannot_prove_message_list_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let request = json!({
+        "sessionId": "session-1", "method": "Network.requestWillBeSent",
+        "params": {"requestId": "cached-params-list", "type": "Fetch",
+            "request": {"method": "GET", "url": URL}}
+    });
+    assert_eq!(capture.observe(&request), Ok(()));
+    let response = json!({
+        "sessionId": "session-1", "method": "Network.responseReceived",
+        "params": {"requestId": "cached-params-list", "type": "Fetch",
+            "fromDiskCache": true,
+            "response": {"url": URL, "status": 200u16,
+                "mimeType": "application/json", "fromDiskCache": false}}
+    });
+    assert_eq!(
+        capture.observe(&response),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}

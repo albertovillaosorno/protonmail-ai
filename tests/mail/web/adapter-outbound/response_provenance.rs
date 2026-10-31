@@ -362,3 +362,30 @@ fn response_event_resource_type_must_be_a_known_active_read() {
         assert!(!direct_cdp_read_response(&event));
     }
 }
+
+#[test]
+fn response_event_level_source_markers_cannot_override_direct_http() {
+    let ordinary = json!({
+        "params": {"requestId": "synthetic", "type": "Fetch",
+            "response": {"url": "https://mail.proton.me/api/mail/v4/messages",
+                "status": 200u16, "mimeType": "application/json",
+                "fromDiskCache": false, "fromServiceWorker": false}}
+    });
+    assert!(direct_cdp_read_response(&ordinary));
+    for (name, value) in [
+        ("fromDiskCache", json!(true)),
+        ("fromServiceWorker", json!(true)),
+        ("fromPrefetchCache", json!(true)),
+        ("serviceWorkerResponseSource", json!("network")),
+        ("responseSource", json!("cache")),
+        ("isCached", json!(false)),
+        ("SecurityState", json!("insecure")),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"][name] = value;
+        assert!(
+            !direct_cdp_read_response(&event),
+            "event-level response provenance {name} cannot prove direct HTTP"
+        );
+    }
+}
