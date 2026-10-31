@@ -132,6 +132,14 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- The selected Mail or Account `TargetInfo` must contain only audited CDP
+  metadata fields. An unexpected future authority/lifecycle property must not
+  silently classify a provider page as the dedicated user-controlled tab.
+  Red-first synthetic browser replies cover both provider origins, preserve
+  standard optional title/attachment fields, reject malformed/oversized
+  title metadata without retaining its contents, and ignore unrelated worker
+  extensions without selecting them; no real account was accessed.
+
 - Root-page selection now refuses provider targets with CDP opener/parent/
   opener-frame relationships or affirmative/malformed opener access. A popup
   opened by a script is not equivalent to the dedicated visible Mail tab,

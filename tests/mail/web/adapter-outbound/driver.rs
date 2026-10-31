@@ -2253,6 +2253,41 @@ fn popup_or_child_provider_target_cannot_be_selected_as_root_page() {
 }
 
 #[test]
+fn unexpected_provider_target_metadata_cannot_establish_selected_page() {
+    use serde_json::json;
+    for (label, extra) in [
+        ("unknown-field", json!({"futureOwnerContext":"unreviewed"})),
+        ("null-title", json!({"title":null})),
+        ("numeric-title", json!({"title":7u8})),
+        ("oversized-title", json!({"title":"x".repeat(16_385)})),
+    ] {
+        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+            let root = test_root(&format!("{kind}-{label}-target-metadata"));
+            fs::create_dir_all(&root).expect("create synthetic root");
+            let mut target = json!({
+                "targetId":"provider-1", "type":"page",
+                "url":format!("https://{host}/u/0/inbox"),
+                "attached":false, "title":"Synthetic provider"
+            });
+            target
+                .as_object_mut()
+                .expect("fixture object")
+                .extend(extra.as_object().expect("metadata object").clone());
+            let browser = fake_browser(&root, &json!([target]).to_string(), host);
+            let browser_plan = plan(&root, &browser);
+            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            assert_eq!(
+                managed.provider_page(),
+                Err(BrowserDriverError::Protocol),
+                "{kind} target with {label} metadata must not be selected"
+            );
+            drop(managed);
+            cleanup(&root);
+        }
+    }
+}
+
+#[test]
 fn ordinary_provider_page_allows_empty_optional_subtype() {
     use serde_json::json;
     let root = test_root("normal-page-empty-subtype");
@@ -2260,7 +2295,7 @@ fn ordinary_provider_page_allows_empty_optional_subtype() {
     let targets = json!([{
         "targetId":"mail-1", "type":"page",
         "url":"https://mail.proton.me/u/0/inbox", "subtype":"",
-        "canAccessOpener":false
+        "canAccessOpener":false, "attached":false, "title":"Synthetic provider"
     }]);
     let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
     let browser_plan = plan(&root, &browser);
@@ -2473,7 +2508,7 @@ fn unrelated_well_typed_browser_targets_remain_ignorable() {
     let root = test_root("well-typed-other-targets");
     fs::create_dir_all(&root).expect("create fake browser profile");
     let targets = json!([
-        {"type":"service_worker","targetId":"worker-0"},
+        {"type":"service_worker","targetId":"worker-0","futureMetadata":"ignored"},
         {"type":"shared_worker","targetId":"worker-1"},
         // jig-ignore-next-line: canonical rustfmt line.
         {"targetId":"mail-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}

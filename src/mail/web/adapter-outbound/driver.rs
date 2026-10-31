@@ -4935,6 +4935,38 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
     if origin == PageOrigin::Other {
         return Ok(None);
     }
+    // Only audited TargetInfo properties may establish a trusted provider
+    // tab. A new browser field could change ownership or lifecycle meaning;
+    // refuse it rather than silently treating this page as ordinary.
+    let allowed_target_fields = [
+        "type",
+        "targetId",
+        "title",
+        "url",
+        "attached",
+        "openerId",
+        "canAccessOpener",
+        "openerFrameId",
+        "browserContextId",
+        "subtype",
+        "parentId",
+    ];
+    if info.as_object().is_none_or(|fields| {
+        fields
+            .keys()
+            .any(|field| !allowed_target_fields.contains(&field.as_str()))
+    }) {
+        return Err(BrowserDriverError::Protocol);
+    }
+    // The tab title is not read or retained, but a malformed or unbounded
+    // title still invalidates the browser's selected TargetInfo envelope.
+    if info.get("title").is_some_and(|title| {
+        title
+            .as_str()
+            .is_none_or(|text| text.len() > MAX_TARGET_URL_BYTES)
+    }) {
+        return Err(BrowserDriverError::Protocol);
+    }
     // CDP can classify a `page` as a prerendered or otherwise special
     // target through its optional subtype. Such a target is not proof of
     // the visible user-controlled tab, even when its origin matches.
