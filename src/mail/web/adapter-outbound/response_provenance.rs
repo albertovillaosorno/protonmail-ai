@@ -126,6 +126,14 @@ fn read_api_cdp_resource_type(kind: &str) -> bool {
     matches!(kind, "XHR" | "Fetch")
 }
 
+// A browser-request purpose header is not proof of an active Mail AJAX
+// fetch, even when ResourceType has the ordinary Fetch/XHR classification.
+const fn speculative_purpose_header(name: &str) -> bool {
+    let legacy = name.eq_ignore_ascii_case("Purpose");
+    let current = name.eq_ignore_ascii_case("Sec-Purpose");
+    legacy || current
+}
+
 // A speculative preload or prefetch can fetch an endpoint and return 200
 // without the active Mail view requesting those records. Chromium reports
 // these separately in Request, requestWillBeSent resource type and initiator.
@@ -147,6 +155,16 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         request.get("isLinkPreload"),
         None | Some(Value::Bool(false))
     );
+    // Browsers also identify speculative requests with purpose headers.
+    // Reject the header itself regardless of value: a future purpose token
+    // cannot silently establish active Mail API read evidence.
+    let normal_purpose = match request.get("headers") {
+        None => true,
+        Some(Value::Object(headers)) => {
+            !headers.keys().any(|name| speculative_purpose_header(name))
+        }
+        Some(_) => false,
+    };
     // CDP resource and initiator types are closed enums, not arbitrary text.
     // Browser navigations and resource fetches cannot prove Mail API reads.
     // In particular, unknown, speculative, or FedCM types fail closed.
@@ -185,7 +203,8 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         }
         Some(_) => false,
     };
-    normal_link && normal_resource && normal_initiator && normal_document
+    let request_active = normal_link && normal_purpose && normal_resource;
+    request_active && normal_initiator && normal_document
 }
 
 // Browser source flags may be absent on some CDP versions, but present values

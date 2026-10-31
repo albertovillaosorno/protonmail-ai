@@ -233,6 +233,33 @@ fn only_explicitly_bodyless_cdp_requests_can_prove_read_only_get() {
 }
 
 #[test]
+fn explicitly_speculative_header_hints_cannot_prove_active_mail_fetches() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Accept": "application/json"},
+            "isLinkPreload": false},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(bodyless_cdp_get(&ordinary["params"]["request"]));
+    assert!(non_speculative_cdp_get(&ordinary));
+    for (header, value) in [
+        ("Purpose", "prefetch"),
+        ("purpose", "prefetch"),
+        ("Sec-Purpose", "prefetch"),
+        ("sec-purpose", "prefetch;prerender"),
+        ("SEC-PURPOSE", "future-purpose"),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"][header] = json!(value);
+        assert!(bodyless_cdp_get(&event["params"]["request"]));
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "speculative purpose header {header} cannot prove active read"
+        );
+    }
+}
+
+#[test]
 fn speculative_browser_gets_cannot_establish_active_read_provenance() {
     let ordinary = json!({
         "params":{"request":{"method":"GET","isLinkPreload":false},

@@ -2430,3 +2430,11 @@ web application without requiring Bridge or a third-party direct API identity.
   and unique case-insensitive zero `Content-Length`; missing headers and
   ordinary GET headers remain supported. This covers all eight passive read
   paths without retaining header content or using a live browser or account.
+
+- Passive Mail API GET capture now rejects browser-provided `Purpose` and
+  `Sec-Purpose` request headers regardless of reported fetch resource type.
+  A red-first synthetic `Fetch` GET marked `Sec-Purpose: prefetch` previously
+  counted as active Mail list evidence despite an explicit speculative hint.
+  The common guard now rejects legacy and current purpose headers without
+  inspecting, retaining, or logging their values. Ordinary AJAX GETs remain
+  supported, and no live account or browser was accessed.
