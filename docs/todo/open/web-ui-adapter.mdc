@@ -2445,3 +2445,10 @@ web application without requiring Bridge or a third-party direct API identity.
   synthetic requests with a false canonical flag and a true aliased flag
   previously entered message-list capture. Regular documented GET requests
   and their optional absent flags remain compatible; no live mailbox used.
+
+- Speculative CDP hints in the enclosing `requestWillBeSent` parameters and
+  nested initiator metadata also fail closed, not just hints in `Request`.
+  Red-first synthetic `isPrefetch` and `wasPreloaded` event/initiator fields
+  previously qualified as active Mail JSON GETs despite a normal `Fetch`
+  classification. The shared predicate refuses ambiguous fields without
+  retaining event metadata or contacting any provider.

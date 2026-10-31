@@ -233,6 +233,34 @@ fn only_explicitly_bodyless_cdp_requests_can_prove_read_only_get() {
 }
 
 #[test]
+fn speculative_event_and_initiator_aliases_cannot_prove_active_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET", "isLinkPreload": false},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for (kind, name, value) in [
+        ("event", "isPrefetch", json!(true)),
+        ("event", "wasPreloaded", json!(false)),
+        ("event", "prerenderHint", json!(null)),
+        ("initiator", "isPrefetch", json!(true)),
+        ("initiator", "wasPreloaded", json!(false)),
+        ("initiator", "speculativeHint", json!(false)),
+    ] {
+        let mut event = ordinary.clone();
+        if kind == "event" {
+            event["params"][name] = value;
+        } else {
+            event["params"]["initiator"][name] = value;
+        }
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "unreviewed speculative {kind} field {name} must fail closed"
+        );
+    }
+}
+
+#[test]
 fn unreviewed_request_speculation_markers_cannot_prove_active_mail_get() {
     let ordinary = json!({
         "params": {"request": {"method": "GET", "isLinkPreload": false},

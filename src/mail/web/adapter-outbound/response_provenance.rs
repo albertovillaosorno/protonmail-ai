@@ -155,6 +155,10 @@ fn unreviewed_speculation_field(name: &str) -> bool {
     })
 }
 
+fn unreviewed_event_speculation_field(name: &str) -> bool {
+    name == "isLinkPreload" || unreviewed_speculation_field(name)
+}
+
 // A speculative preload or prefetch can fetch an endpoint and return 200
 // without the active Mail view requesting those records. Chromium reports
 // these separately in Request, requestWillBeSent resource type and initiator.
@@ -179,6 +183,11 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     let normal_hints = !request
         .keys()
         .any(|field| unreviewed_speculation_field(field));
+    // The enclosing event and initiator can also carry speculative metadata.
+    // Only the Request object owns the documented isLinkPreload marker.
+    let normal_event_hints = !params
+        .keys()
+        .any(|field| unreviewed_event_speculation_field(field));
     // Browsers also identify speculative requests with purpose headers.
     // Reject the header itself regardless of value: a future purpose token
     // cannot silently establish active Mail API read evidence.
@@ -199,10 +208,16 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     };
     let normal_initiator = match params.get("initiator") {
         None => true,
-        Some(Value::Object(initiator)) => matches!(
-            initiator.get("type").and_then(Value::as_str),
-            Some("parser" | "script" | "SignedExchange" | "other")
-        ),
+        Some(Value::Object(initiator)) => {
+            let normal_type = matches!(
+                initiator.get("type").and_then(Value::as_str),
+                Some("parser" | "script" | "SignedExchange" | "other")
+            );
+            let normal_hints = !initiator
+                .keys()
+                .any(|field| unreviewed_event_speculation_field(field));
+            normal_type && normal_hints
+        }
         Some(_) => false,
     };
     // documentURL is the requesting document, not the API URL. Binding an
@@ -228,7 +243,8 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         Some(_) => false,
     };
     let request_active = normal_link && normal_hints && normal_purpose;
-    request_active && normal_resource && normal_initiator && normal_document
+    let event_active = normal_event_hints && normal_resource;
+    request_active && event_active && normal_initiator && normal_document
 }
 
 // Browser source flags may be absent on some CDP versions, but present values
