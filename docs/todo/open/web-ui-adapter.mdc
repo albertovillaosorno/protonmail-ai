@@ -463,6 +463,19 @@ web application without requiring Bridge or a third-party direct API identity.
   therefore cannot prove main-frame ownership for omitted hints or same-origin
   subframes. No request URLs or message content are persisted by the guard.
 
+## Refuse unknown or non-read CDP request classifications
+
+- A red-first message-list GET with ResourceType `FedCM` or lowercase
+  `prefetch` previously passed as a normal active read. Shared CDP request
+  provenance now permits only reviewed non-speculative ResourceType enum
+  values and denies preload, preflight, federated-auth, and unknown types.
+
+- Request initiator types also use exact reviewed enum values, not a denylist
+  that overlooks `Preload` case aliases or future initiator classes. Synthetic
+  tests preserve `Fetch`, `XHR`, ordinary `script`/`parser`, and missing legacy
+  metadata. All eight read observers share this rule without retaining the
+  URL, headers, or request body.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

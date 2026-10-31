@@ -69,23 +69,38 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         request.get("isLinkPreload"),
         None | Some(Value::Bool(false))
     );
+    // CDP resource and initiator types are closed enums, not arbitrary text.
+    // In particular, unknown spellings or future fetch types cannot prove
+    // active reads, and FedCM belongs to authentication, not mailbox access.
     let normal_resource = match params.get("type") {
         None => true,
-        Some(Value::String(kind)) => {
-            let speculative = ["Prefetch", "Preflight"];
-            !speculative.contains(&kind.as_str())
-        }
+        Some(Value::String(kind)) => matches!(
+            kind.as_str(),
+            "Document"
+                | "Stylesheet"
+                | "Image"
+                | "Media"
+                | "Font"
+                | "Script"
+                | "TextTrack"
+                | "XHR"
+                | "Fetch"
+                | "EventSource"
+                | "WebSocket"
+                | "Manifest"
+                | "SignedExchange"
+                | "Ping"
+                | "CSPViolationReport"
+                | "Other"
+        ),
         Some(_) => false,
     };
     let normal_initiator = match params.get("initiator") {
         None => true,
-        Some(Value::Object(initiator)) => match initiator.get("type") {
-            Some(Value::String(kind)) => {
-                let speculative = ["preload", "preflight"];
-                !speculative.contains(&kind.as_str())
-            }
-            _ => false,
-        },
+        Some(Value::Object(initiator)) => matches!(
+            initiator.get("type").and_then(Value::as_str),
+            Some("parser" | "script" | "SignedExchange" | "other")
+        ),
         Some(_) => false,
     };
     // documentURL is the requesting document, not the API URL. Binding an

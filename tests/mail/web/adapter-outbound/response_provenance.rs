@@ -257,9 +257,15 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
         ("link", json!(null)),
         ("resource", json!("Prefetch")),
         ("resource", json!("Preflight")),
+        ("resource", json!("FedCM")),
+        ("resource", json!("prefetch")),
+        ("resource", json!("futureResource")),
         ("resource", json!(null)),
         ("initiator", json!({"type":"preload"})),
         ("initiator", json!({"type":"preflight"})),
+        ("initiator", json!({"type":"FedCM"})),
+        ("initiator", json!({"type":"Preload"})),
+        ("initiator", json!({"type":"futureInitiator"})),
         ("initiator", json!({"type":null})),
     ] {
         let mut event = ordinary.clone();
@@ -271,6 +277,17 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
             event["params"]["initiator"] = value;
         }
         assert!(!non_speculative_cdp_get(&event), "unsafe {field}");
+    }
+    for (resource, initiator) in [
+        ("Fetch", "script"),
+        ("XHR", "parser"),
+        ("Other", "other"),
+        ("Script", "SignedExchange"),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["type"] = json!(resource);
+        event["params"]["initiator"]["type"] = json!(initiator);
+        assert!(non_speculative_cdp_get(&event));
     }
 }
 

@@ -1858,7 +1858,11 @@ fn speculative_get_cannot_prove_message_list_read() {
         ("request.isLinkPreload", json!(null)),
         ("params.type", json!("Prefetch")),
         ("params.type", json!("Preflight")),
+        ("params.type", json!("FedCM")),
+        ("params.type", json!("prefetch")),
         ("params.initiator", json!({"type":"preload"})),
+        ("params.initiator", json!({"type":"Preload"})),
+        ("params.initiator", json!({"type":"FedCM"})),
         ("params.initiator", json!({"type":"preflight"})),
     ] {
         let mut event = json!({
