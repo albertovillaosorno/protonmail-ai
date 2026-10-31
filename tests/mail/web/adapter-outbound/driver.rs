@@ -1686,6 +1686,41 @@ fn contradictory_runtime_remote_type_cannot_prove_provider_origin() {
 }
 
 #[test]
+fn by_value_runtime_evidence_rejects_conflicting_remote_object_authority() {
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    for (label, extra) in [
+        ("runtime-remote-object-id", r#""objectId":"object-1","#),
+        (
+            "runtime-unserializable-value",
+            r#""unserializableValue":"NaN","#,
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_browser(&root, targets, "mail.proton.me");
+        let script = fs::read_to_string(&browser).expect("read fixture");
+        let remote_type = r#""type":"object","#;
+        assert!(script.contains(remote_type));
+        let contradictory = format!("{remote_type}{extra}");
+        let altered = script.replacen(remote_type, &contradictory, 1);
+        install_script(&browser, altered).expect("inject drift");
+        let browser_plan = plan(&root, &browser);
+        let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+        let page = driver.provider_page().expect("select Mail page");
+        assert_eq!(
+            driver.verify_provider_origin(&page),
+            Err(BrowserDriverError::Protocol),
+            "case {label} cannot prove an exact by-value origin"
+        );
+        drop(driver);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn maximal_safe_cdp_target_and_session_handles_work_without_log_exposure() {
     use serde_json::json;
     let root = test_root("maximal-browser-handles");

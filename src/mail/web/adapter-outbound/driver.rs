@@ -851,6 +851,15 @@ impl ManagedBrowser {
             .filter(|remote| remote.is_object())
             .ok_or(BrowserDriverError::Protocol)?;
         let value = remote.get("value").ok_or(BrowserDriverError::Protocol)?;
+        // By-value evidence cannot simultaneously be a remote object handle
+        // or an unserializable primitive. Such a reply has contradictory
+        // transport semantics, even if its embedded value looks plausible.
+        let has_remote_handle = remote.get("objectId").is_some();
+        // jig-ignore-next-line: canonical Rust method call and CDP field.
+        let has_unserializable_value = remote.get("unserializableValue").is_some();
+        if has_remote_handle || has_unserializable_value {
+            return Err(BrowserDriverError::Protocol);
+        }
         // Chromium's RemoteObject.type must agree with the returned by-value
         // JSON. A contradictory explicit type cannot authorize page evidence.
         // Some synthetic/older replies omit type; retain that compatibility.

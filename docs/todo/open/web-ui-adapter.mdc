@@ -66,6 +66,15 @@ web application without requiring Bridge or a third-party direct API identity.
   location script before checking protocol, hostname and port. This fails
   closed on runtime reply drift without accepting new origins or selectors.
 
+## Unambiguous by-value browser evidence
+
+- Red-first fake-Chromium replies proved that `Runtime.evaluate` accepted
+  an apparently valid location value alongside a conflicting CDP `objectId`
+  or `unserializableValue`. The read-only driver now rejects these mutually
+  exclusive RemoteObject representations before establishing trusted page
+  origin or using other UI evidence. Synthetic regressions cover both variants
+  without inspecting a live browser profile.
+
 ## Unambiguous mailbox-catalog cursor accounts
 
 - The browser-owned catalog continuation codec now applies the same bounded
