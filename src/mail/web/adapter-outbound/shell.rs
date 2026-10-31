@@ -173,24 +173,7 @@ fn visible_match<'role_nodes>(
                 return Err(());
             }
             for reason in reasons {
-                // Only documented hidden-reason AXProperty names and AXValue
-                // types may describe an ignored accessibility node.
-                let fields = reason.as_object().ok_or(())?;
-                let name = fields.get("name").and_then(Value::as_str);
-                let name = name.ok_or(())?;
-                let value = fields.get("value").and_then(Value::as_object);
-                let value = value.ok_or(())?;
-                let kind = value.get("type").and_then(Value::as_str).ok_or(())?;
-                if fields.len() != 2
-                    || !valid_ax_hidden_reason_name(name)
-                    || !valid_ax_value_type(kind)
-                    || value.keys().any(|field| {
-                        !matches!(
-                            field.as_str(),
-                            "type" | "value" | "relatedNodes" | "sources"
-                        )
-                    })
-                {
+                if !valid_ax_hidden_reason(reason) {
                     return Err(());
                 }
             }
@@ -222,6 +205,57 @@ fn valid_ax_role(role: Option<&Value>, expected_role: &str) -> bool {
         });
     let typed = kind == Some("role") && value == Some(expected_role);
     typed && known_fields && arrays_valid
+}
+
+// Type-check the reason property before an ignored AX node can participate
+// in shell classification. Do not copy or project its optional content.
+fn valid_ax_hidden_reason(reason: &Value) -> bool {
+    let Some(fields) = reason.as_object() else {
+        return false;
+    };
+    let name = fields.get("name").and_then(Value::as_str);
+    let Some(name) = name else {
+        return false;
+    };
+    let value_fields = fields.get("value").and_then(Value::as_object);
+    let Some(value_fields) = value_fields else {
+        return false;
+    };
+    let kind = value_fields.get("type").and_then(Value::as_str);
+    let Some(kind) = kind else {
+        return false;
+    };
+    let known = value_fields.keys().all(|field| {
+        matches!(
+            field.as_str(),
+            "type" | "value" | "relatedNodes" | "sources"
+        )
+    });
+    let max_nodes = MAX_AX_ROLE_MATCH_NODES;
+    let arrays_valid =
+        ["relatedNodes", "sources"]
+            .iter()
+            .all(|field| match value_fields.get(*field) {
+                None => true,
+                Some(Value::Array(entries)) => entries.len() <= max_nodes,
+                Some(_) => false,
+            });
+    let text_kinds = ["string", "computedString", "role", "internalRole"];
+    let string_kind = text_kinds.contains(&kind);
+    let scalar_valid = match (kind, value_fields.get("value")) {
+        ("boolean", Some(raw)) => raw.is_boolean(),
+        ("integer", Some(raw)) => raw.as_i64().is_some(),
+        ("number", Some(raw)) => raw.is_number(),
+        (_, Some(raw)) if string_kind => raw.is_string(),
+        _ => true,
+    };
+    fields.len() == 2
+        && name.len() <= 128
+        && valid_ax_hidden_reason_name(name)
+        && valid_ax_value_type(kind)
+        && known
+        && arrays_valid
+        && scalar_valid
 }
 
 // CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.

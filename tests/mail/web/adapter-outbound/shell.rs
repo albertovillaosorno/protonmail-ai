@@ -332,6 +332,34 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
             String::from(r#"[{"name":"notVisible"}]"#),
         ),
         ("overlarge-ignored-reasons", oversized),
+        (
+            "reason-boolean-as-text",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","value":"true"}}]"#
+            )),
+        ),
+        (
+            "reason-boolean-as-null",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","value":null}}]"#
+            )),
+        ),
+        (
+            "reason-sources-not-array",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","value":true,"sources":false}}]"#
+            )),
+        ),
+        (
+            "reason-related-nodes-not-array",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","value":true,"relatedNodes":{}}}]"#
+            )),
+        ),
         ("ordinary-property-as-reason", reason("selected", "boolean")),
         ("unknown-ignored-reason", reason("futureReason", "boolean")),
         (

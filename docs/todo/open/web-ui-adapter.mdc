@@ -105,6 +105,16 @@ web application without requiring Bridge or a third-party direct API identity.
   extensions fail closed. Valid normal hidden reasons remain compatible and
   accessible names are still not projected into Mail-shell evidence.
 
+## Reject contradictory accessibility reason value types
+
+- Red-first synthetic AX replies showed ignored nodes could report boolean
+  reasons as strings or null, and optional source/related-node collections as
+  non-array values, without causing a protocol failure. The classifier now
+  checks common scalar AXValue payload types and bounds optional arrays as
+  well as the previously audited names and type enums. Valid hidden boolean
+  reasons and legitimate structural roles remain accepted without displaying
+  or retaining their private attributes.
+
 ## Require coherent accessibility node relationships
 
 - Red-first fake-browser roles could prove Mail shell readiness even when
