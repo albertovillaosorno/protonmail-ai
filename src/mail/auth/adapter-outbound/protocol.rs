@@ -36,7 +36,7 @@ use std::fmt;
 use std::mem::take;
 
 use aes_gcm::aead::consts::{U12, U16};
-use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
+use aes_gcm::aead::{AeadInOut, KeyInit as _, Nonce as CipherNonce};
 use aes_gcm::aes::Aes256;
 use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
@@ -948,14 +948,7 @@ fn decrypt_legacy(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
     let parsed_nonce = Nonce::<U16>::try_from(nonce);
     let invalid = ProtocolError::InvalidEncryptedPayload;
     let nonce = parsed_nonce.map_err(|_nonce| invalid)?;
-    let input = Payload {
-        msg: ciphertext,
-        aad,
-    };
-    cipher
-        .decrypt(&nonce, input)
-        .map(Zeroizing::new)
-        .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)
+    decrypt_into_guarded(&cipher, &nonce, aad, ciphertext)
 }
 
 fn decrypt_standard(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
@@ -968,14 +961,26 @@ fn decrypt_standard(key: &[u8; 32], payload: &[u8], aad: &[u8]) -> PlainResult {
     let parsed_nonce = Nonce::<U12>::try_from(nonce);
     let invalid = ProtocolError::InvalidEncryptedPayload;
     let nonce = parsed_nonce.map_err(|_nonce| invalid)?;
-    let input = Payload {
-        msg: ciphertext,
-        aad,
-    };
+    decrypt_into_guarded(&cipher, &nonce, aad, ciphertext)
+}
+
+// Never allocate decrypted fork key material in an ordinary Vec. The
+// in-place AEAD operation owns its output inside zeroizing storage even when
+// the authentication tag fails or leaves partially mutated bytes behind.
+fn decrypt_into_guarded<C>(
+    cipher: &C,
+    nonce: &CipherNonce<C>,
+    aad: &[u8],
+    ciphertext: &[u8],
+) -> PlainResult
+where
+    C: AeadInOut,
+{
+    let mut plaintext = Zeroizing::new(ciphertext.to_vec());
     cipher
-        .decrypt(&nonce, input)
-        .map(Zeroizing::new)
-        .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)
+        .decrypt_in_place(nonce, aad, &mut *plaintext)
+        .map_err(|_error| ProtocolError::PayloadAuthenticationFailed)?;
+    Ok(plaintext)
 }
 
 #[cfg(test)]

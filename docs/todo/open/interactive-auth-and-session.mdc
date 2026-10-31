@@ -76,6 +76,12 @@ account credentials. The primary web UI login remains a separate P1 path.
 
 ## Sensitive diagnostics boundary
 
+- Both synthetic fork-payload decoder layouts now decrypt AES-GCM bytes
+  directly into zeroizing memory, including authentication-failure paths.
+  Legacy V1/V2 and current V3 nonces retain their distinct layouts and AAD.
+  Type-checked synthetic valid/tampered fixtures and existing end-to-end
+  payload tests preserve decoding while never exposing raw key material.
+
 - Offline red-first session-fork regression tests demonstrated that `Debug`
   exposed the approval selector via `ForkChallenge` and dynamic poll-request
   paths, the human approval code via `ForkChallenge` and `TargetHandoff`,

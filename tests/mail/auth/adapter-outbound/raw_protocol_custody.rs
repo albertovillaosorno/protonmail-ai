@@ -38,6 +38,62 @@ fn requires_zeroizing_string(_: &Zeroizing<String>) {}
 fn requires_zeroizing_scopes(_: &Zeroizing<Vec<String>>) {}
 
 #[test]
+fn legacy_and_current_fork_aead_decrypt_into_guarded_plaintext() {
+    use super::{LegacyAes256Gcm, decrypt_into_guarded};
+    use aes_gcm::aead::consts::{U12, U16};
+    use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
+    use aes_gcm::{Aes256Gcm, Nonce};
+
+    let key = [7u8; 32];
+    let plaintext = b"synthetic-private-key-password";
+    let current = Aes256Gcm::new_from_slice(&key).expect("current cipher");
+    let current_nonce_bytes = [3u8; 12];
+    let current_nonce =
+        // jig-ignore-next-line: canonical synthetic nonce.
+        Nonce::<U12>::try_from(current_nonce_bytes.as_slice()).expect("current nonce");
+    let current_ciphertext = current
+        .encrypt(
+            &current_nonce,
+            Payload {
+                msg: plaintext,
+                aad: b"fork",
+            },
+        )
+        .expect("synthetic ciphertext");
+    let opened: Zeroizing<Vec<u8>> =
+        // jig-ignore-next-line: canonical guarded authenticated decryption.
+        decrypt_into_guarded(&current, &current_nonce, b"fork", &current_ciphertext)
+            .expect("current authenticated plaintext");
+    assert_eq!(opened.as_slice(), plaintext);
+    let mut tampered = current_ciphertext;
+    tampered[0] ^= 1;
+    // jig-ignore-next-line: canonical tampered authenticated decryption.
+    assert!(decrypt_into_guarded(&current, &current_nonce, b"fork", &tampered).is_err());
+
+    let legacy = LegacyAes256Gcm::new_from_slice(&key).expect("legacy cipher");
+    let legacy_nonce_bytes = [4u8; 16];
+    // jig-ignore-next-line: canonical synthetic nonce.
+    let legacy_nonce = Nonce::<U16>::try_from(legacy_nonce_bytes.as_slice()).expect("legacy nonce");
+    let legacy_ciphertext = legacy
+        .encrypt(
+            &legacy_nonce,
+            Payload {
+                msg: plaintext,
+                aad: b"",
+            },
+        )
+        .expect("synthetic legacy ciphertext");
+    let opened: Zeroizing<Vec<u8>> =
+        decrypt_into_guarded(&legacy, &legacy_nonce, b"", &legacy_ciphertext)
+            .expect("legacy authenticated plaintext");
+    assert_eq!(opened.as_slice(), plaintext);
+    let mut tampered = legacy_ciphertext;
+    tampered[0] ^= 1;
+    // jig-ignore-next-line: canonical tampered authenticated decryption.
+    assert!(decrypt_into_guarded(&legacy, &legacy_nonce, b"", &tampered).is_err());
+}
+
+#[test]
 fn raw_anonymous_authority_and_challenge_fields_are_zeroizing() {
     let auth: RawAuth = serde_json::from_slice(
         br#"{
