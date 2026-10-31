@@ -30,6 +30,7 @@
 
 //! Checks guarded decryption for event continuation cursors.
 
+use super::frame_guarded_cursor_body;
 use super::{CURSOR_KEY_BYTES, CURSOR_NONCE_BYTES, decrypt_into_guarded};
 use super::{CURSOR_VERSION, MAX_ENCODED_CURSOR_BYTES};
 use super::{decode_guarded_token, encode_guarded_token, encrypt_into_guarded};
@@ -85,6 +86,21 @@ fn authenticated_encryption_never_copies_plaintext_to_unprotected_output() {
         // jig-ignore-next-line: canonical guarded decrypt assertion.
         decrypt_into_guarded(&cipher, &nonce, aad, &plaintext).expect("recover synthetic cursor");
     assert_eq!(opened.as_slice(), b"private synthetic event state");
+}
+
+#[test]
+fn sealed_cursor_token_body_is_scrubbed_on_drop() {
+    let nonce = [7u8; CURSOR_NONCE_BYTES];
+    let ciphertext = b"synthetic sealed continuation bytes";
+    let framed = frame_guarded_cursor_body(&nonce, ciphertext);
+    let body: Zeroizing<Vec<u8>> = framed.expect("guard cursor bytes");
+    assert_eq!(&body[..CURSOR_NONCE_BYTES], &nonce);
+    assert_eq!(&body[CURSOR_NONCE_BYTES..], ciphertext);
+    let encoded = encode_guarded_token("0123456789abcdef", &body);
+    let token = encoded.expect("encode guarded replayable token");
+    let encoded = token.rsplit_once('.').expect("framed cursor").1;
+    let decoded = decode_guarded_token(encoded).expect("decode test cursor");
+    assert_eq!(*decoded, *body);
 }
 
 #[test]

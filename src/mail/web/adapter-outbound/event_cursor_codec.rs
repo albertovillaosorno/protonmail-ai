@@ -72,6 +72,23 @@ fn decode_guarded_token(encoded: &str) -> Result<Zeroizing<Vec<u8>>, WebEventCur
     Ok(decoded)
 }
 
+// Nonce plus sealed continuation state forms a replayable capability even
+// before base64 encoding. Keep that temporary token body scrub-on-drop on
+// success and on any later encoding failure.
+fn frame_guarded_cursor_body(
+    nonce: &[u8; CURSOR_NONCE_BYTES],
+    ciphertext: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, WebEventCursorCodecError> {
+    let capacity = nonce
+        .len()
+        .checked_add(ciphertext.len())
+        .ok_or(WebEventCursorCodecError::EncodingFailed)?;
+    let mut body = Zeroizing::new(Vec::with_capacity(capacity));
+    body.extend_from_slice(nonce);
+    body.extend_from_slice(ciphertext);
+    Ok(body)
+}
+
 // Preflight the complete public cursor length before allocating an encoded
 // bearer token. Base64 appends directly into exactly pre-sized guarded text.
 fn encode_guarded_token(
@@ -181,12 +198,7 @@ impl WebEventCursorCodec {
         let aad = cursor_aad(generation)?;
         encrypt_into_guarded(&cipher, &nonce, &aad, &mut payload_bytes)
             .map_err(|_error| WebEventCursorCodecError::EncodingFailed)?;
-        let capacity = CURSOR_NONCE_BYTES
-            .checked_add(payload_bytes.len())
-            .ok_or(WebEventCursorCodecError::EncodingFailed)?;
-        let mut body = Vec::with_capacity(capacity);
-        body.extend_from_slice(&nonce_bytes);
-        body.extend_from_slice(&payload_bytes);
+        let body = frame_guarded_cursor_body(&nonce_bytes, &payload_bytes)?;
         // The token itself is a resumable capability. Avoid an unguarded
         // intermediate base64 String and keep rejected output scrub-on-drop.
         // The successful allocation transfers directly to the caller.
