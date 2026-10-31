@@ -31,7 +31,7 @@
 //! Translation-independent Proton Mail shell evidence.
 
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 const MAX_AX_ROLE_MATCH_NODES: usize = 256;
 const MAX_AX_BACKEND_NODE_ID: u64 = 2_147_483_647;
@@ -48,7 +48,7 @@ pub struct MailShellEvidence {
 // Relationship data is borrowed only for shell classification, never returned.
 #[derive(Default)]
 struct AxGraph<'nodes> {
-    ids: HashSet<&'nodes str>,
+    ids: BTreeSet<&'nodes str>,
     parents: BTreeMap<&'nodes str, &'nodes str>,
     child_owners: BTreeMap<&'nodes str, &'nodes str>,
 }
@@ -199,11 +199,13 @@ fn ax_visible<'role_nodes>(
     Ok(any_visible)
 }
 
-// Parent IDs can point to role nodes seen in a different query reply.
+// Parent IDs and child IDs can point across role-filtered query replies.
 // Each local node may look valid even when those responses jointly claim a
-// circular accessibility tree or conflicting child ownership. Only explicit
-// edges are considered; missing nodes are ordinary for role-filtered queries.
-// At most 4 * 256 role nodes are examined; no private AX text is retained.
+// circular accessibility tree or conflicting ownership. Treat both kinds of
+// edge as one child-to-parent graph; an explicit parent and child owner must
+// agree. Every cycle includes an observed node because unobserved nodes cannot
+// report their own edges. Only 4 * 256 observed starts need to be traversed.
+// No private accessibility text is retained.
 fn valid_ax_parent_graph(graph: &AxGraph<'_>) -> bool {
     for (child, owner) in &graph.child_owners {
         if graph
@@ -214,10 +216,15 @@ fn valid_ax_parent_graph(graph: &AxGraph<'_>) -> bool {
             return false;
         }
     }
-    for &start in graph.parents.keys() {
+    for &start in &graph.ids {
         let mut visited = BTreeSet::new();
         let mut current = start;
-        while let Some(parent) = graph.parents.get(current).copied() {
+        while let Some(parent) = graph
+            .parents
+            .get(current)
+            .or_else(|| graph.child_owners.get(current))
+            .copied()
+        {
             if !visited.insert(current) {
                 return false;
             }
