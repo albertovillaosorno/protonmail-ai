@@ -73,10 +73,19 @@ enum MessageDetailRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct TrackedMessageDetailRequest {
     state: MessageDetailRequestState,
     message_id: Zeroizing<String>,
+}
+
+impl fmt::Debug for TrackedMessageDetailRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedMessageDetailRequest")
+            .field("state", &self.state)
+            .field("message_id", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Bounded CDP Network lifecycle state for exact single-message GETs.
@@ -943,3 +952,7 @@ fn network_request_id(event: &Value) -> Result<&str, MessageDetailNetworkError> 
         .and_then(Value::as_str)
         .ok_or(MessageDetailNetworkError::MalformedEvent)
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_message.rs"]
+mod private_request_diagnostics_tests;

@@ -66,13 +66,25 @@ enum ConversationListRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct TrackedConversationListRequest {
     state: ConversationListRequestState,
     url_fingerprint: [u64; 2],
     requested_page: Option<u32>,
     anchor_continuation: bool,
     initial_page_shape: bool,
+}
+
+impl fmt::Debug for TrackedConversationListRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedConversationListRequest")
+            .field("state", &self.state)
+            .field("url_fingerprint", &"<redacted>")
+            .field("requested_page", &self.requested_page)
+            .field("anchor_continuation", &self.anchor_continuation)
+            .field("initial_page_shape", &self.initial_page_shape)
+            .finish()
+    }
 }
 
 /// Bounded CDP lifecycle state for exact conversation-list GET requests.
@@ -811,3 +823,7 @@ fn validate_no_tasks_running(value: &Value) -> Result<(), ConversationListRespon
         Some(_) => Err(ConversationListResponseError::Malformed),
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_convo_list.rs"]
+mod private_request_diagnostics_tests;

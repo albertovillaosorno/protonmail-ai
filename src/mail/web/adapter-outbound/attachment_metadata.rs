@@ -64,10 +64,19 @@ enum AttachmentMetadataRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct TrackedAttachmentMetadataRequest {
     state: AttachmentMetadataRequestState,
     attachment_id: Zeroizing<String>,
+}
+
+impl Debug for TrackedAttachmentMetadataRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct("TrackedAttachmentMetadataRequest")
+            .field("state", &self.state)
+            .field("attachment_id", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Bounded CDP Network lifecycle state for exact attachment-metadata GETs.
@@ -710,3 +719,7 @@ fn bounded_optional_str<'source>(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_attach.rs"]
+mod private_request_diagnostics_tests;

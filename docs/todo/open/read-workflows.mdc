@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Private CDP request bookkeeping no longer derives unsanitized `Debug`
+  for message-list continuation anchors, message/conversation/attachment
+  identifiers, or per-capture URL fingerprints. Explicit implementations
+  retain only structural state and redact private fields before any accidental
+  diagnostic formatting. Red-first synthetic private-record tests prove an
+  event ID and a message anchor were previously emitted in their entirety.
+
 - Strict provider/browser JSON objects now reject repeated keys as soon as
   the repeated key is decoded, before parsing its value. A duplicate cannot
   induce parsing of a large or malformed nested value; the rejected key and

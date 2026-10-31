@@ -66,11 +66,21 @@ enum EventRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct TrackedEventRequest {
     state: EventRequestState,
     event_id: Zeroizing<String>,
     url_fingerprint: [u64; 2],
+}
+
+impl fmt::Debug for TrackedEventRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedEventRequest")
+            .field("state", &self.state)
+            .field("event_id", &"<redacted>")
+            .field("url_fingerprint", &"<redacted>")
+            .finish()
+    }
 }
 
 #[expect(
@@ -89,10 +99,19 @@ impl PartialEq for TrackedEventRequest {
 )]
 impl Eq for TrackedEventRequest {}
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct TrackedLatestEventRequest {
     state: EventRequestState,
     url_fingerprint: [u64; 2],
+}
+
+impl fmt::Debug for TrackedLatestEventRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedLatestEventRequest")
+            .field("state", &self.state)
+            .field("url_fingerprint", &"<redacted>")
+            .finish()
+    }
 }
 
 #[expect(
@@ -1433,3 +1452,7 @@ fn event_collection_nonempty(value: &Value, key: &str) -> Result<bool, MailboxEv
         Some(_) => Err(MailboxEventWatermarkError::Malformed),
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_event.rs"]
+mod private_request_diagnostics_tests;

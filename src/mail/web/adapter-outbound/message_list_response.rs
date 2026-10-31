@@ -74,7 +74,7 @@ enum MessageListSortKey {
     Size,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct TrackedMessageListRequest {
     state: NetworkRequestState,
     kind: MessageListRequestKind,
@@ -84,6 +84,21 @@ struct TrackedMessageListRequest {
     descending: bool,
     anchor: Option<u64>,
     anchor_id: Option<Zeroizing<String>>,
+}
+
+impl fmt::Debug for TrackedMessageListRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedMessageListRequest")
+            .field("state", &self.state)
+            .field("kind", &self.kind)
+            .field("limit", &self.limit)
+            .field("page", &self.page)
+            .field("sort_key", &self.sort_key)
+            .field("descending", &self.descending)
+            .field("anchor", &self.anchor.map(|_| "<redacted>"))
+            .field("anchor_id", &self.anchor_id.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// Bounded CDP Network event state for exact message-list GET requests.
@@ -993,3 +1008,7 @@ fn is_message_list_url(url: &str) -> bool {
     };
     !url.contains('#') && (remainder.is_empty() || remainder.starts_with('?'))
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_msg_list.rs"]
+mod private_request_diagnostics_tests;

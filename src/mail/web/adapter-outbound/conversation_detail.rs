@@ -58,10 +58,19 @@ enum ConversationDetailRequestState {
     Finished,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct TrackedConversationDetailRequest {
     state: ConversationDetailRequestState,
     conversation_id: Zeroizing<String>,
+}
+
+impl fmt::Debug for TrackedConversationDetailRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TrackedConversationDetailRequest")
+            .field("state", &self.state)
+            .field("conversation_id", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Bounded CDP lifecycle state for exact unparameterized conversation GETs.
@@ -608,3 +617,7 @@ fn bounded_required_str<'source>(
     }
     Ok(value)
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/dbg_convo.rs"]
+mod private_request_diagnostics_tests;
