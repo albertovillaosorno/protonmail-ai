@@ -72,8 +72,10 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "if(!groups.every((group)=>group.length===0)){return null;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
+    // The menu toggle must not submit an enclosing or externally owned form.
     "if(nodes.length!==1||",
-    "!(nodes[0] instanceof HTMLButtonElement)){return null;}",
+    "!(nodes[0] instanceof HTMLButtonElement)||",
+    "nodes[0].type!=='button'||nodes[0].form!==null){return null;}",
     "if(nodes[0].matches(':disabled')||nodes[0].disabled||",
     // jig-ignore-next-line: indivisible audited ARIA state check.
     "nodes[0].getAttribute('aria-disabled')?.toLowerCase()==='true'){return null;}",
@@ -162,8 +164,10 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "group[0].closest('[aria-hidden=\"true\" i],[inert],[aria-disabled=\"true\" i]'))){return false;}",
     "const q='[data-testid=\"filter-dropdown:show-filters\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
+    // Closing a menu cannot activate a provider form submission.
     "if(nodes.length!==1||",
-    "!(nodes[0] instanceof HTMLButtonElement)){return false;}",
+    "!(nodes[0] instanceof HTMLButtonElement)||",
+    "nodes[0].type!=='button'||nodes[0].form!==null){return false;}",
     "if(nodes[0].matches(':disabled')||nodes[0].disabled||",
     // jig-ignore-next-line: indivisible audited ARIA state check.
     "nodes[0].getAttribute('aria-disabled')?.toLowerCase()==='true'){return false;}",

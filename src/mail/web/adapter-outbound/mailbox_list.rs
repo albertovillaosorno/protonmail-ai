@@ -108,7 +108,9 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "current.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
     "const inheritedDisabled=next?",
     "!!next.closest('[aria-disabled=\"true\" i]'):false;",
+    // An eligible next-page control may never be a form submit action.
     "if(next&&(!(next instanceof HTMLButtonElement)||",
+    "next.type!=='button'||next.form!==null||",
     "next.getClientRects().length===0||",
     "getComputedStyle(next).visibility!=='visible'||",
     "(!next.matches(':disabled')&&!next.disabled&&",

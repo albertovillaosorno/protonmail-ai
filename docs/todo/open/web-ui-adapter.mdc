@@ -1757,3 +1757,11 @@ web application without requiring Bridge or a third-party direct API identity.
   before spawn and during ETXTBSY retries. Reusing a live browser can bypass
   the dedicated profile privacy launch flags; synthetic singleton tests keep
   the visible and managed ownership boundaries aligned.
+
+- Read-only Mail list evidence, next-page activation and sort-menu open/close
+  now require an explicit non-submit button (`type=button`) with no form
+  owner. A changed provider control with the same `data-testid` could
+  otherwise submit a form during a navigation click despite visibility
+  checks. Red-first Rust and synthetic Node regressions prove rejection of
+  submit and form-associated buttons; ordinary pagination and sort toggles
+  remain supported. This does not authorize any mailbox mutation.

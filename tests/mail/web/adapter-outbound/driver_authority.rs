@@ -556,6 +556,24 @@ fn audited_click_scripts_block_common_auth_inputs_before_any_activation() {
 }
 
 #[test]
+fn read_only_click_scripts_reject_form_submission_controls() {
+    for script in [
+        NextPageActivation::expression(),
+        MailboxSortOrder::open_expression(),
+        MailboxSortOrder::close_expression(),
+    ] {
+        let click = script.find(".click();").expect("audited click action");
+        let type_guard = script
+            .find(".type!=='button'")
+            .expect("click must require a non-submit button");
+        let form_guard = script
+            .find(".form!==null")
+            .expect("click must refuse a form-associated control");
+        assert!(type_guard < click && form_guard < click);
+    }
+}
+
+#[test]
 fn unsolicited_method_shape_has_one_nonempty_domain_and_event() {
     for accepted in [
         "Network.requestWillBeSent",
@@ -655,6 +673,8 @@ fn audited_clicks_must_refuse_nonvisible_controls() {
 fn mailbox_list_next_page_evidence_requires_an_actionable_button() {
     let script = MailboxListEvidence::expression();
     assert!(script.contains("next instanceof HTMLButtonElement"));
+    assert!(script.contains("next.type!=='button'"));
+    assert!(script.contains("next.form!==null"));
     assert!(script.contains("next.getClientRects().length===0"));
     // jig-ignore-next-line: exact audited selector fixture.
     assert!(script.contains("next.closest('[aria-hidden=\"true\" i],[inert]')"));
@@ -1450,6 +1470,7 @@ const loaded={parentElement:ancestor,querySelectorAll:(q)=>
  (showEmpty?[]:duplicateRows?[row,row]:[row])};
 row.parentElement=loaded;
 const next=new HTMLButtonElement();
+next.type='button';next.form=null;
 next.disabled=false;
 next.getClientRects=()=>[{}];
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
@@ -1525,6 +1546,11 @@ if(eval(expression).nextDisabled!==true){
  throw Error('fieldset-disabled Next reported enabled');
 }
 fieldsetDisabled=false;
+next.type='submit';
+if(eval(expression)!==null){throw Error('submit Next exposed in list');}
+next.type='button';next.form={};
+if(eval(expression)!==null){throw Error('form-bound Next exposed in list');}
+next.form=null;
 rowId='A'.repeat(513);
 if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
 rowId='synthetic-row';
@@ -1617,6 +1643,7 @@ const option={getClientRects:()=>hidden?[]:[{}],
  optionParentDisabled&&q.includes('[aria-disabled'))?optionParent:null,
  parentElement:optionParent};
 const toggle=new HTMLButtonElement();
+toggle.type='button';toggle.form=null;
 toggle.parentElement=toggleParent;
 toggle.getClientRects=()=>[{}];
 toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
@@ -1661,6 +1688,15 @@ if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('transparent option parent allowed action');
 }
 optionParentOpacity='1';
+toggle.type='submit';
+if(eval(close)!==false||clicks!==1){
+ throw Error('submit sort toggle closed menu');
+}
+toggle.type='button';toggle.form={};
+if(eval(close)!==false||clicks!==1){
+ throw Error('form-associated sort toggle closed menu');
+}
+toggle.form=null;
 if(eval(close)!==true||clicks!==2||isOpen){
  throw Error('closing did not perform exactly one click');
 }
@@ -1679,7 +1715,15 @@ parentAriaDisabled=false;fieldsetDisabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('fieldset-disabled sort toggle permitted click');
 }
-fieldsetDisabled=false;disabled=true;
+fieldsetDisabled=false;toggle.type='submit';
+if(eval(open)!==null||clicks!==2){
+ throw Error('submit sort toggle opened menu');
+}
+toggle.type='button';toggle.form={};
+if(eval(open)!==null||clicks!==2){
+ throw Error('form-associated sort toggle opened menu');
+}
+toggle.form=null;disabled=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('disabled control was clicked');
 }
@@ -1758,6 +1802,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 const parent={parentElement:null};
 const next=new HTMLButtonElement();
+next.type='button';next.form=null;
 next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&(disabled||ariaOnlyDisabled)?
  (uppercaseAriaDisabled?'TRUE':'true'):null;
@@ -1796,7 +1841,15 @@ parentAriaDisabled=false;fieldsetDisabled=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('fieldset-disabled Next permitted a click');
 }
-fieldsetDisabled=false;hidden=true;
+fieldsetDisabled=false;next.type='submit';
+if(eval(script).clicked||clicks!==1){
+ throw Error('submit Next button was clicked');
+}
+next.type='button';next.form={};
+if(eval(script).clicked||clicks!==1){
+ throw Error('form-associated Next button was clicked');
+}
+next.form=null;hidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('layout-hidden Next was clicked');
 }

@@ -55,7 +55,10 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "if(nodes.length!==1){return {present:nodes.length===1,",
     "disabled:null,clicked:false};}",
     "const next=nodes[0];",
-    "if(!(next instanceof HTMLButtonElement)){",
+    // A submit button can trigger a form mutation instead of pagination.
+    // Even an explicit type=button must not be owned by a form.
+    "if(!(next instanceof HTMLButtonElement)||",
+    "next.type!=='button'||next.form!==null){",
     "return {present:true,disabled:null,clicked:false};}",
     "if(next.matches(':disabled')||next.disabled||",
     "next.getAttribute('aria-disabled')?.toLowerCase()==='true'){",
