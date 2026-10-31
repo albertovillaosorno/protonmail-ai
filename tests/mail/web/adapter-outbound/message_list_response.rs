@@ -619,6 +619,8 @@ fn response_headers_cannot_disagree_with_message_list_json_mime() {
         "text/html",
         "application/javascript",
         "application/json; charset=utf-8, text/html",
+        "application/json; charset=iso-8859-1",
+        "application/json; charset=utf-8; charset=iso-8859-1",
     ] {
         let mut capture = MessageListNetworkCapture::new("session-1");
         capture

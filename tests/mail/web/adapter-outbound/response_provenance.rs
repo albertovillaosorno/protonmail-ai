@@ -223,6 +223,7 @@ fn extra_status_wire_content_type_must_confirm_json_response() {
         "application/json",
         "application/json; charset=utf-8",
         "Application/JSON;Charset=UTF-8",
+        r#"application/json; charset="utf-8""#,
     ] {
         let event = json!({"params":{"statusCode":200u16,
             "headers":{"Content-Type":valid}}});
@@ -233,6 +234,10 @@ fn extra_status_wire_content_type_must_confirm_json_response() {
         json!("application/javascript"),
         json!("application/json, text/html"),
         json!("application/json; charset=utf-8, text/html"),
+        json!("application/json; charset=iso-8859-1"),
+        json!("application/json; charset=utf-8; charset=iso-8859-1"),
+        json!("application/json; charset="),
+        json!("application/json; invalid-parameter"),
         json!(null),
         json!(["application/json"]),
     ] {
@@ -970,6 +975,9 @@ fn response_headers_cannot_contradict_json_200_metadata() {
     for changed_headers in [
         json!({"Content-Type":"text/html"}),
         json!({"Content-Type":"application/json; charset=utf-8, text/html"}),
+        json!({"Content-Type":"application/json; charset=iso-8859-1"}),
+        // jig-ignore-next-line: synthetic duplicate charset fixture.
+        json!({"Content-Type":"application/json; charset=utf-8; charset=iso-8859-1"}),
         json!({"Content-Type":"application/json", "content-type":"text/html"}),
         json!({"Content-Type":12i32}),
         json!({"Content-Type":"application/json", ":status":"304"}),

@@ -2622,3 +2622,10 @@ web application without requiring Bridge or a third-party direct API identity.
   shared and message-list fixtures now reject these ambiguous Content-Type
   values in parsed and raw, initial and extra-info response metadata. Ordinary
   case-insensitive JSON media types and charset parameters remain supported.
+
+- JSON Content-Type parameters now require a well-formed name/value pair,
+  and a declared charset must be unique and UTF-8. Previously the gate
+  accepted explicit ISO-8859-1, duplicate conflicting charset declarations,
+  and empty or malformed parameters under an otherwise JSON media type.
+  Red-first synthetic initial, extra-info and message-list cases now reject
+  these ambiguous decodings while allowing missing or quoted UTF-8 charset.

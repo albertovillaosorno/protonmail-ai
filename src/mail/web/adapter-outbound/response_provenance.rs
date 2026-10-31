@@ -923,17 +923,41 @@ fn raw_json_200_headers(text: &str, structured: Option<&Map<String, Value>>) -> 
 }
 
 fn json_content_type(value: &str) -> bool {
-    // A comma inside MIME parameters can disguise a second media type;
-    // treating only the prefix before ';' as JSON is not sufficient proof.
+    // A comma after parameters can disguise a second media type. Duplicate
+    // or foreign charsets make JSON decoding ambiguous even for a MIME 200.
     if value.len() > 256 || value.contains(',') {
         return false;
     }
-    value
-        .split(';')
+    let mut parts = value.split(';');
+    if !parts
         .next()
         .unwrap_or_default()
         .trim_ascii()
         .eq_ignore_ascii_case("application/json")
+    {
+        return false;
+    }
+    let mut seen_charset = false;
+    for part in parts {
+        let Some((name, parameter)) = part.trim_ascii().split_once('=') else {
+            return false;
+        };
+        let name = name.trim_ascii();
+        let parameter = parameter.trim_ascii();
+        if !cdp_header_name_is_token(name) || parameter.is_empty() {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("charset") {
+            if seen_charset
+                || !parameter.eq_ignore_ascii_case("utf-8")
+                    && !parameter.eq_ignore_ascii_case("\"utf-8\"")
+            {
+                return false;
+            }
+            seen_charset = true;
+        }
+    }
+    true
 }
 
 // Both initial and extra CDP response header maps describe the same HTTP
