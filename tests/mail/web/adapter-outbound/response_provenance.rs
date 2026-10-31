@@ -757,6 +757,39 @@ fn duplicated_origin_singleton_headers_cannot_prove_mail_read() {
 }
 
 #[test]
+fn method_override_header_aliases_cannot_prove_read_only_mail_get() {
+    let url = "https://mail.proton.me/api/mail/v4/messages?Page=0";
+    let path = "/api/mail/v4/messages?Page=0";
+    let original = json!({"params":{"type":"Fetch",
+        "request":{"method":"GET", "url":url,
+            "headers":{"Host":"mail.proton.me"}}}});
+    assert!(non_speculative_cdp_get(&original));
+    for header in [
+        "X-Override-Method",
+        "x-http-method-override-extension",
+        "x-method-override-extension",
+    ] {
+        let mut request = original.clone();
+        request["params"]["request"]["headers"][header] = json!("POST");
+        assert!(!bodyless_cdp_get(&request["params"]["request"]));
+        let response = json!({"url":url, "requestHeaders":{
+            "Host":"mail.proton.me", header:"POST"}});
+        assert!(!uncached_provider_response(&response));
+        let raw = format!(
+            concat!(
+                "GET {path} HTTP/1.1\r\n",
+                "Host: mail.proton.me\r\n",
+                "{header}: POST\r\n\r\n"
+            ),
+            path = path,
+            header = header
+        );
+        let wire = json!({"url":url, "requestHeadersText":raw});
+        assert!(!uncached_provider_response(&wire));
+    }
+}
+
+#[test]
 fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",

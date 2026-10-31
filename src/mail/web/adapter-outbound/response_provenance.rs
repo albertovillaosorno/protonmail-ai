@@ -104,16 +104,24 @@ fn http_path_fingerprint(path: &str) -> [u64; 2] {
 // An HTTP method-override header makes the effective operation ambiguous
 // despite CDP reporting GET. These aliases cannot prove a read-only request.
 fn method_override_header(name: &str) -> bool {
-    [
-        "X-HTTP-Method-Override",
-        "X-Method-Override",
-        "X-HTTP-Method",
-        "X-Original-HTTP-Method",
-        "X-Original-Method",
-        "X-Rewrite-Method",
-    ]
-    .iter()
-    .any(|header| name.eq_ignore_ascii_case(header))
+    // Method-tunneling extensions can change the effective operation even
+    // when CDP's request line still claims GET. The separate X-Original and
+    // X-Rewrite families are also rejected by the proxy-routing gate.
+    let family = ["X-HTTP-Method", "X-Method-Override", "X-Override-Method"];
+    let family_override = family.iter().any(|prefix| {
+        let candidate = name.get(..prefix.len()).unwrap_or_default();
+        let exact = name.len() == prefix.len();
+        let extension = name.as_bytes().get(prefix.len()) == Some(&b'-');
+        candidate.eq_ignore_ascii_case(prefix) && (exact || extension)
+    });
+    family_override
+        || [
+            "X-Original-HTTP-Method",
+            "X-Original-Method",
+            "X-Rewrite-Method",
+        ]
+        .iter()
+        .any(|header| name.eq_ignore_ascii_case(header))
 }
 
 fn cdp_header_value_is_safe(value: &Value) -> bool {

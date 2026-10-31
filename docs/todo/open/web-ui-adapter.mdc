@@ -2716,3 +2716,10 @@ web application without requiring Bridge or a third-party direct API identity.
   and message-list fixtures proved malformed standalone redirect hints could
   otherwise become passive Mail GET evidence. Actual `redirectResponse`
   retains its distinct `RedirectedAway` observer error. No account data used.
+
+- Request provenance now rejects entire `X-HTTP-Method-*`,
+  `X-Method-Override-*`, and `X-Override-Method-*` header families instead
+  of only a finite spelling list. Red-first shared provisional, refined,
+  raw-wire, and message-list fixtures proved previously unknown method
+  aliases could pass as a bodyless GET. A conservative method-tunneling
+  family check preserves other ordinary Mail headers and stores no values.

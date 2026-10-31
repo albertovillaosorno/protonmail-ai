@@ -321,6 +321,26 @@ fn duplicate_host_alias_cannot_authorize_mail_message_list_capture() {
 }
 
 #[test]
+fn unreviewed_method_override_alias_cannot_authorize_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let event = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"method-alias", "type":"Fetch",
+            "request":{"method":"GET", "url":URL,
+                "headers":{"Host":"mail.proton.me",
+                    "X-Override-Method":"DELETE"}}}
+    });
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    assert_eq!(
+        capture.observe(&event),
+        Err(MessageListNetworkError::MalformedEvent)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn forwarded_authority_cannot_authorize_mail_message_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
