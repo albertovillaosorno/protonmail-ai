@@ -1291,12 +1291,14 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
         "
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
+let ancestorContentHidden=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let ariaHiddenUpper=false;
 let duplicateRows=false,titleReads=0,invalidSecondRow=false;
 let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',
@@ -1385,7 +1387,11 @@ subjectOpacity='1';senderOpacity='0';
 if(eval(script)!==null){throw Error('opacity-zero sender exposed');}
 senderOpacity='1';ancestorOpacity='0';
 if(eval(script)!==null){throw Error('hidden ancestor exposed content');}
-ancestorOpacity='1';
+ancestorOpacity='1';ancestorContentHidden=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('content-hidden ancestor leaked row content');
+}
+ancestorContentHidden=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1402,7 +1408,7 @@ addressValue='sender@example.test';idValue='z'.repeat(513);
 if(eval(script)!==null){throw Error('oversized row ID crossed CDP');}
 idValue='row-a';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
- 'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
+ 'encoded%2fpath', 'matrix;param=value', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
  'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',
@@ -1462,6 +1468,7 @@ fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
         "
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  pointerEvents:node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
  opacity:node===row?rowOpacity:node===current?currentOpacity:
  node===empty?emptyOpacity:node===ancestor?ancestorOpacity:'1'});
@@ -1471,6 +1478,7 @@ let duplicateRows=false;
 let fieldsetDisabled=false;
 let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
+let ancestorContentHidden=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
@@ -1530,7 +1538,11 @@ if(eval(expression)!==null){throw Error('hidden row was accepted');}
 rowHidden=false;
 ancestorOpacity='0';
 if(eval(expression)!==null){throw Error('hidden list root was accepted');}
-ancestorOpacity='1';
+ancestorOpacity='1';ancestorContentHidden=true;
+if(eval(expression)!==null){
+ throw Error('content-hidden list root was exposed');
+}
+ancestorContentHidden=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1574,7 +1586,7 @@ rowId='A'.repeat(513);
 if(eval(expression)!==null){throw Error('oversized row IDs entered CDP');}
 rowId='synthetic-row';
 for(const invalidId of ['.', '..', 'white space', 'with/slash',
- 'encoded%2fpath', 'newline\\n', 'zero\\u200bwidth',
+ 'encoded%2fpath', 'matrix;param=value', 'newline\\n', 'zero\\u200bwidth',
  'hangul\\u115ffiller', 'mongolian\\u180fvariation',
  'braille\\u2800blank', 'tag\\u{e0100}selector',
  'khmer\\u17b4vowel', 'shorthand\\u{1bca0}control',

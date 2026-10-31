@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Pre-CDP visible-list and row projection gates
+
+- Red-first executable synthetic DOM tests demonstrated that loaded list IDs,
+  visible subject and sender projections could still be returned from inside
+  a `content-visibility:hidden` ancestor. Both read-only DOM snapshots now
+  reject this state at each bounded ancestor before serializing any content.
+  The same tests cover semicolon matrix-style provider IDs, which the Rust
+  route guard already rejected, but pre-CDP `invalidId` expressions had still
+  permitted. Both JavaScript predicates now match the shared Rust guard.
+
 ## Skip-rendering subtree gate
 
 - Additional red-first executable DOM fixtures exposed a separate hidden

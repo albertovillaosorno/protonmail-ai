@@ -66,6 +66,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "if(!current){return true;}",
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
+    "style.contentVisibility==='hidden'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",
@@ -127,7 +128,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "return (point>=0xFDD0&&point<=0xFDEF)||",
     "(point&0xFFFE)===0xFFFE;});",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
-    "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
+    "const invalidId=/[\\s\\/?#%;\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\ud800-\\udfff",
     "\\u00ad\\u034f\\u061c\\u115f\\u1160\\u180b-\\u180f",
     "\\u17b4-\\u17b5\\u{1bca0}-\\u{1bca3}",
