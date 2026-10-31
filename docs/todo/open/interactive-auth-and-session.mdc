@@ -76,6 +76,12 @@ account credentials. The primary web UI login remains a separate P1 path.
 
 ## Sensitive diagnostics boundary
 
+- Refresh-token JSON serialization now grows only through zeroizing
+  buffers, erasing previous allocations before moving a private token prefix.
+  Partial Serde failures still scrub the accumulated JSON; successful UTF-8
+  transfer retains the existing zeroizing String without a plaintext copy.
+  Synthetic long-token round trips exercise growth and output parity.
+
 - Both synthetic fork-payload decoder layouts now decrypt AES-GCM bytes
   directly into zeroizing memory, including authentication-failure paths.
   Legacy V1/V2 and current V3 nonces retain their distinct layouts and AAD.

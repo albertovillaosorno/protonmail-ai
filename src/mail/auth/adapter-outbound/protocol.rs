@@ -33,6 +33,7 @@
 //! Proton session-fork response parsing and payload decryption.
 
 use std::fmt;
+use std::io::{self, Write};
 use std::mem::take;
 
 use aes_gcm::aead::consts::{U12, U16};
@@ -685,6 +686,57 @@ impl ForkSession {
     }
 }
 
+// Refresh bearer JSON can be larger than the initial Vec allocation. Keep
+// every replaced plaintext allocation under a zeroizing owner before growth;
+// ordinary Vec expansion would release prior token prefixes unmodified.
+struct SensitiveRefreshJsonBuffer {
+    bytes: Zeroizing<Vec<u8>>,
+}
+
+impl SensitiveRefreshJsonBuffer {
+    fn new() -> Self {
+        Self {
+            bytes: Zeroizing::new(Vec::new()),
+        }
+    }
+
+    fn into_guarded(self) -> Zeroizing<Vec<u8>> {
+        self.bytes
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Write defaults delegate to guarded serialization"
+)]
+impl Write for SensitiveRefreshJsonBuffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let required = self
+            .bytes
+            .len()
+            .checked_add(buf.len())
+            .ok_or_else(|| io::Error::other("sensitive JSON size overflow"))?;
+        if required > self.bytes.capacity() {
+            // jig-ignore-next-line: canonical checked growth capacity.
+            let capacity = required.checked_next_power_of_two().unwrap_or(required);
+            let mut replacement = Zeroizing::new(Vec::new());
+            replacement
+                .try_reserve_exact(capacity)
+                // jig-ignore-next-line: canonical redacted allocation error.
+                .map_err(|_error| io::Error::other("sensitive JSON allocation failed"))?;
+            replacement.extend_from_slice(&self.bytes);
+            self.bytes = replacement;
+        }
+        // Reserve above guarantees this cannot trigger ordinary Vec growth.
+        self.bytes.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 // Serialize directly into zeroizing bytes, including partial writer errors.
 // Moving the backing Vec into String preserves the allocation without a new
 // plaintext copy; the UTF-8 error case also guards the original byte buffer.
@@ -692,9 +744,10 @@ fn serialize_sensitive_json<T>(value: &T) -> ForkResult<Zeroizing<String>>
 where
     T: Serialize,
 {
-    let mut bytes = Zeroizing::new(Vec::new());
-    serde_json::to_writer(&mut *bytes, value)
+    let mut writer = SensitiveRefreshJsonBuffer::new();
+    serde_json::to_writer(&mut writer, value)
         .map_err(|_json| ProtocolError::SerializationFailed)?;
+    let mut bytes = writer.into_guarded();
     let serialized = String::from_utf8(take(&mut *bytes)).map_err(|error| {
         let _invalid_utf8 = Zeroizing::new(error.into_bytes());
         ProtocolError::SerializationFailed

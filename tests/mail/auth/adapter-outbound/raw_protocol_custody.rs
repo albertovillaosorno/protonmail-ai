@@ -189,6 +189,31 @@ fn raw_child_session_and_decrypted_password_fields_are_zeroizing() {
 }
 
 #[test]
+fn refresh_json_writer_preserves_guarded_growth_and_wipes_on_failure() {
+    use super::{SensitiveRefreshJsonBuffer, serialize_sensitive_json};
+    use std::io::Write as _;
+
+    let mut bytes = SensitiveRefreshJsonBuffer::new();
+    bytes
+        .write_all(b"private-refresh-prefix")
+        .expect("synthetic private prefix");
+    let expanded = vec![b'x'; 12_000];
+    bytes.write_all(&expanded).expect("grow guarded storage");
+    let guarded: Zeroizing<Vec<u8>> = bytes.into_guarded();
+    assert!(guarded.starts_with(b"private-refresh-prefix"));
+    assert_eq!(&guarded[b"private-refresh-prefix".len()..], expanded);
+
+    let token = "synthetic-private-refresh".repeat(500);
+    let body = serde_json::json!({"RefreshToken": token});
+    let serialized: Zeroizing<String> =
+        serialize_sensitive_json(&body).expect("encode synthetic refresh JSON");
+    let parsed: serde_json::Value =
+        // jig-ignore-next-line: canonical synthetic refresh JSON parity check.
+        serde_json::from_str(&serialized).expect("large serialized refresh JSON remains intact");
+    assert_eq!(parsed, body);
+}
+
+#[test]
 fn partial_refresh_serialization_fails_inside_guarded_buffer() {
     use super::{ProtocolError, serialize_sensitive_json};
     use serde::ser::{Error as _, SerializeMap as _};
