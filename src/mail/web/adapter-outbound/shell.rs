@@ -31,7 +31,7 @@
 //! Translation-independent Proton Mail shell evidence.
 
 use serde_json::{Map, Value};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 const MAX_AX_ROLE_MATCH_NODES: usize = 256;
 const MAX_AX_BACKEND_NODE_ID: u64 = 2_147_483_647;
@@ -74,28 +74,33 @@ impl MailShellEvidence {
         navigation: &'role_nodes Value,
         search: &'role_nodes Value,
         dialog: &'role_nodes Value,
-        alertdialog: &'role_nodes Value,
+        alerts: &'role_nodes Value,
     ) -> Result<Self, ()> {
         // CDP AXNodeId identifies one accessibility node for the session.
         // A node cannot simultaneously establish distinct role-filtered
         // landmarks; aliases across responses are contradictory shell proof.
         let mut ids = HashSet::new();
-        let dialog_visible = visible_match(dialog, "dialog", &mut ids)?;
-        let alert = visible_match(alertdialog, "alertdialog", &mut ids)?;
-        let nav = visible_match(navigation, "navigation", &mut ids)?;
-        let search = visible_match(search, "search", &mut ids)?;
+        let mut parents = BTreeMap::new();
+        let modal = ax_visible(dialog, "dialog", &mut ids, &mut parents)?;
+        let alert = ax_visible(alerts, "alertdialog", &mut ids, &mut parents)?;
+        let nav = ax_visible(navigation, "navigation", &mut ids, &mut parents)?;
+        let search = ax_visible(search, "search", &mut ids, &mut parents)?;
+        if !valid_ax_parent_graph(&parents) {
+            return Err(());
+        }
         Ok(Self {
-            modal_blocker_visible: dialog_visible || alert,
+            modal_blocker_visible: modal || alert,
             navigation_visible: nav,
             search_visible: search,
         })
     }
 }
 
-fn visible_match<'role_nodes>(
+fn ax_visible<'role_nodes>(
     result: &'role_nodes Value,
     expected_role: &str,
     ids: &mut HashSet<&'role_nodes str>,
+    parents: &mut BTreeMap<&'role_nodes str, &'role_nodes str>,
 ) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
     if nodes.len() > MAX_AX_ROLE_MATCH_NODES {
@@ -121,6 +126,9 @@ fn visible_match<'role_nodes>(
         } else {
             None
         };
+        if let Some(parent) = parent_id {
+            parents.insert(id, parent);
+        }
         if let Some(children) = node.get("childIds") {
             let children = children.as_array().ok_or(())?;
             if children.len() > 4096 {
@@ -183,6 +191,25 @@ fn visible_match<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// Parent IDs can point to role nodes seen in a different query reply.
+// Each local node may look valid even when those responses jointly claim a
+// circular accessibility tree. Only explicit edges are considered; missing
+// parent nodes are ordinary for a role-filtered query. At most 4 * 256 nodes
+// are examined and no private AX names or values are retained.
+fn valid_ax_parent_graph(parents: &BTreeMap<&str, &str>) -> bool {
+    for &start in parents.keys() {
+        let mut visited = BTreeSet::new();
+        let mut current = start;
+        while let Some(parent) = parents.get(current).copied() {
+            if !visited.insert(current) {
+                return false;
+            }
+            current = parent;
+        }
+    }
+    true
 }
 
 // Roles prove the landmark through one bounded, audited AXValue shape.

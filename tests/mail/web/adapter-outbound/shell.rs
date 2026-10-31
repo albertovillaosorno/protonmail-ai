@@ -591,6 +591,101 @@ fn accessibility_parent_cannot_also_be_a_child() {
 }
 
 #[test]
+fn cross_query_accessibility_parent_cycles_cannot_prove_mail_shell() {
+    use serde_json::json;
+
+    for (label, navigation_parent, search_parent, dialog_parent) in [
+        ("two-node-parent-cycle", "ax-search", "ax-navigation", None),
+        (
+            "three-node-parent-cycle",
+            "ax-search",
+            "ax-dialog",
+            Some("ax-navigation"),
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "parentId":navigation_parent,
+            "role":{"type":"role","value":"navigation"}
+        }])
+        .to_string();
+        let search = json!([{
+            "ignored":false, "nodeId":"ax-search",
+            "parentId":search_parent,
+            "role":{"type":"role","value":"search"}
+        }])
+        .to_string();
+        let dialog = dialog_parent.map_or_else(
+            || String::from("[]"),
+            |parent| {
+                json!([{
+                    "ignored":true, "nodeId":"ax-dialog",
+                    "parentId":parent,
+                    "role":{"type":"role","value":"dialog"}
+                }])
+                .to_string()
+            },
+        );
+        let roles = RoleFixture {
+            navigation: &navigation,
+            search: &search,
+            dialog: &dialog,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "cross-query AX parent cycle {label} must fail closed"
+        );
+    }
+}
+
+#[test]
+fn normal_cross_query_parent_chain_preserves_shell_readiness() {
+    use serde_json::json;
+
+    let navigation = json!([{
+        "ignored":false, "nodeId":"ax-navigation",
+        "parentId":"ax-root",
+        "role":{"type":"role","value":"navigation"}
+    }])
+    .to_string();
+    let search = json!([{
+        "ignored":false, "nodeId":"ax-search",
+        "parentId":"ax-navigation",
+        "role":{"type":"role","value":"search"}
+    }])
+    .to_string();
+    let dialog = json!([{
+        "ignored":true, "nodeId":"ax-dialog",
+        "parentId":"ax-search",
+        "role":{"type":"role","value":"dialog"}
+    }])
+    .to_string();
+    let roles = RoleFixture {
+        navigation: &navigation,
+        search: &search,
+        dialog: &dialog,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "normal-cross-query-parent-chain",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("normal acyclic AX parent chain")
+        .ready()
+    );
+}
+
+#[test]
 fn ordinary_ax_node_parent_and_child_metadata_remains_compatible() {
     let navigation = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
