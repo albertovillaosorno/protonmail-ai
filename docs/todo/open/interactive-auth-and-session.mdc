@@ -134,6 +134,18 @@ account credentials. The primary web UI login remains a separate P1 path.
   remain supported. These are parser safety checks, not evidence of live
   provider authentication authorization.
 
+## Closed provider authority schemas
+
+- Red-first synthetic bootstrap, fork-challenge and completed-poll replies
+  showed that unrecognized JSON fields, including alternate account-binding
+  spellings and new approval/scope metadata, were silently ignored while
+  otherwise valid sessions were accepted. The three provider authority models
+  now reject unknown fields before issuing typed authority; authenticated
+  fork-payload plaintext similarly rejects extra keys before exposing the key
+  password. The exact 256 KiB envelope fixture uses ordinary JSON whitespace
+  instead of an unknown padding property. Future provider response extensions
+  require review, and the live direct-API path remains disabled.
+
 ## Bounded auth response parsing
 
 - Offline bootstrap, fork-challenge, and completed-poll projections now refuse

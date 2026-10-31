@@ -922,7 +922,7 @@ type Plaintext = Zeroizing<Vec<u8>>;
 type PlainResult = ForkResult<Plaintext>;
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 struct RawChallenge {
     #[serde(default, deserialize_with = "read_present_provider_code")]
     code: Option<u64>,
@@ -933,7 +933,7 @@ struct RawChallenge {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 struct RawAuth {
     #[serde(default, deserialize_with = "read_present_provider_code")]
     code: Option<u64>,
@@ -949,11 +949,15 @@ struct RawAuth {
     scopes: Zeroizing<Vec<String>>,
 }
 
+// This authority-bearing JSON contract has an explicit reviewed set of
+// fields. Unrecognized keys (including aliases for account or session IDs)
+// fail closed rather than granting a session from ambiguous provider data.
+// Compatibility with future Proton response extensions requires a review.
 // Avoid serde(flatten): Serde buffers a flattened map in intermediate
 // content before visiting its fields, briefly owning unguarded authority
 // strings. Read each child-session field directly into zeroizing storage.
 #[derive(Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[serde(rename_all = "PascalCase", deny_unknown_fields)]
 struct RawForkSession {
     #[serde(default, deserialize_with = "read_present_provider_code")]
     code: Option<u64>,
@@ -972,7 +976,7 @@ struct RawForkSession {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RawForkPayload {
     #[serde(deserialize_with = "read_sensitive")]
     key_password: Zeroizing<String>,

@@ -115,6 +115,43 @@ fn anonymous_bootstrap_parses_authority_and_redacts_debug() {
 }
 
 #[test]
+fn unknown_provider_authority_fields_cannot_silently_grant_authority() {
+    let bootstrap = json!({
+        "UID": "synthetic-anonymous-uid", "UserID": null,
+        "AccessToken": ACCESS_TOKEN, "RefreshToken": REFRESH_TOKEN,
+        "Scopes": ["loggedin"],
+    });
+    let challenge = json!({"Selector": SELECTOR, "UserCode": USER_CODE});
+    let fixture = complete_response(None);
+    let parsed: Result<serde_json::Value, _> = serde_json::from_slice(&fixture);
+    let complete = parsed.expect("child fixture");
+    let families = [bootstrap, challenge, complete];
+    for (index, mut response) in families.into_iter().enumerate() {
+        let parse = |body: &[u8]| -> Result<(), ProtocolError> {
+            match index {
+                0 => AnonymousSession::parse(200, body).map(|_| ()),
+                1 => ForkChallenge::parse(200, body).map(|_| ()),
+                _ => ForkPoll::parse(200, body).map(|_| ()),
+            }
+        };
+        assert_eq!(parse(response.to_string().as_bytes()), Ok(()));
+        // Unknown fields can alias account binding, approval state or scopes.
+        // A new provider shape must be reviewed before it grants authority.
+        let extra = match index {
+            0 => "userId",
+            1 => "ApprovalState",
+            _ => "AdditionalScopes",
+        };
+        response[extra] = json!("unreviewed-authority");
+        assert_eq!(
+            parse(response.to_string().as_bytes()),
+            Err(ProtocolError::MalformedJson),
+            "unreviewed provider metadata must not establish authority"
+        );
+    }
+}
+
+#[test]
 fn explicit_provider_failure_cannot_authorize_synthetic_fork_state() {
     let bootstrap = json!({
         "UID":"synthetic-uid", "UserID":null,
@@ -530,15 +567,11 @@ fn challenge_parser_accepts_exact_provider_shape() {
 #[test]
 fn provider_auth_response_body_size_is_bounded() {
     const MAX_RESPONSE_BYTES: usize = 262_144;
-    let challenge = json!({
-        "Selector":SELECTOR,"UserCode":USER_CODE,"IgnoredPadding":""
-    });
-    let base = challenge.to_string();
-    let padding = "x".repeat(MAX_RESPONSE_BYTES - base.len());
-    let at_limit = json!({
-        "Selector":SELECTOR,"UserCode":USER_CODE,"IgnoredPadding":padding
-    })
-    .to_string();
+    let base = json!({"Selector": SELECTOR, "UserCode": USER_CODE}).to_string();
+    // JSON whitespace counts toward the input budget without inventing an
+    // unreviewed authority field that the strict schema must reject.
+    let remaining = MAX_RESPONSE_BYTES - base.len();
+    let at_limit = format!("{base}{}", " ".repeat(remaining));
     assert_eq!(at_limit.len(), MAX_RESPONSE_BYTES);
     assert!(ForkChallenge::parse(200, at_limit.as_bytes()).is_ok());
     let oversized = json!({
@@ -807,6 +840,24 @@ fn refresh_and_logout_specs_keep_secret_material_redacted() {
 }
 
 #[test]
+fn authenticated_fork_payload_refuses_unreviewed_fields() {
+    let handoff = sdk_handoff();
+    let key = handoff_key(&handoff);
+    let plaintext = json!({
+        "keyPassword": KEY_PASSWORD,
+        "recoveryOverride": "unreviewed-provider-extension",
+    });
+    let encrypted = encrypt_v3_json(&key, &plaintext.to_string());
+    let decoder = handoff.into_decoder();
+    assert_eq!(
+        decoder
+            .decode(Some(&encrypted), ForkPayloadVersion::V3)
+            .expect_err("unknown plaintext schema must fail"),
+        ProtocolError::MalformedPayload
+    );
+}
+
+#[test]
 fn v3_payload_round_trips_with_fork_aad() {
     let handoff = sdk_handoff();
     let key = handoff_key(&handoff);
@@ -964,11 +1015,15 @@ fn handoff_key(handoff: &TargetHandoff) -> [u8; 32] {
 }
 
 fn encrypt_v3(key: &[u8; 32], password: &str) -> Vec<u8> {
-    let initialized = Aes256Gcm::new_from_slice(key);
-    let cipher = initialized.expect("fixture key must be valid");
-    let nonce = Nonce::<U12>::try_from([0x11u8; 12].as_slice())
-        .expect("fixture nonce must have valid length");
     let plaintext = json!({ "keyPassword": password }).to_string();
+    encrypt_v3_json(key, &plaintext)
+}
+
+fn encrypt_v3_json(key: &[u8; 32], plaintext: &str) -> Vec<u8> {
+    let cipher = Aes256Gcm::new_from_slice(key).expect("synthetic AES key");
+    let nonce_bytes = [0x11u8; 12];
+    let parsed_nonce = Nonce::<U12>::try_from(nonce_bytes.as_slice());
+    let nonce = parsed_nonce.expect("synthetic IV");
     let input = Payload {
         msg: plaintext.as_bytes(),
         aad: b"fork",
