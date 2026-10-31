@@ -54,6 +54,52 @@ fn response_body_capture_returns_guarded_json() {
 }
 
 #[test]
+fn sparse_dom_root_cannot_establish_document_identity() {
+    use super::valid_cdp_document_root;
+    use serde_json::json;
+
+    let root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    assert!(valid_cdp_document_root(&root));
+    for required in [
+        "nodeId",
+        "backendNodeId",
+        "nodeType",
+        "nodeName",
+        "localName",
+        "nodeValue",
+    ] {
+        let mut incomplete = root.clone();
+        incomplete
+            .as_object_mut()
+            .expect("document object")
+            .remove(required);
+        assert!(
+            !valid_cdp_document_root(&incomplete),
+            "missing {required} cannot prove a document root"
+        );
+    }
+    for (field, invalid) in [
+        ("nodeId", json!(0u64)),
+        ("backendNodeId", json!(0u64)),
+        ("backendNodeId", json!("2")),
+        ("nodeType", json!(1u64)),
+        ("nodeName", json!("DIV")),
+        ("localName", json!("html")),
+        ("nodeValue", json!("private")),
+    ] {
+        let mut contradictory = root.clone();
+        contradictory[field] = invalid;
+        assert!(
+            !valid_cdp_document_root(&contradictory),
+            "invalid {field} cannot prove a document root"
+        );
+    }
+}
+
+#[test]
 fn scoped_browser_attachment_has_guarded_string_custody() {
     use super::{ManagedBrowser, ProviderPage};
     use zeroize::Zeroizing;

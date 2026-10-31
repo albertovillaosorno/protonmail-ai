@@ -103,7 +103,8 @@ while IFS= read -r -d '' message <&3; do
       printf '%s\0' "$response" >&4;;
     *'DOM.getDocument'*)
       reply_format='{{"id":%s,"sessionId":"session-1",'
-      reply_format+='"result":{{"root":{{"nodeId":1}}}}}}\0'
+      # jig-ignore-next-line: indivisible synthetic CDP document root.
+      reply_format+='"result":{{"root":{{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}}}}}}\0'
       printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in
@@ -207,8 +208,10 @@ fn unreviewed_dom_and_ax_result_fields_cannot_authorize_shell() {
         ),
         (
             "dom-result-extra",
-            r#""root":{"nodeId":1}}"#,
-            r#""root":{"nodeId":1},"unreviewed":true}"#,
+            // jig-ignore-next-line: indivisible synthetic CDP document root.
+            r#""root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}}"#,
+            // jig-ignore-next-line: indivisible synthetic CDP document root.
+            r#""root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""},"unreviewed":true}"#,
         ),
     ] {
         let root = test_root(label);

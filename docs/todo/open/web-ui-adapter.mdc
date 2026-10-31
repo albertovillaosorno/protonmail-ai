@@ -58,6 +58,7 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-vs-mutation control boundary tests
 - Draft/send side-effect tests
 - Redacted opt-in Free-account transcript
+
 ## Require complete accessibility shell identities
 
 - The Chrome DevTools `Accessibility.AXNode` schema requires a string `nodeId`,
@@ -68,6 +69,15 @@ web application without requiring Bridge or a third-party direct API identity.
   including ignored nodes. Incomplete or contradictory CDP evidence fails
   closed, while valid synthetic Chromium replies, role-count limits and
   late-origin checks remain supported without projecting accessible names.
+
+## Require full document-root evidence before AX inspection
+
+- Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`
+  numeric node ID previously authorized accessibility inspection. The CDP
+  document node also needs a backend identity, document type, name, local
+  name, and value. Missing or contradictory required fields now fail closed,
+  while optional document metadata remains compatible without reading page
+  content or private mailbox information.
 
 ## Exact shape for browser-origin evidence
 

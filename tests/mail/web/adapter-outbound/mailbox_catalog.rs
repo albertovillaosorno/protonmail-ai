@@ -618,7 +618,8 @@ while IFS= read -r -d '' message <&3; do
       printf "$reply_format" "$id" "$value" >&4;;
     *'DOM.getDocument'*)
       reply_format='{"id":%s,"sessionId":"session-1",'
-      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      # jig-ignore-next-line: indivisible synthetic CDP document root.
+      reply_format+='"result":{"root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}}}\0'
       printf "$reply_format" "$id" >&4;;
     *'Accessibility.queryAXTree'*)
       case "$message" in

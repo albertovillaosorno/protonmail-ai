@@ -189,7 +189,8 @@ while IFS= read -r -d '' message <&3; do
         "$id" "$value" >&4;;
     *'DOM.getDocument'*)
       reply_format='{"id":%s,"sessionId":"session-1",'
-      reply_format+='"result":{"root":{"nodeId":1}}}\0'
+      # jig-ignore-next-line: indivisible synthetic CDP document root.
+      reply_format+='"result":{"root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}}}\0'
       printf "$reply_format" \
         "$id" >&4;;
     *'Accessibility.queryAXTree'*)
@@ -2659,12 +2660,24 @@ fn browser_version_allows_standard_optional_string_fields() {
 
 #[test]
 fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
-    for (label, metadata) in [
-        ("element-node", r#""nodeType":1"#),
-        ("null-node", r#""nodeType":null"#),
-        ("wrong-name", r#""nodeName":"DIV""#),
-        ("wrong-local-name", r#""localName":"div""#),
-        ("unexpected-value", r#""nodeValue":"not-document""#),
+    for (label, original_field, contradiction) in [
+        ("element-node", r#""nodeType":9"#, r#""nodeType":1"#),
+        ("null-node", r#""nodeType":9"#, r#""nodeType":null"#),
+        (
+            "wrong-name",
+            r#""nodeName":"\u0023document""#,
+            r#""nodeName":"DIV""#,
+        ),
+        (
+            "wrong-local-name",
+            r#""localName":"""#,
+            r#""localName":"div""#,
+        ),
+        (
+            "unexpected-value",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"not-document""#,
+        ),
     ] {
         let root = test_root(&format!("dom-root-{label}"));
         fs::create_dir_all(&root).expect("create synthetic root");
@@ -2681,9 +2694,11 @@ fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
             "1790847999",
         );
         let script = fs::read_to_string(&browser).expect("read script");
-        let original = r#""root":{"nodeId":1}"#;
-        let changed = format!(r#""root":{{"nodeId":1,{metadata}}}"#);
+        // jig-ignore-next-line: indivisible synthetic CDP document root.
+        let original = r#""root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}"#;
+        let changed = original.replace(original_field, contradiction);
         assert!(script.contains(original));
+        assert_ne!(changed, original, "fixture must replace a real field");
         install_script(&browser, script.replace(original, &changed))
             .expect("inject contradictory document root");
         let browser_plan = plan(&root, &browser);
@@ -2717,13 +2732,15 @@ fn ordinary_document_root_metadata_still_proves_mail_shell() {
         "1790847999",
     );
     let script = fs::read_to_string(&browser).expect("read script");
-    let original = r#""root":{"nodeId":1}"#;
-    let normal = concat!(
-        r##""root":{"nodeId":1,"nodeType":9,"nodeName":"#document","##,
-        r#""localName":"","nodeValue":""}"#,
+    // jig-ignore-next-line: indivisible synthetic CDP document root.
+    let original = r#""root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}"#;
+    // Retain a harmless optional field in the full document-root fixture.
+    let normal = original.replace(
+        r#""nodeValue":""}"#,
+        r#""nodeValue":"","childNodeCount":0}"#,
     );
     assert!(script.contains(original));
-    let changed = script.replace(original, normal);
+    let changed = script.replace(original, &normal);
     install_script(&browser, changed).expect("install document root");
     let browser_plan = plan(&root, &browser);
     let launched = ManagedBrowser::launch(&browser_plan);

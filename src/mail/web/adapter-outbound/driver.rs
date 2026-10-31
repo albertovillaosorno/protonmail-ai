@@ -4828,24 +4828,23 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
     }
 }
 
-// A DOM.getDocument root must not explicitly identify as an element or a
-// different node. Older replies may omit these optional descriptive fields;
-// only affirmative contradictions invalidate their document-root authority.
+// DOM.Node has required identity, type, name and value fields even at
+// depth zero. A sparse result must not authorize subsequent AX queries as if
+// it had proven a real document root; optional metadata remains irrelevant.
 fn valid_cdp_document_root(root: &Value) -> bool {
     let Some(fields) = root.as_object() else {
         return false;
     };
-    fields
-        .get("nodeType")
-        .is_none_or(|kind| kind.as_u64() == Some(9))
-        && fields
-            .get("nodeName")
-            .is_none_or(|name| name.as_str() == Some("#document"))
-        && ["localName", "nodeValue"].iter().all(|field| {
-            fields
-                .get(*field)
-                .is_none_or(|value| value.as_str() == Some(""))
-        })
+    ["nodeId", "backendNodeId"].iter().all(|field| {
+        fields
+            .get(*field)
+            .and_then(Value::as_u64)
+            .is_some_and(|id| id > 0)
+    }) && fields.get("nodeType").and_then(Value::as_u64) == Some(9)
+        && fields.get("nodeName").and_then(Value::as_str) == Some("#document")
+        && ["localName", "nodeValue"]
+            .iter()
+            .all(|field| fields.get(*field).and_then(Value::as_str) == Some(""))
 }
 
 // Browser-issued request IDs are not Mail path components. Require bounded
