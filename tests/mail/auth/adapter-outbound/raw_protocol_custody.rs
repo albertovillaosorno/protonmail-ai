@@ -215,6 +215,41 @@ fn malformed_scope_arrays_fail_after_partial_sensitive_decode() {
 }
 
 #[test]
+fn provider_scope_allocations_stay_within_individual_and_array_bounds() {
+    use super::ProtocolError;
+    use serde_json::json;
+
+    for accepted in [json!(vec!["scope"; 128]), json!(["x".repeat(4_096)])] {
+        let body = json!({
+            "UID":"synthetic-uid", "UserID":null,
+            "AccessToken":"synthetic-access",
+            "RefreshToken":"synthetic-refresh",
+            "Scopes":accepted
+        });
+        let serialized = body.to_string();
+        assert!(AnonymousSession::parse(200, serialized.as_bytes()).is_ok());
+    }
+
+    for rejected in [json!(vec!["scope"; 129]), json!(["x".repeat(4_097)])] {
+        let mut body = json!({
+            "UID":"synthetic-uid", "UserID":null,
+            "AccessToken":"synthetic-access",
+            "RefreshToken":"synthetic-refresh",
+            "Scopes":rejected
+        });
+        let serialized = body.to_string();
+        assert_eq!(
+            AnonymousSession::parse(200, serialized.as_bytes()).err(),
+            Some(ProtocolError::MalformedJson)
+        );
+        body["UserID"] = json!("synthetic-user");
+        let serialized = body.to_string();
+        assert!(serde_json::from_str::<RawForkSession>(&serialized).is_err());
+        assert!(ForkPoll::parse(200, serialized.as_bytes()).is_err());
+    }
+}
+
+#[test]
 fn raw_child_session_and_decrypted_password_fields_are_zeroizing() {
     let child: RawForkSession = serde_json::from_slice(
         br#"{

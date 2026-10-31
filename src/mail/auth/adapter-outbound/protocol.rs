@@ -42,7 +42,7 @@ use aes_gcm::aes::Aes256;
 use aes_gcm::{Aes256Gcm, AesGcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use serde::de::{SeqAccess, Visitor};
+use serde::de::{Error as _, SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize as _, Zeroizing};
 
@@ -63,6 +63,10 @@ const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
 // The UID and access bearer are forwarded as HTTP header values. Reject
 // provider-controlled whitespace, non-ASCII, and oversized header material.
 const MAX_HEADER_AUTHORITY_BYTES: usize = 8_192;
+// Bound the number of individually allocated provider scope strings even
+// when a hostile array still fits the overall response byte ceiling.
+const MAX_AUTH_SCOPE_COUNT: usize = 128;
+const MAX_AUTH_SCOPE_BYTES: usize = 4_096;
 const MAX_ENCRYPTED_PAYLOAD_BYTES: usize = 65_536;
 const ENCODED_PAYLOAD_CHUNKS: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3);
 const MAX_ENCODED_PAYLOAD_BYTES: usize = ENCODED_PAYLOAD_CHUNKS * 4;
@@ -1012,8 +1016,19 @@ where
             A: SeqAccess<'de>,
         {
             let mut scopes = Zeroizing::new(Vec::new());
+            scopes.reserve_exact(MAX_AUTH_SCOPE_COUNT);
             while let Some(scope) = seq.next_element::<String>()? {
-                scopes.push(scope);
+                // Take zeroizing ownership before checking the bound: rejected
+                // provider text must not be dropped as an ordinary String.
+                let mut scope = Zeroizing::new(scope);
+                let too_many = scopes.len() >= MAX_AUTH_SCOPE_COUNT;
+                let too_large = scope.len() > MAX_AUTH_SCOPE_BYTES;
+                if too_many || too_large {
+                    return Err(A::Error::custom(
+                        "authorization scopes exceed safety bounds",
+                    ));
+                }
+                scopes.push(take(&mut *scope));
             }
             Ok(scopes)
         }
