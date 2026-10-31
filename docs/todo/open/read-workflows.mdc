@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Zero-area control safety
+
+- Red-first executable synthetic DOM tests proved that zero-width/height
+  client rectangles still passed the existing nonempty geometry gate for
+  programmatic Next and sort-menu clicks. Nonempty DOMRects do not necessarily
+  mean a painted, user-actionable control (for example, scale-zero transforms).
+  The audited actions now require at least one positive-area client rectangle
+  for each needed control, including the sort options proving menu state.
+  No live provider browser, account or mailbox was used.
+
 ## Enabled Next evidence and ancestor pointer blocking
 
 - The content-free list used to report enabled Next when the button overrode

@@ -1671,6 +1671,7 @@ let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let optionParentContentHidden=false,toggleParentContentHidden=false;
+let zeroOptionArea=false,zeroToggleArea=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
 let optionParentDisabled=false;
@@ -1678,14 +1679,16 @@ const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
 const toggleParent={parentElement:null};
-const option={getClientRects:()=>hidden?[]:[{}],
+const option={getClientRects:()=>hidden?[]:[{width:zeroOptionArea?0:40,
+ height:zeroOptionArea?0:20}],
  closest:(q)=>(sortInert&&q.includes('[inert]')||
  optionParentDisabled&&q.includes('[aria-disabled'))?optionParent:null,
  parentElement:optionParent};
 const toggle=new HTMLButtonElement();
 toggle.type='button';toggle.form=null;
 toggle.parentElement=toggleParent;
-toggle.getClientRects=()=>[{}];
+toggle.getClientRects=()=>[{width:zeroToggleArea?0:60,
+ height:zeroToggleArea?0:20}];
 toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?toggleParent:null;
 toggle.getAttribute=()=>(disabled||ariaOnlyDisabled)?
@@ -1741,7 +1744,11 @@ optionParentContentHidden=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('content-hidden sort options allowed programmatic action');
 }
-optionParentContentHidden=false;
+optionParentContentHidden=false;zeroOptionArea=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('zero-area sort options passed geometry proof');
+}
+zeroOptionArea=false;
 toggle.type='submit';
 if(eval(close)!==false||clicks!==1){
  throw Error('submit sort toggle closed menu');
@@ -1768,7 +1775,11 @@ toggleParentContentHidden=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('content-hidden sort toggle was programmatically clicked');
 }
-toggleParentContentHidden=false;
+toggleParentContentHidden=false;zeroToggleArea=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('zero-area sort toggle received programmatic click');
+}
+zeroToggleArea=false;
 sortInert=true;
 if(eval(open)!==null||clicks!==2){throw Error('inert sort menu clicked');}
 sortInert=false;parentAriaDisabled=true;
@@ -1872,7 +1883,7 @@ next.type='button';next.form=null;
 next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&(disabled||ariaOnlyDisabled)?
  (uppercaseAriaDisabled?'TRUE':'true'):null;
-next.getClientRects=()=>hidden?[]:[{}];
+next.getClientRects=()=>hidden?[]:[{width:80,height:20}];
 next.closest=(q)=>(parentInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
 next.click=()=>{clicks++;};
@@ -1907,7 +1918,13 @@ parentPointerBlocked=false;parentContentHidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('content-hidden Next parent permitted a programmatic click');
 }
-parentContentHidden=false;parentInert=true;
+parentContentHidden=false;
+next.getClientRects=()=>[{width:0,height:0}];
+if(eval(script).clicked||clicks!==1){
+ throw Error('zero-area Next control received programmatic click');
+}
+next.getClientRects=()=>hidden?[]:[{width:80,height:20}];
+parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
 parentInert=false;parentAriaDisabled=true;
 if(eval(script).clicked||clicks!==1){

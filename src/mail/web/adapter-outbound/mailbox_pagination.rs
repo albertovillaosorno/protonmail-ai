@@ -52,6 +52,10 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",
+    // A transform may collapse a control without removing its DOMRects.
+    // Programmatic .click() would still fire on that non-visible button.
+    "const hasArea=(node)=>[...node.getClientRects()].some(",
+    "(rect)=>rect.width>0&&rect.height>0);",
     "const q='[data-testid=\"pagination-row:go-to-next-page\"]';",
     "const nodes=[...document.querySelectorAll(q)];",
     "if(nodes.length!==1){return {present:nodes.length===1,",
@@ -66,6 +70,7 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "next.getAttribute('aria-disabled')?.toLowerCase()==='true'){",
     "return {present:true,disabled:true,clicked:false};}",
     "if(next.getClientRects().length===0||",
+    "!hasArea(next)||",
     "getComputedStyle(next).visibility!=='visible'||",
     "getComputedStyle(next).pointerEvents==='none'||",
     "getComputedStyle(next).opacity==='0'||",
