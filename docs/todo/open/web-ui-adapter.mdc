@@ -148,6 +148,15 @@ web application without requiring Bridge or a third-party direct API identity.
   as it rejects remote handles and unserializable primitives. Chromium is
   only asked for one bounded by-value result; no browser account is used.
 
+## Reject unsolicited runtime object previews
+
+- Red-first synthetic browser replies carried a plausible trusted-origin
+  `value` together with an unrequested `preview` or `customPreview`.
+  The audited `Runtime.evaluate` requests only return-by-value JSON and
+  does not enable object preview or custom formatting. Both extra CDP
+  representations now fail closed before origin or shell authority, without
+  retaining or logging any additional object properties.
+
 ## Unambiguous mailbox-catalog cursor accounts
 
 - The browser-owned catalog continuation codec now applies the same bounded

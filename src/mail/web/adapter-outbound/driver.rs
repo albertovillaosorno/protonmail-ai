@@ -912,14 +912,21 @@ impl ManagedBrowser {
             .filter(|remote| remote.is_object())
             .ok_or(BrowserDriverError::Protocol)?;
         let value = remote.get("value").ok_or(BrowserDriverError::Protocol)?;
-        // By-value evidence cannot simultaneously be a remote handle, an
-        // unserializable primitive, or a separate deep serialization. Any
-        // alternate representation could contradict the trusted JSON value.
+        // By-value evidence cannot simultaneously supply remote handles,
+        // alternate serializations, or unrequested object previews. Such
+        // metadata can contradict the trusted JSON or carry private values.
         let has_remote_handle = remote.get("objectId").is_some();
         // jig-ignore-next-line: canonical Rust method call and CDP field.
         let has_unserializable_value = remote.get("unserializableValue").is_some();
         let has_deep_value = remote.get("deepSerializedValue").is_some();
-        if has_remote_handle || has_unserializable_value || has_deep_value {
+        let has_preview = remote.get("preview").is_some();
+        let has_custom_preview = remote.get("customPreview").is_some();
+        if has_remote_handle
+            || has_unserializable_value
+            || has_deep_value
+            || has_preview
+            || has_custom_preview
+        {
             return Err(BrowserDriverError::Protocol);
         }
         // Chromium's RemoteObject.type must agree with the returned by-value

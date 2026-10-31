@@ -1795,6 +1795,14 @@ fn by_value_runtime_evidence_rejects_conflicting_remote_object_authority() {
             // jig-ignore-next-line: contradictory synthetic CDP serialization.
             r#""deepSerializedValue":{"type":"object","value":{"hostname":"evil.invalid"}},"#,
         ),
+        (
+            "runtime-unrequested-preview",
+            r#""preview":{"type":"object","properties":[]},"#,
+        ),
+        (
+            "runtime-unrequested-custom-preview",
+            r#""customPreview":{"header":"private"},"#,
+        ),
     ] {
         let root = test_root(label);
         fs::create_dir_all(&root).expect("create synthetic profile");
