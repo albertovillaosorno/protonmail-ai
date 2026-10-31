@@ -733,6 +733,34 @@ fn malformed_cdp_headers_cannot_prove_bodyless_get() {
 }
 
 #[test]
+fn method_override_headers_cannot_prove_read_only_get() {
+    let ordinary = json!({
+        "method": "GET", "hasPostData": false,
+        "headers": {"Accept": "application/json"}
+    });
+    assert!(bodyless_cdp_get(&ordinary));
+    for header in [
+        "X-HTTP-Method-Override",
+        "x-http-method-override",
+        "X-Method-Override",
+        "X-HTTP-Method",
+        "X-Original-HTTP-Method",
+        "X-Original-Method",
+        "X-Rewrite-Method",
+    ] {
+        let mut request = ordinary.clone();
+        request["headers"][header] = json!("POST");
+        assert!(
+            !bodyless_cdp_get(&request),
+            "method override header {header} cannot prove a read-only GET"
+        );
+    }
+    let mut even_get = ordinary;
+    even_get["headers"]["X-HTTP-Method-Override"] = json!("GET");
+    assert!(!bodyless_cdp_get(&even_get));
+}
+
+#[test]
 fn request_headers_cannot_contradict_bodyless_get_provenance() {
     let clean = json!({
         "method": "GET", "url": "https://mail.proton.me/api/mail/v4/messages",

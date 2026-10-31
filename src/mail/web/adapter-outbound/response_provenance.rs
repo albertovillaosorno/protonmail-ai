@@ -43,6 +43,21 @@ fn cdp_header_name_is_token(name: &str) -> bool {
     !name.is_empty() && name.bytes().all(cdp_header_token_byte)
 }
 
+// An HTTP method-override header makes the effective operation ambiguous
+// despite CDP reporting GET. These aliases cannot prove a read-only request.
+fn method_override_header(name: &str) -> bool {
+    [
+        "X-HTTP-Method-Override",
+        "X-Method-Override",
+        "X-HTTP-Method",
+        "X-Original-HTTP-Method",
+        "X-Original-Method",
+        "X-Rewrite-Method",
+    ]
+    .iter()
+    .any(|header| name.eq_ignore_ascii_case(header))
+}
+
 fn cdp_header_value_is_safe(value: &Value) -> bool {
     value.as_str().is_some_and(|text| {
         text.chars()
@@ -95,7 +110,8 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
                     if !cdp_header_name_is_token(name) {
                         return false;
                     }
-                    if !cdp_header_value_is_safe(value) {
+                    let safe_value = cdp_header_value_is_safe(value);
+                    if !safe_value || method_override_header(name) {
                         return false;
                     }
                     if name.eq_ignore_ascii_case("content-length") {

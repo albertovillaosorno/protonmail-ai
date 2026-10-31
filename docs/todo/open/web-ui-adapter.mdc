@@ -2494,3 +2494,10 @@ web application without requiring Bridge or a third-party direct API identity.
   an exact Mail URL. The shared gate now refuses conflicting authorities while
   allowing absent Host, canonical case variants, and the default HTTPS port.
   No request headers or mailbox content are retained.
+
+- Passive CDP GETs now reject request headers that explicitly override the
+  HTTP method, including case aliases and established original/rewrite method
+  variants. Synthetic red-first message-list capture previously accepted an
+  exact GET with `X-HTTP-Method-Override: POST` as a read-only request. The
+  shared body-free gate refuses these ambiguous method hints regardless of
+  value, while preserving ordinary GETs and logging no headers or payloads.
