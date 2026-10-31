@@ -2192,3 +2192,10 @@ web application without requiring Bridge or a third-party direct API identity.
   identity to launder an ambiguous attachment. Red-first synthetic browser
   catalog cases show the prior worker/page duplicate-ID bypass; the same valid
   catalog is accepted unchanged when all listed IDs are unique.
+
+- The shared passive CDP source gate now rejects unreviewed response field
+  names containing cache, prefetch, service-worker, source, or security-state
+  markers even when the marker is not a leading prefix. Red-first synthetic
+  `isCached` and `responseSource` extensions previously passed as fresh HTTP;
+  ordinary documented source flags still pass when explicitly false. The
+  check allocates no response-field copies and applies to all read collectors.

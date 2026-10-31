@@ -166,6 +166,14 @@ fn unknown_response_source_markers_cannot_prove_direct_http() {
         ("cacheEntrySource", json!("disk")),
         ("prefetchResponseSource", json!("network")),
         ("sourceKind", json!("cache")),
+        // Non-prefix extensions still advertise alternate response origins.
+        ("isCached", json!(false)),
+        ("wasCached", json!(true)),
+        ("servedByServiceWorker", json!(false)),
+        ("responseSource", json!("network")),
+        ("responseCacheStatus", json!("miss")),
+        ("hasPrefetchSource", json!(false)),
+        ("transportSecurityState", json!("secure")),
     ] {
         let mut response = ordinary_response.clone();
         response[name] = marker;

@@ -55,27 +55,32 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
         return false;
     };
     // Future CDP releases may introduce cache/SW or security-state markers.
-    // Do not silently treat an unknown source-like key as direct HTTP, even
-    // when its current value appears false or spells a known key differently.
+    // Check markers anywhere in the name: an extension such as `isCached`
+    // or `responseSource` is ambiguous even though it does not start with a
+    // known prefix. Avoid allocating or retaining untrusted field content.
     let unknown_source_marker = fields.keys().any(|field| {
-        let marker = [
-            "from",
-            "isFrom",
-            "servedFrom",
-            "wasServedFrom",
+        let contains_marker = [
             "cache",
             "prefetch",
-            "serviceWorker",
+            "serviceworker",
             "source",
-            "securityState",
+            "securitystate",
         ]
         .iter()
-        .any(|prefix| {
+        .any(|marker| {
             field
-                .get(..prefix.len())
-                .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+                .as_bytes()
+                .windows(marker.len())
+                .any(|window| window.eq_ignore_ascii_case(marker.as_bytes()))
         });
-        marker
+        let source_prefix = ["from", "isFrom", "servedFrom", "wasServedFrom"]
+            .iter()
+            .any(|prefix| {
+                field
+                    .get(..prefix.len())
+                    .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+            });
+        (contains_marker || source_prefix)
             && !source_flags.contains(&field.as_str())
             && !source_hints.contains(&field.as_str())
             && field != "securityState"
