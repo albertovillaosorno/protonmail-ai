@@ -1054,13 +1054,15 @@ const header={...visible,id:'heading',getAttribute:(key)=>
 const sender={...visible,getClientRects:()=>[
  {left:120,top:10,width:90,height:18}],getAttribute:(key)=>
   key==='title'?currentAddresses:null};
-const row={...visible,classList:{contains:()=>false},
+const row={...visible,
+ getClientRects:()=>[{left:240,top:10,width:90,height:20}],
+ classList:{contains:()=>false},
  getAttribute:(key)=>key==='data-element-id'?'row-a':
    key==='aria-labelledby'?'heading':null,
  querySelectorAll:(selector)=>selector==='[id]'?[header]:[sender]};
 const root={...visible,querySelectorAll:()=>[row]};
 globalThis.document={querySelector:()=>null,
- elementFromPoint:(x)=>x<100?header:sender,
+ elementFromPoint:(x)=>x<100?header:x<220?sender:row,
  querySelectorAll:(selector)=>selector.includes('message-list-loaded')?
  [root]:[]};
 const valid=eval(expression);
@@ -1302,6 +1304,7 @@ let ancestorWebkitMasked=false;
 let headingZeroArea=false,senderZeroArea=false;
 let headingCovered=false,senderCovered=false,offscreenTitles=false;
 let headingBusy=false,senderBusy=false;
+let rowCovered=false,rowZeroArea=false,idReads=0;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
 let ariaHiddenUpper=false,ancestorBusy=false,rowBusy=false;
@@ -1335,14 +1338,18 @@ const sender={contains:()=>false,
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const ancestor={parentElement:null};
 const row={closest:(q)=>rowBusy&&q.includes('[aria-busy=')?row:null,
- getAttribute:(key)=>key==='data-element-id'?idValue:
-  key==='aria-labelledby'?'heading-id':null,
+ contains:()=>false,
+ getClientRects:()=>[{left:240,top:10,
+ width:rowZeroArea?0:90,height:20}],
+ getAttribute:(key)=>{idReads++;return key==='data-element-id'?idValue:
+  key==='aria-labelledby'?'heading-id':null;},
   querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
   parentElement:ancestor,classList:{contains:()=>true}};
 heading.parentElement=row;sender.parentElement=row;
 const brokenHeading={id:'heading-b',getClientRects:()=>[],
  closest:()=>null};
-const brokenRow={closest:()=>null,
+const brokenRow={closest:()=>null,contains:()=>false,
+ getClientRects:()=>[{left:350,top:10,width:90,height:20}],
  getAttribute:(key)=>key==='data-element-id'?'row-b':
  key==='aria-labelledby'?'heading-b':null,
  querySelectorAll:(key)=>key==='[id]'?[brokenHeading]:[sender]};
@@ -1352,7 +1359,8 @@ const root={closest:(q)=>ancestorBusy&&q.includes('[aria-busy=')?
  invalidSecondRow?[row,brokenRow]:[row]};
 globalThis.document={elementFromPoint:(x)=>
  offscreenTitles?null:x<100?(headingCovered?{}:heading):
- (senderCovered?{}:sender),querySelector:(q)=>
+ x<230?(senderCovered?{}:sender):
+ x<340?(rowCovered?{}:row):brokenRow,querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
@@ -1363,7 +1371,15 @@ if(!Array.isArray(projected)||projected.length!==1||
  projected[0].addresses!=='sender@example.test'||!projected[0].unread){
  throw Error('visible row projection failed');
 }
-ancestorBusy=true;titleReads=0;
+rowCovered=true;idReads=0;titleReads=0;
+if(eval(script)!==null||idReads!==0||titleReads!==0){
+ throw Error('covered row ID read before row-visibility proof');
+}
+rowCovered=false;rowZeroArea=true;idReads=0;
+if(eval(script)!==null||idReads!==0){
+ throw Error('zero-area row ID read before visibility proof');
+}
+rowZeroArea=false;ancestorBusy=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('ARIA-busy loaded root exposed private title');
 }

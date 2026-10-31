@@ -107,6 +107,11 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "if(rows.length>200){return null;}",
     "if(rows.some((row)=>row.closest('[aria-busy=\"true\" i]')))",
     "{return null;}",
+    // Check the row itself before even reading its opaque DOM identifier.
+    "if(rows.some((row)=>row.getClientRects().length===0||",
+    "!hasArea(row)||!hitTest(row)||!visibleTree(row)||",
+    "row.closest('[aria-hidden=\"true\" i],[inert]')))",
+    "{return null;}",
     // Unicode noncharacters have no interchange identity. Reject every plane
     // before Chrome serializes the ID or projects any message text.
     "const unsafeScalar=(text)=>[...text].some((c)=>{",

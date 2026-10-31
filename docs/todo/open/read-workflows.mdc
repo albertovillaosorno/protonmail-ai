@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Do not read IDs from occluded or collapsed message rows
+
+- Red-first synthetic DOM fixtures counted raw `data-element-id` reads from
+  a covered or zero-area message row. The visible-title projection previously
+  read those private row IDs before verifying the row itself; it now proves
+  bounded visibility, positive area, viewport hit and active ancestry before
+  touching any row ID attribute. The separate list projection already had
+  this gate. No provider or account data was used.
+
 ## Individual busy read markers and private title nodes
 
 - Red-first browser-synthetic fixtures reproduced busy subject/sender title
