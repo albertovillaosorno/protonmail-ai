@@ -43,7 +43,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 // jig-ignore-next-line: canonical rustfmt line.
 use mail_capability_domain::{EventCursorResumeFailure, EventCursorScope, ScopedEventCursor};
 use serde_json::Value;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 use crate::mailbox_event_watermark::ObservedMailboxEventWatermark;
 
@@ -52,6 +52,25 @@ const CURSOR_AAD_PREFIX: &[u8] = b"protonmail-ai:web-event-cursor:v1:";
 const CURSOR_KEY_BYTES: usize = 32;
 const CURSOR_NONCE_BYTES: usize = 12;
 const MAX_ENCODED_CURSOR_BYTES: usize = 4096;
+
+// Decode directly into scrub-on-drop storage. Engine::decode may leave a
+// partially decoded token prefix in an ordinary Vec if decoding fails.
+// jig-ignore-next-line: rustfmt requires the canonical short private signature.
+fn decode_guarded_token(encoded: &str) -> Result<Zeroizing<Vec<u8>>, WebEventCursorCodecError> {
+    if encoded.len() > MAX_ENCODED_CURSOR_BYTES {
+        return Err(WebEventCursorCodecError::InvalidCursor);
+    }
+    let estimate = base64::decoded_len_estimate(encoded.len());
+    let mut decoded = Zeroizing::new(vec![0u8; estimate]);
+    let written = URL_SAFE_NO_PAD
+        .decode_slice(encoded, &mut decoded)
+        .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
+    // The decoder writes only the used prefix. Scrub any unused bytes before
+    // truncate changes the Vec length and therefore drop-time wipe range.
+    decoded[written..].zeroize();
+    decoded.truncate(written);
+    Ok(decoded)
+}
 
 // Preflight the complete public cursor length before allocating an encoded
 // bearer token. Base64 appends directly into exactly pre-sized guarded text.
@@ -204,10 +223,7 @@ impl WebEventCursorCodec {
         if token_generation != generation {
             return Err(WebEventCursorCodecError::CursorExpired);
         }
-        let decoded = URL_SAFE_NO_PAD
-            .decode(encoded.unwrap_or_default())
-            .map(Zeroizing::new)
-            .map_err(|_error| WebEventCursorCodecError::InvalidCursor)?;
+        let decoded = decode_guarded_token(encoded.unwrap_or_default())?;
         if decoded.len() <= CURSOR_NONCE_BYTES {
             return Err(WebEventCursorCodecError::InvalidCursor);
         }

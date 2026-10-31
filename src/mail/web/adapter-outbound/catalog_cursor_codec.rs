@@ -40,7 +40,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::Value;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 // jig-ignore-next-line: canonical rustfmt line.
 use crate::mailbox_catalog_page::{MailboxCatalogCursorState, MailboxCatalogPageKind};
@@ -54,6 +54,25 @@ const MAX_ACCOUNT_BYTES: usize = 512;
 const GENERATION_TAG_CHARS: usize = 32;
 const SNAPSHOT_TAG_CHARS: usize = 32;
 const WEB_ADAPTER_ID: &str = "proton-mail-web-v1";
+
+// Decode directly into scrub-on-drop storage. Engine::decode may leave a
+// partially decoded token prefix in an ordinary Vec if decoding fails.
+// jig-ignore-next-line: rustfmt requires the canonical short private signature.
+fn decode_guarded_token(encoded: &str) -> Result<Zeroizing<Vec<u8>>, WebCatalogCursorCodecError> {
+    if encoded.len() > MAX_ENCODED_CURSOR_BYTES {
+        return Err(WebCatalogCursorCodecError::InvalidCursor);
+    }
+    let estimate = base64::decoded_len_estimate(encoded.len());
+    let mut decoded = Zeroizing::new(vec![0u8; estimate]);
+    let written = URL_SAFE_NO_PAD
+        .decode_slice(encoded, &mut decoded)
+        .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
+    // The decoder writes only the used prefix. Scrub any unused bytes before
+    // truncate changes the Vec length and therefore drop-time wipe range.
+    decoded[written..].zeroize();
+    decoded.truncate(written);
+    Ok(decoded)
+}
 
 // Preflight the complete public cursor length before allocating an encoded
 // bearer token. Base64 appends directly into exactly pre-sized guarded text.
@@ -189,10 +208,7 @@ impl WebCatalogCursorCodec {
         if token_generation != generation {
             return Err(WebCatalogCursorCodecError::CursorExpired);
         }
-        let decoded = URL_SAFE_NO_PAD
-            .decode(encoded.unwrap_or_default())
-            .map(Zeroizing::new)
-            .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
+        let decoded = decode_guarded_token(encoded.unwrap_or_default())?;
         if decoded.len() <= CURSOR_NONCE_BYTES {
             return Err(WebCatalogCursorCodecError::InvalidCursor);
         }

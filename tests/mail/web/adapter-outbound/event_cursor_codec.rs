@@ -32,7 +32,7 @@
 
 use super::{CURSOR_KEY_BYTES, CURSOR_NONCE_BYTES, decrypt_into_guarded};
 use super::{CURSOR_VERSION, MAX_ENCODED_CURSOR_BYTES};
-use super::{encode_guarded_token, encrypt_into_guarded};
+use super::{decode_guarded_token, encode_guarded_token, encrypt_into_guarded};
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
@@ -104,4 +104,21 @@ fn opaque_cursor_token_uses_guarded_storage_without_extra_base64_copy() {
 fn oversized_cursor_token_is_refused_before_encoding() {
     let oversized = vec![0xadu8; MAX_ENCODED_CURSOR_BYTES];
     assert!(encode_guarded_token("0123456789abcdef", &oversized).is_err());
+}
+
+#[test]
+fn decoded_cursor_bytes_have_scrubbed_ownership_from_first_write() {
+    let bytes = [3u8, 0, 7, 0xfe, 0xff];
+    let encoded = URL_SAFE_NO_PAD.encode(bytes);
+    let guarded: Zeroizing<Vec<u8>> =
+        decode_guarded_token(&encoded).expect("synthetic token decoded");
+    assert_eq!(guarded.as_slice(), bytes);
+    assert_eq!(guarded.len(), bytes.len());
+}
+
+#[test]
+fn malformed_base64_refuses_partially_decoded_token_bytes() {
+    // The first four symbols form a valid decoded prefix, then parsing fails.
+    let malformed = "AAEC?___";
+    assert!(decode_guarded_token(malformed).is_err());
 }
