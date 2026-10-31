@@ -1090,6 +1090,55 @@ fn detail_started_during_network_disable_fails_closed() {
 }
 
 #[test]
+fn late_extra_status_during_network_disable_rejects_consumed_detail() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    for status in [200u16, 304u16] {
+        let root = detail_browser_root(&format!("late-extra-{status}"));
+        fs::create_dir_all(&root).expect("create synthetic browser root");
+        let browser = fake_detail_browser(&root, true, false);
+        let script = fs::read_to_string(&browser).expect("read fake browser");
+        let marker = "    *'Network.disable'*)\n";
+        assert!(script.contains(marker));
+        let notification = json!({
+            // jig-ignore-next-line: indivisible synthetic CDP fixture.
+            "sessionId":"session-1","method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"detail-1","statusCode":status}
+        });
+        let injection = format!(
+            // jig-ignore-next-line: indivisible synthetic CDP fixture.
+            "{marker}      notice='{notification}'\n      printf '%s\\0' \"$notice\" >&4\n"
+        );
+        fs::write(&browser, script.replacen(marker, &injection, 1))
+            .expect("inject late CDP status during disable");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic browser UTF-8 path"),
+            &root.join("data"),
+        )
+        .expect("construct isolated profile");
+        // jig-ignore-next-line: rustfmt browser test call.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch browser");
+        let page = managed.provider_page().expect("discover Mail page");
+        assert_eq!(
+            // jig-ignore-next-line: rustfmt browser test call.
+            managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+            Err(BrowserDriverError::MessageDetailNetwork(
+                MessageDetailNetworkError::InvalidSequence
+            ))
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("CDP remains usable");
+        drop(managed);
+        // jig-ignore-next-line: rustfmt browser test call.
+        let log = fs::read_to_string(root.join("detail-log.txt")).expect("read lifecycle audit");
+        assert_eq!(log, "enable\nbody\ndisable\n");
+        fs::remove_dir_all(&root).expect("clean synthetic browser root");
+    }
+}
+
+#[test]
 fn consumed_detail_request_ids_reject_all_late_lifecycle_events() {
     let mut capture = MessageDetailNetworkCapture::new("session-a");
     capture

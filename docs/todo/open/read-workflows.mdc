@@ -883,3 +883,9 @@ Ship useful read access before any mailbox mutation is enabled.
   HTTP-200 notices after the exact request ID was consumed. Such late events
   no longer bypass the existing completed-ID replay rule; tests first proved
   acceptance in message, conversation, attachment, list and catalog flows.
+
+- Synthetic full-browser CDP tests now inject late HTTP 200 and 304 extra-info
+  notices for a consumed message-detail request while `Network.disable` is
+  pending. Both produce invalid-sequence failures before returning projected
+  private metadata, despite response body access having occurred earlier; the
+  CDP session remains usable after teardown.
