@@ -367,6 +367,47 @@ fn detail_network_capture_tracks_only_exact_get_lifecycle() {
 }
 
 #[test]
+fn cached_message_responses_cannot_authorize_provider_metadata() {
+    for (source, value) in [
+        ("fromDiskCache", json!(true)),
+        ("fromServiceWorker", json!(true)),
+        ("fromPrefetchCache", json!(true)),
+        ("fromDiskCache", json!(null)),
+        ("fromServiceWorker", json!("false")),
+    ] {
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+            .expect("track exact GET");
+        let mut response =
+        // jig-ignore-next-line: rustfmt canonical synthetic response.
+            response_event("session-a", "detail", MESSAGE_URL, 200, "application/json");
+        response["params"]["response"][source] = value;
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageDetailNetworkError::ResponseRejected),
+            "reject unsafe response provenance: {source}",
+        );
+        assert!(capture.take_finished_requests().is_empty());
+    }
+
+    let mut capture = MessageDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+        .expect("track exact GET");
+    // jig-ignore-next-line: rustfmt canonical synthetic response.
+    let mut response = response_event("session-a", "detail", MESSAGE_URL, 200, "application/json");
+    for source in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+        response["params"]["response"][source] = json!(false);
+    }
+    capture.observe(&response).expect("uncached response");
+    capture
+        .observe(&finished_event("session-a", "detail"))
+        .expect("complete uncached response");
+    assert_eq!(capture.take_finished_requests().len(), 1);
+}
+
+#[test]
 fn redirected_into_exact_message_detail_get_is_rejected() {
     let id = "redirected";
     let mut capture = MessageDetailNetworkCapture::new("session-1");

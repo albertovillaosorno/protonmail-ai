@@ -831,3 +831,10 @@ Ship useful read access before any mailbox mutation is enabled.
   malformed source flags. Red-first synthetic responses previously authorized
   cached catalog metadata; ordinary GETs with omitted or false flags still
   complete. This does not independently prove provider response freshness.
+
+- Passive exact message-detail, conversation-detail and attachment-metadata
+  response captures now reject cached, prefetched or service-worker-sourced
+  CDP evidence, including malformed provenance flags. Red-first synthetic
+  requests proved these three endpoints previously accepted cached metadata;
+  normal exact GETs with omitted or explicitly false flags remain valid.
+  This is transport-source checking, not proof of server freshness.

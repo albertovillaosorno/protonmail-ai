@@ -66,6 +66,18 @@ const MAX_ATTACHMENT_NAME_BYTES: usize = 4_096;
 const MAX_MIME_TYPE_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_DETAIL_REQUESTS: usize = 16;
 
+// Cached or service-worker-derived metadata cannot prove current provider
+// state. CDP may omit these optional markers, but a present marker must be
+// boolean false rather than ambiguous or affirmative cache provenance.
+fn uncached_message_detail_response(response: &Value) -> bool {
+    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
+        .iter()
+        .all(|field| {
+            let source = response.get(*field);
+            matches!(source, None | Some(Value::Bool(false)))
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MessageDetailRequestState {
     Requested,
@@ -258,6 +270,7 @@ impl MessageDetailNetworkCapture {
         let mime = response.get("mimeType").and_then(Value::as_str);
         if response_message_id != Some(request.message_id.as_str())
             || status != Some(200)
+            || !uncached_message_detail_response(response)
             || mime != Some("application/json")
         {
             return Err(MessageDetailNetworkError::ResponseRejected);
