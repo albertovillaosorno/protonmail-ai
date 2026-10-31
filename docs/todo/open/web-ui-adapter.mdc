@@ -123,6 +123,14 @@ web application without requiring Bridge or a third-party direct API identity.
   origin or using other UI evidence. Synthetic regressions cover both variants
   without inspecting a live browser profile.
 
+## Reject alternate deep serialization of by-value page evidence
+
+- Red-first fake-browser regression proved `Runtime.evaluate` accepted a
+  valid Mail `value` alongside a contradictory CDP `deepSerializedValue`.
+  The return-by-value path now rejects that alternate representation just
+  as it rejects remote handles and unserializable primitives. Chromium is
+  only asked for one bounded by-value result; no browser account is used.
+
 ## Unambiguous mailbox-catalog cursor accounts
 
 - The browser-owned catalog continuation codec now applies the same bounded
