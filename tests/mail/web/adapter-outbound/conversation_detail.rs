@@ -371,6 +371,33 @@ fn memory_cache_notification_cannot_authorize_conversation_get() {
 }
 
 #[test]
+fn declared_extra_status_is_required_before_completion() {
+    let mut capture = ConversationDetailNetworkCapture::new("session-1");
+    capture
+        .observe(&request_event("session-1", "extra", "GET", URL))
+        .expect("track provider GET");
+    // jig-ignore-next-line: synthetic CDP fixture.
+    let mut response = response_event("session-1", "extra", URL, 200, "application/json");
+    response["params"]["hasExtraInfo"] = json!(true);
+    capture.observe(&response).expect("accept nominal HTTP 200");
+    capture
+        .observe(&finished_event("session-1", "extra"))
+        .expect("finish response");
+    assert!(
+        capture.take_finished_requests().is_empty(),
+        "hasExtraInfo=true cannot complete without actual HTTP status"
+    );
+    capture
+        .observe(&json!({
+            // jig-ignore-next-line: synthetic CDP fixture.
+            "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"extra","statusCode":200u16}
+        }))
+        .expect("accept actual HTTP status");
+    assert_eq!(capture.take_finished_requests().len(), 1);
+}
+
+#[test]
 fn revalidated_cache_status_rejects_conversation_get() {
     for after_response in [false, true] {
         let mut capture = ConversationDetailNetworkCapture::new("session-a");

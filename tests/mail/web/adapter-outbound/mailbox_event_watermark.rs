@@ -612,6 +612,51 @@ fn actual_network_status_200_preserves_event_cursor_capture() {
 }
 
 #[test]
+fn declared_extra_status_is_required_for_both_event_cursors() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use serde_json::json;
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (is_latest, url) in [(true, latest), (false, URL)] {
+        let request = json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"extra", "request":{"method":"GET","url":url}}
+        });
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"extra", "hasExtraInfo":true, "response":{
+                "url":url,"status":200u16,"mimeType":"application/json"}}
+        });
+        let finished = json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":"extra"}
+        });
+        let extra = json!({
+            // jig-ignore-next-line: synthetic CDP fixture.
+            "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"extra","statusCode":200u16}
+        });
+        if is_latest {
+            // jig-ignore-next-line: synthetic CDP fixture.
+            let mut capture = LatestMailboxEventNetworkCapture::new("session-1");
+            capture.observe(&request).expect("track latest request");
+            capture.observe(&response).expect("accept nominal response");
+            capture.observe(&finished).expect("finish latest response");
+            assert!(capture.take_finished_request_ids().is_empty());
+            capture.observe(&extra).expect("accept status");
+            assert_eq!(capture.take_finished_request_ids(), ["extra"]);
+        } else {
+            let mut capture = MailboxEventNetworkCapture::new("session-1");
+            capture.observe(&request).expect("track poll request");
+            capture.observe(&response).expect("accept nominal response");
+            capture.observe(&finished).expect("finish poll response");
+            assert!(capture.take_finished_request_ids().is_empty());
+            capture.observe(&extra).expect("accept status");
+            assert_eq!(capture.take_finished_request_ids(), ["extra"]);
+        }
+    }
+}
+
+#[test]
 fn revalidated_cache_status_rejects_both_event_cursor_gets() {
     use mail_web_adapter::MailboxEventNetworkCapture;
     use mail_web_adapter::MailboxEventNetworkError;

@@ -36,6 +36,7 @@ use super::*;
 fn tracked_list_anchor_is_never_exposed_in_debug() {
     let tracked = TrackedMessageListRequest {
         state: NetworkRequestState::Requested,
+        extra_status: ExtraStatusEvidence::default(),
         kind: MessageListRequestKind::Continuation,
         limit: 1,
         page: None,

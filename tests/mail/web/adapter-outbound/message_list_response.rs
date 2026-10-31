@@ -268,6 +268,43 @@ fn network_capture_tracks_only_exact_get_list_lifecycle() {
 }
 
 #[test]
+fn declared_extra_status_is_required_before_completion() {
+    use serde_json::json;
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"extra", "request":{"method":"GET","url":URL}}
+        }))
+        .expect("track provider GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"extra", "hasExtraInfo":true, "response":{
+                "url":URL,"status":200u16,"mimeType":"application/json"}}
+        }))
+        .expect("accept nominal HTTP 200");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":"extra"}
+        }))
+        .expect("finish response");
+    assert!(
+        capture.take_finished_request_ids().is_empty(),
+        "hasExtraInfo=true cannot complete without actual HTTP status"
+    );
+    capture
+        .observe(&json!({
+            // jig-ignore-next-line: synthetic CDP fixture.
+            "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"extra","statusCode":200u16}
+        }))
+        .expect("accept actual HTTP status");
+    assert_eq!(capture.take_finished_request_ids(), ["extra"]);
+}
+
+#[test]
 fn revalidated_cache_status_rejects_message_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

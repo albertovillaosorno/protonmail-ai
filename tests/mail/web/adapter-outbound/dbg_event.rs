@@ -36,6 +36,7 @@ use super::*;
 fn tracked_event_id_and_private_request_hashes_are_redacted() {
     let event = TrackedEventRequest {
         state: EventRequestState::Requested,
+        extra_status: ExtraStatusEvidence::default(),
         event_id: Zeroizing::new("private-event-id-marker".into()),
         url_fingerprint: [1_234_567_890_123, 4_567_890_123_456],
     };
@@ -47,6 +48,7 @@ fn tracked_event_id_and_private_request_hashes_are_redacted() {
 
     let latest = TrackedLatestEventRequest {
         state: EventRequestState::Requested,
+        extra_status: ExtraStatusEvidence::default(),
         url_fingerprint: [1_234_567_890_123, 4_567_890_123_456],
     };
     let latest_debug = format!("{latest:?}");

@@ -36,6 +36,7 @@ use super::*;
 fn tracked_conversation_query_fingerprint_is_not_debug_output() {
     let tracked = TrackedConversationListRequest {
         state: ConversationListRequestState::Requested,
+        extra_status: ExtraStatusEvidence::default(),
         url_fingerprint: [1_234_567_890_123, 4_567_890_123_456],
         requested_page: Some(0),
         anchor_continuation: false,

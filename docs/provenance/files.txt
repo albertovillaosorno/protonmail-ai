@@ -869,6 +869,16 @@ destination_license=GPL-3.0-only
 modifications=original-rust-cdp-cache-provenance-predicate
 
 [file]
+path=tests/mail/web/adapter-outbound/response_provenance.rs
+origin=original
+source_id=project
+source_path=-
+source_revision=-
+source_license=-
+destination_license=GPL-3.0-only
+modifications=synthetic-response-source-status-regressions
+
+[file]
 path=src/mail/web/adapter-outbound/request_id_custody.rs
 origin=original
 source_id=project

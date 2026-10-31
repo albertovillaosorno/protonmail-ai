@@ -333,3 +333,10 @@ bounded resource use.
 - Both event cursor observers now reject a late HTTP-200 extra-info event
   for an already-consumed request ID as invalid sequence, matching their
   existing response, failed and finished lifecycle replay protection.
+
+- Both legacy latest-event and core-v5 poll captures now honor CDP's declared
+  `hasExtraInfo` status evidence. A nominal responseReceived HTTP 200 cannot
+  advance a watermark while its actual extra-info status is still outstanding.
+  Synthetic tests first reproduced premature completion on both cursors, then
+  verified that a late exact HTTP 200 unlocks the response without retrying or
+  exposing an event ID. Missing status fails closed within the bounded wait.

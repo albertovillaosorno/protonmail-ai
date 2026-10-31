@@ -435,6 +435,41 @@ fn actual_network_status_200_preserves_message_detail_capture() {
 }
 
 #[test]
+fn declared_extra_status_must_arrive_before_detail_can_complete() {
+    for early in [false, true] {
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+            .expect("start exact request");
+        let extra = json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"detail","statusCode":200u16}
+        });
+        if early {
+            capture.observe(&extra).expect("early HTTP status");
+        }
+        let mut response =
+            // jig-ignore-next-line: synthetic CDP fixture.
+            response_event("session-a", "detail", MESSAGE_URL, 200, "application/json");
+        response["params"]["hasExtraInfo"] = json!(true);
+        capture.observe(&response).expect("network response");
+        capture
+            .observe(&finished_event("session-a", "detail"))
+            .expect("network completion");
+        if !early {
+            assert!(
+                capture.take_finished_requests().is_empty(),
+                "a response still awaiting real HTTP status is not complete"
+            );
+            capture.observe(&extra).expect("late HTTP status");
+        }
+        assert_eq!(capture.take_finished_requests().len(), 1);
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+}
+
+#[test]
 fn revalidated_cache_status_rejects_message_get() {
     for after_response in [false, true] {
         let mut capture = MessageDetailNetworkCapture::new("session-a");
@@ -1087,6 +1122,75 @@ fn detail_started_during_network_disable_fails_closed() {
         fs::read_to_string(root.join("detail-log.txt")).expect("read late-disable detail log");
     assert_eq!(log, "enable\nbody\ndisable\n");
     fs::remove_dir_all(&root).expect("remove late-disable detail root");
+}
+
+#[test]
+fn browser_waits_for_declared_http_status_before_reading_message_body() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    for status_arrives in [false, true] {
+        let root = detail_browser_root(if status_arrives {
+            "declared-status-late"
+        } else {
+            "declared-status-missing"
+        });
+        fs::create_dir_all(&root).expect("create fake browser root");
+        let browser = fake_detail_browser(&root, true, false);
+        // jig-ignore-next-line: synthetic CDP fixture.
+        let script = fs::read_to_string(&browser).expect("read synthetic browser");
+        let nominal = "\"requestId\":\"detail-1\",\"response\":{";
+        // jig-ignore-next-line: synthetic CDP fixture.
+        let declared = "\"requestId\":\"detail-1\",\"hasExtraInfo\":true,\"response\":{";
+        assert!(script.contains(nominal));
+        let mut script = script.replacen(nominal, declared, 1);
+        if status_arrives {
+            // CDP may deliver actual status after loadingFinished.
+            // jig-ignore-next-line: indivisible fake-CDP event marker.
+            let marker = r#"        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4"#;
+            assert!(script.contains(marker));
+            let extra = json!({
+                "sessionId":"session-1",
+                "method":"Network.responseReceivedExtraInfo",
+                "params":{"requestId":"detail-1","statusCode":200u16}
+            });
+            let injection =
+                // jig-ignore-next-line: canonical Bash fixture formatting.
+                format!("{marker}\n        extra='{extra}'\n        printf '%s\\0' \"$extra\" >&4");
+            script = script.replacen(marker, &injection, 1);
+        }
+        fs::write(&browser, script).expect("replace synthetic browser fixture");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("fake browser UTF-8 path"),
+            &root.join("data"),
+        )
+        .expect("construct browser plan");
+        // jig-ignore-next-line: rustfmt browser construction call.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+        let page = managed.provider_page().expect("discover Proton Mail page");
+        // jig-ignore-next-line: synthetic CDP fixture.
+        let result = managed.observe_passive_message_detail(&page, Duration::from_millis(500));
+        if status_arrives {
+            assert!(result.expect("status evidence permits read").is_some());
+        } else {
+            assert_eq!(result, Err(BrowserDriverError::MessageDetailAmbiguous));
+        }
+        managed
+            .require_mail_shell(&page)
+            .expect("CDP remains usable");
+        drop(managed);
+        let log = fs::read_to_string(root.join("detail-log.txt"))
+            .expect("read synthetic browser lifecycle log");
+        assert_eq!(
+            log,
+            if status_arrives {
+                "enable\nbody\ndisable\n"
+            } else {
+                "enable\ndisable\n"
+            }
+        );
+        fs::remove_dir_all(&root).expect("clean synthetic browser fixture");
+    }
 }
 
 #[test]

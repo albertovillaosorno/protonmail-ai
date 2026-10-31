@@ -38,6 +38,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -69,6 +70,7 @@ enum AttachmentMetadataRequestState {
 #[derive(Clone, Eq, PartialEq)]
 struct TrackedAttachmentMetadataRequest {
     state: AttachmentMetadataRequestState,
+    extra_status: ExtraStatusEvidence,
     attachment_id: Zeroizing<String>,
 }
 
@@ -76,6 +78,7 @@ impl Debug for TrackedAttachmentMetadataRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("TrackedAttachmentMetadataRequest")
             .field("state", &self.state)
+            .field("extra_status", &self.extra_status)
             .field("attachment_id", &"<redacted>")
             .finish()
     }
@@ -128,12 +131,7 @@ impl AttachmentMetadataNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                let request_id = network_request_id(event)?;
-                if self.completed_ids.contains(request_id) {
-                    Err(AttachmentMetadataNetworkError::InvalidSequence)
-                } else {
-                    Ok(())
-                }
+                self.observe_extra_200(event)
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
@@ -151,8 +149,10 @@ impl AttachmentMetadataNetworkCapture {
         let finished = self
             .requests
             .iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|(_id, request)| request.state == AttachmentMetadataRequestState::Finished)
+            .filter(|(_id, request)| {
+                request.state == AttachmentMetadataRequestState::Finished
+                    && request.extra_status.ready()
+            })
             .map(|(request_id, request)| {
                 (
                     request_id.clone(),
@@ -162,6 +162,7 @@ impl AttachmentMetadataNetworkCapture {
             .collect::<Vec<_>>();
         retain_request_ids(&mut self.requests, |request| {
             request.state != AttachmentMetadataRequestState::Finished
+                || !request.extra_status.ready()
         });
         for (request_id, _attachment_id) in &finished {
             self.completed_ids.insert(request_id.clone());
@@ -230,6 +231,7 @@ impl AttachmentMetadataNetworkCapture {
             String::from(request_id),
             TrackedAttachmentMetadataRequest {
                 state: AttachmentMetadataRequestState::Requested,
+                extra_status: ExtraStatusEvidence::default(),
                 attachment_id: Zeroizing::new(String::from(attachment_id)),
             },
         );
@@ -273,13 +275,31 @@ impl AttachmentMetadataNetworkCapture {
         {
             return Err(AttachmentMetadataNetworkError::ResponseRejected);
         }
+        if !request.extra_status.note_response(params) {
+            return Err(AttachmentMetadataNetworkError::ResponseRejected);
+        }
         request.state = AttachmentMetadataRequestState::Responded;
+        Ok(())
+    }
+
+    // The actual HTTP-200 status can arrive before or after loadingFinished.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_extra_200(&mut self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
+        if let Some(request) = self.requests.get_mut(request_id)
+            && !request.extra_status.note_200()
+        {
+            return Err(AttachmentMetadataNetworkError::InvalidSequence);
+        }
         Ok(())
     }
 
     // A cache hit can arrive before or after responseReceived. Either order
     // disqualifies this exact request from establishing fresh provider state.
-    // jig-ignore-next-line: canonical rustfmt line.
+    // jig-ignore-next-line: rustfmt callback signature.
     fn observe_cache_hit(&self, event: &Value) -> Result<(), AttachmentMetadataNetworkError> {
         let request_id = network_request_id(event)?;
         if self.completed_ids.contains(request_id) {

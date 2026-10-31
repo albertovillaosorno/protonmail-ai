@@ -31,6 +31,7 @@
 //! Content-minimizing projection of Proton Mail conversation-list responses.
 
 use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
+use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -71,6 +72,7 @@ enum ConversationListRequestState {
 #[derive(Clone, Eq, PartialEq)]
 struct TrackedConversationListRequest {
     state: ConversationListRequestState,
+    extra_status: ExtraStatusEvidence,
     url_fingerprint: [u64; 2],
     requested_page: Option<u32>,
     anchor_continuation: bool,
@@ -81,6 +83,7 @@ impl fmt::Debug for TrackedConversationListRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TrackedConversationListRequest")
             .field("state", &self.state)
+            .field("extra_status", &self.extra_status)
             .field("url_fingerprint", &"<redacted>")
             .field("requested_page", &self.requested_page)
             .field("anchor_continuation", &self.anchor_continuation)
@@ -136,12 +139,7 @@ impl ConversationListNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                let request_id = network_request_id(event)?;
-                if self.completed_ids.contains(request_id) {
-                    Err(ConversationListNetworkError::InvalidSequence)
-                } else {
-                    Ok(())
-                }
+                self.observe_extra_200(event)
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
@@ -169,8 +167,10 @@ impl ConversationListNetworkCapture {
         let finished = self
             .requests
             .iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|(_id, request)| request.state == ConversationListRequestState::Finished)
+            .filter(|(_id, request)| {
+                request.state == ConversationListRequestState::Finished
+                    && request.extra_status.ready()
+            })
             .map(|(request_id, request)| {
                 (
                     request_id.clone(),
@@ -181,7 +181,8 @@ impl ConversationListNetworkCapture {
             })
             .collect::<Vec<_>>();
         retain_request_ids(&mut self.requests, |request| {
-            request.state != ConversationListRequestState::Finished
+            // jig-ignore-next-line: rustfmt status guard.
+            request.state != ConversationListRequestState::Finished || !request.extra_status.ready()
         });
         for (request_id, _page, _anchor, _initial) in &finished {
             self.completed_ids.insert(request_id.clone());
@@ -249,6 +250,7 @@ impl ConversationListNetworkCapture {
             String::from(request_id),
             TrackedConversationListRequest {
                 state: ConversationListRequestState::Requested,
+                extra_status: ExtraStatusEvidence::default(),
                 url_fingerprint,
                 requested_page,
                 anchor_continuation,
@@ -296,13 +298,31 @@ impl ConversationListNetworkCapture {
         {
             return Err(ConversationListNetworkError::ResponseRejected);
         }
+        if !request.extra_status.note_response(params) {
+            return Err(ConversationListNetworkError::ResponseRejected);
+        }
         request.state = ConversationListRequestState::Responded;
+        Ok(())
+    }
+
+    // The actual HTTP-200 status can arrive before or after loadingFinished.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_extra_200(&mut self, event: &Value) -> Result<(), ConversationListNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
+        if let Some(request) = self.requests.get_mut(request_id)
+            && !request.extra_status.note_200()
+        {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
         Ok(())
     }
 
     // Chrome reports cache hits separately from response metadata. A hit
     // disqualifies this exact provider GET regardless of notification order.
-    // jig-ignore-next-line: canonical rustfmt line.
+    // jig-ignore-next-line: rustfmt callback signature.
     fn observe_cache_hit(&self, event: &Value) -> Result<(), ConversationListNetworkError> {
         let request_id = network_request_id(event)?;
         if self.completed_ids.contains(request_id) {

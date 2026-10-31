@@ -36,6 +36,7 @@ use super::*;
 fn tracked_private_identifier_cannot_leak_through_debug() {
     let tracked = TrackedAttachmentMetadataRequest {
         state: AttachmentMetadataRequestState::Requested,
+        extra_status: ExtraStatusEvidence::default(),
         attachment_id: Zeroizing::new("private-entity-id-marker".into()),
     };
     let debug = format!("{tracked:?}");

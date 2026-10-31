@@ -347,6 +347,32 @@ fn network_capture_tracks_only_exact_mail_category_gets() {
 }
 
 #[test]
+fn declared_extra_status_is_required_before_completion() {
+    let mut capture = MailboxCatalogNetworkCapture::new("session-1");
+    capture
+        .observe(&request("session-1", "extra", "GET", LABEL_URL))
+        .expect("track provider GET");
+    let mut response = response("session-1", "extra", LABEL_URL);
+    response["params"]["hasExtraInfo"] = json!(true);
+    capture.observe(&response).expect("accept nominal HTTP 200");
+    capture
+        .observe(&finished("session-1", "extra"))
+        .expect("finish response");
+    assert!(
+        capture.take_finished_request_ids().is_empty(),
+        "hasExtraInfo=true cannot complete without actual HTTP status"
+    );
+    capture
+        .observe(&json!({
+            // jig-ignore-next-line: synthetic CDP fixture.
+            "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"extra","statusCode":200u16}
+        }))
+        .expect("accept actual HTTP status");
+    assert_eq!(capture.take_finished_request_ids().len(), 1);
+}
+
+#[test]
 fn revalidated_cache_status_rejects_catalog_get() {
     for after_response in [false, true] {
         let mut capture = MailboxCatalogNetworkCapture::new("session-a");

@@ -33,6 +33,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -71,6 +72,7 @@ enum EventRequestState {
 #[derive(Clone)]
 struct TrackedEventRequest {
     state: EventRequestState,
+    extra_status: ExtraStatusEvidence,
     event_id: Zeroizing<String>,
     url_fingerprint: [u64; 2],
 }
@@ -79,6 +81,7 @@ impl fmt::Debug for TrackedEventRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TrackedEventRequest")
             .field("state", &self.state)
+            .field("extra_status", &self.extra_status)
             .field("event_id", &"<redacted>")
             .field("url_fingerprint", &"<redacted>")
             .finish()
@@ -91,7 +94,9 @@ impl fmt::Debug for TrackedEventRequest {
 )]
 impl PartialEq for TrackedEventRequest {
     fn eq(&self, other: &Self) -> bool {
-        self.state == other.state && self.event_id == other.event_id
+        self.state == other.state
+            && self.event_id == other.event_id
+            && self.extra_status == other.extra_status
     }
 }
 
@@ -104,6 +109,7 @@ impl Eq for TrackedEventRequest {}
 #[derive(Clone)]
 struct TrackedLatestEventRequest {
     state: EventRequestState,
+    extra_status: ExtraStatusEvidence,
     url_fingerprint: [u64; 2],
 }
 
@@ -111,6 +117,7 @@ impl fmt::Debug for TrackedLatestEventRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TrackedLatestEventRequest")
             .field("state", &self.state)
+            .field("extra_status", &self.extra_status)
             .field("url_fingerprint", &"<redacted>")
             .finish()
     }
@@ -122,7 +129,7 @@ impl fmt::Debug for TrackedLatestEventRequest {
 )]
 impl PartialEq for TrackedLatestEventRequest {
     fn eq(&self, other: &Self) -> bool {
-        self.state == other.state
+        self.state == other.state && self.extra_status == other.extra_status
     }
 }
 
@@ -198,12 +205,7 @@ impl LatestMailboxEventNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                let request_id = network_request_id(event)?;
-                if self.completed_ids.contains(request_id) {
-                    Err(MailboxEventNetworkError::InvalidSequence)
-                } else {
-                    Ok(())
-                }
+                self.observe_extra_200(event)
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
@@ -226,12 +228,15 @@ impl LatestMailboxEventNetworkCapture {
         let finished = self
             .requests
             .iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|(_id, request)| request.state == EventRequestState::Finished)
+            .filter(|(_id, request)| {
+                // jig-ignore-next-line: rustfmt status guard.
+                request.state == EventRequestState::Finished && request.extra_status.ready()
+            })
             .map(|(id, _state)| id.clone())
             .collect::<Vec<_>>();
         retain_request_ids(&mut self.requests, |request| {
-            request.state != EventRequestState::Finished
+            // jig-ignore-next-line: rustfmt status guard.
+            request.state != EventRequestState::Finished || !request.extra_status.ready()
         });
         self.completed_ids.extend(finished.iter().cloned());
         finished
@@ -290,6 +295,7 @@ impl LatestMailboxEventNetworkCapture {
             String::from(request_id),
             TrackedLatestEventRequest {
                 state: EventRequestState::Requested,
+                extra_status: ExtraStatusEvidence::default(),
                 // jig-ignore-next-line: canonical rustfmt line.
                 url_fingerprint: self.url_hashers.each_ref().map(|state| state.hash_one(url)),
             },
@@ -340,13 +346,31 @@ impl LatestMailboxEventNetworkCapture {
         {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
+        if !request.extra_status.note_response(params) {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
         request.state = EventRequestState::Responded;
+        Ok(())
+    }
+
+    // The actual HTTP-200 status can arrive before or after loadingFinished.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_extra_200(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if let Some(request) = self.requests.get_mut(request_id)
+            && !request.extra_status.note_200()
+        {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         Ok(())
     }
 
     // Chrome reports cache hits separately from response metadata. A hit
     // disqualifies this exact provider GET regardless of notification order.
-    // jig-ignore-next-line: canonical rustfmt line.
+    // jig-ignore-next-line: rustfmt callback signature.
     fn observe_cache_hit(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
         if self.completed_ids.contains(request_id) {
@@ -469,12 +493,7 @@ impl MailboxEventNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                let request_id = network_request_id(event)?;
-                if self.completed_ids.contains(request_id) {
-                    Err(MailboxEventNetworkError::InvalidSequence)
-                } else {
-                    Ok(())
-                }
+                self.observe_extra_200(event)
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
@@ -509,12 +528,15 @@ impl MailboxEventNetworkCapture {
         let finished = self
             .requests
             .iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|(_id, request)| request.state == EventRequestState::Finished)
+            .filter(|(_id, request)| {
+                // jig-ignore-next-line: rustfmt status guard.
+                request.state == EventRequestState::Finished && request.extra_status.ready()
+            })
             .map(|(id, request)| (id.clone(), request.event_id.to_string()))
             .collect::<Vec<_>>();
         retain_request_ids(&mut self.requests, |request| {
-            request.state != EventRequestState::Finished
+            // jig-ignore-next-line: rustfmt status guard.
+            request.state != EventRequestState::Finished || !request.extra_status.ready()
         });
         for (request_id, _event_id) in &finished {
             self.completed_ids.insert(request_id.clone());
@@ -579,6 +601,7 @@ impl MailboxEventNetworkCapture {
             String::from(request_id),
             TrackedEventRequest {
                 state: EventRequestState::Requested,
+                extra_status: ExtraStatusEvidence::default(),
                 event_id: Zeroizing::new(String::from(event_id)),
                 // jig-ignore-next-line: canonical rustfmt line.
                 url_fingerprint: self.url_hashers.each_ref().map(|state| state.hash_one(url)),
@@ -633,13 +656,31 @@ impl MailboxEventNetworkCapture {
         {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
+        if !request.extra_status.note_response(params) {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
         request.state = EventRequestState::Responded;
+        Ok(())
+    }
+
+    // The actual HTTP-200 status can arrive before or after loadingFinished.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_extra_200(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if let Some(request) = self.requests.get_mut(request_id)
+            && !request.extra_status.note_200()
+        {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
         Ok(())
     }
 
     // Chrome reports cache hits separately from response metadata. A hit
     // disqualifies this exact provider GET regardless of notification order.
-    // jig-ignore-next-line: canonical rustfmt line.
+    // jig-ignore-next-line: rustfmt callback signature.
     fn observe_cache_hit(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
         if self.completed_ids.contains(request_id) {

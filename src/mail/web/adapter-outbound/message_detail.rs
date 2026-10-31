@@ -37,6 +37,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
@@ -78,6 +79,7 @@ enum MessageDetailRequestState {
 #[derive(Clone, Eq, PartialEq)]
 struct TrackedMessageDetailRequest {
     state: MessageDetailRequestState,
+    extra_status: ExtraStatusEvidence,
     message_id: Zeroizing<String>,
 }
 
@@ -85,6 +87,7 @@ impl fmt::Debug for TrackedMessageDetailRequest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TrackedMessageDetailRequest")
             .field("state", &self.state)
+            .field("extra_status", &self.extra_status)
             .field("message_id", &"<redacted>")
             .finish()
     }
@@ -137,12 +140,7 @@ impl MessageDetailNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                let request_id = network_request_id(event)?;
-                if self.completed_ids.contains(request_id) {
-                    Err(MessageDetailNetworkError::InvalidSequence)
-                } else {
-                    Ok(())
-                }
+                self.observe_extra_200(event)
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
@@ -159,8 +157,10 @@ impl MessageDetailNetworkCapture {
         let finished = self
             .requests
             .iter()
-            // jig-ignore-next-line: canonical rustfmt line.
-            .filter(|(_id, request)| request.state == MessageDetailRequestState::Finished)
+            .filter(|(_id, request)| {
+                // jig-ignore-next-line: rustfmt status guard.
+                request.state == MessageDetailRequestState::Finished && request.extra_status.ready()
+            })
             .map(|(request_id, request)| {
                 (
                     request_id.clone(),
@@ -169,7 +169,8 @@ impl MessageDetailNetworkCapture {
             })
             .collect::<Vec<_>>();
         retain_request_ids(&mut self.requests, |request| {
-            request.state != MessageDetailRequestState::Finished
+            // jig-ignore-next-line: rustfmt status guard.
+            request.state != MessageDetailRequestState::Finished || !request.extra_status.ready()
         });
         for (request_id, _message_id) in &finished {
             self.completed_ids.insert(request_id.clone());
@@ -236,6 +237,7 @@ impl MessageDetailNetworkCapture {
             String::from(request_id),
             TrackedMessageDetailRequest {
                 state: MessageDetailRequestState::Requested,
+                extra_status: ExtraStatusEvidence::default(),
                 message_id: Zeroizing::new(String::from(message_id)),
             },
         );
@@ -278,7 +280,24 @@ impl MessageDetailNetworkCapture {
         {
             return Err(MessageDetailNetworkError::ResponseRejected);
         }
+        if !request.extra_status.note_response(params) {
+            return Err(MessageDetailNetworkError::ResponseRejected);
+        }
         request.state = MessageDetailRequestState::Responded;
+        Ok(())
+    }
+
+    // jig-ignore-next-line: rustfmt status guard.
+    fn observe_extra_200(&mut self, event: &Value) -> Result<(), MessageDetailNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageDetailNetworkError::InvalidSequence);
+        }
+        if let Some(request) = self.requests.get_mut(request_id)
+            && !request.extra_status.note_200()
+        {
+            return Err(MessageDetailNetworkError::InvalidSequence);
+        }
         Ok(())
     }
 

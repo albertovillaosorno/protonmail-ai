@@ -59,6 +59,45 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
         .all(|field| response.get(*field).is_none())
 }
 
+// CDP can report a nominal 200 in responseReceived before the actual HTTP
+// status arrives via responseReceivedExtraInfo. When hasExtraInfo is true,
+// that separate status is required before a provider GET can be consumed.
+// Extra-info notifications may precede responseReceived or loadingFinished.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "private sibling observers share one status-evidence type"
+)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct ExtraStatusEvidence {
+    declared: Option<bool>,
+    seen_200: bool,
+}
+
+impl ExtraStatusEvidence {
+    pub(super) fn note_response(&mut self, params: &Value) -> bool {
+        match params.get("hasExtraInfo") {
+            None => true,
+            Some(Value::Bool(expects)) => {
+                self.declared = Some(*expects);
+                *expects || !self.seen_200
+            }
+            Some(_) => false,
+        }
+    }
+
+    pub(super) fn note_200(&mut self) -> bool {
+        if self.seen_200 || self.declared == Some(false) {
+            return false;
+        }
+        self.seen_200 = true;
+        true
+    }
+
+    pub(super) fn ready(self) -> bool {
+        self.declared != Some(true) || self.seen_200
+    }
+}
+
 // A conditional HTTP-cache revalidation can report 200 in responseReceived
 // while the network stack reports 304 here. Accept only exact 200 if the
 // optional extra-info event is provided for a tracked provider GET.
@@ -75,48 +114,5 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{direct_extra_status_is_200, uncached_provider_response};
-    use serde_json::json;
-
-    #[test]
-    fn network_status_accepts_only_exact_integer_200() {
-        assert!(direct_extra_status_is_200(&json!({
-            "params": {"statusCode": 200u16}
-        })));
-        for value in [json!(304u16), json!(503u16), json!(null), json!("200")] {
-            assert!(!direct_extra_status_is_200(&json!({
-                "params": {"statusCode": value}
-            })));
-        }
-        assert!(!direct_extra_status_is_200(&json!({"params": {}})));
-        assert!(!direct_extra_status_is_200(&json!({})));
-    }
-
-    #[test]
-    fn contradictory_source_hints_override_false_flags() {
-        let mut response = json!({
-            "fromDiskCache": false,
-            "fromServiceWorker": false,
-            "fromPrefetchCache": false,
-            "fromEarlyHints": false
-        });
-        assert!(uncached_provider_response(&response));
-        for (field, value) in [
-            ("serviceWorkerResponseSource", json!("network")),
-            ("cacheStorageCacheName", json!("cache")),
-            (
-                "serviceWorkerRouterInfo",
-                json!({"actualSourceType":"network"}),
-            ),
-        ] {
-            response[field] = value;
-            assert!(!uncached_provider_response(&response));
-            response
-                .as_object_mut()
-                .expect("fixture object")
-                .remove(field);
-            assert!(uncached_provider_response(&response));
-        }
-    }
-}
+#[path = "../../../../tests/mail/web/adapter-outbound/response_provenance.rs"]
+mod tests;
