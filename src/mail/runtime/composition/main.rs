@@ -142,19 +142,5 @@ fn print_status() {
 }
 
 #[cfg(test)]
-mod cli_argument_tests {
-    use super::decode_cli_argument;
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt as _;
-
-    #[test]
-    fn validates_native_utf8_and_refuses_secret_invalid_bytes() {
-        let accepted = OsString::from_vec(b"private-valid-secret".to_vec());
-        assert_eq!(
-            decode_cli_argument(accepted),
-            Ok(String::from("private-valid-secret"))
-        );
-        let rejected = OsString::from_vec(b"private-invalid-\xff".to_vec());
-        assert_eq!(decode_cli_argument(rejected), Err(()));
-    }
-}
+#[path = "../../../../tests/mail/runtime/composition/cli_argument_custody.rs"]
+mod cli_argument_tests;
