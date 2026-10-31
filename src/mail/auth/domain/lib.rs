@@ -87,17 +87,32 @@ pub enum SessionEvent {
 ///
 /// Login cancellation preserves the previously installed session, if any.
 /// Local logout is idempotent and always leaves the account without local
-/// authority. Every failure state is fail-closed.
+/// authority. Provider acceptance can confirm an installed session or
+/// refresh an expired one; it cannot revive absent or blocked local authority.
+/// Every failure state is fail-closed.
 #[must_use]
 pub const fn apply(current: SessionState, event: SessionEvent) -> SessionState {
     use SessionEvent::{LoginInstalled, ProviderAccepted};
 
     match event {
         SessionEvent::AccountMismatchDetected => SessionState::AccountMismatch,
-        SessionEvent::InteractiveLoginAborted => current,
-        LoginInstalled | ProviderAccepted => SessionState::Valid,
+        // Only an explicit durable installation can recover a logged-out,
+        // revoked, account-mismatched, or inaccessible local session. Provider
+        // acceptance can confirm an installed session or a successful refresh
+        // of its expired authority, but cannot create local authority.
+        LoginInstalled => SessionState::Valid,
+        ProviderAccepted if matches!(current, SessionState::Valid | SessionState::Expired) => {
+            SessionState::Valid
+        }
         SessionEvent::LocalLogoutCompleted => SessionState::Absent,
-        SessionEvent::ProviderExpired => SessionState::Expired,
+        SessionEvent::ProviderExpired
+            if matches!(current, SessionState::Valid | SessionState::Expired) =>
+        {
+            SessionState::Expired
+        }
+        SessionEvent::InteractiveLoginAborted
+        | ProviderAccepted
+        | SessionEvent::ProviderExpired => current,
         SessionEvent::ProviderRevoked => SessionState::Revoked,
         SessionEvent::StoreUnavailable => SessionState::StoreUnavailable,
     }

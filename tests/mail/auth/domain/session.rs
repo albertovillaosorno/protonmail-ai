@@ -86,6 +86,72 @@ fn logout_is_idempotent_from_every_state() {
 }
 
 #[test]
+fn provider_acceptance_cannot_resurrect_absent_or_terminal_authority() {
+    // Provider validity does not prove that the local credential store
+    // has authority bound to this account. Only durable LoginInstalled can
+    // reauthorize these states after logout, revocation, or store failure.
+    for state in [
+        SessionState::Absent,
+        SessionState::AccountMismatch,
+        SessionState::Revoked,
+        SessionState::StoreUnavailable,
+    ] {
+        let next = apply(state, SessionEvent::ProviderAccepted);
+        assert_eq!(next, state);
+        assert!(!next.authority_available());
+        // A later expiry observation cannot launder a blocked state into
+        // the refreshable Expired state and then resurrect it.
+        let after_expiry = apply(state, SessionEvent::ProviderExpired);
+        assert_eq!(after_expiry, state);
+        assert_eq!(apply(after_expiry, SessionEvent::ProviderAccepted), state);
+        assert_eq!(
+            apply(state, SessionEvent::LoginInstalled),
+            SessionState::Valid
+        );
+    }
+}
+
+#[test]
+fn no_sequence_without_durable_install_can_restore_terminal_authority() {
+    let blocked = [
+        SessionState::Absent,
+        SessionState::AccountMismatch,
+        SessionState::Revoked,
+        SessionState::StoreUnavailable,
+    ];
+    let non_install_events = [
+        SessionEvent::AccountMismatchDetected,
+        SessionEvent::InteractiveLoginAborted,
+        SessionEvent::LocalLogoutCompleted,
+        SessionEvent::ProviderAccepted,
+        SessionEvent::ProviderExpired,
+        SessionEvent::ProviderRevoked,
+        SessionEvent::StoreUnavailable,
+    ];
+    for state in blocked {
+        for first in non_install_events {
+            for second in non_install_events {
+                let after = apply(apply(state, first), second);
+                assert!(
+                    !after.authority_available(),
+                    "two observations cannot manufacture installed authority"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn expired_but_installed_authority_can_be_refreshed_by_provider() {
+    let expired = apply(SessionState::Valid, SessionEvent::ProviderExpired);
+    assert_eq!(expired, SessionState::Expired);
+    assert_eq!(
+        apply(expired, SessionEvent::ProviderAccepted),
+        SessionState::Valid
+    );
+}
+
+#[test]
 fn store_failure_and_account_mismatch_disable_authority() {
     let store_failure = SessionEvent::StoreUnavailable;
     let account_mismatch = SessionEvent::AccountMismatchDetected;
