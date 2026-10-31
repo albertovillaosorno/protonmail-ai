@@ -302,6 +302,23 @@ fn detail_projection_rejects_duplicates_bad_bounds_and_encoded_body() {
 }
 
 #[test]
+fn nonadjacent_attachment_duplicate_is_rejected_without_cloning_set_keys() {
+    let mut body = detail_body();
+    let first = body["Message"]["Attachments"][0].clone();
+    let mut second = first.clone();
+    second["ID"] = json!("attachment-2");
+    let attachments = body["Message"]["Attachments"]
+        .as_array_mut()
+        .expect("synthetic attachments");
+    attachments.push(second);
+    attachments.push(first);
+    let payload = body.to_string();
+    // jig-ignore-next-line: rustfmt keeps this synthetic projection flat.
+    let result = ObservedMessageDetailResponse::parse("GET", MESSAGE_URL, &payload);
+    assert_eq!(result, Err(MessageDetailResponseError::DuplicateIdentifier));
+}
+
+#[test]
 fn detail_network_capture_tracks_only_exact_get_lifecycle() {
     let mut capture = MessageDetailNetworkCapture::new("session-a");
     capture

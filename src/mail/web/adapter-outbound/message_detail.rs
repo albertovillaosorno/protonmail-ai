@@ -805,7 +805,7 @@ fn parse_attachments(
     if values.len() > MAX_ATTACHMENTS {
         return Err(MessageDetailResponseError::TooManyItems);
     }
-    let mut seen = BTreeSet::new();
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
     let mut attachments = Vec::with_capacity(values.len());
     for value in values {
         let object = value
@@ -835,10 +835,16 @@ fn parse_attachments(
         {
             return Err(MessageDetailResponseError::Malformed);
         }
-        if let Some(id) = id.as_ref()
-            && !seen.insert(id.clone())
-        {
-            return Err(MessageDetailResponseError::DuplicateIdentifier);
+        if id.is_some() {
+            // The owned descriptor ID already scrubs on drop. Compare only
+            // borrowed IDs from the guarded provider tree in this set.
+            let source_id = object
+                .get("ID")
+                .and_then(Value::as_str)
+                .ok_or(MessageDetailResponseError::Malformed)?;
+            if !seen.insert(source_id) {
+                return Err(MessageDetailResponseError::DuplicateIdentifier);
+            }
         }
         // jig-ignore-next-line: canonical rustfmt line.
         let name = bounded_optional_string(object, "Name", MAX_ATTACHMENT_NAME_BYTES)?;

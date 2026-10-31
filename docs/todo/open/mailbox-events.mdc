@@ -62,6 +62,11 @@ bounded resource use.
   GET during Network disable, then prove the session can still be inspected
   without navigation, additional polling, or leaking event payload content.
 
+- Per-page change coalescing now uses typed borrowed `(entity, action, ID)`
+  keys from the guarded JSON instead of separate unzeroized ID Strings.
+  Returned change rows still scrub owned IDs on drop. Synthetic nonadjacent
+  duplicates and cross-entity equal IDs preserve exact coalescing semantics.
+
 ## Watermark input safety
 
 - Cursor-bound `EventID` values are now rejected when they contain ASCII

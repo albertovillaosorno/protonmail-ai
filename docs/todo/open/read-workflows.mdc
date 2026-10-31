@@ -632,6 +632,13 @@ Ship useful read access before any mailbox mutation is enabled.
   Red-first synthetic detail tests, parser parity cases and fake-browser
   cleanup evidence cover ambiguity rejection without provider contact.
 
+- The catalog, complete-conversation, and single-message attachment
+  projectors now use explicitly borrowed ID sets backed by the guarded
+  provider JSON. Duplicate validation does not create unzeroized temporary
+  String clones; returned metadata keeps its existing scrub-on-drop custody.
+  Synthetic nonadjacent duplicate and distinct-prefix tests preserve exact
+  rejection and ordering without fetching any provider data.
+
 ## CDP command-reply stream ambiguity
 
 - A red-first fake-browser regression found the central CDP command-response

@@ -319,6 +319,27 @@ fn exact_duplicate_changes_coalesce_but_distinct_actions_survive() {
 }
 
 #[test]
+fn nonadjacent_event_changes_coalesce_without_merging_other_entities() {
+    let body = r#"{
+        "EventID":"event-8","More":0,
+        "Messages":[
+            {"ID":"private-a","Action":1},
+            {"ID":"private-b","Action":1},
+            {"ID":"private-a","Action":1}
+        ],
+        "Conversations":[{"ID":"private-a","Action":1}]
+    }"#;
+    let observed = ObservedMailboxEventWatermark::parse("GET", URL, body)
+        .expect("coalesce only matching type, action and ID");
+    let changes = observed.changes();
+    assert_eq!(changes.len(), 3);
+    assert_eq!(changes[0].id(), "private-a");
+    assert_eq!(changes[1].id(), "private-b");
+    assert_eq!(changes[2].id(), "private-a");
+    assert_eq!(changes[2].entity(), MailboxChangeEntity::Conversation);
+}
+
+#[test]
 fn malformed_change_id_or_action_fails_closed() {
     for body in [
         r#"{"EventID":"event-8","More":0,"Messages":[{"ID":"","Action":1}]}"#,

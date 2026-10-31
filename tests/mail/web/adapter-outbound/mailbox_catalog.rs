@@ -232,6 +232,40 @@ fn typed_projection_rejects_wrong_type_duplicate_and_encoded_body() {
 }
 
 #[test]
+fn catalog_duplicate_detection_distinguishes_prefixes_and_late_repeats() {
+    let catalog = json!({
+        "Code": 1000u64,
+        "Labels": [
+            {"ID":"label-1","Name":"A","Type":1u64,"Order":1i64},
+            {"ID":"label-10","Name":"B","Type":1u64,"Order":2i64}
+        ]
+    });
+    let observed = ObservedMailboxCatalogResponse::parse(
+        MailboxCatalogKind::Label,
+        "GET",
+        LABEL_URL,
+        &catalog.to_string(),
+    )
+    .expect("distinct prefix IDs remain distinct");
+    assert_eq!(observed.items().len(), 2);
+    let mut duplicated = catalog;
+    let duplicate = duplicated["Labels"][0].clone();
+    duplicated["Labels"]
+        .as_array_mut()
+        .expect("synthetic labels")
+        .push(duplicate);
+    assert_eq!(
+        ObservedMailboxCatalogResponse::parse(
+            MailboxCatalogKind::Label,
+            "GET",
+            LABEL_URL,
+            &duplicated.to_string(),
+        ),
+        Err(MailboxCatalogResponseError::DuplicateId)
+    );
+}
+
+#[test]
 fn combined_catalog_separates_mailboxes_from_labels() {
     let system = ObservedMailboxCatalogResponse::parse(
         MailboxCatalogKind::SystemFolder,

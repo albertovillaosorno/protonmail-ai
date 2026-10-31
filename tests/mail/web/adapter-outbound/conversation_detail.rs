@@ -249,6 +249,24 @@ fn projection_rejects_duplicate_or_cross_conversation_members() {
 }
 
 #[test]
+fn nonadjacent_member_id_repeat_is_rejected_without_leaking_metadata() {
+    let mut body = conversation_body();
+    let repeated = body["Messages"][0].clone();
+    body["Messages"]
+        .as_array_mut()
+        .expect("synthetic members")
+        .push(repeated);
+    body["Conversation"]["NumMessages"] = json!(3u64);
+    let payload = body.to_string();
+    // jig-ignore-next-line: rustfmt keeps this synthetic projection flat.
+    let result = ObservedConversationDetailResponse::parse("GET", URL, &payload);
+    assert_eq!(
+        result,
+        Err(ConversationDetailResponseError::DuplicateMessageId)
+    );
+}
+
+#[test]
 fn projection_bounds_count_body_and_cdp_encoding() {
     let mut excessive = conversation_body();
     excessive["Conversation"]["NumMessages"] = json!(513u64);

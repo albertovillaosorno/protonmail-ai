@@ -436,11 +436,17 @@ impl ObservedMailboxCatalogResponse {
         if labels.len() > MAX_CATALOG_ITEMS {
             return Err(MailboxCatalogResponseError::TooManyItems);
         }
-        let mut ids = BTreeSet::new();
+        let mut ids: BTreeSet<&str> = BTreeSet::new();
         let mut items = Vec::with_capacity(labels.len());
         for label in labels {
             let item = parse_item(kind, label)?;
-            if !ids.insert(item.id.clone()) {
+            // Reuse the guarded JSON string for duplicate detection: the
+            // projected item already owns the only copy we need to retain.
+            let id = label
+                .get("ID")
+                .and_then(Value::as_str)
+                .ok_or(MailboxCatalogResponseError::Malformed)?;
+            if !ids.insert(id) {
                 return Err(MailboxCatalogResponseError::DuplicateId);
             }
             items.push(item);

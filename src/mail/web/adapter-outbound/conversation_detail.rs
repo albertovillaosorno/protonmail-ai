@@ -455,7 +455,7 @@ impl ObservedConversationDetailResponse {
         if messages.len() != reported_message_count {
             return Err(ConversationDetailResponseError::IncompleteConversation);
         }
-        let mut seen = BTreeSet::new();
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
         let mut members = Vec::with_capacity(messages.len());
         for message in messages {
             let object = message
@@ -463,7 +463,13 @@ impl ObservedConversationDetailResponse {
                 .ok_or(ConversationDetailResponseError::Malformed)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let message_id = bounded_required_string(object, "ID", MAX_MESSAGE_ID_BYTES)?;
-            if !seen.insert(message_id.clone()) {
+            // The validated source lives in the guarded provider JSON.
+            // Avoid an unsanitized second owned copy in the temporary set.
+            let id = object
+                .get("ID")
+                .and_then(Value::as_str)
+                .ok_or(ConversationDetailResponseError::Malformed)?;
+            if !seen.insert(id) {
                 return Err(ConversationDetailResponseError::DuplicateMessageId);
             }
             let parent =

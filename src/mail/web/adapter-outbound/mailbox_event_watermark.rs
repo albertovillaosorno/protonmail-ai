@@ -1370,8 +1370,9 @@ fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
 fn project_mailbox_changes(
     value: &Value,
 ) -> Result<Vec<ObservedMailboxChange>, MailboxEventWatermarkError> {
+    type BorrowedKey<'id> = (MailboxChangeEntity, MailboxChangeKind, &'id str);
     let mut changes = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut seen: BTreeSet<BorrowedKey<'_>> = BTreeSet::new();
     for (key, entity) in [
         ("Messages", MailboxChangeEntity::Message),
         ("Conversations", MailboxChangeEntity::Conversation),
@@ -1401,15 +1402,16 @@ fn project_mailbox_changes(
                 2 | 3 => MailboxChangeKind::Updated,
                 _ => return Err(MailboxEventWatermarkError::Malformed),
             };
-            let key = (entity, kind, String::from(id));
-            if seen.insert(key.clone()) {
+            // The parsed JSON is held by SensitiveValue. Borrow its ID for
+            // coalescing rather than dropping a second heap copy unzeroized.
+            if seen.insert((entity, kind, id)) {
                 if changes.len() >= MAX_PROJECTED_CHANGES {
                     return Err(MailboxEventWatermarkError::TooManyChanges);
                 }
                 changes.push(ObservedMailboxChange {
                     entity,
                     kind,
-                    id: key.2,
+                    id: String::from(id),
                 });
             }
         }
