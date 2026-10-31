@@ -1774,3 +1774,10 @@ web application without requiring Bridge or a third-party direct API identity.
   acquisition window. Red-first synthetic contention and CLI tests prove
   all three cases, retaining stale recovery after process exit; cooperation
   is required because unrelated same-UID processes can still alter paths.
+
+- Provider target discovery and Runtime.evaluate now require exact audited
+  CDP result keys, not only valid values within an extended object. Red-first
+  synthetic Chromium replies previously selected a Mail page and proved its
+  origin despite unexpected sibling fields; both now fail closed. A distinct
+  legacy `wasThrown: false` runtime reply remains accepted. This does not
+  change target metadata handling or enable a live Mail account.

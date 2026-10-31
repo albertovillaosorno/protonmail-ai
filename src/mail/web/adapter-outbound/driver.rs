@@ -4706,6 +4706,20 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
         return false;
     };
     match method {
+        // The discovery and by-value evaluation commands own specific
+        // results; an unknown sibling cannot silently change what they prove.
+        "Target.getTargets" => {
+            let discovered = fields.get("targetInfos");
+            fields.len() == 1 && discovered.is_some_and(Value::is_array)
+        }
+        "Runtime.evaluate" => {
+            let field_count_ok = match fields.len() {
+                1 => true,
+                2 => fields.get("wasThrown") == Some(&Value::Bool(false)),
+                _ => false,
+            };
+            field_count_ok && fields.get("result").is_some_and(Value::is_object)
+        }
         "Target.attachToTarget" => {
             fields.len() == 1
                 && fields
