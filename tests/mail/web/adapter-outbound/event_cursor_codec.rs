@@ -31,6 +31,7 @@
 //! Checks guarded decryption for event continuation cursors.
 
 use super::frame_guarded_cursor_body;
+use super::{CURSOR_AAD_PREFIX, cursor_aad};
 use super::{CURSOR_KEY_BYTES, CURSOR_NONCE_BYTES, decrypt_into_guarded};
 use super::{CURSOR_VERSION, MAX_ENCODED_CURSOR_BYTES};
 use super::{decode_guarded_token, encode_guarded_token, encrypt_into_guarded};
@@ -116,6 +117,15 @@ fn opaque_cursor_token_uses_guarded_storage_without_extra_base64_copy() {
     );
     assert_eq!(guarded.as_str(), expected);
     assert!(guarded.capacity() >= guarded.len());
+}
+
+#[test]
+fn cursor_authentication_aad_is_fixed_size_and_generation_scoped() {
+    let aad = cursor_aad(VALID_GENERATION).expect("canonical generation");
+    assert_eq!(aad.len(), CURSOR_AAD_PREFIX.len() + VALID_GENERATION.len());
+    assert!(aad.starts_with(CURSOR_AAD_PREFIX));
+    assert!(aad.ends_with(VALID_GENERATION.as_bytes()));
+    assert!(cursor_aad("synthetic-invalid-tag").is_err());
 }
 
 #[test]

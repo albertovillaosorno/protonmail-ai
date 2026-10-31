@@ -51,6 +51,8 @@ const CURSOR_VERSION: &str = "ev1";
 const CURSOR_AAD_PREFIX: &[u8] = b"protonmail-ai:web-event-cursor:v1:";
 const CURSOR_KEY_BYTES: usize = 32;
 const CURSOR_NONCE_BYTES: usize = 12;
+const GENERATION_TAG_CHARS: usize = 32;
+const CURSOR_AAD_BYTES: usize = CURSOR_AAD_PREFIX.len() + GENERATION_TAG_CHARS;
 const MAX_ENCODED_CURSOR_BYTES: usize = 4096;
 
 // Decode directly into scrub-on-drop storage. Engine::decode may leave a
@@ -317,7 +319,7 @@ impl WebEventCursorCodecError {
 }
 
 fn valid_generation_tag(value: &str) -> bool {
-    value.len() == 32
+    value.len() == GENERATION_TAG_CHARS
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
@@ -348,14 +350,18 @@ fn decrypt_into_guarded(
     Ok(plaintext)
 }
 
-fn cursor_aad(generation: &str) -> Result<Vec<u8>, WebEventCursorCodecError> {
-    let capacity = CURSOR_AAD_PREFIX
-        .len()
-        .checked_add(generation.len())
-        .ok_or(WebEventCursorCodecError::EncodingFailed)?;
-    let mut aad = Vec::with_capacity(capacity);
-    aad.extend_from_slice(CURSOR_AAD_PREFIX);
-    aad.extend_from_slice(generation.as_bytes());
+// AAD contains only the fixed domain prefix and one canonical generation
+// tag. Keep the identity tag on the stack instead of copying it into a heap
+// allocation that would survive after the ephemeral encryption step.
+// jig-ignore-next-line: canonical fixed-size AEAD AAD signature.
+fn cursor_aad(generation: &str) -> Result<[u8; CURSOR_AAD_BYTES], WebEventCursorCodecError> {
+    if !valid_generation_tag(generation) {
+        return Err(WebEventCursorCodecError::EncodingFailed);
+    }
+    let mut aad = [0u8; CURSOR_AAD_BYTES];
+    let (prefix, tag) = aad.split_at_mut(CURSOR_AAD_PREFIX.len());
+    prefix.copy_from_slice(CURSOR_AAD_PREFIX);
+    tag.copy_from_slice(generation.as_bytes());
     Ok(aad)
 }
 
