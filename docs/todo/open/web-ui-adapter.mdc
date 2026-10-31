@@ -132,6 +132,12 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- The Mail shell's `DOM.getDocument` root now refuses contradictory CDP
+  node metadata (`nodeType` other than document, wrong node/local names, or
+  nonempty node value) before asking the accessibility tree for readiness.
+  Red-first fake-browser tests cover malformed roots and valid ordinary
+  document roots; omitted optional metadata remains compatible.
+
 - The trusted-sticky-parent synthetic login test now observes the complete
   detached browser argv before deleting its test profile. The CLI can return
   before the fake browser finishes writing; premature cleanup occasionally

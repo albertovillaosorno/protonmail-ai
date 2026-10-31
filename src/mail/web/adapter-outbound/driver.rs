@@ -4806,7 +4806,7 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
         }
         "DOM.getDocument" => {
             let root = fields.get("root");
-            fields.len() == 1 && root.is_some_and(Value::is_object)
+            fields.len() == 1 && root.is_some_and(valid_cdp_document_root)
         }
         "Accessibility.queryAXTree" => {
             let nodes = fields.get("nodes");
@@ -4826,6 +4826,26 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
         | "Page.reload" => fields.is_empty(),
         _ => true,
     }
+}
+
+// A DOM.getDocument root must not explicitly identify as an element or a
+// different node. Older replies may omit these optional descriptive fields;
+// only affirmative contradictions invalidate their document-root authority.
+fn valid_cdp_document_root(root: &Value) -> bool {
+    let Some(fields) = root.as_object() else {
+        return false;
+    };
+    fields
+        .get("nodeType")
+        .is_none_or(|kind| kind.as_u64() == Some(9))
+        && fields
+            .get("nodeName")
+            .is_none_or(|name| name.as_str() == Some("#document"))
+        && ["localName", "nodeValue"].iter().all(|field| {
+            fields
+                .get(*field)
+                .is_none_or(|value| value.as_str() == Some(""))
+        })
 }
 
 // Browser-issued request IDs are not Mail path components. Require bounded

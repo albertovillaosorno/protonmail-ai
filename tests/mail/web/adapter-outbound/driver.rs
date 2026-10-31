@@ -2652,6 +2652,85 @@ fn browser_version_allows_standard_optional_string_fields() {
 }
 
 #[test]
+fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
+    for (label, metadata) in [
+        ("element-node", r#""nodeType":1"#),
+        ("null-node", r#""nodeType":null"#),
+        ("wrong-name", r#""nodeName":"DIV""#),
+        ("wrong-local-name", r#""localName":"div""#),
+        ("unexpected-value", r#""nodeValue":"not-document""#),
+    ] {
+        let root = test_root(&format!("dom-root-{label}"));
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        let script = fs::read_to_string(&browser).expect("read script");
+        let original = r#""root":{"nodeId":1}"#;
+        let changed = format!(r#""root":{{"nodeId":1,{metadata}}}"#);
+        assert!(script.contains(original));
+        install_script(&browser, script.replace(original, &changed))
+            .expect("inject contradictory document root");
+        let browser_plan = plan(&root, &browser);
+        let launched = ManagedBrowser::launch(&browser_plan);
+        let mut managed = launched.expect("launch fake browser");
+        let page = managed.provider_page().expect("discover Mail");
+        assert_eq!(
+            managed.require_mail_shell(&page),
+            Err(BrowserDriverError::Protocol),
+            "{label} cannot prove a document root"
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn ordinary_document_root_metadata_still_proves_mail_shell() {
+    let root = test_root("dom-root-document");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read script");
+    let original = r#""root":{"nodeId":1}"#;
+    let normal = concat!(
+        r##""root":{"nodeId":1,"nodeType":9,"nodeName":"#document","##,
+        r#""localName":"","nodeValue":""}"#,
+    );
+    assert!(script.contains(original));
+    let changed = script.replace(original, normal);
+    install_script(&browser, changed).expect("install document root");
+    let browser_plan = plan(&root, &browser);
+    let launched = ManagedBrowser::launch(&browser_plan);
+    let mut managed = launched.expect("launch fake browser");
+    let page = managed.provider_page().expect("discover Mail");
+    managed
+        .require_mail_shell(&page)
+        .expect("ordinary document root");
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
 fn malformed_chromium_handshake_releases_owned_profile_for_retry() {
     use serde_json::json;
     for (case, invalid) in [
