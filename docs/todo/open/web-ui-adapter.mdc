@@ -2701,3 +2701,11 @@ web application without requiring Bridge or a third-party direct API identity.
   network replies previously passed the wire provenance gate in either
   notification order. `Public` and omission for older CDP remain supported;
   no remote addresses, cookies, response bodies, or account data are kept.
+
+- The same public Mail origin constraint now applies to the initiating
+  document's optional `clientSecurityState.initiatorIPAddressSpace` in
+  `requestWillBeSentExtraInfo`. Red-first shared custody and message-list
+  capture fixtures proved that a client reported as secure but located in a
+  `Private`, `Local`, or unknown address space previously established Mail
+  activity. The check works for either notification order, accepts `Public`
+  and omitted legacy hints, and retains no private network metadata.

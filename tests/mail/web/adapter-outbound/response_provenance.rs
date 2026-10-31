@@ -129,6 +129,40 @@ fn insecure_request_extra_client_cannot_prove_mail_page_ownership() {
 }
 
 #[test]
+fn nonpublic_client_address_space_cannot_initiate_mail_get() {
+    let ordinary = json!({"params":{"requestId":"mail-client",
+        "headers":{"Host":"mail.proton.me"},
+        "clientSecurityState":{"initiatorIsSecureContext":true,
+            "initiatorIPAddressSpace":"Public"}}});
+    let mut valid = RequestExtraInfoEvidence::default();
+    assert_eq!(valid.note_event(&ordinary), Some("mail-client"));
+    assert!(!valid.rejects("mail-client"));
+    for space in [
+        json!("Private"),
+        json!("Local"),
+        json!("Unknown"),
+        json!("public"),
+        json!(null),
+        json!(1i32),
+    ] {
+        let mut extra = ordinary.clone();
+        let client = &mut extra["params"]["clientSecurityState"];
+        client["initiatorIPAddressSpace"] = space;
+        let mut probe = RequestExtraInfoEvidence::default();
+        assert_eq!(probe.note_event(&extra), Some("mail-client"));
+        assert!(probe.rejects("mail-client"));
+    }
+    let mut legacy = ordinary;
+    legacy["params"]["clientSecurityState"]
+        .as_object_mut()
+        .expect("client security state")
+        .remove("initiatorIPAddressSpace");
+    let mut probe = RequestExtraInfoEvidence::default();
+    assert_eq!(probe.note_event(&legacy), Some("mail-client"));
+    assert!(!probe.rejects("mail-client"));
+}
+
+#[test]
 fn wire_request_extra_info_custody_is_bounded_and_header_only() {
     let mut evidence = RequestExtraInfoEvidence::default();
     let safe = json!({"params":{"requestId":"safe",

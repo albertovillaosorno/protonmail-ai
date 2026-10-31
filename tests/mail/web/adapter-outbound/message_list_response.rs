@@ -995,6 +995,42 @@ fn insecure_extra_info_initiator_rejects_both_mail_request_orders() {
 }
 
 #[test]
+fn nonpublic_client_address_space_rejects_mail_list_request_orders() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"private-client", "type":"Fetch",
+            "request":{"method":"GET", "url":URL}}
+    });
+    let extra = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSentExtraInfo",
+        "params":{"requestId":"private-client",
+            "headers":{"Host":"mail.proton.me"},
+            "clientSecurityState":{"initiatorIsSecureContext":true,
+                "initiatorIPAddressSpace":"Private"}}
+    });
+    for extra_first in [true, false] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        if extra_first {
+            capture.observe(&extra).expect("early wire metadata");
+            assert_eq!(
+                capture.observe(&request),
+                Err(MessageListNetworkError::MalformedEvent)
+            );
+        } else {
+            capture.observe(&request).expect("preliminary GET");
+            assert_eq!(
+                capture.observe(&extra),
+                Err(MessageListNetworkError::ResponseRejected)
+            );
+        }
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn contradictory_request_extra_info_cannot_authorize_mail_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
