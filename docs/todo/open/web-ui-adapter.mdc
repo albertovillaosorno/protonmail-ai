@@ -2220,3 +2220,10 @@ web application without requiring Bridge or a third-party direct API identity.
   the downstream list projector, which rejected them as malformed; the driver
   now rejects such metadata immediately as a protocol violation and still
   disables Network cleanly. Other body projectors retain their own checks.
+
+- The optional CDP AXNode `chromeRole` field now requires a bounded typed
+  `internalRole` AXValue with a string scalar and audited optional source and
+  relationship arrays. Red-first synthetic role replies previously accepted
+  null, untyped, contradictory or extended internal-role metadata as if it
+  were harmless. A valid internal role may still differ from the exposed ARIA
+  role, and missing Chrome role metadata remains compatible.

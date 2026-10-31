@@ -196,7 +196,9 @@ fn ax_visible<'role_nodes>(
             return Err(());
         }
         record_ax_landmark_frame(node, ignored, expected_role, graph)?;
-        if !valid_ax_role(node.get("role"), expected_role) {
+        if !valid_ax_role(node.get("role"), expected_role)
+            || !valid_ax_chrome_role(node.get("chromeRole"))
+        {
             return Err(());
         }
         // A node claiming to be visible cannot simultaneously describe
@@ -331,6 +333,22 @@ fn valid_ax_role(role: Option<&Value>, expected_role: &str) -> bool {
     let arrays_valid = valid_ax_value_arrays(role);
     let typed = kind == Some("role") && value == Some(expected_role);
     typed && known_fields && arrays_valid
+}
+
+// chromeRole is optional internal/native role metadata. It may differ from
+// the exposed ARIA role, but it still must be a typed, bounded AXValue, not
+// an arbitrary nested browser payload or an unrecognized source graph.
+fn valid_ax_chrome_role(value: Option<&Value>) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    let kind = value.get("type").and_then(Value::as_str);
+    let internal_role = kind == Some("internalRole");
+    let bounded_role = value
+        .get("value")
+        .and_then(Value::as_str)
+        .is_some_and(|role| !role.is_empty() && role.len() <= 128);
+    internal_role && bounded_role && valid_ax_nested_value(value, 3)
 }
 
 // Type-check the reason property before an ignored AX node can participate

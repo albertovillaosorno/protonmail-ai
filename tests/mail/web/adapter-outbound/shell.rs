@@ -333,6 +333,86 @@ fn documented_optional_ax_node_metadata_preserves_mail_shell_readiness() {
 }
 
 #[test]
+fn malformed_optional_chrome_role_cannot_prove_mail_shell() {
+    use serde_json::json;
+
+    for (label, chrome_role) in [
+        ("chrome-role-null", json!(null)),
+        ("chrome-role-text", json!("navigation")),
+        ("chrome-role-missing-type", json!({"value":"navigation"})),
+        (
+            "chrome-role-wrong-type",
+            json!({"type":"role", "value":"navigation"}),
+        ),
+        ("chrome-role-missing-value", json!({"type":"internalRole"})),
+        (
+            "chrome-role-number",
+            json!({"type":"internalRole", "value":17i32}),
+        ),
+        (
+            "chrome-role-composite",
+            json!({"type":"internalRole", "value":{"private":"unknown"}}),
+        ),
+        (
+            "chrome-role-extended",
+            json!({
+                "type":"internalRole", "value":"navigation", "private":true
+            }),
+        ),
+        (
+            "chrome-role-unknown-source",
+            json!({
+                "type":"internalRole", "value":"navigation",
+                "sources":[{"type":"future"}]
+            }),
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "role":{"type":"role", "value":"navigation"},
+            "chromeRole":chrome_role
+        }])
+        .to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "malformed optional chromeRole {label} must fail closed"
+        );
+    }
+    // Chromium's internal/native role may differ from the ARIA role; only
+    // structural AXValue shape, not string equality, is required.
+    let navigation = json!([{
+        "ignored":false,"nodeId":"ax-navigation",
+        "role":{"type":"role","value":"navigation"},
+        "chromeRole":{"type":"internalRole","value":"genericContainer"}
+    }])
+    .to_string();
+    let roles = RoleFixture {
+        navigation: &navigation,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "chrome-role-native-aria-difference",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("typed internal role metadata remains compatible")
+        .ready()
+    );
+}
+
+#[test]
 fn unreviewed_accessibility_role_value_fields_cannot_prove_shell() {
     let base = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
