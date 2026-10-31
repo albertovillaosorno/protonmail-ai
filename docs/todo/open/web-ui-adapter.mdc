@@ -2227,3 +2227,9 @@ web application without requiring Bridge or a third-party direct API identity.
   null, untyped, contradictory or extended internal-role metadata as if it
   were harmless. A valid internal role may still differ from the exposed ARIA
   role, and missing Chrome role metadata remains compatible.
+
+- Shell role queries now reject reuse of an explicit backend DOM node ID
+  across distinct accessibility nodes, including ignored dialog aliases.
+  Red-first fake Chromium replies previously let one DOM element claim both
+  navigation and search landmarks with different AX IDs. Distinct bounded
+  backend IDs remain compatible; missing optional IDs remain supported.

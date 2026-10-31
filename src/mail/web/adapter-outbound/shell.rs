@@ -51,6 +51,7 @@ struct AxGraph<'nodes> {
     ids: BTreeSet<&'nodes str>,
     parents: BTreeMap<&'nodes str, &'nodes str>,
     child_owners: BTreeMap<&'nodes str, &'nodes str>,
+    backend_owners: BTreeMap<u64, &'nodes str>,
     landmark_frame: Option<&'nodes str>,
 }
 
@@ -188,12 +189,16 @@ fn ax_visible<'role_nodes>(
         // CDP AXNode.backendDOMNodeId is an optional signed protocol
         // integer, not an arbitrary JSON value or unbounded unsigned ID.
         // A contradictory browser node identity cannot prove readiness.
-        if node.get("backendDOMNodeId").is_some_and(|backend| {
-            backend
-                .as_u64()
-                .is_none_or(|id| !(1..=MAX_AX_BACKEND_NODE_ID).contains(&id))
-        }) {
-            return Err(());
+        if let Some(backend) = node.get("backendDOMNodeId") {
+            let backend = backend.as_u64().ok_or(())?;
+            if !(1..=MAX_AX_BACKEND_NODE_ID).contains(&backend)
+                || graph.backend_owners.insert(backend, id).is_some()
+            {
+                // CDP BackendNodeId identifies one DOM node. Even if two
+                // AX node IDs differ, they cannot make that one DOM node
+                // prove independent or incompatible role landmarks.
+                return Err(());
+            }
         }
         record_ax_landmark_frame(node, ignored, expected_role, graph)?;
         if !valid_ax_role(node.get("role"), expected_role)

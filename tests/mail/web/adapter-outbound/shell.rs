@@ -1436,6 +1436,70 @@ fn one_accessibility_node_cannot_prove_two_different_shell_roles() {
 }
 
 #[test]
+fn one_backend_dom_node_cannot_claim_incompatible_ax_roles() {
+    // Distinct AX node IDs do not make a single DOM node two role landmarks.
+    let navigation = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-nav","backendDOMNodeId":42,"#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}}]"#
+    );
+    let search_alias = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-search","backendDOMNodeId":42,"#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}}]"#
+    );
+    let ignored_dialog_alias = concat!(
+        r#"[{"ignored":true,"nodeId":"ax-dialog","backendDOMNodeId":42,"#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}}]"#
+    );
+    for (label, roles) in [
+        (
+            "shared-backend-landmarks",
+            RoleFixture {
+                navigation,
+                search: search_alias,
+                ..RoleFixture::ready()
+            },
+        ),
+        (
+            "ignored-dialog-backend-alias",
+            RoleFixture {
+                navigation,
+                dialog: ignored_dialog_alias,
+                ..RoleFixture::ready()
+            },
+        ),
+    ] {
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "one backend node cannot claim incompatible accessibility roles"
+        );
+    }
+    let distinct = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-search","backendDOMNodeId":43,"#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}}]"#
+    );
+    assert!(
+        inspect(
+            "distinct-backend-landmarks",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &RoleFixture {
+                navigation,
+                search: distinct,
+                ..RoleFixture::ready()
+            }
+        )
+        .expect("distinct backend DOM nodes remain compatible")
+        .ready()
+    );
+}
+
+#[test]
 fn ignored_dialog_node_cannot_alias_a_visible_navigation_node() {
     // Even an ignored dialog node cannot alias the navigation landmark.
     let dialog =
