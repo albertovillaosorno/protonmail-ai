@@ -559,7 +559,7 @@ fn malformed_numeric_lease_owner_cannot_be_reclaimed() {
 #[test]
 fn unreaped_process_pid_keeps_chromium_singleton_busy() {
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     let root = test_root("singleton-unreaped-pid");
     let profile = profile(&root);
@@ -570,13 +570,20 @@ fn unreaped_process_pid_keeps_chromium_singleton_busy() {
     let pid = child.id();
     let status_path = format!("/proc/{pid}/status");
     let mut unreaped = false;
-    for _attempt in 0..100u8 {
+    // A busy workspace scheduler can delay even /bin/true beyond 100ms.
+    // Wait for the kernel's zombie evidence with one bounded wall-clock limit.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline {
         // jig-ignore-next-line: canonical rustfmt line.
         if fs::read_to_string(&status_path).is_ok_and(|status| status.contains("State:\tZ")) {
             unreaped = true;
             break;
         }
-        thread::sleep(Duration::from_millis(1));
+        thread::sleep(Duration::from_millis(2));
+    }
+    if !unreaped {
+        child.wait().expect("reap failed synthetic zombie fixture");
+        cleanup(&root);
     }
     assert!(unreaped, "synthetic process must exit without being reaped");
     assert!(fs::read_link(format!("/proc/{pid}/exe")).is_err());

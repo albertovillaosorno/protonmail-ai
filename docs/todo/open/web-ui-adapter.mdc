@@ -85,6 +85,12 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first Drop checks and existing page/pagination fixtures preserve behavior.
   This guards Rust-side copies, not Chromium DOM or OS allocations.
 
+- The Linux Chromium SingletonLock unreaped-PID regression now waits for
+  actual zombie evidence within a bounded two-second deadline rather than
+  assuming /bin/true is scheduled in 100ms under workspace test load. The
+  test also reaps its synthetic child on a failed precondition; production
+  singleton and lease policy remain unchanged.
+
 - The synthetic visible-login lease-during-ETXTBSY regression now
   keeps the executable write lock until the runner exits. Releasing it
   immediately after acquiring the lease could let an already-checked
