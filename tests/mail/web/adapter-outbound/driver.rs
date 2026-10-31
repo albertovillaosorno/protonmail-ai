@@ -2800,6 +2800,34 @@ fn malformed_optional_document_metadata_cannot_prove_mail_shell() {
     assert_rejects_document_root(&cases);
 }
 
+#[test]
+fn non_document_node_metadata_cannot_prove_mail_document_root() {
+    let cases = [
+        ("document-as-attr-name", "name", "secret"),
+        ("document-as-attr-value", "value", "secret"),
+        ("document-as-doctype-public", "publicId", "secret"),
+        ("document-as-doctype-system", "systemId", "secret"),
+        ("document-as-doctype-subset", "internalSubset", "secret"),
+        (
+            "document-as-pseudo-identifier",
+            "pseudoIdentifier",
+            "secret",
+        ),
+    ];
+    let changed = cases.map(|(label, field, value)| {
+        (
+            label,
+            r#""nodeValue":"""#,
+            format!(r#""nodeValue":"","{field}":"{value}""#),
+        )
+    });
+    let refs = changed
+        .iter()
+        .map(|entry| (entry.0, entry.1, entry.2.as_str()))
+        .collect::<Vec<_>>();
+    assert_rejects_document_root(&refs);
+}
+
 fn assert_rejects_document_root(cases: &[(&str, &str, &str)]) {
     for &(label, original_field, contradiction) in cases {
         let root = test_root(&format!("dom-root-{label}"));

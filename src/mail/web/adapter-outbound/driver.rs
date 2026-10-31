@@ -4900,6 +4900,14 @@ fn valid_cdp_document_root(root: &Value) -> bool {
             "distributedNodes",
             "attributes",
             "assignedSlot",
+            // Attr, DocumentType and pseudo-element metadata do not belong
+            // to a Document node even if their values are empty.
+            "name",
+            "value",
+            "publicId",
+            "systemId",
+            "internalSubset",
+            "pseudoIdentifier",
         ]
         .iter()
         .all(|field| !fields.contains_key(*field))

@@ -141,6 +141,15 @@ web application without requiring Bridge or a third-party direct API identity.
   base URL may legitimately point off origin, so it is never used as an
   origin proof; missing fields remain compatible.
 
+## Refuse non-document node metadata in CDP roots
+
+- Red-first CDP and synthetic-browser fixtures showed that a claimed
+  `#document` node with attribute (`name`, `value`), document-type (`publicId`,
+  `systemId`, `internalSubset`), or pseudo-element (`pseudoIdentifier`)
+  metadata still authorized Mail shell queries. Those are not document-node
+  properties and now fail closed; normal optional document metadata remains
+  compatible without accessing DOM descendants.
+
 ## Reject element-only metadata on document roots
 
 - Red-first CDP schema and fake-browser fixtures showed that a top-level
