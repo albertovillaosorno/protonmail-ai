@@ -1478,6 +1478,44 @@ fn message_reconciliation_rejects_total_contradictions() {
 }
 
 #[test]
+fn raw_noncanonical_browser_urls_cannot_prove_message_list_reads() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let body = r#"{"Stale":0,"Total":0,"Messages":[]}"#;
+    for bad in [" ", "\t", "\n", "\r", "\u{a0}", "\u{2003}", "\u{e9}"] {
+        let url = format!("{URL}&Keyword=hello{bad}world");
+        assert_eq!(
+            ObservedMessageListResponse::parse("GET", &url, body),
+            Err(MessageListResponseError::UnexpectedEndpoint),
+            "noncanonical serialized URL cannot authorize a parsed response"
+        );
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        assert_eq!(
+            capture.observe(&json!({
+                "sessionId":"synthetic-session",
+                "method":"Network.requestWillBeSent",
+                "params":{"requestId":"noncanonical-url",
+                    "request":{"method":"GET","url":url}}
+            })),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    let encoded = format!("{URL}&Keyword=hello%20%C3%A9world");
+    assert!(ObservedMessageListResponse::parse("GET", &encoded, body).is_ok());
+    let mut capture = MessageListNetworkCapture::new("synthetic-session");
+    capture
+        .observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"encoded-url",
+                "request":{"method":"GET","url":encoded}}
+        }))
+        .expect("encoded URL retains the audited request shape");
+}
+
+#[test]
 fn encoded_query_key_aliases_cannot_establish_provider_sort_evidence() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

@@ -307,7 +307,19 @@ impl MessageListNetworkCapture {
             return Err(MessageListNetworkError::InvalidSequence);
         }
         let tracked = self.requests.contains_key(request_id);
-        let message_list_get = method == "GET" && is_message_list_url(url);
+        // A noncanonical URL naming the exact endpoint is malformed, not
+        // unrelated traffic. Keep the same fail-closed error contract for
+        // unsafe pagination and filter values.
+        let endpoint_path = url.split_once('?').map_or(url, |(path, _)| path);
+        let exact_endpoint = endpoint_path == MESSAGE_LIST_URL_PREFIX;
+        let endpoint_candidate = method == "GET" && exact_endpoint;
+        if endpoint_candidate {
+            let canonical_url = url.bytes().all(|byte| byte.is_ascii_graphic());
+            if !canonical_url {
+                return Err(MessageListNetworkError::MalformedEvent);
+            }
+        }
+        let message_list_get = endpoint_candidate && is_message_list_url(url);
         if tracked && !message_list_get {
             return Err(MessageListNetworkError::RedirectedAway);
         }
@@ -1091,6 +1103,12 @@ pub enum MessageListResponseError {
 }
 
 fn is_message_list_url(url: &str) -> bool {
+    // CDP serializes browser URLs with spaces, controls, and non-ASCII text
+    // percent-encoded. A raw alias cannot prove the provider request's path
+    // or selectors because the actual URL parser may reinterpret it.
+    if !url.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return false;
+    }
     let Some(remainder) = url.strip_prefix(MESSAGE_LIST_URL_PREFIX) else {
         return false;
     };

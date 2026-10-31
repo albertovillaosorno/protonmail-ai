@@ -2278,3 +2278,8 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first synthetic requests proved that empty, encoded, textual and out-of-
   range values previously qualified as list evidence; both boolean digits
   remain accepted without storing the private query string.
+
+- Message-list request and direct-response URL proof now requires the
+  browser-serialized ASCII graphical form. Red-first raw spaces, controls,
+  Unicode whitespace and non-ASCII query text previously entered read
+  metadata; percent-encoded search terms remain valid without decoding.
