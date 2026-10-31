@@ -83,6 +83,13 @@ impl AutomationProfileLease {
         }
     }
 
+    // Visible login must refuse an existing Chromium owner: Chromium can
+    // forward a second launch to its old process, ignoring new privacy flags.
+    pub(crate) fn browser_active(profile: &Profile) -> LoginResult<bool> {
+        let observed = chromium_profile_busy(profile.path());
+        observed.map_err(|_error| WebLoginError::LeaseInspect)
+    }
+
     /// Acquires exclusive automation ownership for the dedicated profile.
     ///
     /// # Errors

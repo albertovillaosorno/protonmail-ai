@@ -119,8 +119,125 @@ fn profile_under(data_home: &Path) -> PathBuf {
     data_home.join("protonmail-ai").join("browser-profile")
 }
 
+fn local_test_hostname() -> String {
+    fs::read_to_string("/proc/sys/kernel/hostname")
+        .expect("read hostname")
+        .trim()
+        .to_owned()
+}
+
 fn cleanup(root: &Path) {
     fs::remove_dir_all(root).expect("remove synthetic web profile tree");
+}
+
+#[test]
+fn visible_login_refuses_existing_chromium_profile_owner() {
+    let root = test_root("visible-existing-chromium");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    let data_home = root.join("xdg-data");
+    let profile = profile_under(&data_home);
+    fs::create_dir_all(&profile).expect("create dedicated profile");
+    let host = local_test_hostname();
+    let owner = format!("{}-{}", host, process::id());
+    symlink(owner, profile.join("SingletonLock")).expect("install lock");
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(
+        !output.status.success(),
+        "occupied profile cannot be reused"
+    );
+    assert!(!root.join("browser-args.txt").exists());
+    assert!(
+        String::from_utf8(output.stderr)
+            .expect("redacted browser error")
+            .contains("browser profile busy")
+    );
+    cleanup(&root);
+}
+
+#[test]
+fn visible_login_refuses_unprovable_chromium_owners() {
+    for (label, owner) in [
+        ("visible-foreign-browser", "foreign-host-1234"),
+        ("visible-malformed-browser", "invalid-singleton-lock"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let browser = fake_browser(&root);
+        let data_home = root.join("xdg-data");
+        let profile = profile_under(&data_home);
+        fs::create_dir_all(&profile).expect("create dedicated profile");
+        symlink(owner, profile.join("SingletonLock")).expect("install lock");
+        let output = login(&root, &browser, Some(&data_home));
+        assert!(!output.status.success());
+        assert!(!root.join("browser-args.txt").exists());
+        assert!(
+            String::from_utf8(output.stderr)
+                .expect("redacted browser error")
+                .contains("browser profile busy")
+        );
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn visible_login_allows_proven_stale_local_chromium_owner() {
+    let root = test_root("visible-stale-chromium");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    let data_home = root.join("xdg-data");
+    let profile = profile_under(&data_home);
+    fs::create_dir_all(&profile).expect("create dedicated profile");
+    let host = local_test_hostname();
+    let owner = format!("{host}-4294967295");
+    symlink(owner, profile.join("SingletonLock")).expect("install lock");
+    let output = login(&root, &browser, Some(&data_home));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    wait_for_args(&root);
+    cleanup(&root);
+}
+
+#[test]
+fn visible_login_rechecks_chromium_owner_during_busy_executable_retry() {
+    let root = test_root("chromium-owner-during-retry");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    let data_home = root.join("xdg-data");
+    let writer = fs::OpenOptions::new()
+        .write(true)
+        .open(&browser)
+        .expect("hold executable writable");
+    let run_root = root.clone();
+    let runner = thread::spawn(move || {
+        let xdg = run_root.join("xdg-data");
+        login(&run_root, &browser, Some(&xdg))
+    });
+    let profile = profile_under(&data_home);
+    for _attempt in 0..100u8 {
+        if profile.exists() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(profile.exists(), "visible login must prepare profile");
+    thread::sleep(Duration::from_millis(60));
+    let host = local_test_hostname();
+    let owner = format!("{}-{}", host, process::id());
+    symlink(owner, profile.join("SingletonLock")).expect("install lock");
+    let output = runner.join().expect("reap visible-login CLI");
+    drop(writer);
+    assert!(!output.status.success());
+    assert!(!root.join("browser-args.txt").exists());
+    assert!(
+        String::from_utf8(output.stderr)
+            .expect("redacted browser error")
+            .contains("browser profile busy")
+    );
+    cleanup(&root);
 }
 
 #[test]

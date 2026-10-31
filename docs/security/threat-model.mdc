@@ -114,6 +114,11 @@ extensions cannot run, and Chromium browser-account synchronization is disabled
 for the mail profile. These launch restrictions reduce exposure without
 replacing Chromium or profile integrity checks.
 
+Visible login also refuses an active, foreign, or malformed Chromium
+`SingletonLock`. A second Chromium invocation can reuse the existing process
+and ignore new privacy flags, so the launcher checks both Chromium ownership
+and the managed automation lease before launch and during busy-exec retries.
+
 Managed automation never exposes a DevTools TCP listener. Chromium receives
 `--remote-debugging-pipe` only with the dedicated `--user-data-dir`; the parent
 owns the other pipe ends. Frames are NUL-delimited, capped at 1 MiB, bounded by

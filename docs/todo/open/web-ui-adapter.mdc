@@ -1752,3 +1752,8 @@ web application without requiring Bridge or a third-party direct API identity.
   encoder test asserts exact frame framing and typed ownership, preserving
   the existing audited command allowlist. OS socket buffers and original
   caller-owned parameter values are outside this local custody guarantee.
+
+- Visible login now refuses existing or unprovable Chromium profile owners
+  before spawn and during ETXTBSY retries. Reusing a live browser can bypass
+  the dedicated profile privacy launch flags; synthetic singleton tests keep
+  the visible and managed ownership boundaries aligned.

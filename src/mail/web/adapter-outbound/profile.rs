@@ -188,13 +188,11 @@ impl WebLoginPlan {
     ///
     /// # Errors
     ///
-    /// Fails closed when the profile path is a symlink or not a directory, or
-    /// when the browser process cannot be started.
+    /// Fails closed for unsafe profile paths, an existing Chromium or managed
+    /// automation owner, or a browser process that cannot be started.
     pub fn launch(&self) -> Result<(), WebLoginError> {
         self.profile.prepare()?;
-        if AutomationProfileLease::is_active(&self.profile)? {
-            return Err(WebLoginError::AutomationInUse);
-        }
+        self.ensure_profile_unowned()?;
         let user_data = user_data_dir_argument(self.profile.path());
         let mut command = Command::new(&self.browser);
         command
@@ -209,11 +207,9 @@ impl WebLoginPlan {
         // A just-updated browser executable may briefly be held open for
         // writing. Retry only Linux ETXTBSY; other launch errors fail at once.
         for attempt in 0u8..=MAX_TEXT_BUSY_RETRIES {
-            // A managed session may acquire ownership during the retry delay.
-            // Do not rely on the check preceding the first spawn attempt.
-            if AutomationProfileLease::is_active(&self.profile)? {
-                return Err(WebLoginError::AutomationInUse);
-            }
+            // Browser/automation ownership may change during a busy-exec
+            // retry. An existing Chromium process may ignore our flags.
+            self.ensure_profile_unowned()?;
             match command.spawn() {
                 Ok(_child) => return Ok(()),
                 Err(error)
@@ -227,6 +223,16 @@ impl WebLoginPlan {
             }
         }
         Err(WebLoginError::BrowserLaunch(self.browser.clone()))
+    }
+
+    fn ensure_profile_unowned(&self) -> Result<(), WebLoginError> {
+        if AutomationProfileLease::is_active(&self.profile)? {
+            return Err(WebLoginError::AutomationInUse);
+        }
+        if AutomationProfileLease::browser_active(&self.profile)? {
+            return Err(WebLoginError::BrowserInUse);
+        }
+        Ok(())
     }
 }
 
@@ -251,9 +257,11 @@ pub enum WebLoginError {
     ProfileCreate(PathBuf),
     /// Managed automation already owns the dedicated profile.
     AutomationInUse,
+    /// A browser already owns the profile and might ignore new launch flags.
+    BrowserInUse,
     /// The selected browser process could not be launched.
     BrowserLaunch(String),
-    /// Automation lease state could not be inspected safely.
+    /// Profile ownership could not be inspected safely.
     LeaseInspect,
 }
 
@@ -271,6 +279,7 @@ impl fmt::Debug for WebLoginError {
             Self::ProfileIsNotDirectory(_) => f.write_str("ProfileIsNotDirectory(<redacted>)"),
             Self::ProfileCreate(_) => f.write_str("ProfileCreate(<redacted>)"),
             Self::AutomationInUse => f.write_str("AutomationInUse"),
+            Self::BrowserInUse => f.write_str("BrowserInUse"),
             Self::BrowserLaunch(_) => f.write_str("BrowserLaunch(<redacted>)"),
             Self::LeaseInspect => f.write_str("LeaseInspect"),
         }
@@ -288,6 +297,7 @@ impl fmt::Display for WebLoginError {
             Self::UnsafeDataHomeAncestor => f.write_str("browser data home ancestor is unsafe"),
             // jig-ignore-next-line: canonical rustfmt line.
             Self::AutomationInUse => f.write_str("profile owned by managed automation"),
+            Self::BrowserInUse => f.write_str("browser profile busy"),
             Self::ProfileLink(_) => f.write_str("profile symlink"),
             Self::ProjectLink(_) => f.write_str("project symlink"),
             Self::ProfileIsNotDirectory(_) => {
@@ -296,7 +306,7 @@ impl fmt::Display for WebLoginError {
             // jig-ignore-next-line: canonical rustfmt line.
             Self::ProfileCreate(_) => f.write_str("cannot create browser profile"),
             Self::BrowserLaunch(_) => f.write_str("cannot launch browser"),
-            Self::LeaseInspect => f.write_str("cannot inspect profile lease"),
+            Self::LeaseInspect => f.write_str("cannot inspect profile owner"),
         }
     }
 }
