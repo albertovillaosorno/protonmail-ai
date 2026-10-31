@@ -33,7 +33,7 @@
 
 use std::env;
 use std::fs;
-use std::io::Write as _;
+use std::io::{ErrorKind, Write as _};
 use std::os::unix::fs::{PermissionsExt as _, symlink};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
@@ -374,6 +374,7 @@ fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
         concat!(
             "#!/bin/sh\n",
             "printf '%s\\n' \"$@\" > \"$PROTONMAIL_AI_TEST_ARGS\"\n",
+            "readlink \"/proc/$$/fd/0\" > \"$PROTONMAIL_AI_TEST_STDIN_FD\"\n",
             "IFS= read -r line || :\n",
             "printf '%s' \"$line\" > \"$PROTONMAIL_AI_TEST_STDIN\"\n",
             "printf 'browser-stdout-private-marker\\n'\n",
@@ -382,11 +383,13 @@ fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
     )
     .expect("replace synthetic browser script");
     let stdin_capture = root.join("browser-stdin.txt");
+    let fd_capture = root.join("browser-fd0.txt");
     let mut child = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
         .args(["auth", "login"])
         .env("PROTONMAIL_AI_BROWSER", &browser)
         .env(LOGIN_ARGS_FILE, root.join("browser-args.txt"))
         .env("PROTONMAIL_AI_TEST_STDIN", &stdin_capture)
+        .env("PROTONMAIL_AI_TEST_STDIN_FD", &fd_capture)
         .env("HOME", root.join("home"))
         .env("XDG_DATA_HOME", root.join("xdg-data"))
         .stdin(Stdio::piped())
@@ -394,12 +397,17 @@ fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("spawn synthetic login CLI");
-    child
+    let sent = child
         .stdin
         .take()
         .expect("CLI stdin pipe")
-        .write_all(b"browser-stdin-private-marker\n")
-        .expect("send synthetic CLI input");
+        .write_all(b"browser-stdin-private-marker\n");
+    // The CLI legitimately exits as soon as it launches the detached browser.
+    // Its reader may close before this test process writes the synthetic
+    // marker. BrokenPipe is not evidence of browser stdin inheritance.
+    if let Err(error) = sent {
+        assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+    }
     let output = child.wait_with_output().expect("collect CLI output");
     assert!(output.status.success());
     wait_for_args(&root);
@@ -412,6 +420,12 @@ fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
         thread::sleep(Duration::from_millis(10));
     }
     assert_eq!(captured.as_deref(), Some(""), "browser must receive EOF");
+    // The browser itself records its live stdin fd. This proves detachment
+    // even if the CLI's pipe closed before the attempted marker write.
+    assert_eq!(
+        fs::read_to_string(&fd_capture).expect("browser stdin descriptor evidence"),
+        "/dev/null\n"
+    );
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 CLI stdout");
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 CLI stderr");
     assert!(!stdout.contains("browser-stdout-private-marker"));

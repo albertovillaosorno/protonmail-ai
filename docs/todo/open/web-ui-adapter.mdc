@@ -132,6 +132,13 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- The synthetic visible-login stdio-isolation regression now inspects the
+  launched browser's own `/proc/<pid>/fd/0` and requires `/dev/null`. A CLI
+  that exits before its test parent writes to the pipe may legitimately cause
+  `BrokenPipe`; this no longer aborts the test before the stronger browser-fd
+  proof and output-channel isolation checks. Production launch flags stay the
+  same; no live browser or account is accessed.
+
 - Shared passive Network response provenance now rejects unknown or differently
   cased `from*`, `serviceWorker*`, and `cacheStorage*` metadata fields, rather
   than treating future cached/service-worker markers as direct provider HTTP.
