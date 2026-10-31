@@ -340,3 +340,10 @@ bounded resource use.
   Synthetic tests first reproduced premature completion on both cursors, then
   verified that a late exact HTTP 200 unlocks the response without retrying or
   exposing an event ID. Missing status fails closed within the bounded wait.
+
+- A synthetic full-browser core-v5 polling regression now exercises
+  `hasExtraInfo: true` through the CDP pipe. A missing actual status must
+  reject cursor progress without fetching a response body; an HTTP 304 notice
+  delivered after `loadingFinished` also rejects the body read. Only the
+  delayed actual HTTP 200 permits cursor projection, with the browser shell
+  remaining usable after each attempt.

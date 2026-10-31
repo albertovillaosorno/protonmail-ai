@@ -2124,6 +2124,114 @@ fn latest_and_v5_event_request_ids_are_bounded_after_consumption() {
 }
 
 #[test]
+fn browser_event_poll_waits_for_promised_http_status_before_body_read() {
+    use mail_web_adapter::MailboxEventNetworkError;
+    // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use serde_json::json;
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic event browser fixtures");
+    for (status, label) in [
+        (None, "poll-no-status"),
+        (Some(200u16), "poll-late-200"),
+        (Some(304u16), "poll-late-304"),
+    ] {
+        let root = event_browser_root(label);
+        fs::create_dir_all(&root).expect("create synthetic browser root");
+        let executable = fake_event_browser(&root, false, true);
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let mut script = fs::read_to_string(&executable).expect("read fake browser");
+        let marker = "\"requestId\":\"event-1\",\"response\":";
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let declared = "\"requestId\":\"event-1\",\"hasExtraInfo\":true,\"response\":";
+        assert!(script.contains(marker));
+        script = script.replacen(marker, declared, 1);
+
+        // Inject actual status after loadingFinished, rather than before it.
+        if let Some(status) = status {
+            // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+            let emitted = "printf '%s\\0%s\\0%s\\0' \"$request\" \"$response\" \"$finished\" >&4";
+            // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+            let response_start = script.find(declared).expect("find matching response");
+            let after_response = script
+                .get(response_start..)
+                .and_then(|after| after.find(emitted))
+                .expect("find matching completed event stream");
+            let insert_at = response_start + after_response + emitted.len();
+            let extra = json!({
+                "sessionId":"session-1",
+                "method":"Network.responseReceivedExtraInfo",
+                "params":{"requestId":"event-1","statusCode":status}
+            });
+            let injection =
+                // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+                format!("\n          extra='{extra}'\n          printf '%s\\0' \"$extra\" >&4");
+            script.insert_str(insert_at, &injection);
+        }
+
+        let log = root.join("body-read-log.txt");
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let body_marker = "    *'Network.getResponseBody'*'\"requestId\":\"event-1\"'*)";
+        assert!(script.contains(body_marker));
+        let audit = format!(
+            "{body_marker}\n      printf 'body\\n' >> '{}'",
+            log.display()
+        );
+        script = script.replacen(body_marker, &audit, 1);
+        fs::write(&executable, script).expect("write audited browser script");
+        let plan = ManagedBrowserPlan::under_data_home(
+            executable.to_str().expect("fake browser path UTF-8"),
+            &root.join("data"),
+        )
+        .expect("create synthetic browser plan");
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let mut browser = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = browser.provider_page().expect("find Mail page");
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let result = browser.observe_mailbox_event_sequence(&page, Duration::from_millis(250));
+        match status {
+            Some(200) => {
+                assert!(
+                    result
+                        .expect("late HTTP 200 allows event capture")
+                        .is_some()
+                );
+                // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+                assert_eq!(fs::read_to_string(&log).expect("read body audit"), "body\n");
+            }
+            Some(304) => {
+                assert_eq!(
+                    result,
+                    Err(BrowserDriverError::MailboxEventNetwork(
+                        MailboxEventNetworkError::ResponseRejected
+                    ))
+                );
+                // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+                assert!(!log.exists(), "HTTP 304 revalidation cannot authorize body");
+            }
+            unexpected => {
+                assert_eq!(unexpected, None, "only synthetic 200/304 statuses");
+                assert_eq!(
+                    result,
+                    Err(BrowserDriverError::MailboxEventResponseAmbiguous)
+                );
+                // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+                assert!(!log.exists(), "missing actual HTTP status blocks body");
+            }
+        }
+        browser
+            .require_mail_shell(&page)
+            .expect("browser remains usable");
+        drop(browser);
+        fs::remove_dir_all(root).expect("clean synthetic browser root");
+    }
+}
+
+#[test]
 fn consumed_event_ids_replayed_during_network_disable_fail_closed() {
     use mail_web_adapter::{BrowserDriverError, MailboxEventNetworkError};
     use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
