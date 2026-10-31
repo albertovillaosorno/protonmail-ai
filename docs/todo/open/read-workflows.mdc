@@ -23,6 +23,17 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Programmatic click ancestry checks
+
+- Red-first executable synthetic DOM fixtures exposed a mismatch between
+  user-actionable controls and `.click()` in pagination and sort-menu actions:
+  CSS `pointer-events:none` on a parent did not prevent the read adapter from
+  activating an otherwise visible child. All three audited click scripts now
+  require the entire bounded ancestor chain to have pointer events enabled,
+  in addition to existing opacity, visibility, native disabled, ARIA, form and
+  origin checks. Next-page and sort open/close JS fixture matrices exercise
+  this without launching a real browser or contacting Proton.
+
 ## Exact provider path-component identity
 
 - Red-first synthetic message-list and exact-detail GET fixtures showed that

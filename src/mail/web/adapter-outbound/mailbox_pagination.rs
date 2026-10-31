@@ -47,6 +47,7 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "if(!current){return true;}",
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
+    "style.pointerEvents==='none'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",

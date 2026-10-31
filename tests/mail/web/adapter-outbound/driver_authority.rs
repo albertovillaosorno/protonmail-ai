@@ -1650,6 +1650,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
+let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
 let optionParentDisabled=false;
@@ -1673,7 +1674,9 @@ toggle.click=()=>{clicks++;isOpen=!isOpen;};
 Object.defineProperty(toggle,'disabled',{get:()=>disabled});
 toggle.matches=(q)=>q===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({
- visibility:'visible',pointerEvents:'auto',
+ visibility:'visible',
+ pointerEvents:(node===optionParent&&optionParentPointerBlocked)||
+ (node===toggleParent&&toggleParentPointerBlocked)?'none':'auto',
  opacity:node===option?optionOpacity:
  node===optionParent?optionParentOpacity:
  node===toggleParent?toggleParentOpacity:'1'});
@@ -1707,6 +1710,11 @@ if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('transparent option parent allowed action');
 }
 optionParentOpacity='1';
+optionParentPointerBlocked=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('pointer-blocked sort options allowed programmatic action');
+}
+optionParentPointerBlocked=false;
 toggle.type='submit';
 if(eval(close)!==false||clicks!==1){
  throw Error('submit sort toggle closed menu');
@@ -1724,6 +1732,11 @@ if(eval(open)!==null||clicks!==2){
  throw Error('transparent toggle parent was clicked');
 }
 toggleParentOpacity='1';
+toggleParentPointerBlocked=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('pointer-blocked sort toggle was programmatically clicked');
+}
+toggleParentPointerBlocked=false;
 sortInert=true;
 if(eval(open)!==null||clicks!==2){throw Error('inert sort menu clicked');}
 sortInert=false;parentAriaDisabled=true;
@@ -1816,6 +1829,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
+let parentPointerBlocked=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
@@ -1832,7 +1846,8 @@ next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
- pointerEvents:'auto',opacity:node===parent?parentOpacity:'1'});
+ pointerEvents:node===parent&&parentPointerBlocked?'none':'auto',
+ opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
  querySelectorAll:()=>duplicate?[next,next]:[next]};
 if(eval(script).clicked!==true||clicks!==1){
@@ -1850,7 +1865,11 @@ ariaOnlyDisabled=false;uppercaseAriaDisabled=false;parentOpacity='0';
 if(eval(script).clicked||clicks!==1){
  throw Error('transparent Next parent permitted a click');
 }
-parentOpacity='1';parentInert=true;
+parentOpacity='1';parentPointerBlocked=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('pointer-blocked Next parent permitted a programmatic click');
+}
+parentPointerBlocked=false;parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
 parentInert=false;parentAriaDisabled=true;
 if(eval(script).clicked||clicks!==1){
