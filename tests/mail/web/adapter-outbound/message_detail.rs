@@ -1530,6 +1530,30 @@ fn detail_projection_rejects_unsafe_route_bound_metadata_ids() {
 }
 
 #[test]
+fn raw_non_ascii_message_detail_url_cannot_be_exact_browser_proof() {
+    for raw_id in ["message-\u{e9}", "message-\u{1f680}"] {
+        let endpoint = "https://mail.proton.me/api/mail/v4/messages/";
+        let url = format!("{endpoint}{raw_id}");
+        let mut response = detail_body();
+        response["Message"]["ID"] = json!(raw_id);
+        let parse = ObservedMessageDetailResponse::parse;
+        let parsed = parse("GET", &url, &response.to_string());
+        assert_eq!(parsed, Err(MessageDetailResponseError::UnexpectedEndpoint));
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        let request = request_event("session-a", "unicode", "GET", &url);
+        assert_eq!(
+            capture.observe(&request),
+            Err(MessageDetailNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    let mut capture = MessageDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "ascii", "GET", MESSAGE_URL))
+        .expect("canonical ASCII route remains supported");
+}
+
+#[test]
 fn detail_projection_keeps_printable_opaque_ids_and_content_fields() {
     let mut body = detail_body();
     body["Message"]["ID"] = json!("opaque+_~=");

@@ -2288,3 +2288,8 @@ web application without requiring Bridge or a third-party direct API identity.
   require browser-serialized graphical ASCII URLs. Red-first synthetic raw
   whitespace, control and Unicode query text previously authorized a GET;
   canonical percent-encoded search terms still prove passive request shape.
+
+- Single-message detail GET evidence now rejects raw non-ASCII URL path
+  aliases without rejecting Unicode metadata IDs. Red-first synthetic
+  matching provider IDs previously projected a message through a URL that
+  Chromium should percent-encode; canonical ASCII detail URLs stay valid.

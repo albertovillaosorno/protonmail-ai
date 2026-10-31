@@ -987,7 +987,12 @@ fn message_id_from_detail_url(url: &str) -> Result<Option<&str>, MessageDetailNe
     let Some(message_id) = url.strip_prefix(MESSAGE_DETAIL_URL_PREFIX) else {
         return Ok(None);
     };
-    if !safe_read_id(message_id, MAX_MESSAGE_ID_BYTES) {
+    // Browser-serialized URL paths encode non-ASCII characters. A raw
+    // Unicode identifier cannot prove the exact route even when a provider
+    // metadata ID may legitimately contain Unicode.
+    if !url.bytes().all(|byte| byte.is_ascii_graphic())
+        || !safe_read_id(message_id, MAX_MESSAGE_ID_BYTES)
+    {
         return Err(MessageDetailNetworkError::MalformedEvent);
     }
     Ok(Some(message_id))
