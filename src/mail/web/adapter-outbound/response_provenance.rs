@@ -260,6 +260,11 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         .keys()
         .any(|field| unreviewed_speculation_field(field));
     let normal_fetch_metadata = active_mail_fetch_metadata(request);
+    // isSameSite is relative to this target's main frame. A false hint
+    // contradicts activity owned by the selected Mail document; true is
+    // necessary only when the optional hint is reported, not sufficient.
+    let site_hint = request.get("isSameSite");
+    let normal_same_site = matches!(site_hint, None | Some(Value::Bool(true)));
     // The enclosing event and initiator can also carry speculative metadata.
     // Only the Request object owns the documented isLinkPreload marker.
     let normal_event_hints = !params
@@ -309,6 +314,7 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     };
     let request_active = normal_link && normal_hints && normal_purpose;
     let request_active = request_active && normal_fetch_metadata;
+    let request_active = request_active && normal_same_site;
     let event_active = normal_event_hints && normal_resource;
     request_active && event_active && normal_initiator && normal_document
 }

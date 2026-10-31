@@ -2501,3 +2501,11 @@ web application without requiring Bridge or a third-party direct API identity.
   exact GET with `X-HTTP-Method-Override: POST` as a read-only request. The
   shared body-free gate refuses these ambiguous method hints regardless of
   value, while preserving ordinary GETs and logging no headers or payloads.
+
+- A browser `Network.Request.isSameSite: false` now disqualifies a passive Mail
+  API GET from active main-frame evidence. CDP defines this optional flag
+  relative to the page's main-frame request; red-first synthetic message-list
+  capture previously accepted a cross-site request on an exact Mail URL.
+  Missing and explicitly true hints remain compatible, while malformed values
+  fail closed across all passive observers. A true hint alone does not establish
+  Mail origin and no live account or browser data was used.

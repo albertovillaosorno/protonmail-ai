@@ -311,6 +311,29 @@ fn explicit_foreign_origin_header_cannot_prove_mail_api_read() {
 }
 
 #[test]
+fn cross_site_cdp_request_hint_cannot_prove_active_mail_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET", "isSameSite": true},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    let mut absent = ordinary.clone();
+    absent["params"]["request"]
+        .as_object_mut()
+        .expect("synthetic request")
+        .remove("isSameSite");
+    assert!(non_speculative_cdp_get(&absent));
+    for invalid in [json!(false), json!(null), json!("true"), json!(0i32)] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["isSameSite"] = invalid;
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "a cross-site or malformed browser site hint is not Mail evidence"
+        );
+    }
+}
+
+#[test]
 fn mismatched_host_header_cannot_prove_mail_origin_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",
