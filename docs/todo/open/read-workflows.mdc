@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Authenticated cursor encoding now encrypts the existing zeroizing JSON
+  buffer in place for both event and catalog continuation tokens. The AEAD
+  convenience API could first allocate an ordinary plaintext copy and release
+  it on encryption errors. Synthetic type-bound encrypted round trips verify
+  that ciphertext is produced from guarded storage without changing tokens.
+
 - Authenticated event and catalog cursor decoders now decrypt directly into
   zeroizing buffers, rather than receiving a plain plaintext `Vec` on AEAD
   success. The decoded token bytes also scrub on drop; a failed authentication

@@ -30,6 +30,7 @@
 
 //! Checks guarded decryption for catalog continuation cursors.
 
+use super::encrypt_into_guarded;
 use super::{CURSOR_KEY_BYTES, CURSOR_NONCE_BYTES, decrypt_into_guarded};
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
@@ -62,4 +63,23 @@ fn authenticated_decryption_keeps_plaintext_guarded() {
     let mut tampered = sealed;
     tampered[0] ^= 1;
     assert!(decrypt_into_guarded(&cipher, &nonce, aad, &tampered).is_err());
+}
+
+#[test]
+fn authenticated_encryption_never_copies_plaintext_to_unprotected_output() {
+    // jig-ignore-next-line: canonical synthetic AES fixture.
+    let cipher = Aes256Gcm::new_from_slice(&[5u8; CURSOR_KEY_BYTES]).expect("synthetic AES key");
+    let nonce_bytes = [6u8; CURSOR_NONCE_BYTES];
+    // jig-ignore-next-line: canonical synthetic AES nonce.
+    let nonce = Nonce::<U12>::try_from(nonce_bytes.as_slice()).expect("synthetic AES nonce");
+    let aad = b"synthetic authenticated encryption";
+    let synthetic_state = b"private synthetic catalog state";
+    let mut plaintext = Zeroizing::new(synthetic_state.to_vec());
+
+    encrypt_into_guarded(&cipher, &nonce, aad, &mut plaintext)
+        .expect("seal without releasing plaintext");
+    let opened: Zeroizing<Vec<u8>> =
+        // jig-ignore-next-line: canonical guarded decrypt assertion.
+        decrypt_into_guarded(&cipher, &nonce, aad, &plaintext).expect("recover synthetic cursor");
+    assert_eq!(opened.as_slice(), b"private synthetic catalog state");
 }

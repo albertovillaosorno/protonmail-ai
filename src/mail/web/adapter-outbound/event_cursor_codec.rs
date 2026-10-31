@@ -35,7 +35,7 @@ use crate::strict_json;
 use std::fmt;
 
 use aes_gcm::aead::consts::U12;
-use aes_gcm::aead::{Aead as _, AeadInOut as _, KeyInit as _, Payload};
+use aes_gcm::aead::{AeadInOut as _, KeyInit as _};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -118,8 +118,8 @@ impl WebEventCursorCodec {
             generation: scope_generation,
             state,
         };
-        let mut plaintext = Zeroizing::new(Vec::new());
-        serde_json::to_writer(&mut *plaintext, &payload)
+        let mut payload_bytes = Zeroizing::new(Vec::new());
+        serde_json::to_writer(&mut *payload_bytes, &payload)
             .map_err(|_error| WebEventCursorCodecError::EncodingFailed)?;
         let mut nonce_bytes = [0u8; CURSOR_NONCE_BYTES];
         getrandom::fill(&mut nonce_bytes)
@@ -129,21 +129,14 @@ impl WebEventCursorCodec {
         let nonce = Nonce::<U12>::try_from(nonce_bytes.as_slice())
             .map_err(|_error| WebEventCursorCodecError::EncodingFailed)?;
         let aad = cursor_aad(generation)?;
-        let ciphertext = cipher
-            .encrypt(
-                &nonce,
-                Payload {
-                    msg: plaintext.as_slice(),
-                    aad: &aad,
-                },
-            )
+        encrypt_into_guarded(&cipher, &nonce, &aad, &mut payload_bytes)
             .map_err(|_error| WebEventCursorCodecError::EncodingFailed)?;
         let capacity = CURSOR_NONCE_BYTES
-            .checked_add(ciphertext.len())
+            .checked_add(payload_bytes.len())
             .ok_or(WebEventCursorCodecError::EncodingFailed)?;
         let mut body = Vec::with_capacity(capacity);
         body.extend_from_slice(&nonce_bytes);
-        body.extend_from_slice(&ciphertext);
+        body.extend_from_slice(&payload_bytes);
         let token = format!(
             "{CURSOR_VERSION}.{generation}.{}",
             URL_SAFE_NO_PAD.encode(body)
@@ -269,6 +262,18 @@ fn valid_generation_tag(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+// Keep serialized plaintext in one zeroizing allocation throughout AEAD
+// encryption. The convenience Aead::encrypt API may copy plaintext into an
+// ordinary Vec that is dropped without scrubbing if encryption fails.
+fn encrypt_into_guarded(
+    cipher: &Aes256Gcm,
+    nonce: &Nonce<U12>,
+    aad: &[u8],
+    payload: &mut Zeroizing<Vec<u8>>,
+) -> Result<(), aes_gcm::Error> {
+    cipher.encrypt_in_place(nonce, aad, &mut **payload)
 }
 
 // AEAD must never own decrypted cursor bytes in an ordinary Vec, including
