@@ -2638,3 +2638,11 @@ web application without requiring Bridge or a third-party direct API identity.
   these contradictions and malformed hints across all passive readers while
   preserving optional omission and canonical HTTP/1.x, h2, and h3 values.
   No live browser or account was used.
+
+- An explicit CDP `Network.Response.charset` must now be empty/unspecified or
+  UTF-8 for passive Mail JSON reads. Red-first shared and message-list
+  synthetic fixtures previously accepted a browser-declared Latin-1 or
+  UTF-16 response as JSON 200 even with an apparent UTF-8 Content-Type.
+  Unknown and malformed charset hints now fail closed across all passive
+  collectors; missing hints, empty browser charset and UTF-8 remain valid.
+  No account, response payload, or live browser was accessed.

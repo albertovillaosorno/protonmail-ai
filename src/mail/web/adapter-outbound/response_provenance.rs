@@ -799,9 +799,19 @@ fn uncached_source_fields(fields: &Map<String, Value>) -> bool {
         ),
         Some(_) => false,
     };
+    // The browser-decoded response charset must not contradict UTF-8 JSON.
+    // Chromium may report an empty charset when no explicit one applies;
+    // JSON then still defaults to UTF-8. This is optional CDP metadata.
+    let utf8_charset = match fields.get("charset") {
+        None => true,
+        Some(Value::String(charset)) if charset.is_empty() => true,
+        Some(Value::String(charset)) => charset.eq_ignore_ascii_case("utf-8"),
+        Some(_) => false,
+    };
     !unknown_source_marker
         && security_valid
         && http_protocol
+        && utf8_charset
         && source_flags.iter().all(|field| {
             let value = fields.get(*field);
             matches!(value, None | Some(Value::Bool(false)))

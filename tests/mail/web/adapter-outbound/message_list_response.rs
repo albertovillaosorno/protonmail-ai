@@ -584,6 +584,34 @@ fn raw_refined_request_headers_cannot_launder_mail_list_get() {
 }
 
 #[test]
+fn non_utf8_browser_charset_cannot_complete_mail_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"charset", "type":"Fetch", "request":{
+            "method":"GET", "url":URL}}
+    });
+    for charset in ["iso-8859-1", "utf-16", "x-user-defined"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture.observe(&request).expect("track exact Mail GET");
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"charset", "type":"Fetch", "response":{
+                "url":URL, "status":200u16, "mimeType":"application/json",
+                "headers":{"Content-Type":"application/json; charset=utf-8"},
+                "charset":charset}}
+        });
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn non_http_response_protocol_cannot_complete_mail_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

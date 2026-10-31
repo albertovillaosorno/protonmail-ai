@@ -1046,6 +1046,31 @@ fn raw_http_request_headers_must_confirm_bodyless_mail_get() {
 }
 
 #[test]
+fn non_utf8_browser_charset_cannot_prove_mail_json() {
+    let ordinary = json!({"params":{"type":"Fetch", "response":{
+        "url":"https://mail.proton.me/api/mail/v4/messages",
+        "status":200u16, "mimeType":"application/json",
+        "headers":{"Content-Type":"application/json; charset=utf-8"}}}});
+    assert!(direct_cdp_read_response(&ordinary));
+    for charset in ["utf-8", "UTF-8", ""] {
+        let mut valid = ordinary.clone();
+        valid["params"]["response"]["charset"] = json!(charset);
+        assert!(direct_cdp_read_response(&valid), "valid JSON {charset}");
+    }
+    for invalid in [
+        json!("iso-8859-1"),
+        json!("utf-16"),
+        json!("x-user-defined"),
+        json!(null),
+        json!(12i32),
+    ] {
+        let mut response = ordinary.clone();
+        response["params"]["response"]["charset"] = invalid;
+        assert!(!direct_cdp_read_response(&response), "non-UTF-8 decoding");
+    }
+}
+
+#[test]
 fn non_http_response_protocol_cannot_prove_direct_mail_json() {
     let ordinary = json!({"params":{"type":"Fetch", "response":{
         "url":"https://mail.proton.me/api/mail/v4/messages",
