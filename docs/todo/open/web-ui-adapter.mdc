@@ -2518,3 +2518,12 @@ web application without requiring Bridge or a third-party direct API identity.
   HTTP field shape, body-free framing, method, purpose, and first-party fetch
   provenance before accepting any passive mailbox JSON. Omitted legacy hints
   remain compatible, and no request headers or private values are retained.
+
+- Proxy-supplied authority and rewrite headers are no longer accepted as
+  evidence of a direct Mail web API GET, even if `Host` and the observed URL
+  match the canonical origin. Red-first synthetic request and message-list
+  captures accepted `Forwarded` and `X-Forwarded-Host` metadata that may
+  reroute upstream authority; the shared request and refined-response header
+  predicates now reject known forwarded host, protocol, port, and URL rewrite
+  fields without parsing or logging their values. Ordinary Mail AJAX headers
+  remain supported and no real provider request was performed.

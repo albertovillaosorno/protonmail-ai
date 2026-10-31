@@ -170,11 +170,33 @@ fn serialized_mail_document_url(url: &str) -> bool {
     bounded && serialized && same_origin
 }
 
+// Proxy authority or route overrides do not corroborate the Mail app's
+// endpoint, even when the browser reports a matching GET URL and Host.
+// Never inspect or store these potentially private routing values.
+fn proxy_routing_header(name: &str) -> bool {
+    [
+        "Forwarded",
+        "X-Forwarded-Host",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Port",
+        "X-Original-Host",
+        "X-Original-URL",
+        "X-Original-URI",
+        "X-Rewrite-URL",
+        "X-Forwarded-URI",
+    ]
+    .iter()
+    .any(|header| name.eq_ignore_ascii_case(header))
+}
+
 // Fetch Metadata headers describe the actual browser request destination.
 // Navigation, embedded resources, or cross-site requests cannot corroborate
 // an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
 fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
     headers.iter().all(|(name, value)| {
+        if proxy_routing_header(name) {
+            return false;
+        }
         if name.eq_ignore_ascii_case("Host") {
             // A conflicting HTTP authority cannot establish a direct
             // Mail read merely because the observed URL looks exact.

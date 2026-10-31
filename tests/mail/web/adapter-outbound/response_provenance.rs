@@ -334,6 +334,51 @@ fn cross_site_cdp_request_hint_cannot_prove_active_mail_read() {
 }
 
 #[test]
+fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Host": "mail.proton.me"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for header in [
+        "Forwarded",
+        "forwarded",
+        "X-Forwarded-Host",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Port",
+        "X-Original-Host",
+        "X-Original-URL",
+        "X-Original-URI",
+        "X-Forwarded-URI",
+        "X-Rewrite-URL",
+    ] {
+        let mut request = ordinary.clone();
+        let headers = &mut request["params"]["request"]["headers"];
+        headers[header] = json!("host=foreign.invalid");
+        assert!(
+            !non_speculative_cdp_get(&request),
+            "proxy routing metadata {header} contradicts a direct Mail read"
+        );
+    }
+    let mut response = json!({
+        "params": {"type": "Fetch", "response": {
+            "status": 200u16, "mimeType": "application/json",
+            "requestHeaders": {"Host": "mail.proton.me"}
+        }}
+    });
+    assert!(direct_cdp_read_response(&response));
+    let refined = &mut response["params"]["response"]["requestHeaders"];
+    refined["X-Forwarded-Host"] = json!("foreign.invalid");
+    assert!(!direct_cdp_read_response(&response));
+    // Matching values are not enough: forwarding hints can alter routing.
+    let mut same_host = ordinary;
+    let headers = &mut same_host["params"]["request"]["headers"];
+    headers["Forwarded"] = json!("host=mail.proton.me");
+    assert!(!non_speculative_cdp_get(&same_host));
+}
+
+#[test]
 fn mismatched_host_header_cannot_prove_mail_origin_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",
