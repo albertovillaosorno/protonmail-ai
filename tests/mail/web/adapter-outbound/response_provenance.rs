@@ -754,6 +754,46 @@ fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
 }
 
 #[test]
+fn unreviewed_proxy_header_families_cannot_prove_mail_read() {
+    let url = "https://mail.proton.me/api/mail/v4/messages?Page=0";
+    let path = "/api/mail/v4/messages?Page=0";
+    let ordinary = json!({"params":{"type":"Fetch",
+        "request":{"method":"GET", "url":url,
+            "headers":{"Host":"mail.proton.me"}}}});
+    assert!(non_speculative_cdp_get(&ordinary));
+    for header in [
+        "X-Forwarded-Path",
+        "x-forwarded-method",
+        "X-Original-Path",
+        "x-original-scheme",
+        "X-Rewrite-Target",
+        "x-rewrite-host",
+    ] {
+        let mut request = ordinary.clone();
+        request["params"]["request"]["headers"][header] = json!("/other");
+        assert!(!non_speculative_cdp_get(&request), "provisional {header}");
+        let response = json!({"url":url, "requestHeaders":{
+            "Host":"mail.proton.me", header:"/other"}});
+        assert!(!uncached_provider_response(&response), "refined {header}");
+        let raw = format!(
+            concat!(
+                "GET {path} HTTP/1.1\r\n",
+                "Host: mail.proton.me\r\n",
+                "{header}: /other\r\n\r\n"
+            ),
+            path = path,
+            header = header
+        );
+        let wire = json!({"url":url, "requestHeadersText":raw});
+        assert!(!uncached_provider_response(&wire), "wire {header}");
+    }
+    let mut unrelated = ordinary;
+    let headers = &mut unrelated["params"]["request"]["headers"];
+    headers["X-Application-ID"] = json!("web");
+    assert!(non_speculative_cdp_get(&unrelated));
+}
+
+#[test]
 fn mismatched_host_header_cannot_prove_mail_origin_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",

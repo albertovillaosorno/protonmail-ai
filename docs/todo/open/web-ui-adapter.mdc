@@ -2685,3 +2685,11 @@ web application without requiring Bridge or a third-party direct API identity.
   values could previously pass as an otherwise canonical JSON response. The
   check scans only borrowed, bounded metadata; distinct extension names and
   one valid UTF-8 charset remain accepted, with no account data accessed.
+
+- CDP passive GET provenance now refuses every `X-Forwarded-*`,
+  `X-Original-*`, and `X-Rewrite-*` request header instead of relying on a
+  finite list of known route-override spellings. Red-first synthetic tests
+  proved previously unreviewed path, method, scheme, and target aliases
+  passed provisional, refined, and raw-wire request checks; message-list
+  capture accepted a forwarded path. The shared gate now closes those header
+  families without retaining the values; ordinary Mail GETs remain valid.

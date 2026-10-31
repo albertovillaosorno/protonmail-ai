@@ -239,20 +239,21 @@ fn serialized_mail_document_url(url: &str) -> bool {
 // endpoint, even when the browser reports a matching GET URL and Host.
 // Never inspect or store these potentially private routing values.
 fn proxy_routing_header(name: &str) -> bool {
-    [
-        "Forwarded",
-        "X-Forwarded-Host",
-        "X-Forwarded-Proto",
-        "X-Forwarded-Prefix",
-        "X-Forwarded-Port",
-        "X-Original-Host",
-        "X-Original-URL",
-        "X-Original-URI",
-        "X-Rewrite-URL",
-        "X-Forwarded-URI",
-    ]
-    .iter()
-    .any(|header| name.eq_ignore_ascii_case(header))
+    if name.eq_ignore_ascii_case("Forwarded") {
+        return true;
+    }
+    // Do not maintain an incomplete endpoint-specific alias list: any new
+    // forwarded/original/rewrite header can change routing independently of
+    // CDP's observed Mail URL. Even an empty extension is ambiguous.
+    ["X-Forwarded", "X-Original", "X-Rewrite"]
+        .iter()
+        .any(|prefix| {
+            name.eq_ignore_ascii_case(prefix)
+                || name
+                    .get(..prefix.len())
+                    .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+                    && name.as_bytes().get(prefix.len()) == Some(&b'-')
+        })
 }
 
 // An only-if-cached request expressly forbids using provider network HTTP.
