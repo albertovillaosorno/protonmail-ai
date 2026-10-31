@@ -321,6 +321,8 @@ fn cached_message_list_network_reply_is_not_fresh_evidence() {
         ("fromDiskCache", json!(true)),
         ("fromServiceWorker", json!(true)),
         ("fromPrefetchCache", json!(true)),
+        ("fromEarlyHints", json!(true)),
+        ("fromEarlyHints", json!(null)),
         ("fromDiskCache", json!(null)),
         ("fromServiceWorker", json!("false")),
     ] {
@@ -366,7 +368,7 @@ fn explicit_uncached_message_list_get_remains_observable() {
             "params":{"requestId":"fresh-list","response":{
                 "url":URL,"status":200u16,"mimeType":"application/json",
                 "fromDiskCache":false,"fromServiceWorker":false,
-                "fromPrefetchCache":false
+                "fromPrefetchCache":false,"fromEarlyHints":false
             }}
         }))
         .expect("accept uncached 200 JSON");

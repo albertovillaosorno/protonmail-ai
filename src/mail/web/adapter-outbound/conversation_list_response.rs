@@ -55,12 +55,17 @@ const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 // Chrome reports a cached or service-worker response. Explicit source flags
 // must be boolean false, while omitted optional flags remain compatible.
 fn uncached_list_response(response: &Value) -> bool {
-    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
-        .iter()
-        .all(|field| {
-            let source = response.get(*field);
-            matches!(source, None | Some(Value::Bool(false)))
-        })
+    [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ]
+    .iter()
+    .all(|field| {
+        let source = response.get(*field);
+        matches!(source, None | Some(Value::Bool(false)))
+    })
 }
 
 /// Redacted CDP request identity plus sanitized pagination evidence.

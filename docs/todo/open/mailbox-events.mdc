@@ -310,3 +310,7 @@ bounded resource use.
   CDP cache-hit notifications for exact tracked GETs, before or after the
   response. Red-first synthetic lifecycle tests cover both cursor paths and
   unrelated cache events without exposing private event identifiers.
+
+- Both event watermark capture states also reject `fromEarlyHints` prefetch
+  provenance; red-first synthetic CDP replies verify latest and core-v5 event
+  GETs before any cursor progress can be trusted.

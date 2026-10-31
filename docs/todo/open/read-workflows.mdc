@@ -851,3 +851,9 @@ Ship useful read access before any mailbox mutation is enabled.
   for matching GET request IDs before or after responseReceived. Red-first
   synthetic lifecycle tests exercise both orders, all catalog types and
   unrelated cache traffic; response flags alone cannot exclude memory cache.
+
+- The passive list, catalog, detail and attachment captures now reject the
+  additional Chromium `fromEarlyHints` response flag, which CDP specifies as
+  prefetch-cache provenance. Explicit true or malformed values fail closed;
+  omitted and false values remain compatible. Red-first tests reproduced this
+  gap independently across every observed provider GET type.

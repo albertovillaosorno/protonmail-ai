@@ -61,12 +61,17 @@ const MAX_TRACKED_ATTACHMENT_METADATA_REQUESTS: usize = 16;
 // state. CDP may omit these optional markers, but a present marker must be
 // boolean false rather than ambiguous or affirmative cache provenance.
 fn uncached_attachment_metadata_response(response: &Value) -> bool {
-    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
-        .iter()
-        .all(|field| {
-            let source = response.get(*field);
-            matches!(source, None | Some(Value::Bool(false)))
-        })
+    [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ]
+    .iter()
+    .all(|field| {
+        let source = response.get(*field);
+        matches!(source, None | Some(Value::Bool(false)))
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -376,6 +376,8 @@ fn cached_conversation_responses_cannot_authorize_provider_metadata() {
         ("fromDiskCache", json!(true)),
         ("fromServiceWorker", json!(true)),
         ("fromPrefetchCache", json!(true)),
+        ("fromEarlyHints", json!(true)),
+        ("fromEarlyHints", json!(null)),
         ("fromDiskCache", json!(null)),
         ("fromServiceWorker", json!("false")),
     ] {
@@ -400,7 +402,12 @@ fn cached_conversation_responses_cannot_authorize_provider_metadata() {
         .expect("track exact GET");
     // jig-ignore-next-line: rustfmt canonical synthetic response.
     let mut response = response_event("session-a", "detail", URL, 200, "application/json");
-    for source in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+    for source in [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ] {
         response["params"]["response"][source] = json!(false);
     }
     capture.observe(&response).expect("uncached response");

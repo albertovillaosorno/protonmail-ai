@@ -641,6 +641,8 @@ fn core_event_watermarks_reject_cache_and_service_worker_responses() {
         ("fromDiskCache", json!(true)),
         ("fromServiceWorker", json!(true)),
         ("fromPrefetchCache", json!(true)),
+        ("fromEarlyHints", json!(true)),
+        ("fromEarlyHints", json!(null)),
         ("fromDiskCache", json!("false")),
         ("fromServiceWorker", json!(null)),
     ] {
@@ -697,7 +699,7 @@ fn explicitly_uncached_core_event_responses_preserve_cursor_progress() {
             "params":{"requestId":"fresh","response":{
                 "url":url,"status":200u16,"mimeType":"application/json",
                 "fromDiskCache":false,"fromServiceWorker":false,
-                "fromPrefetchCache":false
+                "fromPrefetchCache":false,"fromEarlyHints":false
             }}
         });
         let finished = json!({

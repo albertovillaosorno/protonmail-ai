@@ -299,6 +299,8 @@ fn cached_conversation_list_reply_is_not_fresh_evidence() {
         ("fromDiskCache", json!(true)),
         ("fromServiceWorker", json!(true)),
         ("fromPrefetchCache", json!(true)),
+        ("fromEarlyHints", json!(true)),
+        ("fromEarlyHints", json!(null)),
         ("fromDiskCache", json!(null)),
         ("fromServiceWorker", json!("false")),
     ] {
@@ -324,7 +326,12 @@ fn explicitly_uncached_conversation_list_reply_remains_observable() {
         .expect("track conversation list");
     // jig-ignore-next-line: canonical synthetic response fixture.
     let mut response = response_event("session-a", "fresh", URL, 200, "application/json");
-    for field in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+    for field in [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ] {
         response["params"]["response"][field] = json!(false);
     }
     capture

@@ -54,12 +54,17 @@ const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 // when the browser declares a cached or service-worker response. Missing
 // source flags preserve compatibility; present flags must be boolean false.
 fn uncached_list_response(response: &Value) -> bool {
-    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
-        .iter()
-        .all(|field| {
-            let source = response.get(*field);
-            matches!(source, None | Some(Value::Bool(false)))
-        })
+    [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ]
+    .iter()
+    .all(|field| {
+        let source = response.get(*field);
+        matches!(source, None | Some(Value::Bool(false)))
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

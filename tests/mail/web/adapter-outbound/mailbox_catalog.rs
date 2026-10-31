@@ -387,6 +387,8 @@ fn cached_mailbox_catalog_responses_are_not_authoritative() {
             ("fromDiskCache", json!(true)),
             ("fromServiceWorker", json!(true)),
             ("fromPrefetchCache", json!(true)),
+            ("fromEarlyHints", json!(true)),
+            ("fromEarlyHints", json!(null)),
             ("fromDiskCache", json!(null)),
             ("fromServiceWorker", json!("false")),
         ] {
@@ -412,7 +414,12 @@ fn uncached_catalog_source_flags_preserve_ordinary_get() {
         .observe(&request("session-a", "fresh", "GET", LABEL_URL))
         .expect("track label GET");
     let mut replied = response("session-a", "fresh", LABEL_URL);
-    for flag in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+    for flag in [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ] {
         replied["params"]["response"][flag] = json!(false);
     }
     capture

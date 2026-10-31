@@ -63,12 +63,17 @@ const CONTACTS_ONLY_REFRESH_BIT: u64 = 2;
 // provider watermark. Absent CDP source flags remain compatible with Chromium
 // variants that do not report them; an explicit flag must be boolean false.
 fn uncached_event_response(response: &Value) -> bool {
-    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
-        .iter()
-        .all(|field| {
-            let source = response.get(*field);
-            matches!(source, None | Some(Value::Bool(false)))
-        })
+    [
+        "fromDiskCache",
+        "fromServiceWorker",
+        "fromPrefetchCache",
+        "fromEarlyHints",
+    ]
+    .iter()
+    .all(|field| {
+        let source = response.get(*field);
+        matches!(source, None | Some(Value::Bool(false)))
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
