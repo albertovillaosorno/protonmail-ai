@@ -1412,3 +1412,27 @@ fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
     let captured = from_cdp("message-1", &envelope);
     assert_eq!(captured, exact);
 }
+
+#[test]
+fn borrowed_private_fields_do_not_enter_late_failure_diagnostics() {
+    let from_url = ObservedMessageDetailResponse::parse;
+    let secret_subject = "synthetic-private-subject";
+    let mut malformed_attachment = detail_body();
+    malformed_attachment["Message"]["Subject"] = json!(secret_subject);
+    malformed_attachment["Message"]["Attachments"][0]["MIMEType"] =
+        json!("text/plain\r\nX-Private: injected");
+    let malformed_json = malformed_attachment.to_string();
+    let result = from_url("GET", MESSAGE_URL, &malformed_json);
+    assert_eq!(result, Err(MessageDetailResponseError::Malformed));
+    let diagnostic = format!("{result:?}");
+    assert!(!diagnostic.contains(secret_subject));
+    assert!(!diagnostic.contains("X-Private"));
+
+    let mut duplicate_label = detail_body();
+    let private_label = "private-label";
+    let duplicate_ids = json!([private_label, private_label]);
+    duplicate_label["Message"]["LabelIDs"] = duplicate_ids;
+    let result = from_url("GET", MESSAGE_URL, &duplicate_label.to_string());
+    assert_eq!(result, Err(MessageDetailResponseError::DuplicateIdentifier));
+    assert!(!format!("{result:?}").contains(private_label));
+}

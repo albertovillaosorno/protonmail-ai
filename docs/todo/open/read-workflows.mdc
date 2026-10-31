@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Message-detail projection now borrows bounded IDs, subject, recipient
+  display/address fields, label IDs, and nested attachment text directly from
+  the strict scrub-on-drop provider JSON until validation succeeds. Only
+  accepted metadata and descriptors allocate their scrub-on-drop owned copies;
+  malformed late recipients, duplicate labels, bad parent IDs, and invalid
+  MIME types no longer release ordinary unprotected temporary Strings.
+
 - Complete conversation membership and attachment metadata projectors now
   validate provider IDs, parent IDs, filename and media text by borrowing
   fields from guarded strict JSON. They only allocate identifier copies into

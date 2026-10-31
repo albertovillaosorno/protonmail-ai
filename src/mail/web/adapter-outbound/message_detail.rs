@@ -606,9 +606,10 @@ impl ObservedMessageDetailResponse {
             .get("Message")
             .and_then(Value::as_object)
             .ok_or(MessageDetailResponseError::Malformed)?;
+        // Borrow from the scrub-on-drop provider JSON until validation ends.
         // jig-ignore-next-line: canonical rustfmt line.
-        let id = bounded_required_string(message, "ID", MAX_MESSAGE_ID_BYTES, false)?;
-        if !safe_read_id(&id, MAX_MESSAGE_ID_BYTES) {
+        let id = bounded_required_str(message, "ID", MAX_MESSAGE_ID_BYTES, false)?;
+        if !safe_read_id(id, MAX_MESSAGE_ID_BYTES) {
             return Err(MessageDetailResponseError::Malformed);
         }
         if id != expected_id {
@@ -616,12 +617,12 @@ impl ObservedMessageDetailResponse {
         }
         let conversation_id =
             // jig-ignore-next-line: canonical rustfmt line.
-            bounded_required_string(message, "ConversationID", MAX_CONVERSATION_ID_BYTES, false)?;
-        if !safe_read_id(&conversation_id, MAX_CONVERSATION_ID_BYTES) {
+            bounded_required_str(message, "ConversationID", MAX_CONVERSATION_ID_BYTES, false)?;
+        if !safe_read_id(conversation_id, MAX_CONVERSATION_ID_BYTES) {
             return Err(MessageDetailResponseError::Malformed);
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let subject = bounded_required_string(message, "Subject", MAX_SUBJECT_BYTES, true)?;
+        let subject = bounded_required_str(message, "Subject", MAX_SUBJECT_BYTES, true)?;
         if subject.chars().any(unsafe_display_character) {
             return Err(MessageDetailResponseError::Malformed);
         }
@@ -643,24 +644,24 @@ impl ObservedMessageDetailResponse {
         };
         let label_ids = parse_label_ids(message.get("LabelIDs"))?;
         // jig-ignore-next-line: canonical rustfmt line.
-        let mime_type = bounded_required_string(message, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
-        if !safe_metadata_mime_type(&mime_type) {
+        let mime_type = bounded_required_str(message, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
+        if !safe_metadata_mime_type(mime_type) {
             return Err(MessageDetailResponseError::Malformed);
         }
-        let attachments = parse_attachments(message.get("Attachments"), &id)?;
+        let attachments = parse_attachments(message.get("Attachments"), id)?;
         Ok(Self {
             message: ObservedMessageDetail {
-                id,
-                conversation_id,
-                subject,
+                id: String::from(id),
+                conversation_id: String::from(conversation_id),
+                subject: String::from(subject),
                 sender,
                 to,
                 cc,
                 bcc,
                 time,
                 unread,
-                label_ids,
-                mime_type,
+                label_ids: label_ids.into_iter().map(String::from).collect(),
+                mime_type: String::from(mime_type),
                 attachments,
             },
         })
@@ -740,9 +741,9 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
         .as_object()
         .ok_or(MessageDetailResponseError::Malformed)?;
     // jig-ignore-next-line: canonical rustfmt line.
-    let name = bounded_required_string(object, "Name", MAX_RECIPIENT_NAME_BYTES, true)?;
+    let name = bounded_required_str(object, "Name", MAX_RECIPIENT_NAME_BYTES, true)?;
     // jig-ignore-next-line: canonical rustfmt line.
-    let address = bounded_required_string(object, "Address", MAX_RECIPIENT_ADDRESS_BYTES, false)?;
+    let address = bounded_required_str(object, "Address", MAX_RECIPIENT_ADDRESS_BYTES, false)?;
     // Names and addresses may eventually be reused in a reply composer.
     // Reject raw header controls before exposing provider recipient values.
     if name.chars().any(unsafe_display_character)
@@ -751,7 +752,10 @@ fn parse_recipient(value: &Value) -> Result<ObservedMessageRecipient, MessageDet
     {
         return Err(MessageDetailResponseError::Malformed);
     }
-    Ok(ObservedMessageRecipient { name, address })
+    Ok(ObservedMessageRecipient {
+        name: String::from(name),
+        address: String::from(address),
+    })
 }
 
 // Literal addresses must not contain invisible grapheme-joining controls:
@@ -781,7 +785,7 @@ fn parse_recipients(
 }
 
 // jig-ignore-next-line: canonical rustfmt line.
-fn parse_label_ids(value: Option<&Value>) -> Result<Vec<String>, MessageDetailResponseError> {
+fn parse_label_ids(value: Option<&Value>) -> Result<Vec<&str>, MessageDetailResponseError> {
     let values = value
         .and_then(Value::as_array)
         .ok_or(MessageDetailResponseError::Malformed)?;
@@ -798,7 +802,7 @@ fn parse_label_ids(value: Option<&Value>) -> Result<Vec<String>, MessageDetailRe
         if !seen.insert(label) {
             return Err(MessageDetailResponseError::DuplicateIdentifier);
         }
-        labels.push(String::from(label));
+        labels.push(label);
     }
     Ok(labels)
 }
@@ -836,34 +840,22 @@ fn parse_attachments(
             Some(_) => return Err(MessageDetailResponseError::Malformed),
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let id = bounded_optional_nonempty_string(object, "ID", MAX_ATTACHMENT_ID_BYTES)?;
-        if id
-            .as_ref()
-            .is_some_and(|id| !safe_read_id(id, MAX_ATTACHMENT_ID_BYTES))
-        {
+        let id = bounded_optional_nonempty_str(object, "ID", MAX_ATTACHMENT_ID_BYTES)?;
+        if id.is_some_and(|id| !safe_read_id(id, MAX_ATTACHMENT_ID_BYTES)) {
             return Err(MessageDetailResponseError::Malformed);
         }
-        if id.is_some() {
-            // The owned descriptor ID already scrubs on drop. Compare only
-            // borrowed IDs from the guarded provider tree in this set.
-            let source_id = object
-                .get("ID")
-                .and_then(Value::as_str)
-                .ok_or(MessageDetailResponseError::Malformed)?;
+        if let Some(source_id) = id {
+            // Deduplicate borrowed IDs before a descriptor owns its copy.
             if !seen.insert(source_id) {
                 return Err(MessageDetailResponseError::DuplicateIdentifier);
             }
         }
         // jig-ignore-next-line: canonical rustfmt line.
-        let name = bounded_optional_string(object, "Name", MAX_ATTACHMENT_NAME_BYTES)?;
+        let name = bounded_optional_str(object, "Name", MAX_ATTACHMENT_NAME_BYTES)?;
+        let sanitized_name = name.map(SanitizedAttachmentFilename::new);
         // jig-ignore-next-line: canonical rustfmt line.
-        let sanitized_name = name.as_deref().map(SanitizedAttachmentFilename::new);
-        // jig-ignore-next-line: canonical rustfmt line.
-        let mime_type = bounded_optional_string(object, "MIMEType", MAX_MIME_TYPE_BYTES)?;
-        if mime_type
-            .as_deref()
-            .is_some_and(|mime| !safe_metadata_mime_type(mime))
-        {
+        let mime_type = bounded_optional_str(object, "MIMEType", MAX_MIME_TYPE_BYTES)?;
+        if mime_type.is_some_and(|mime| !safe_metadata_mime_type(mime)) {
             return Err(MessageDetailResponseError::Malformed);
         }
         let size = match object.get("Size") {
@@ -875,22 +867,22 @@ fn parse_attachments(
             ),
         };
         attachments.push(ObservedAttachmentDescriptor {
-            id,
-            name,
+            id: id.map(String::from),
+            name: name.map(String::from),
             sanitized_name,
             size,
-            mime_type,
+            mime_type: mime_type.map(String::from),
         });
     }
     Ok(attachments)
 }
 
-fn bounded_required_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_required_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
     allow_empty: bool,
-) -> Result<String, MessageDetailResponseError> {
+) -> Result<&'source str, MessageDetailResponseError> {
     let value = object
         .get(key)
         .and_then(Value::as_str)
@@ -898,26 +890,26 @@ fn bounded_required_string(
     if value.len() > max_bytes || (!allow_empty && value.is_empty()) {
         return Err(MessageDetailResponseError::Malformed);
     }
-    Ok(String::from(value))
+    Ok(value)
 }
 
-fn bounded_optional_nonempty_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_optional_nonempty_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
-) -> Result<Option<String>, MessageDetailResponseError> {
-    let value = bounded_optional_string(object, key, max_bytes)?;
-    if value.as_ref().is_some_and(String::is_empty) {
+) -> Result<Option<&'source str>, MessageDetailResponseError> {
+    let value = bounded_optional_str(object, key, max_bytes)?;
+    if value.is_some_and(str::is_empty) {
         return Err(MessageDetailResponseError::Malformed);
     }
     Ok(value)
 }
 
-fn bounded_optional_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_optional_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
-) -> Result<Option<String>, MessageDetailResponseError> {
+) -> Result<Option<&'source str>, MessageDetailResponseError> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => {
@@ -927,7 +919,7 @@ fn bounded_optional_string(
             if value.len() > max_bytes {
                 return Err(MessageDetailResponseError::Malformed);
             }
-            Ok(Some(String::from(value)))
+            Ok(Some(value))
         }
     }
 }
