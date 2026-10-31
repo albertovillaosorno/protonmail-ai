@@ -4384,6 +4384,7 @@ fn spawn_browser(
     command
         .arg(user_data)
         .arg("--remote-debugging-pipe")
+        .arg("--disable-extensions")
         .arg("--no-first-run")
         .arg("--no-default-browser-check")
         .arg(MAIL_URL)

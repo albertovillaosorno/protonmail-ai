@@ -186,6 +186,7 @@ impl WebLoginPlan {
         let mut command = Command::new(&self.browser);
         command
             .arg(user_data)
+            .arg("--disable-extensions")
             .arg("--no-first-run")
             .arg("--no-default-browser-check")
             .arg(MAIL_URL)
