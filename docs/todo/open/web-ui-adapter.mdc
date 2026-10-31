@@ -87,6 +87,15 @@ web application without requiring Bridge or a third-party direct API identity.
   validates optional reason metadata even on ignored nodes, and retains
   ordinary visible nodes with empty reasons. No accessible names are read.
 
+## Validate ignored accessibility reason semantics
+
+- Red-first Chromium fixtures showed an ignored AX node could report an
+  ordinary property name or unknown reason and AXValue type yet still pass
+  shell inspection. The role classifier now requires documented hidden reason
+  names, known AXValue types and exact AXProperty field shapes; reason metadata
+  extensions fail closed. Valid normal hidden reasons remain compatible and
+  accessible names are still not projected into Mail-shell evidence.
+
 ## Require coherent accessibility node relationships
 
 - Red-first fake-browser roles could prove Mail shell readiness even when

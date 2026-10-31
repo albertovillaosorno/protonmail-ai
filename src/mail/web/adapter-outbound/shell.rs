@@ -131,7 +131,8 @@ fn visible_match<'role_nodes>(
                 let child = child.as_str().ok_or(())?;
                 // The same node cannot be both parent and child of this AX
                 // node, even if that external ID was not in a role query.
-                let contradictory_edge = child == id || parent_id == Some(child);
+                let same_parent = parent_id == Some(child);
+                let contradictory_edge = child == id || same_parent;
                 if !valid_ax_node_id(child) || contradictory_edge {
                     return Err(());
                 }
@@ -175,13 +176,23 @@ fn visible_match<'role_nodes>(
                 return Err(());
             }
             for reason in reasons {
-                let name = reason.get("name").and_then(Value::as_str);
-                if name.is_none_or(|name| name.is_empty() || name.len() > 128)
-                    || reason
-                        .get("value")
-                        .and_then(|value| value.get("type"))
-                        .and_then(Value::as_str)
-                        .is_none()
+                // Only documented hidden-reason AXProperty names and AXValue
+                // types may describe an ignored accessibility node.
+                let fields = reason.as_object().ok_or(())?;
+                let name = fields.get("name").and_then(Value::as_str);
+                let name = name.ok_or(())?;
+                let value = fields.get("value").and_then(Value::as_object);
+                let value = value.ok_or(())?;
+                let kind = value.get("type").and_then(Value::as_str).ok_or(())?;
+                if fields.len() != 2
+                    || !valid_ax_hidden_reason_name(name)
+                    || !valid_ax_value_type(kind)
+                    || value.keys().any(|field| {
+                        !matches!(
+                            field.as_str(),
+                            "type" | "value" | "relatedNodes" | "sources"
+                        )
+                    })
                 {
                     return Err(());
                 }
@@ -192,6 +203,54 @@ fn visible_match<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.
+fn valid_ax_hidden_reason_name(name: &str) -> bool {
+    matches!(
+        name,
+        "activeFullscreenElement"
+            | "activeModalDialog"
+            | "activeAriaModalDialog"
+            | "ariaHiddenElement"
+            | "ariaHiddenSubtree"
+            | "emptyAlt"
+            | "emptyText"
+            | "inertElement"
+            | "inertSubtree"
+            | "labelContainer"
+            | "labelFor"
+            | "notRendered"
+            | "notVisible"
+            | "presentationalRole"
+            | "probablyPresentational"
+            | "inactiveCarouselTabContent"
+            | "uninteresting"
+    )
+}
+
+// CDP AXValue.type is a finite enum even when the value is unused by shell.
+fn valid_ax_value_type(kind: &str) -> bool {
+    matches!(
+        kind,
+        "boolean"
+            | "tristate"
+            | "booleanOrUndefined"
+            | "idref"
+            | "idrefList"
+            | "integer"
+            | "node"
+            | "nodeList"
+            | "number"
+            | "string"
+            | "computedString"
+            | "token"
+            | "tokenList"
+            | "domRelation"
+            | "role"
+            | "internalRole"
+            | "valueUndefined"
+    )
 }
 
 // Browser frame IDs have narrower syntax than AX node IDs. Keep ordinary

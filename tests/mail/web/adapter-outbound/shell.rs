@@ -231,6 +231,16 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
         r#""value":{"type":"boolean","value":true}}"#
     );
     let oversized = format!("[{}]", vec![bounded_reason; 65].join(","));
+    let reason = |name: &str, kind: &str| {
+        format!(
+            concat!(
+                r#"[{{"name":"{name}","#,
+                r#""value":{{"type":"{kind}","value":true}}}}]"#
+            ),
+            name = name,
+            kind = kind
+        )
+    };
     for (label, reasons) in [
         ("wrong-reasons-shape", String::from("true")),
         (
@@ -238,6 +248,20 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
             String::from(r#"[{"name":"notVisible"}]"#),
         ),
         ("overlarge-ignored-reasons", oversized),
+        ("ordinary-property-as-reason", reason("selected", "boolean")),
+        ("unknown-ignored-reason", reason("futureReason", "boolean")),
+        (
+            "unknown-ignored-reason-type",
+            reason("notVisible", "unreviewed"),
+        ),
+        (
+            "extra-ignored-reason-payload",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","value":true},"#,
+                r#""futureValue":"private"}]"#
+            )),
+        ),
     ] {
         let node = format!(
             concat!(
