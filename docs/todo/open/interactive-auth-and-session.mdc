@@ -160,6 +160,16 @@ account credentials. The primary web UI login remains a separate P1 path.
   without parsing a provider body; live auth still requires provider approval
   and transport/store integration.
 
+## Bounded retained refresh authority
+
+- A red-first offline fixture demonstrated that a successful bootstrap could
+  retain an individual refresh bearer much larger than the header-authority
+  budget, despite the aggregate 256 KiB response ceiling. Anonymous and child
+  fork sessions now reject refresh bearers above 8,192 UTF-8 bytes with a typed
+  `OversizedRefreshAuthority` error, before constructing session authority.
+  Exact-limit synthetic tokens still parse, remain redacted, and keep
+  their original contents. This is not live provider authentication.
+
 ## Provider authority scope label safety
 
 - Red-first anonymous and completed-fork JSON fixtures proved that scope arrays

@@ -65,6 +65,9 @@ const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
 const MAX_HEADER_AUTHORITY_BYTES: usize = 8_192;
 // Bound account-binding metadata independently from the total JSON response.
 const MAX_ACCOUNT_BINDING_ID_BYTES: usize = 8_192;
+// Refresh bearers are retained in session custody and later reserialized.
+// Bind each bearer independently of the broader 256-KiB JSON envelope.
+const MAX_REFRESH_AUTHORITY_BYTES: usize = 8_192;
 // Bound the number of individually allocated provider scope strings even
 // when a hostile array still fits the overall response byte ceiling.
 const MAX_AUTH_SCOPE_COUNT: usize = 128;
@@ -381,6 +384,9 @@ impl AnonymousSession {
         if !safe_header_authority_pair(&raw.uid, &raw.access_token) {
             return Err(ProtocolError::UnsafeHeaderAuthority);
         }
+        if raw.refresh_token.len() > MAX_REFRESH_AUTHORITY_BYTES {
+            return Err(ProtocolError::OversizedRefreshAuthority);
+        }
 
         Ok(Self {
             uid: raw.uid,
@@ -599,6 +605,9 @@ impl ForkPoll {
         }
         if !safe_header_authority_pair(&raw.uid, &raw.access_token) {
             return Err(ProtocolError::UnsafeHeaderAuthority);
+        }
+        if raw.refresh_token.len() > MAX_REFRESH_AUTHORITY_BYTES {
+            return Err(ProtocolError::OversizedRefreshAuthority);
         }
         if !safe_account_binding_id(&user_id) {
             return Err(ProtocolError::InvalidUserId);
@@ -888,6 +897,8 @@ pub enum ProtocolError {
     UnexpectedBoundUser,
     /// A provider UID or access bearer cannot safely enter HTTP headers.
     UnsafeHeaderAuthority,
+    /// A refresh bearer exceeds the dedicated retained-secret byte ceiling.
+    OversizedRefreshAuthority,
     /// The child user ID is ambiguous or too large for account binding.
     InvalidUserId,
     /// A completed fork omitted the provider user ID.

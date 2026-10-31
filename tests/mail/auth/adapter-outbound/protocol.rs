@@ -226,6 +226,57 @@ fn header_bound_authority_refuses_unsafe_or_oversized_provider_values() {
 }
 
 #[test]
+fn provider_refresh_bearer_is_individually_bounded() {
+    // The total response budget is intentionally much larger than a single
+    // retained bearer. Probe exact boundary and one byte above on both paths.
+    for (secret, accepted) in [
+        ("r".repeat(8_192), true),
+        ("r".repeat(8_193), false),
+        ("\u{e9}".repeat(4_096), true),
+        ("\u{e9}".repeat(4_097), false),
+    ] {
+        let mut anonymous = json!({
+            "UID":"synthetic-anonymous-uid", "UserID":null,
+            "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+            "Scopes":["loggedin"]
+        });
+        anonymous["RefreshToken"] = json!(secret);
+        let body = anonymous.to_string();
+        assert!(body.len() < 262_144, "not a response-size rejection");
+        let parsed = AnonymousSession::parse(200, body.as_bytes());
+        if accepted {
+            assert_eq!(
+                parsed
+                    .expect("bounded bootstrap authority")
+                    .expose_refresh_token(),
+                secret
+            );
+        } else {
+            // jig-ignore-next-line: rustfmt fixes the typed bearer diagnostic.
+            assert_eq!(parsed.err(), Some(ProtocolError::OversizedRefreshAuthority));
+        }
+
+        // jig-ignore-next-line: rustfmt keeps this synthetic parse on one line.
+        let mut child: serde_json::Value = serde_json::from_slice(&complete_response(None))
+            .expect("completed synthetic authority");
+        child["RefreshToken"] = json!(secret);
+        let body = child.to_string();
+        assert!(body.len() < 262_144, "not a response-size rejection");
+        let parsed = ForkPoll::parse(200, body.as_bytes());
+        if accepted {
+            // jig-ignore-next-line: rustfmt keeps the pattern match intact.
+            let ForkPoll::Complete(session) = parsed.expect("bounded child authority") else {
+                panic!("expected completed child authority");
+            };
+            assert_eq!(session.expose_refresh_token(), secret);
+        } else {
+            // jig-ignore-next-line: rustfmt fixes the typed bearer diagnostic.
+            assert_eq!(parsed.err(), Some(ProtocolError::OversizedRefreshAuthority));
+        }
+    }
+}
+
+#[test]
 fn provider_authority_refuses_ambiguous_scope_labels() {
     type JsonValue = serde_json::Value;
     let unsafe_scopes = [
