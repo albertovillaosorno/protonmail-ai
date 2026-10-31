@@ -132,6 +132,65 @@ fn anonymous_bootstrap_rejects_bound_user() {
 }
 
 #[test]
+fn header_bound_authority_refuses_unsafe_or_oversized_provider_values() {
+    let unsafe_text = [
+        "abc\nInjected: yes",
+        "abc\rInjected: yes",
+        "abc\tdef",
+        "abc def",
+        "abc\0def",
+        "abc\u{7f}def",
+        "abc\u{202e}def",
+        "abc\u{00e9}def",
+    ];
+    let oversized = "x".repeat(8_193);
+    for value in unsafe_text.into_iter().chain([oversized.as_str()]) {
+        for field in ["UID", "AccessToken"] {
+            let mut anonymous = json!({
+                "UID":"synthetic-anonymous-uid", "UserID":null,
+                "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+                "Scopes":["loggedin"]
+            });
+            anonymous[field] = json!(value);
+            let serialized = anonymous.to_string();
+            assert_eq!(
+                AnonymousSession::parse(200, serialized.as_bytes()).err(),
+                Some(ProtocolError::UnsafeHeaderAuthority),
+                "unsafe provider header authority must not be retained"
+            );
+            let child_body = complete_response(None);
+            // jig-ignore-next-line: canonical synthetic JSON fixture parsing.
+            let parsed = serde_json::from_slice::<serde_json::Value>(&child_body);
+            let mut child = parsed.expect("synthetic child authority");
+            child[field] = json!(value);
+            let serialized = child.to_string();
+            assert_eq!(
+                ForkPoll::parse(200, serialized.as_bytes()).err(),
+                Some(ProtocolError::UnsafeHeaderAuthority),
+                "unsafe child header authority must not be retained"
+            );
+        }
+    }
+}
+
+#[test]
+fn printable_header_authority_preserves_wire_values() {
+    let uid = "UID.+/=~!-_";
+    let bearer = "Bearer.+/=~!-_";
+    let payload = json!({
+        "UID":uid, "UserID":null,
+        "AccessToken":bearer, "RefreshToken":REFRESH_TOKEN,
+        "Scopes":["loggedin"]
+    });
+    let serialized = payload.to_string();
+    let parsed = AnonymousSession::parse(200, serialized.as_bytes());
+    let anonymous = parsed.expect("synthetic printable authority");
+    let request = anonymous.fork_start_request(sdk_identity());
+    assert_eq!(request.expose_uid(), Some(uid));
+    assert_eq!(request.expose_bearer(), Some(bearer));
+}
+
+#[test]
 fn challenge_poll_path_is_selector_scoped() {
     let body = json!({
         "Selector": SELECTOR,

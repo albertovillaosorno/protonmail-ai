@@ -60,6 +60,9 @@ const FORK_SELECTOR_LEN: usize = 20;
 // Restrict provider-controlled JSON and ciphertext before allocating parsed
 // authority or invoking AEAD. These bounds apply even without a live adapter.
 const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
+// The UID and access bearer are forwarded as HTTP header values. Reject
+// provider-controlled whitespace, non-ASCII, and oversized header material.
+const MAX_HEADER_AUTHORITY_BYTES: usize = 8_192;
 const MAX_ENCRYPTED_PAYLOAD_BYTES: usize = 65_536;
 const ENCODED_PAYLOAD_CHUNKS: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3);
 const MAX_ENCODED_PAYLOAD_BYTES: usize = ENCODED_PAYLOAD_CHUNKS * 4;
@@ -368,6 +371,9 @@ impl AnonymousSession {
         if missing_uid || missing_access || missing_refresh {
             return Err(ProtocolError::IncompleteAuthority);
         }
+        if !safe_header_authority_pair(&raw.uid, &raw.access_token) {
+            return Err(ProtocolError::UnsafeHeaderAuthority);
+        }
 
         Ok(Self {
             uid: raw.uid,
@@ -580,6 +586,9 @@ impl ForkPoll {
             || raw.refresh_token.is_empty()
         {
             return Err(ProtocolError::IncompleteAuthority);
+        }
+        if !safe_header_authority_pair(&raw.uid, &raw.access_token) {
+            return Err(ProtocolError::UnsafeHeaderAuthority);
         }
 
         let payload = raw
@@ -862,6 +871,8 @@ pub enum ProtocolError {
     InvalidChallenge,
     /// Anonymous bootstrap unexpectedly returned a bound user identity.
     UnexpectedBoundUser,
+    /// A provider UID or access bearer cannot safely enter HTTP headers.
+    UnsafeHeaderAuthority,
     /// A completed fork omitted the provider user ID.
     MissingUserId,
     /// A completed fork omitted required session authority.
@@ -941,6 +952,19 @@ struct RefreshBody<'secret> {
     grant_type: &'static str,
     #[serde(rename = "RedirectURI")]
     redirect_uri: &'static str,
+}
+
+// Header values are not an arbitrary JSON text channel. Keep their syntax
+// bounded before a later HTTP transport receives the parsed authority.
+// Refresh tokens are serialized inside a guarded JSON body, not as headers.
+fn safe_header_authority_pair(uid: &str, access_token: &str) -> bool {
+    safe_header_authority(uid) && safe_header_authority(access_token)
+}
+
+fn safe_header_authority(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_HEADER_AUTHORITY_BYTES
+        && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
 // Sensitive fields are wrapped *while* the JSON model is constructed, so
