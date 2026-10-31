@@ -347,6 +347,50 @@ fn network_capture_tracks_only_exact_mail_category_gets() {
 }
 
 #[test]
+fn cached_mailbox_catalog_responses_are_not_authoritative() {
+    for url in [LABEL_URL, FOLDER_URL, SYSTEM_URL] {
+        for (flag, value) in [
+            ("fromDiskCache", json!(true)),
+            ("fromServiceWorker", json!(true)),
+            ("fromPrefetchCache", json!(true)),
+            ("fromDiskCache", json!(null)),
+            ("fromServiceWorker", json!("false")),
+        ] {
+            let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+            capture
+                .observe(&request("session-a", "cached", "GET", url))
+                .expect("track exact catalog GET");
+            let mut replied = response("session-a", "cached", url);
+            replied["params"]["response"][flag] = value;
+            assert_eq!(
+                capture.observe(&replied),
+                Err(MailboxCatalogNetworkError::ResponseRejected),
+                "catalog {url} must reject {flag}"
+            );
+        }
+    }
+}
+
+#[test]
+fn uncached_catalog_source_flags_preserve_ordinary_get() {
+    let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+    capture
+        .observe(&request("session-a", "fresh", "GET", LABEL_URL))
+        .expect("track label GET");
+    let mut replied = response("session-a", "fresh", LABEL_URL);
+    for flag in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+        replied["params"]["response"][flag] = json!(false);
+    }
+    capture
+        .observe(&replied)
+        .expect("accept uncached label GET");
+    capture
+        .observe(&finished("session-a", "fresh"))
+        .expect("finish uncached label GET");
+    assert_eq!(capture.take_finished_request_ids(), [String::from("fresh")]);
+}
+
+#[test]
 fn redirected_into_exact_mailbox_catalog_get_is_rejected() {
     let id = "redirected";
     let mut capture = MailboxCatalogNetworkCapture::new("session-1");

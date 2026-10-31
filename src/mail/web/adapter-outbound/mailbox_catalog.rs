@@ -51,6 +51,18 @@ const MAX_CATALOG_ID_BYTES: usize = 512;
 const MAX_CATALOG_NAME_BYTES: usize = 1_024;
 const MAX_TRACKED_CATALOG_REQUESTS: usize = 16;
 
+// A cached or service-worker-derived catalog cannot prove current provider
+// folder and label metadata. Absent source flags remain compatible with CDP;
+// present flags must explicitly be boolean false.
+fn uncached_catalog_response(response: &Value) -> bool {
+    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
+        .iter()
+        .all(|field| {
+            let source = response.get(*field);
+            matches!(source, None | Some(Value::Bool(false)))
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum CatalogRequestState {
     Requested,
@@ -272,6 +284,7 @@ impl MailboxCatalogNetworkCapture {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }
         if status != Some(200)
+            || !uncached_catalog_response(response)
             || mime != Some("application/json")
             || response_kind != Some(request.kind)
         {

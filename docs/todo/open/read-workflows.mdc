@@ -825,3 +825,9 @@ Ship useful read access before any mailbox mutation is enabled.
   `Stale: 0` does not override contradictory transport provenance. Red-first
   synthetic CDP events prove both formerly accepted cached list replies fail
   closed; omitted or explicit-false source flags remain compatible.
+
+- Passive system-folder, custom-folder and label catalog Network responses now
+  also reject explicit disk, service-worker and prefetch-cache provenance, plus
+  malformed source flags. Red-first synthetic responses previously authorized
+  cached catalog metadata; ordinary GETs with omitted or false flags still
+  complete. This does not independently prove provider response freshness.
