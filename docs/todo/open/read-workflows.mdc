@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Passive CDP Network request-ID map keys and completed-ID set entries now
+  have a shared bounded scrub-on-remove, scrub-on-retain, and scrub-on-drop
+  custody helper. It preserves exact lookup and lifecycle membership while
+  erasing retired correlation identifiers from local heap allocations. Red-first
+  type assertions and synthetic key-membership tests cover the new boundary;
+  caller-owned response tuples and browser buffers remain outside this guard.
+
 - In-flight message-list continuation `AnchorID` selectors are now held in
   zeroizing custody through exact URL/response matching. Completed requests
   retain the explicit caller-facing identifier tuple, and tracker removal

@@ -34,6 +34,9 @@
 
 //! Bounded metadata projection for one Proton Mail message-detail response.
 
+use crate::request_id_custody::discard_request_id;
+use crate::request_id_custody::retain_request_ids;
+use crate::request_id_custody::scrub_all_request_ids;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -84,6 +87,16 @@ pub struct MessageDetailNetworkCapture {
     completed_ids: BTreeSet<String>,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for MessageDetailNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
+}
+
 impl MessageDetailNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
     #[must_use]
@@ -131,9 +144,9 @@ impl MessageDetailNetworkCapture {
                 )
             })
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != MessageDetailRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != MessageDetailRequestState::Finished
+        });
         for (request_id, _message_id) in &finished {
             self.completed_ids.insert(request_id.clone());
         }
@@ -274,7 +287,7 @@ impl MessageDetailNetworkCapture {
         {
             return Err(MessageDetailNetworkError::InvalidSequence);
         }
-        self.requests.remove(request_id);
+        discard_request_id(&mut self.requests, request_id);
         Ok(())
     }
 }

@@ -40,6 +40,33 @@ use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runt
 use serde_json::json;
 
 #[test]
+fn passive_network_captures_require_scrub_on_drop() {
+    use crate::AttachmentMetadataNetworkCapture;
+    use crate::ConversationDetailNetworkCapture;
+    use crate::ConversationListNetworkCapture;
+    use crate::LatestMailboxEventNetworkCapture;
+    use crate::MailboxCatalogNetworkCapture;
+    use crate::MailboxEventNetworkCapture;
+    use crate::MessageDetailNetworkCapture;
+    use crate::MessageListNetworkCapture;
+
+    #[expect(drop_bounds, reason = "require CDP request identifier custody")]
+    fn requires_scrub_on_drop<T>()
+    where
+        T: Drop,
+    {
+    }
+    requires_scrub_on_drop::<MessageListNetworkCapture>();
+    requires_scrub_on_drop::<MessageDetailNetworkCapture>();
+    requires_scrub_on_drop::<AttachmentMetadataNetworkCapture>();
+    requires_scrub_on_drop::<ConversationDetailNetworkCapture>();
+    requires_scrub_on_drop::<ConversationListNetworkCapture>();
+    requires_scrub_on_drop::<MailboxCatalogNetworkCapture>();
+    requires_scrub_on_drop::<LatestMailboxEventNetworkCapture>();
+    requires_scrub_on_drop::<MailboxEventNetworkCapture>();
+}
+
+#[test]
 fn managed_browser_target_and_message_list_state_require_scrub_on_drop() {
     use super::CapturedMessageListResponses;
     use super::CompletedMessageListRequest;

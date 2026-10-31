@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail message-list responses.
 
+use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -115,6 +116,16 @@ impl PartialEq for MessageListNetworkCapture {
     reason = "Eq marker defaults require no custom randomized-state behavior"
 )]
 impl Eq for MessageListNetworkCapture {}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for MessageListNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
+}
 
 impl MessageListNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
@@ -226,9 +237,9 @@ impl MessageListNetworkCapture {
                 )
             })
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != NetworkRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != NetworkRequestState::Finished
+        });
         for (request_id, ..) in &finished {
             self.completed_ids.insert(request_id.clone());
         }

@@ -30,6 +30,7 @@
 
 //! Content-minimizing projection of Proton Mail conversation-list responses.
 
+use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -80,6 +81,16 @@ pub struct ConversationListNetworkCapture {
     requests: BTreeMap<String, TrackedConversationListRequest>,
     completed_ids: BTreeSet<String>,
     hashers: [RandomState; 2],
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for ConversationListNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
 }
 
 impl ConversationListNetworkCapture {
@@ -142,9 +153,9 @@ impl ConversationListNetworkCapture {
                 )
             })
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != ConversationListRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != ConversationListRequestState::Finished
+        });
         for (request_id, _page, _anchor, _initial) in &finished {
             self.completed_ids.insert(request_id.clone());
         }

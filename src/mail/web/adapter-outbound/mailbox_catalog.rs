@@ -32,6 +32,9 @@
 
 //! Content-minimizing projection of Proton Mail mailbox and label inventory.
 
+use crate::request_id_custody::discard_request_id;
+use crate::request_id_custody::retain_request_ids;
+use crate::request_id_custody::scrub_all_request_ids;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -99,6 +102,16 @@ pub struct MailboxCatalogNetworkCapture {
     completed_ids: BTreeSet<String>,
 }
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for MailboxCatalogNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
+}
+
 impl MailboxCatalogNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
     #[must_use]
@@ -150,9 +163,9 @@ impl MailboxCatalogNetworkCapture {
             .filter(|(_id, request)| request.state == CatalogRequestState::Finished)
             .map(|(id, request)| (id.clone(), request.kind))
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != CatalogRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != CatalogRequestState::Finished
+        });
         for (request_id, _kind) in &finished {
             self.completed_ids.insert(request_id.clone());
         }
@@ -298,7 +311,7 @@ impl MailboxCatalogNetworkCapture {
         {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }
-        self.requests.remove(request_id);
+        discard_request_id(&mut self.requests, request_id);
         Ok(())
     }
 }

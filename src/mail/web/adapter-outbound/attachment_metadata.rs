@@ -35,6 +35,9 @@
 
 //! Bounded Proton attachment metadata projection with parent-message binding.
 
+use crate::request_id_custody::discard_request_id;
+use crate::request_id_custody::retain_request_ids;
+use crate::request_id_custody::scrub_all_request_ids;
 use crate::strict_json;
 use core::fmt::{Debug, Formatter, Result as FmtResult};
 use std::collections::{BTreeMap, BTreeSet};
@@ -73,6 +76,16 @@ pub struct AttachmentMetadataNetworkCapture {
     session_id: Zeroizing<String>,
     requests: BTreeMap<String, TrackedAttachmentMetadataRequest>,
     completed_ids: BTreeSet<String>,
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for AttachmentMetadataNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
 }
 
 impl AttachmentMetadataNetworkCapture {
@@ -123,9 +136,9 @@ impl AttachmentMetadataNetworkCapture {
                 )
             })
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != AttachmentMetadataRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != AttachmentMetadataRequestState::Finished
+        });
         for (request_id, _attachment_id) in &finished {
             self.completed_ids.insert(request_id.clone());
         }
@@ -269,7 +282,7 @@ impl AttachmentMetadataNetworkCapture {
         {
             return Err(AttachmentMetadataNetworkError::InvalidSequence);
         }
-        self.requests.remove(request_id);
+        discard_request_id(&mut self.requests, request_id);
         Ok(())
     }
 }

@@ -57,6 +57,7 @@ mod message_list_response;
 mod opaque_read_id;
 mod policy;
 mod profile;
+mod request_id_custody;
 mod shell;
 mod strict_json;
 

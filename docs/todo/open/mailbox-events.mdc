@@ -27,6 +27,10 @@ bounded resource use.
 
 ## Additional synthetic lifecycle evidence
 
+- Bootstrap and resumed event request collectors share explicit scrubbing for
+  abandoned, finished, and completed CDP request-ID keys. Event correlation,
+  URL binding, and retry classification stay unchanged after map rebuilding.
+
 - The passive event poll request tracker now retains provider event IDs in
   zeroizing custody while validating response URL and lifecycle transitions.
   Failed, retried, or consumed trackers erase those copies; explicit return

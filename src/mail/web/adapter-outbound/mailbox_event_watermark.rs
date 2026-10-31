@@ -30,6 +30,9 @@
 
 //! Content-minimizing projection of Proton Mail's legacy core event loop.
 
+use crate::request_id_custody::discard_request_id;
+use crate::request_id_custody::retain_request_ids;
+use crate::request_id_custody::scrub_all_request_ids;
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -135,6 +138,16 @@ impl PartialEq for LatestMailboxEventNetworkCapture {
 )]
 impl Eq for LatestMailboxEventNetworkCapture {}
 
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for LatestMailboxEventNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
+}
+
 impl LatestMailboxEventNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
     #[must_use]
@@ -183,9 +196,9 @@ impl LatestMailboxEventNetworkCapture {
             .filter(|(_id, request)| request.state == EventRequestState::Finished)
             .map(|(id, _state)| id.clone())
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != EventRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != EventRequestState::Finished
+        });
         self.completed_ids.extend(finished.iter().cloned());
         finished
     }
@@ -325,7 +338,7 @@ impl LatestMailboxEventNetworkCapture {
         {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        self.requests.remove(request_id);
+        discard_request_id(&mut self.requests, request_id);
         Ok(())
     }
 }
@@ -367,6 +380,16 @@ impl PartialEq for MailboxEventNetworkCapture {
     reason = "Eq marker needs no randomized-state implementation"
 )]
 impl Eq for MailboxEventNetworkCapture {}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Drop scrubs retained CDP request correlation identifiers"
+)]
+impl Drop for MailboxEventNetworkCapture {
+    fn drop(&mut self) {
+        scrub_all_request_ids(&mut self.requests, &mut self.completed_ids);
+    }
+}
 
 impl MailboxEventNetworkCapture {
     /// Creates an empty capture scoped to one flattened CDP target session.
@@ -423,9 +446,9 @@ impl MailboxEventNetworkCapture {
             .filter(|(_id, request)| request.state == EventRequestState::Finished)
             .map(|(id, request)| (id.clone(), request.event_id.to_string()))
             .collect::<Vec<_>>();
-        self.requests
-            // jig-ignore-next-line: canonical rustfmt line.
-            .retain(|_id, request| request.state != EventRequestState::Finished);
+        retain_request_ids(&mut self.requests, |request| {
+            request.state != EventRequestState::Finished
+        });
         for (request_id, _event_id) in &finished {
             self.completed_ids.insert(request_id.clone());
         }
@@ -575,7 +598,7 @@ impl MailboxEventNetworkCapture {
         {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
-        self.requests.remove(request_id);
+        discard_request_id(&mut self.requests, request_id);
         Ok(())
     }
 }
