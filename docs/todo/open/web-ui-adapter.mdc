@@ -2273,3 +2273,8 @@ web application without requiring Bridge or a third-party direct API identity.
   Red-first synthetic HTTP-200 completion previously accepted added future
   filter/sort selectors; canonical LabelID, Keyword, and Unread filters remain
   compatible. Query content is never retained in diagnostics.
+
+- Canonical `Unread` message-list filters now require exactly `0` or `1`.
+  Red-first synthetic requests proved that empty, encoded, textual and out-of-
+  range values previously qualified as list evidence; both boolean digits
+  remain accepted without storing the private query string.

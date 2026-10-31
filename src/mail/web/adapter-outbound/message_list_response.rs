@@ -638,7 +638,7 @@ fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkEr
     let mut unread_seen = false;
     let mut non_visible = false;
     for pair in query.split('&') {
-        let key = pair.split_once('=').map_or(pair, |(key, _value)| key);
+        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         if key.contains('%') {
             return Err(MessageListNetworkError::MalformedEvent);
         }
@@ -656,7 +656,7 @@ fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkEr
             "Unread" => replace(&mut unread_seen, true),
             _ => false,
         };
-        if repeated_scalar {
+        if repeated_scalar || (key == "Unread" && !matches!(value, "0" | "1")) {
             return Err(MessageListNetworkError::MalformedEvent);
         }
         non_visible |= !visible.contains(&key);

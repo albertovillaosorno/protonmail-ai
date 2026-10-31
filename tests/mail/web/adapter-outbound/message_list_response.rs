@@ -1611,6 +1611,39 @@ fn duplicate_scalar_message_list_filters_cannot_be_batch_evidence() {
 }
 
 #[test]
+fn unread_message_filter_requires_canonical_boolean_evidence() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for value in ["", "2", "-1", "01", "true", "false", "%31", " 1", "1 "] {
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let url = format!("{URL}&Unread={value}");
+        assert_eq!(
+            capture.observe(&json!({
+                "sessionId":"synthetic-session",
+                "method":"Network.requestWillBeSent",
+                "params":{"requestId":"unread-filter",
+                    "request":{"method":"GET","url":url}}
+            })),
+            Err(MessageListNetworkError::MalformedEvent),
+            "unreviewed unread wire value cannot qualify a visible batch"
+        );
+    }
+    for value in ["0", "1"] {
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let url = format!("{URL}&Unread={value}");
+        capture
+            .observe(&json!({
+                "sessionId":"synthetic-session",
+                "method":"Network.requestWillBeSent",
+                "params":{"requestId":"canonical-unread",
+                    "request":{"method":"GET","url":url}}
+            }))
+            .expect("canonical unread selector remains valid");
+    }
+}
+
+#[test]
 fn case_aliased_message_filter_keys_cannot_enter_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
