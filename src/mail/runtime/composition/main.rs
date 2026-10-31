@@ -36,6 +36,8 @@ pub mod web_handoff;
 
 use std::env;
 use std::ffi::OsString;
+use std::mem::take;
+use std::os::unix::ffi::OsStringExt as _;
 use std::process::ExitCode;
 
 use mail_capability_domain::planned_capabilities;
@@ -50,7 +52,7 @@ fn main() -> ExitCode {
     // The deliberate stdout URL is the sole plaintext handoff output.
     let mut args = Zeroizing::new(Vec::new());
     for argument in env::args_os().skip(1) {
-        let Ok(argument) = OsString::into_string(argument) else {
+        let Ok(argument) = decode_cli_argument(argument) else {
             eprintln!("invalid command arguments: non-UTF-8 input");
             return ExitCode::FAILURE;
         };
@@ -68,6 +70,16 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+// On Unix, conversion failure from OsString::into_string retains the raw
+// argument allocation in an unguarded OsString. Transfer its bytes into a
+// zeroizing buffer before UTF-8 validation; guard the FromUtf8Error bytes too.
+fn decode_cli_argument(argument: OsString) -> Result<String, ()> {
+    let mut bytes = Zeroizing::new(argument.into_vec());
+    String::from_utf8(take(&mut *bytes)).map_err(|error| {
+        let _invalid_bytes = Zeroizing::new(error.into_bytes());
+    })
 }
 
 fn is_auth_login(mode: &str, command: &str) -> bool {
@@ -127,4 +139,22 @@ fn print_status() {
     println!("planned capabilities: {capability_count}");
     println!("available now: auth login | mail compose-url");
     println!("planned modes: cli | mcp | serve");
+}
+
+#[cfg(test)]
+mod cli_argument_tests {
+    use super::decode_cli_argument;
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt as _;
+
+    #[test]
+    fn validates_native_utf8_and_refuses_secret_invalid_bytes() {
+        let accepted = OsString::from_vec(b"private-valid-secret".to_vec());
+        assert_eq!(
+            decode_cli_argument(accepted),
+            Ok(String::from("private-valid-secret"))
+        );
+        let rejected = OsString::from_vec(b"private-invalid-\xff".to_vec());
+        assert_eq!(decode_cli_argument(rejected), Err(()));
+    }
 }

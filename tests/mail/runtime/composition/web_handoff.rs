@@ -378,6 +378,24 @@ fn non_utf8_cli_args_fail_without_panic_or_leak() {
 }
 
 #[test]
+fn invalid_later_cli_argument_never_echoes_prior_private_argument() {
+    let invalid = OsString::from_vec(b"private-invalid-\xff".to_vec());
+    let output = Command::new(env!("CARGO_BIN_EXE_protonmail-ai"))
+        .args(["mail", "compose-url", "--to", "person@example.test"])
+        .args(["--subject", "private-prior-subject"])
+        .arg("--body")
+        .arg(invalid)
+        .output()
+        .expect("run mixed-validity synthetic CLI input");
+    assert_eq!(output.status.code(), Some(1i32));
+    assert!(output.stdout.is_empty());
+    let diagnostic = stderr(&output);
+    assert!(diagnostic.contains("invalid command arguments"));
+    assert!(!diagnostic.contains("private-prior-subject"));
+    assert!(!diagnostic.contains("private-invalid"));
+}
+
+#[test]
 fn body_file_does_not_follow_symlink_into_unrelated_content() {
     let target = body_path("symlink-target");
     let alias = body_path("symlink-alias");

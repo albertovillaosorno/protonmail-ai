@@ -60,6 +60,12 @@ to register as a local MCP server.
   Red-first process evidence verifies a malformed recipient exits normally,
   emits no URL, and never echoes the secret argument or a panic backtrace.
 
+- CLI raw Unix arguments now transfer their native bytes into zeroizing
+  storage *before* UTF-8 validation. The malformed-UTF-8 error allocation is
+  also scrubbed rather than dropped as an ordinary `OsString`, while valid
+  strings move into the existing guarded argument vector. Synthetic native
+  and mixed-validity process tests verify unchanged redacted diagnostics.
+
 - Human `mail compose-url --body-file` input now refuses FIFOs and device
   entries before reading content. The descriptor is opened nonblocking, and
   its actual file type is checked, so a FIFO with no writer cannot trap the
