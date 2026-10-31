@@ -2452,3 +2452,11 @@ web application without requiring Bridge or a third-party direct API identity.
   previously qualified as active Mail JSON GETs despite a normal `Fetch`
   classification. The shared predicate refuses ambiguous fields without
   retaining event metadata or contacting any provider.
+
+- CDP `responseReceived` provenance now also treats unreviewed preload,
+  prerender, preflight, and speculative response/event metadata as ambiguous,
+  even when canonical cache and service-worker flags explicitly claim false.
+  Red-first synthetic `wasPreloaded` and `wasPrerendered` metadata previously
+  let a nominal JSON 200 complete as a fresh Mail list response. The shared
+  response guard now rejects those markers across passive collectors without
+  reading or retaining private headers or contacting a provider.

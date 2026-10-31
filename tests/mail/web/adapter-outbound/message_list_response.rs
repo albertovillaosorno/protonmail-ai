@@ -481,6 +481,39 @@ fn standalone_cache_hit_rejects_message_list_request() {
 }
 
 #[test]
+fn response_speculation_markers_cannot_authorize_mail_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for level in ["event", "response"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture
+            .observe(&json!({
+                "sessionId": "session-1", "method": "Network.requestWillBeSent",
+                "params": {"requestId": "synthetic-list", "request": {
+                    "method": "GET", "url": URL}}
+            }))
+            .expect("track exact list GET");
+        let mut response = json!({
+            "sessionId": "session-1", "method": "Network.responseReceived",
+            "params": {"requestId": "synthetic-list", "type": "Fetch",
+                "response": {"url": URL, "status": 200u16,
+                    "mimeType": "application/json"}}
+        });
+        if level == "event" {
+            response["params"]["wasPrerendered"] = json!(false);
+        } else {
+            response["params"]["response"]["wasPreloaded"] = json!(false);
+        }
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn cached_message_list_network_reply_is_not_fresh_evidence() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

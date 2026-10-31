@@ -445,6 +445,36 @@ fn response_event_resource_type_must_be_a_known_active_read() {
 }
 
 #[test]
+fn unreviewed_response_speculation_markers_cannot_prove_direct_http() {
+    let ordinary = json!({
+        "params": {"type": "Fetch", "response": {
+            "status": 200u16, "mimeType": "application/json",
+            "fromDiskCache": false, "fromServiceWorker": false}}
+    });
+    assert!(direct_cdp_read_response(&ordinary));
+    for (name, value) in [
+        ("wasPreloaded", json!(false)),
+        ("servedFromPreload", json!(false)),
+        ("wasPrerendered", json!(false)),
+        ("speculativeResponse", json!(null)),
+        ("isPreflight", json!(false)),
+    ] {
+        for level in ["event", "response"] {
+            let mut event = ordinary.clone();
+            if level == "event" {
+                event["params"][name] = value.clone();
+            } else {
+                event["params"]["response"][name] = value.clone();
+            }
+            assert!(
+                !direct_cdp_read_response(&event),
+                "unreviewed {level} speculative marker {name} cannot prove HTTP"
+            );
+        }
+    }
+}
+
+#[test]
 fn response_event_level_source_markers_cannot_override_direct_http() {
     let ordinary = json!({
         "params": {"requestId": "synthetic", "type": "Fetch",

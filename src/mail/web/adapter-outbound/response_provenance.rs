@@ -286,6 +286,10 @@ fn uncached_source_fields(fields: &serde_json::Map<String, Value>) -> bool {
         let contains_marker = [
             "cache",
             "prefetch",
+            "preload",
+            "prerender",
+            "preflight",
+            "speculative",
             "serviceworker",
             "source",
             "securitystate",
