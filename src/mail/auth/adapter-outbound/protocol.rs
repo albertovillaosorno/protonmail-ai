@@ -33,6 +33,7 @@
 //! Proton session-fork response parsing and payload decryption.
 
 use std::fmt;
+use std::mem::take;
 
 use aes_gcm::aead::consts::{U12, U16};
 use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
@@ -654,18 +655,16 @@ impl ForkSession {
             grant_type: "refresh_token",
             redirect_uri: ProviderProfile::REFRESH_REDIRECT_URI,
         };
-        let serialized = serde_json::to_string(&body);
-        let serialized = match serialized {
-            Ok(serialized) => serialized,
-            Err(_json) => return Err(ProtocolError::SerializationFailed),
-        };
+        // Never construct an ordinary unzeroized JSON String containing the
+        // refresh bearer, even if serialization aborts after writing it.
+        let serialized = serialize_sensitive_json(&body)?;
         Ok(RequestSpec {
             method: RequestMethod::Post,
             path: RequestPath::Static(ProviderProfile::REFRESH_PATH),
             identity,
             uid: Some(self.uid()),
             bearer: None,
-            body: Some(Zeroizing::new(serialized)),
+            body: Some(serialized),
         })
     }
 
@@ -684,6 +683,23 @@ impl ForkSession {
             body: None,
         }
     }
+}
+
+// Serialize directly into zeroizing bytes, including partial writer errors.
+// Moving the backing Vec into String preserves the allocation without a new
+// plaintext copy; the UTF-8 error case also guards the original byte buffer.
+fn serialize_sensitive_json<T>(value: &T) -> ForkResult<Zeroizing<String>>
+where
+    T: Serialize,
+{
+    let mut bytes = Zeroizing::new(Vec::new());
+    serde_json::to_writer(&mut *bytes, value)
+        .map_err(|_json| ProtocolError::SerializationFailed)?;
+    let serialized = String::from_utf8(take(&mut *bytes)).map_err(|error| {
+        let _invalid_utf8 = Zeroizing::new(error.into_bytes());
+        ProtocolError::SerializationFailed
+    })?;
+    Ok(Zeroizing::new(serialized))
 }
 
 /// Secret key password recovered from the authenticated fork payload.

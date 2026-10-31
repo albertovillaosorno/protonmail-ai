@@ -131,3 +131,29 @@ fn raw_child_session_and_decrypted_password_fields_are_zeroizing() {
             .expect("synthetic decrypted payload must deserialize");
     requires_zeroizing_string(&plaintext.key_password);
 }
+
+#[test]
+fn partial_refresh_serialization_fails_inside_guarded_buffer() {
+    use super::{ProtocolError, serialize_sensitive_json};
+    use serde::ser::{Error as _, SerializeMap as _};
+    use serde::{Serialize, Serializer};
+
+    struct FailAfterToken;
+
+    impl Serialize for FailAfterToken {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut object = serializer.serialize_map(Some(2))?;
+            let token = "synthetic-private-refresh";
+            object.serialize_entry("RefreshToken", token)?;
+            Err(S::Error::custom("synthetic failure after secret"))
+        }
+    }
+
+    assert!(matches!(
+        serialize_sensitive_json(&FailAfterToken),
+        Err(ProtocolError::SerializationFailed)
+    ));
+}

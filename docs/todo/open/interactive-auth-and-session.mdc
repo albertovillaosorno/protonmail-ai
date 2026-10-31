@@ -177,3 +177,13 @@ account credentials. The primary web UI login remains a separate P1 path.
   tests cover both raw and accepted models; public `scopes()` values remain
   unchanged. Input transport bytes and parser-owned incomplete string tokens
   remain outside this custody guarantee; no live fork is enabled.
+
+## Refresh-request serialization custody
+
+- Offline authenticated refresh requests now stream the token-bearing JSON
+  into a zeroizing byte buffer and move that allocation into the scrub-on-drop
+  request body. Serde failure keeps already-written token bytes guarded, and
+  even an impossible-invalid JSON UTF-8 conversion guards the owned error
+  buffer. A red-first synthetic failing serializer verifies the abort path;
+  existing refresh framing/redaction tests preserve the transport contract.
+  This remains offline protocol evidence, not permission for live Mail auth.

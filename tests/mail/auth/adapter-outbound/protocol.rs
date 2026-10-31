@@ -374,6 +374,25 @@ fn fork_authority_debug_never_exposes_login_selectors_or_session_identity() {
 }
 
 #[test]
+fn refresh_serializer_roundtrips_escaped_secret_without_exposing_it() {
+    let decoded = serde_json::from_slice(&complete_response(None));
+    let mut body: serde_json::Value = decoded.expect("synthetic authority");
+    let secret = "synthetic-\\\"quoted\\\\slash\\nline";
+    body["RefreshToken"] = json!(secret);
+    let serialized = serde_json::to_vec(&body).expect("provider fixture");
+    let session = completed_session(&serialized);
+    let refresh = session
+        .refresh_request(sdk_identity())
+        .expect("serialize escaped refresh authority");
+    let wire: serde_json::Value =
+        serde_json::from_str(refresh.expose_body().expect("refresh body"))
+            .expect("serialized refresh body stays valid JSON");
+    assert_eq!(wire["RefreshToken"], json!(secret));
+    assert_eq!(wire["ResponseType"], json!("token"));
+    assert!(!format!("{refresh:?}").contains(secret));
+}
+
+#[test]
 fn polling_422_is_pending_not_auth_failure() {
     assert!(matches!(
         ForkPoll::parse(422, b"provider pending body is intentionally ignored"),
