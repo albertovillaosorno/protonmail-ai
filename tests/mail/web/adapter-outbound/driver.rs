@@ -2707,6 +2707,21 @@ fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
             r#""nodeValue":"","shadowRootType":"open""#,
         ),
         (
+            "unrequested-document-children",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","children":[{"nodeValue":"private"}]"#,
+        ),
+        (
+            "unrequested-pseudo-elements",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","pseudoElements":[{"nodeValue":"private"}]"#,
+        ),
+        (
+            "unrequested-shadow-roots",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","shadowRoots":[{"nodeValue":"private"}]"#,
+        ),
+        (
             "foreign-document-url",
             r#""nodeValue":"""#,
             r#""nodeValue":"","documentURL":"https://evil.invalid/""#,

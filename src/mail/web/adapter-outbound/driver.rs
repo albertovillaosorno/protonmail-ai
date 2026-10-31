@@ -4864,9 +4864,18 @@ fn valid_cdp_document_root(root: &Value) -> bool {
         Some(_) => false,
     };
     document_url_matches
-        && ["parentId", "pseudoType", "shadowRootType"]
-            .iter()
-            .all(|field| !fields.contains_key(*field))
+        // Requested depth=0 cannot return private descendant subtrees.
+        // Pseudo elements and shadow roots also cannot belong to #document.
+        && [
+            "parentId",
+            "pseudoType",
+            "shadowRootType",
+            "children",
+            "pseudoElements",
+            "shadowRoots",
+        ]
+        .iter()
+        .all(|field| !fields.contains_key(*field))
         && ["nodeId", "backendNodeId"]
             .iter()
             .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))

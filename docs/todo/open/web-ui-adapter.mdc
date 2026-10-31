@@ -132,6 +132,15 @@ web application without requiring Bridge or a third-party direct API identity.
   a nonnegative signed 32-bit CDP integer; missing and valid counts remain
   compatible. This does not read DOM descendants or private mailbox text.
 
+## Refuse unsolicited CDP document-root subtrees
+
+- Red-first protocol and synthetic-browser cases proved that a depth-zero
+  `DOM.getDocument` reply could carry nested `children`, `pseudoElements`, or
+  `shadowRoots` and still authorize Mail-shell accessibility inspection.
+  Such subtrees were not requested and may contain private DOM data. The
+  parser now rejects them even when the top-level document identity is valid;
+  canonical depth-zero roots continue to work.
+
 ## Reject contradictory document-root kinds
 
 - Red-first protocol and fake-browser tests showed a top-level CDP document

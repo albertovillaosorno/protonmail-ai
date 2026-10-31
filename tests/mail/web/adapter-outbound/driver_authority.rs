@@ -85,12 +85,15 @@ fn sparse_dom_root_cannot_establish_document_identity() {
         ("parentId", json!(3u64)),
         ("pseudoType", json!("before")),
         ("shadowRootType", json!("open")),
+        ("children", json!([{"nodeValue":"private mailbox"}])),
+        ("pseudoElements", json!([{"nodeValue":"private mailbox"}])),
+        ("shadowRoots", json!([{"nodeValue":"private mailbox"}])),
     ] {
         let mut contradictory = root.clone();
         contradictory[field] = value;
         assert!(
             !valid_cdp_document_root(&contradictory),
-            "{field} cannot describe a top-level document"
+            "{field} cannot prove a depth-zero document root"
         );
     }
     for (field, invalid) in [
