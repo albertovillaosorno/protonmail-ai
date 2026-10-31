@@ -923,7 +923,9 @@ fn raw_json_200_headers(text: &str, structured: Option<&Map<String, Value>>) -> 
 }
 
 fn json_content_type(value: &str) -> bool {
-    if value.len() > 256 {
+    // A comma inside MIME parameters can disguise a second media type;
+    // treating only the prefix before ';' as JSON is not sufficient proof.
+    if value.len() > 256 || value.contains(',') {
         return false;
     }
     value

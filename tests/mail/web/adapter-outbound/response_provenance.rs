@@ -232,6 +232,7 @@ fn extra_status_wire_content_type_must_confirm_json_response() {
         json!("text/html"),
         json!("application/javascript"),
         json!("application/json, text/html"),
+        json!("application/json; charset=utf-8, text/html"),
         json!(null),
         json!(["application/json"]),
     ] {
@@ -262,6 +263,8 @@ fn raw_wire_response_headers_must_correlate_with_structured_json_200() {
     for raw in [
         "HTTP/1.1 304 Not Modified\r\nContent-Type: application/json\r\n\r\n",
         "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n",
+        // jig-ignore-next-line: synthetic ambiguous MIME list fixture.
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8, text/html\r\n\r\n",
         // jig-ignore-next-line: synthetic raw wire CRLF fixture.
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Type: text/html\r\n\r\n",
         // jig-ignore-next-line: synthetic raw wire CRLF fixture.
@@ -966,6 +969,7 @@ fn response_headers_cannot_contradict_json_200_metadata() {
 
     for changed_headers in [
         json!({"Content-Type":"text/html"}),
+        json!({"Content-Type":"application/json; charset=utf-8, text/html"}),
         json!({"Content-Type":"application/json", "content-type":"text/html"}),
         json!({"Content-Type":12i32}),
         json!({"Content-Type":"application/json", ":status":"304"}),

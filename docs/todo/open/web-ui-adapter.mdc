@@ -2615,3 +2615,10 @@ web application without requiring Bridge or a third-party direct API identity.
   passive response gate now checks borrowed bounded HTTP/1 status, header
   structure and Content-Type against the parsed map before any read; private
   header contents are not retained and no live mailbox was accessed.
+
+- The shared JSON Content-Type gate previously examined only the portion
+  before the first semicolon, so a comma-separated media list hidden after
+  `charset=utf-8` still corroborated passive JSON HTTP 200 evidence. Red-first
+  shared and message-list fixtures now reject these ambiguous Content-Type
+  values in parsed and raw, initial and extra-info response metadata. Ordinary
+  case-insensitive JSON media types and charset parameters remain supported.

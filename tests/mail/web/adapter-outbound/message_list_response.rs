@@ -615,7 +615,11 @@ fn response_headers_cannot_disagree_with_message_list_json_mime() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
 
-    for content_type in ["text/html", "application/javascript"] {
+    for content_type in [
+        "text/html",
+        "application/javascript",
+        "application/json; charset=utf-8, text/html",
+    ] {
         let mut capture = MessageListNetworkCapture::new("session-1");
         capture
             .observe(&json!({
