@@ -207,6 +207,13 @@ that the previous policy accepted longer identifiers; 512-byte synthetic
 candidate names remain valid. Provider-issued alternate syntax must undergo a
 fresh review before relaxing this fail-closed limit.
 
+Provider-approval evidence references must also contain 1 to 2,048 visible
+ASCII bytes. Red-first synthetic fixtures found that the approval policy had
+accepted invisible Unicode and unbounded references as if they were usable
+provider authorization evidence. The gate now rejects those aliases before
+issuing typed approved authority; at-limit references remain valid. This
+is evidence-shape validation only and does not establish real authorization.
+
 ## Approval evidence required by this repository
 
 The P0 blocker may close only with provider evidence that identifies the allowed

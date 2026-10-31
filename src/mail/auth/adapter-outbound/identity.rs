@@ -34,6 +34,8 @@
 const SDK_DEFAULT_ID: &str = "Other";
 // Bound future HTTP app-version and fork-child identity framing metadata.
 const MAX_CLIENT_IDENTITY_FIELD_BYTES: usize = 512;
+// References identify public registration evidence, not arbitrary UI text.
+const MAX_APPROVAL_EVIDENCE_REFERENCE_BYTES: usize = 2_048;
 // Authorize no other host until Proton explicitly approves a different API.
 const TRUSTED_MAIL_API_BASE: &str = "https://mail.proton.me/api";
 // Pinned WebClients evidence: packages/shared/lib/constants.ts and the fork
@@ -243,11 +245,10 @@ impl AuthorizationPolicy {
 }
 
 fn validate_evidence_field(value: &str) -> Option<&str> {
-    let invalid = value.is_empty()
-        || value
-            .bytes()
-            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace());
-    (!invalid).then_some(value)
+    let valid = !value.is_empty()
+        && value.len() <= MAX_APPROVAL_EVIDENCE_REFERENCE_BYTES
+        && value.bytes().all(|byte| byte.is_ascii_graphic());
+    valid.then_some(value)
 }
 
 fn validate_api_base(value: &str) -> Option<&str> {

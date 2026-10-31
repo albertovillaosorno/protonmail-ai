@@ -95,6 +95,43 @@ fn approval_policy_rejects_oversized_future_header_identity() {
 }
 
 #[test]
+fn approval_policy_requires_visible_bounded_evidence_references() {
+    let oversized = Box::leak("x".repeat(2_049).into_boxed_str());
+    let unsafe_values: [&'static str; 5] = [
+        "\u{200b}",
+        "approval\u{202e}alias",
+        "\u{00a0}",
+        "evidence\nline",
+        oversized,
+    ];
+    for value in unsafe_values {
+        for policy in [
+            AuthorizationPolicy {
+                evidence_reference: value,
+                ..synthetic_approved_policy()
+            },
+            AuthorizationPolicy {
+                approval_ref: Some(value),
+                ..synthetic_approved_policy()
+            },
+        ] {
+            assert!(policy.approved_identity().is_none());
+            assert_eq!(
+                policy.snapshot().status(),
+                ProviderAuthorizationStatus::Blocked
+            );
+        }
+    }
+    let at_limit = Box::leak("x".repeat(2_048).into_boxed_str());
+    let policy = AuthorizationPolicy {
+        evidence_reference: at_limit,
+        approval_ref: Some(at_limit),
+        ..synthetic_approved_policy()
+    };
+    assert!(policy.approved_identity().is_some());
+}
+
+#[test]
 fn approval_policy_requires_real_gregorian_evidence_dates() {
     for impossible in [
         "2026-00-01",
