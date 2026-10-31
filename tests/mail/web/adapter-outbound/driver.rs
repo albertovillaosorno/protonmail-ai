@@ -2693,6 +2693,17 @@ fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
             r#""nodeValue":"""#,
             r#""nodeValue":"","shadowRootType":"open""#,
         ),
+        (
+            "foreign-document-url",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","documentURL":"https://evil.invalid/""#,
+        ),
+        (
+            "misleading-document-userinfo",
+            r#""nodeValue":"""#,
+            // jig-ignore-next-line: exact cross-origin CDP URL fixture.
+            r#""nodeValue":"","documentURL":"https://mail.proton.me@evil.invalid/""#,
+        ),
     ] {
         let root = test_root(&format!("dom-root-{label}"));
         fs::create_dir_all(&root).expect("create synthetic root");
@@ -2752,7 +2763,10 @@ fn ordinary_document_root_metadata_still_proves_mail_shell() {
     // Retain a harmless optional field in the full document-root fixture.
     let normal = original.replace(
         r#""nodeValue":""}"#,
-        r#""nodeValue":"","childNodeCount":0}"#,
+        concat!(
+            "\"nodeValue\":\"\",\"childNodeCount\":0,",
+            "\"documentURL\":\"https://mail.proton.me/u/0/inbox\"}"
+        ),
     );
     assert!(script.contains(original));
     let changed = script.replace(original, &normal);

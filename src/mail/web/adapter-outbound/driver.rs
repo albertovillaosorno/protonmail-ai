@@ -4838,14 +4838,27 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
 // DOM.Node has required identity, type, name and value fields even at
 // depth zero. A sparse result must not authorize subsequent AX queries as if
 // it had proven a real document root. Parent, pseudo-element and shadow-root
-// identities contradict a top-level document; other metadata is optional.
+// identities contradict a top-level document. An optional document URL must
+// corroborate Mail origin rather than contradict the already checked page.
 fn valid_cdp_document_root(root: &Value) -> bool {
     let Some(fields) = root.as_object() else {
         return false;
     };
-    ["parentId", "pseudoType", "shadowRootType"]
-        .iter()
-        .all(|field| !fields.contains_key(*field))
+    // CDP permits documentURL to be absent. When present, it cannot assert
+    // another origin or carry unbounded URL data into a trusted shell proof.
+    let document_url_matches = match fields.get("documentURL") {
+        None => true,
+        Some(Value::String(url)) => {
+            let bounded = url.len() <= MAX_TARGET_URL_BYTES;
+            let same_origin = trusted_origin(url) == PageOrigin::ProtonMail;
+            bounded && same_origin
+        }
+        Some(_) => false,
+    };
+    document_url_matches
+        && ["parentId", "pseudoType", "shadowRootType"]
+            .iter()
+            .all(|field| !fields.contains_key(*field))
         && ["nodeId", "backendNodeId"]
             .iter()
             .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))

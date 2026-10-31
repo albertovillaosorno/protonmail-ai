@@ -112,6 +112,33 @@ fn sparse_dom_root_cannot_establish_document_identity() {
 }
 
 #[test]
+fn documented_root_url_cannot_contradict_the_mail_page_origin() {
+    use super::valid_cdp_document_root;
+    use serde_json::json;
+
+    let mut root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    root["documentURL"] = json!("https://mail.proton.me/u/0/inbox");
+    assert!(valid_cdp_document_root(&root));
+    for invalid in [
+        json!("https://account.proton.me/login"),
+        json!("https://mail.proton.me.evil.invalid/u/0/inbox"),
+        json!("https://mail.proton.me@evil.invalid/u/0/inbox"),
+        json!(""),
+        json!(null),
+        json!(format!("https://mail.proton.me/{}", "x".repeat(16_384))),
+    ] {
+        root["documentURL"] = invalid;
+        assert!(
+            !valid_cdp_document_root(&root),
+            "foreign, malformed or excessive document URL cannot prove Mail"
+        );
+    }
+}
+
+#[test]
 fn cdp_node_identifiers_are_bounded_to_protocol_integers() {
     use super::{allowed_mail_cdp_request, valid_cdp_document_root};
     use serde_json::json;

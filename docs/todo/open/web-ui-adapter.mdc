@@ -98,6 +98,14 @@ web application without requiring Bridge or a third-party direct API identity.
   identities while retaining ordinary optional document metadata. This
   requires no private DOM text or live provider interaction.
 
+## Corroborate optional document URLs before shell inspection
+
+- Red-first protocol and fake-browser fixtures showed `DOM.getDocument`
+  accepted a foreign-origin `documentURL` despite verified Mail location.
+  Optional document URLs now must be bounded and belong to the exact Mail
+  origin before a root can authorize accessibility queries. Missing URLs
+  remain compatible, and no route text is retained or logged.
+
 ## Exact shape for browser-origin evidence
 
 - A red-first fake-Chromium CDP reply proved that an extended location
