@@ -256,8 +256,10 @@ const fn is_filename_noncharacter(character: char) -> bool {
 }
 
 // Unicode formatting characters can disguise file extensions or path leaves.
+// A replacement glyph also loses the original filename identity on decode.
 const fn unsafe_filename_format(character: char) -> bool {
     is_filename_noncharacter(character)
+        || character == '\u{fffd}'
         || matches!(
             character,
             '\u{00a0}' | '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{1680}'

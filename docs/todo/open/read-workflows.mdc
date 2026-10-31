@@ -651,6 +651,13 @@ Ship useful read access before any mailbox mutation is enabled.
   that Arabic, Syriac, annotation, Kaithi, hieroglyph, and musical markers
   previously survived as filename/path text; printable Unicode stays valid.
 
+- Filesystem-facing attachment names now reject lossy Unicode replacement
+  U+FFFD: provider filename leaves map it to `_`, while a caller-provided
+  destination with that glyph fails closed before filesystem I/O. The
+  red-first regression exposed the previously accepted alias and preserves
+  genuine accented/CJK filename characters. Free-form message subjects are
+  unaffected.
+
 - Attachment filename sanitization now replaces Unicode noncharacters with
   `_`, and caller-supplied relative output paths reject them before filesystem
   access. Red-first pure fixtures covered U+FDD0/U+FDEF, BMP U+FFFE, and

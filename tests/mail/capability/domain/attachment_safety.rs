@@ -59,6 +59,31 @@ fn filename_sanitization_preserves_unicode_but_removes_path_semantics() {
 }
 
 #[test]
+fn lossy_unicode_replacement_is_not_portable_filename_or_destination() {
+    // U+FFFD can be introduced when invalid source bytes are decoded with
+    // replacement. Do not write an alias of an unknown original leaf.
+    let lossy = "invoice\u{fffd}signed.pdf";
+    assert_eq!(
+        SanitizedAttachmentFilename::new(lossy).as_str(),
+        "invoice_signed.pdf"
+    );
+    for destination in [String::from(lossy), format!("exports/{lossy}")] {
+        assert_eq!(
+            AttachmentRelativePath::new(&destination),
+            Err(AttachmentPathError::UnsupportedSyntax),
+            "lossily decoded filesystem path must fail before I/O"
+        );
+    }
+    // Explicit printable Unicode glyphs retain their original spelling.
+    let authentic = "r\u{e9}sum\u{e9}-\u{65c5}\u{884c}.pdf";
+    assert_eq!(
+        SanitizedAttachmentFilename::new(authentic).as_str(),
+        authentic
+    );
+    assert!(AttachmentRelativePath::new(authentic).is_ok());
+}
+
+#[test]
 fn filename_sanitization_neutralizes_spoofing_format_controls() {
     for (untrusted, expected) in [
         ("photo\u{202e}gpj.exe", "photo_gpj.exe"),
