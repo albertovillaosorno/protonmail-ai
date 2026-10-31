@@ -555,6 +555,47 @@ fn request_document_origin_cannot_be_laundered_as_mail_activity() {
 }
 
 #[test]
+fn refined_wire_request_headers_must_confirm_passive_get_provenance() {
+    let ordinary = json!({
+        "params": {"type": "Fetch", "response": {
+            "status": 200u16, "mimeType": "application/json",
+            "requestHeaders": {
+                "Host": "mail.proton.me", "Accept": "application/json"
+            }
+        }}
+    });
+    assert!(direct_cdp_read_response(&ordinary));
+    let mut legacy = ordinary.clone();
+    legacy["params"]["response"]
+        .as_object_mut()
+        .expect("synthetic response")
+        .remove("requestHeaders");
+    assert!(direct_cdp_read_response(&legacy));
+    for (name, value) in [
+        ("Host", json!("evil.invalid")),
+        ("Origin", json!("https://foreign.invalid")),
+        ("Referer", json!("https://foreign.invalid/frame")),
+        ("Sec-Fetch-Site", json!("cross-site")),
+        ("Purpose", json!("prefetch")),
+        ("Content-Length", json!("12")),
+        ("Transfer-Encoding", json!("chunked")),
+        ("X-HTTP-Method-Override", json!("POST")),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["response"]["requestHeaders"][name] = value;
+        assert!(
+            !direct_cdp_read_response(&event),
+            "refined HTTP request header {name} contradicts passive GET"
+        );
+    }
+    for invalid in [json!(null), json!([]), json!("untyped")] {
+        let mut event = ordinary.clone();
+        event["params"]["response"]["requestHeaders"] = invalid;
+        assert!(!direct_cdp_read_response(&event));
+    }
+}
+
+#[test]
 fn response_event_resource_type_must_be_a_known_active_read() {
     let ordinary = json!({
         "params": {"type": "Fetch", "response": {

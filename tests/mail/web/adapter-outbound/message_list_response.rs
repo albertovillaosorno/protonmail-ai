@@ -431,6 +431,35 @@ fn network_capture_equality_excludes_randomized_fingerprint_state() {
 }
 
 #[test]
+fn refined_wire_headers_cannot_contradict_passive_message_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "synthetic-list", "type": "Fetch",
+                "request": {"method": "GET", "url": URL,
+                    "headers": {"Host": "mail.proton.me"}}}
+        }))
+        .expect("track exact Mail GET");
+    let response = json!({
+        "sessionId": "session-1", "method": "Network.responseReceived",
+        "params": {"requestId": "synthetic-list", "type": "Fetch",
+            "response": {"url": URL, "status": 200u16,
+                "mimeType": "application/json",
+                "requestHeaders": {"Host": "foreign.invalid"}}
+        }
+    });
+    assert_eq!(
+        capture.observe(&response),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn network_capture_tracks_only_exact_get_list_lifecycle() {
     use mail_web_adapter::MessageListNetworkCapture;
     use serde_json::json;

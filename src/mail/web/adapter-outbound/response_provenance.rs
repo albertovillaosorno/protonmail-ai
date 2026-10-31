@@ -65,6 +65,30 @@ fn cdp_header_value_is_safe(value: &Value) -> bool {
     })
 }
 
+// Both early Request.headers and refined Response.requestHeaders describe
+// potential wire framing. Reject ambiguous transport and method metadata
+// without copying or recording any private HTTP fields.
+fn bodyless_cdp_headers(headers: &Map<String, Value>) -> bool {
+    let mut seen_content_length = false;
+    headers.iter().all(|(name, value)| {
+        if !cdp_header_name_is_token(name) {
+            return false;
+        }
+        let safe_value = cdp_header_value_is_safe(value);
+        if !safe_value || method_override_header(name) {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("content-length") {
+            if seen_content_length {
+                return false;
+            }
+            seen_content_length = true;
+            return value.as_str() == Some("0");
+        }
+        !name.eq_ignore_ascii_case("transfer-encoding")
+    })
+}
+
 // A CDP Request claiming GET does not prove body-free read semantics when
 // transport metadata also reports payload bytes. `Network.enable` may omit
 // postData text, so the boolean and entry-array flags need checking too.
@@ -101,29 +125,7 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
         // beyond the relevant key or retaining private request headers.
         let bodyless_headers = match fields.get("headers") {
             None => true,
-            Some(Value::Object(headers)) => {
-                let mut seen_content_length = false;
-                headers.iter().all(|(name, value)| {
-                    // CDP Network.Headers is a map of HTTP header names to
-                    // strings. Non-token names, untyped values, and control
-                    // characters cannot prove what went onto the wire.
-                    if !cdp_header_name_is_token(name) {
-                        return false;
-                    }
-                    let safe_value = cdp_header_value_is_safe(value);
-                    if !safe_value || method_override_header(name) {
-                        return false;
-                    }
-                    if name.eq_ignore_ascii_case("content-length") {
-                        if seen_content_length {
-                            return false;
-                        }
-                        seen_content_length = true;
-                        return value.as_str() == Some("0");
-                    }
-                    !name.eq_ignore_ascii_case("transfer-encoding")
-                })
-            }
+            Some(Value::Object(headers)) => bodyless_cdp_headers(headers),
             Some(_) => false,
         };
         let body_flag = fields.get("hasPostData");
@@ -171,41 +173,45 @@ fn serialized_mail_document_url(url: &str) -> bool {
 // Fetch Metadata headers describe the actual browser request destination.
 // Navigation, embedded resources, or cross-site requests cannot corroborate
 // an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
+fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
+    headers.iter().all(|(name, value)| {
+        if name.eq_ignore_ascii_case("Host") {
+            // A conflicting HTTP authority cannot establish a direct
+            // Mail read merely because the observed URL looks exact.
+            let host = value.as_str();
+            return host.is_some_and(|value| {
+                value.eq_ignore_ascii_case("mail.proton.me")
+                    || value.eq_ignore_ascii_case("mail.proton.me:443")
+            });
+        }
+        if name.eq_ignore_ascii_case("Origin") {
+            // A foreign/sandboxed document cannot become Mail-owned just
+            // because CDP omitted documentURL and classified it Fetch.
+            return value.as_str() == Some("https://mail.proton.me");
+        }
+        if name.eq_ignore_ascii_case("Referer") {
+            // A foreign embedding document cannot establish an active
+            // Mail read when optional documentURL is missing from CDP.
+            return value.as_str().is_some_and(serialized_mail_document_url);
+        }
+        if name.eq_ignore_ascii_case("Sec-Fetch-Mode") {
+            let mode = value.as_str();
+            return matches!(mode, Some("cors" | "same-origin"));
+        }
+        if name.eq_ignore_ascii_case("Sec-Fetch-Dest") {
+            return value.as_str() == Some("empty");
+        }
+        if name.eq_ignore_ascii_case("Sec-Fetch-Site") {
+            return value.as_str() == Some("same-origin");
+        }
+        !name.eq_ignore_ascii_case("Sec-Fetch-User")
+    })
+}
+
 fn active_mail_fetch_metadata(request: &Map<String, Value>) -> bool {
     match request.get("headers") {
         None => true,
-        Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
-            if name.eq_ignore_ascii_case("Host") {
-                // A conflicting HTTP authority cannot establish a direct
-                // Mail read merely because the observed URL looks exact.
-                let host = value.as_str();
-                return host.is_some_and(|value| {
-                    value.eq_ignore_ascii_case("mail.proton.me")
-                        || value.eq_ignore_ascii_case("mail.proton.me:443")
-                });
-            }
-            if name.eq_ignore_ascii_case("Origin") {
-                // A foreign/sandboxed document cannot become Mail-owned just
-                // because CDP omitted documentURL and classified it Fetch.
-                return value.as_str() == Some("https://mail.proton.me");
-            }
-            if name.eq_ignore_ascii_case("Referer") {
-                // A foreign embedding document cannot establish an active
-                // Mail read when optional documentURL is missing from CDP.
-                return value.as_str().is_some_and(serialized_mail_document_url);
-            }
-            if name.eq_ignore_ascii_case("Sec-Fetch-Mode") {
-                let mode = value.as_str();
-                return matches!(mode, Some("cors" | "same-origin"));
-            }
-            if name.eq_ignore_ascii_case("Sec-Fetch-Dest") {
-                return value.as_str() == Some("empty");
-            }
-            if name.eq_ignore_ascii_case("Sec-Fetch-Site") {
-                return value.as_str() == Some("same-origin");
-            }
-            !name.eq_ignore_ascii_case("Sec-Fetch-User")
-        }),
+        Some(Value::Object(headers)) => active_mail_fetch_headers(headers),
         Some(_) => false,
     }
 }
@@ -327,7 +333,27 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     reason = "private sibling read observers share one provenance predicate"
 )]
 pub(super) fn uncached_provider_response(response: &Value) -> bool {
-    response.as_object().is_some_and(uncached_source_fields)
+    response.as_object().is_some_and(|fields| {
+        let direct_source = uncached_source_fields(fields);
+        direct_source && refined_request_headers_are_safe(fields)
+    })
+}
+
+// CDP Response.requestHeaders may contain the refined HTTP request headers
+// actually transmitted, not just provisional Request.headers. If present,
+// they must not contradict the previously verified body-free Mail GET.
+fn refined_request_headers_are_safe(response: &Map<String, Value>) -> bool {
+    match response.get("requestHeaders") {
+        None => true,
+        Some(Value::Object(headers)) => {
+            let safe_headers = bodyless_cdp_headers(headers);
+            let active_headers = active_mail_fetch_headers(headers);
+            let mut names = headers.keys();
+            let has_purpose = names.any(|key| speculative_purpose_header(key));
+            safe_headers && active_headers && !has_purpose
+        }
+        Some(_) => false,
+    }
 }
 
 // Interpret source/security markers consistently in the response metadata

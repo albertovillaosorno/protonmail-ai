@@ -2509,3 +2509,12 @@ web application without requiring Bridge or a third-party direct API identity.
   Missing and explicitly true hints remain compatible, while malformed values
   fail closed across all passive observers. A true hint alone does not establish
   Mail origin and no live account or browser data was used.
+
+- The CDP `Network.Response.requestHeaders` map contains refined HTTP request
+  headers actually sent on the wire, which may contradict earlier provisional
+  `Request.headers`. Red-first shared and message-list synthetic captures
+  previously accepted a foreign Host on these later headers as a direct Mail
+  response. When present, the shared response gate now validates their typed
+  HTTP field shape, body-free framing, method, purpose, and first-party fetch
+  provenance before accepting any passive mailbox JSON. Omitted legacy hints
+  remain compatible, and no request headers or private values are retained.
