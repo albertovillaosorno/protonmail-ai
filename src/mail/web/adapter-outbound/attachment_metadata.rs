@@ -560,7 +560,10 @@ pub(crate) fn safe_metadata_mime_type(value: &str) -> bool {
     let Some(mut rest) = value.get(essence.len()..) else {
         return false;
     };
-    let mut keys = BTreeSet::new();
+    // Keep names as borrowed slices of the scrub-on-drop JSON rather than
+    // allocating ordinary lowercase copies of private provider metadata.
+    // The entire MIME field is bounded to 512 bytes by every caller.
+    let mut keys: Vec<&str> = Vec::new();
     while !rest.is_empty() {
         let Some(after_separator) = rest.strip_prefix(';') else {
             return false;
@@ -576,9 +579,10 @@ pub(crate) fn safe_metadata_mime_type(value: &str) -> bool {
         let Some(key) = parameter.get(..key_len) else {
             return false;
         };
-        if !keys.insert(key.to_ascii_lowercase()) {
+        if keys.iter().any(|prior| key.eq_ignore_ascii_case(prior)) {
             return false;
         }
+        keys.push(key);
         let Some(after_key) = parameter.get(key_len..) else {
             return false;
         };

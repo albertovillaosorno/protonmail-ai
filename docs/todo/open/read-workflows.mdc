@@ -270,6 +270,11 @@ Ship useful read access before any mailbox mutation is enabled.
   JSON with stable attachment identity, discards failed app retries, and caps
   unfinished matching requests at 16. Sender/address data, conversation
   identity, key packets, signatures, request headers, and cookies are discarded.
+- The shared MIME parser for attachment and message detail no longer
+  allocates ordinary lowercase copies of parameter names from scrub-on-drop
+  provider JSON. It checks case-insensitive duplicates against borrowed input
+  slices, preserving the existing 512-byte field limit, quoted values, and
+  nonadjacent duplicate refusal in synthetic tests.
 - The managed browser can now wait passively for the next app-owned attachment
   metadata GET without clicking, navigating, reloading, or injecting a provider
   request. It bounds the wait to 30 seconds, enables Network with a 256 KiB

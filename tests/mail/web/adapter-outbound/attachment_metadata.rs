@@ -1128,6 +1128,44 @@ fn mime_parameters_accept_valid_quoted_and_token_values() {
 }
 
 #[test]
+fn mime_parameter_names_compare_case_insensitively_at_bounded_scale() {
+    use std::fmt::Write as _;
+
+    let mut distinct = String::from("application/octet-stream");
+    for index in 0usize..60 {
+        write!(&mut distinct, "; k{index}=v").expect("synthetic MIME name");
+    }
+    assert!(distinct.len() <= 512);
+    let mut body = metadata_body();
+    body["Attachment"]["MIMEType"] = json!(&distinct);
+    assert!(
+        // jig-ignore-next-line: rustfmt keeps the MIME parser call together.
+        ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &body.to_string())
+            .is_ok()
+    );
+
+    // The first occurrence is far away from the second, and names differ
+    // only in ASCII case. No duplicate may be concealed among other keys.
+    let duplicate = format!("{distinct}; K7=overridden");
+    assert!(duplicate.len() <= 512);
+    body["Attachment"]["MIMEType"] = json!(duplicate);
+    assert_eq!(
+        // jig-ignore-next-line: rustfmt keeps the MIME parser call together.
+        ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &body.to_string()),
+        Err(AttachmentMetadataResponseError::Malformed)
+    );
+
+    // A quoted parameter value with delimiters is not another parameter.
+    body["Attachment"]["MIMEType"] =
+        json!("application/pdf; name=\"Report; DRAFT.pdf\"; NAME2=present");
+    assert!(
+        // jig-ignore-next-line: rustfmt keeps the MIME parser call together.
+        ObservedAttachmentMetadataResponse::parse("GET", URL, MESSAGE_ID, &body.to_string())
+            .is_ok()
+    );
+}
+
+#[test]
 fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
     let body = metadata_body().to_string();
     let envelope = json!({"body": body, "base64Encoded": false});
