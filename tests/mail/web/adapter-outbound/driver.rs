@@ -2121,6 +2121,13 @@ fn malformed_non_page_target_entries_cannot_hide_in_valid_target_catalog() {
         ("numeric-type", json!({"type":7u8})),
         ("empty-type", json!({"type":""})),
         ("oversized-type", json!({"type":"x".repeat(65)})),
+        ("missing-id", json!({"type":"service_worker"})),
+        ("null-id", json!({"type":"service_worker","targetId":null})),
+        (
+            "numeric-id",
+            json!({"type":"service_worker","targetId":7u8}),
+        ),
+        ("empty-id", json!({"type":"service_worker","targetId":""})),
     ] {
         for (position, targets) in [
             ("before", json!([malformed.clone(), valid_mail.clone()])),
@@ -2378,7 +2385,7 @@ fn unrelated_well_typed_browser_targets_remain_ignorable() {
     let root = test_root("well-typed-other-targets");
     fs::create_dir_all(&root).expect("create fake browser profile");
     let targets = json!([
-        {"type":"service_worker"},
+        {"type":"service_worker","targetId":"worker-0"},
         {"type":"shared_worker","targetId":"worker-1"},
         // jig-ignore-next-line: canonical rustfmt line.
         {"targetId":"mail-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}

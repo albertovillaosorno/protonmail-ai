@@ -755,14 +755,16 @@ impl ManagedBrowser {
             // CDP target IDs are unique for the browser, not just for pages.
             // An unselected worker or unrelated tab may not reuse a selected
             // Mail target's ID and make attachment or context proof ambiguous.
-            if let Some(target_id) = info.get("targetId") {
-                let id = target_id
-                    .as_str()
-                    .filter(|id| safe_cdp_endpoint_id(id))
-                    .ok_or(BrowserDriverError::Protocol)?;
-                if !known_ids.insert(id) {
-                    return Err(BrowserDriverError::Protocol);
-                }
+            // TargetInfo always has an ID, including workers and other
+            // unselected targets. A missing ID leaves catalog identity proof
+            // incomplete even if the provider tab itself looks valid.
+            let id = info
+                .get("targetId")
+                .and_then(Value::as_str)
+                .filter(|id| safe_cdp_endpoint_id(id))
+                .ok_or(BrowserDriverError::Protocol)?;
+            if !known_ids.insert(id) {
+                return Err(BrowserDriverError::Protocol);
             }
             let Some(page) = provider_page_from_target(info)? else {
                 continue;

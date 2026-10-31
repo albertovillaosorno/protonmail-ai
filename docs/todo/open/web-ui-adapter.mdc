@@ -132,6 +132,13 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- The bounded `Target.getTargets` catalog now requires a valid unique target ID
+  on every entry, including unrelated workers and non-provider pages. Missing
+  IDs could previously pass alongside a valid Mail tab, weakening the complete
+  catalog identity proof. A red-first fake Chromium regression rejects absent,
+  null, numeric, and empty IDs on both sides of the chosen page while retaining
+  valid unrelated target types; no real account was accessed.
+
 - Outbound CDP commands now enforce the inbound one-MiB JSON ceiling
   plus their NUL delimiter while serializing through guarded storage.
   Oversized synthetic runtime commands fail with redacted protocol errors;
