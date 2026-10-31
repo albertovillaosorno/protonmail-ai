@@ -41,6 +41,8 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use zeroize::Zeroizing;
 
+const VALID_GENERATION: &str = "0123456789abcdef0123456789abcdef";
+
 #[test]
 fn authenticated_decryption_keeps_plaintext_guarded() {
     // jig-ignore-next-line: canonical synthetic AES fixture.
@@ -96,7 +98,7 @@ fn sealed_cursor_token_body_is_scrubbed_on_drop() {
     let body: Zeroizing<Vec<u8>> = framed.expect("guard cursor bytes");
     assert_eq!(&body[..CURSOR_NONCE_BYTES], &nonce);
     assert_eq!(&body[CURSOR_NONCE_BYTES..], ciphertext);
-    let encoded = encode_guarded_token("0123456789abcdef", &body);
+    let encoded = encode_guarded_token(VALID_GENERATION, &body);
     let token = encoded.expect("encode guarded replayable token");
     let encoded = token.rsplit_once('.').expect("framed cursor").1;
     let decoded = decode_guarded_token(encoded).expect("decode test cursor");
@@ -106,10 +108,10 @@ fn sealed_cursor_token_body_is_scrubbed_on_drop() {
 #[test]
 fn opaque_cursor_token_uses_guarded_storage_without_extra_base64_copy() {
     let opaque_bytes = [0u8, 1, 2, 253, 254, 255];
-    let encoded = encode_guarded_token("0123456789abcdef", &opaque_bytes);
+    let encoded = encode_guarded_token(VALID_GENERATION, &opaque_bytes);
     let guarded: Zeroizing<String> = encoded.expect("synthetic cursor token");
     let expected = format!(
-        "{CURSOR_VERSION}.0123456789abcdef.{}",
+        "{CURSOR_VERSION}.{VALID_GENERATION}.{}",
         URL_SAFE_NO_PAD.encode(opaque_bytes)
     );
     assert_eq!(guarded.as_str(), expected);
@@ -117,9 +119,22 @@ fn opaque_cursor_token_uses_guarded_storage_without_extra_base64_copy() {
 }
 
 #[test]
+fn cursor_encoder_refuses_malformed_generation_tag_before_framing() {
+    for bad in [
+        "",
+        "0123456789abcdef",
+        "0123456789abcdef0123456789abc.",
+        "0123456789abcdef0123456789abcg",
+        "0123456789abcdef0123456789abcdef0",
+    ] {
+        assert!(encode_guarded_token(bad, b"synthetic sealed text").is_err());
+    }
+}
+
+#[test]
 fn oversized_cursor_token_is_refused_before_encoding() {
     let oversized = vec![0xadu8; MAX_ENCODED_CURSOR_BYTES];
-    assert!(encode_guarded_token("0123456789abcdef", &oversized).is_err());
+    assert!(encode_guarded_token(VALID_GENERATION, &oversized).is_err());
 }
 
 #[test]

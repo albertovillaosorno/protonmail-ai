@@ -95,6 +95,9 @@ fn encode_guarded_token(
     generation: &str,
     body: &[u8],
 ) -> Result<Zeroizing<String>, WebEventCursorCodecError> {
+    if !valid_generation_tag(generation) {
+        return Err(WebEventCursorCodecError::EncodingFailed);
+    }
     let error = WebEventCursorCodecError::EncodingFailed;
     let encoded_len = base64::encoded_len(body.len(), false).ok_or(error)?;
     let capacity = CURSOR_VERSION
