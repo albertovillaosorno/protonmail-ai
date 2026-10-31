@@ -51,6 +51,7 @@ struct AxGraph<'nodes> {
     ids: BTreeSet<&'nodes str>,
     parents: BTreeMap<&'nodes str, &'nodes str>,
     child_owners: BTreeMap<&'nodes str, &'nodes str>,
+    landmark_frame: Option<&'nodes str>,
 }
 
 impl MailShellEvidence {
@@ -194,15 +195,7 @@ fn ax_visible<'role_nodes>(
         }) {
             return Err(());
         }
-        // AXNode.frameId is an optional opaque Page.FrameId. Never accept
-        // invisible or malformed browser frame identities as shell evidence;
-        // absence is compatible with Chromium responses that omit this field.
-        if let Some(frame) = node.get("frameId") {
-            let frame = frame.as_str().ok_or(())?;
-            if !valid_ax_frame_id(frame) {
-                return Err(());
-            }
-        }
+        record_ax_landmark_frame(node, ignored, expected_role, graph)?;
         if !valid_ax_role(node.get("role"), expected_role) {
             return Err(());
         }
@@ -226,6 +219,31 @@ fn ax_visible<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// AXNode.frameId is an optional opaque Page.FrameId. When Chromium reports
+// it, visible navigation/search landmarks must agree on one document frame;
+// absent IDs remain compatible with older CDP responses. Never retain names.
+fn record_ax_landmark_frame<'nodes>(
+    node: &'nodes Value,
+    ignored: bool,
+    role: &str,
+    graph: &mut AxGraph<'nodes>,
+) -> Result<(), ()> {
+    let Some(frame) = node.get("frameId") else {
+        return Ok(());
+    };
+    let frame = frame.as_str().ok_or(())?;
+    if !valid_ax_frame_id(frame) {
+        return Err(());
+    }
+    if !ignored && matches!(role, "navigation" | "search") {
+        if graph.landmark_frame.is_some_and(|known| known != frame) {
+            return Err(());
+        }
+        graph.landmark_frame = Some(frame);
+    }
+    Ok(())
 }
 
 // AXNode.properties holds computed AXProperty pairs, not arbitrary

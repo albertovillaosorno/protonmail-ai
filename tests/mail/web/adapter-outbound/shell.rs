@@ -1261,6 +1261,50 @@ fn malformed_ax_frame_id_cannot_prove_landmarks() {
 }
 
 #[test]
+fn visible_landmarks_from_different_frames_cannot_prove_one_shell() {
+    let navigation = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#" "frameId":"frame-main", "#,
+        r#""role":{"type":"role","value":"navigation"}}]"#
+    );
+    let other_frame = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-search", "frameId":"frame-nested", "#,
+        r#""role":{"type":"role","value":"search"}}]"#
+    );
+    let roles = RoleFixture {
+        navigation,
+        search: other_frame,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "cross-frame-ax-landmarks",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol),
+        "landmarks from two frames cannot establish one trusted Mail shell"
+    );
+    let same_frame = other_frame.replace("frame-nested", "frame-main");
+    let roles = RoleFixture {
+        navigation,
+        search: &same_frame,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "same-frame-ax-landmarks",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("same-frame landmarks remain compatible")
+        .ready()
+    );
+}
+
+#[test]
 fn oversized_ax_child_list_cannot_prove_navigation_landmark() {
     let children = (0..4097u32)
         .map(|index| format!(r#""ax-child-{index}""#))
