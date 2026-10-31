@@ -721,6 +721,31 @@ fn detail_network_capture_bounds_unfinished_requests() {
 }
 
 #[test]
+fn promised_status_retains_finished_details_within_bounded_capacity() {
+    let mut capture = MessageDetailNetworkCapture::new("session-a");
+    for index in 0u8..16u8 {
+        let id = format!("pending-detail-{index}");
+        capture
+            .observe(&request_event("session-a", &id, "GET", MESSAGE_URL))
+            .expect("track exact pending request");
+        // jig-ignore-next-line: synthetic pending CDP request guard.
+        let mut response = response_event("session-a", &id, MESSAGE_URL, 200, "application/json");
+        response["params"]["hasExtraInfo"] = json!(true);
+        capture.observe(&response).expect("accept nominal response");
+        capture
+            .observe(&finished_event("session-a", &id))
+            .expect("finish while actual status is pending");
+        assert!(capture.take_finished_requests().is_empty());
+        assert_eq!(capture.tracked_request_count(), usize::from(index) + 1);
+    }
+    assert_eq!(
+        // jig-ignore-next-line: synthetic pending CDP request guard.
+        capture.observe(&request_event("session-a", "overflow", "GET", MESSAGE_URL)),
+        Err(MessageDetailNetworkError::CapacityExceeded)
+    );
+    assert!(!format!("{capture:?}").contains("pending-detail-"));
+}
+#[test]
 fn detail_network_response_must_preserve_message_identity_and_json_status() {
     for (url, status, mime) in [
         (

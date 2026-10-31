@@ -352,3 +352,8 @@ bounded resource use.
   It injects a declared extra HTTP status after `loadingFinished` and proves
   that only actual 200 permits the latest watermark body read. A late 304
   must fail before body retrieval; both outcomes preserve the Mail shell.
+
+- Pending actual-status notices also remain inside the existing bounded
+  32-request budgets for latest-event and core-v5 event polling. Synthetic
+  saturation tests prove `loadingFinished` plus missing promised status
+  neither releases capacity nor silently projects a cursor.

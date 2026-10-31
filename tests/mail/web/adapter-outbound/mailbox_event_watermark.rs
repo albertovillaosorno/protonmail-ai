@@ -1038,6 +1038,55 @@ fn network_capture_bounds_unfinished_event_requests() {
 }
 
 #[test]
+fn promised_status_keeps_latest_and_poll_requests_bounded() {
+    // jig-ignore-next-line: synthetic pending CDP request guard.
+    use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};
+    use serde_json::json;
+
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    let mut latest = LatestMailboxEventNetworkCapture::new("session-1");
+    let mut poll = MailboxEventNetworkCapture::new("session-1");
+    for index in 0u8..32u8 {
+        let id = format!("pending-event-{index}");
+        for (url, is_latest) in [(latest_url, true), (URL, false)] {
+            // jig-ignore-next-line: synthetic pending CDP request guard.
+            let request = cdp_lifecycle_event("Network.requestWillBeSent", &id, url);
+            // jig-ignore-next-line: synthetic pending CDP request guard.
+            let mut response = cdp_lifecycle_event("Network.responseReceived", &id, url);
+            response["params"]["hasExtraInfo"] = json!(true);
+            // jig-ignore-next-line: synthetic pending CDP request guard.
+            let finished = cdp_lifecycle_event("Network.loadingFinished", &id, url);
+            if is_latest {
+                latest.observe(&request).expect("track latest event");
+                latest
+                    .observe(&response)
+                    .expect("accept nominal latest status");
+                latest.observe(&finished).expect("finish latest event");
+                assert!(latest.take_finished_request_ids().is_empty());
+            } else {
+                poll.observe(&request).expect("track poll event");
+                poll.observe(&response).expect("accept nominal poll status");
+                poll.observe(&finished).expect("finish poll event");
+                assert!(poll.take_finished_request_ids().is_empty());
+            }
+        }
+    }
+    // jig-ignore-next-line: synthetic pending CDP request guard.
+    let late = cdp_lifecycle_event("Network.requestWillBeSent", "overflow", latest_url);
+    // jig-ignore-next-line: synthetic pending CDP request guard.
+    let events = cdp_lifecycle_event("Network.requestWillBeSent", "overflow", URL);
+    assert_eq!(
+        latest.observe(&late),
+        Err(MailboxEventNetworkError::CapacityExceeded)
+    );
+    assert_eq!(
+        poll.observe(&events),
+        Err(MailboxEventNetworkError::CapacityExceeded)
+    );
+    assert!(!format!("{latest:?}").contains("pending-event-"));
+    assert!(!format!("{poll:?}").contains("pending-event-"));
+}
+#[test]
 fn event_sequence_chains_watermarks_and_coalesces_exact_duplicates() {
     use mail_web_adapter::MailboxEventSequenceError;
     use mail_web_adapter::ObservedMailboxEventSequence;

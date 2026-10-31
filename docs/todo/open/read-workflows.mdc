@@ -904,3 +904,8 @@ Ship useful read access before any mailbox mutation is enabled.
   tests cover all passive GET families. A fake Chromium pipe also proves that
   absent status blocks message-body access and delayed 200 permits it without
   leaking message content or leaving Network enabled.
+
+- Pending extra-status promises retain completed message-detail GETs until
+  their actual status arrives, but cannot bypass the 16-request lifecycle
+  budget. Synthetic saturation tests prove each unconfirmed response remains
+  unconsumed and the next request is rejected without exposing request IDs.
