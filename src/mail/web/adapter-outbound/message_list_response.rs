@@ -50,6 +50,18 @@ const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 const MAX_MESSAGE_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
 
+// A provider `Stale: 0` response body alone cannot establish list freshness
+// when the browser declares a cached or service-worker response. Missing
+// source flags preserve compatibility; present flags must be boolean false.
+fn uncached_list_response(response: &Value) -> bool {
+    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
+        .iter()
+        .all(|field| {
+            let source = response.get(*field);
+            matches!(source, None | Some(Value::Bool(false)))
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NetworkRequestState {
     Requested,
@@ -386,8 +398,11 @@ impl MessageListNetworkCapture {
         }
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
-        // jig-ignore-next-line: canonical rustfmt line.
-        if !is_message_list_url(url) || status != Some(200) || mime != Some("application/json") {
+        if !is_message_list_url(url)
+            || !uncached_list_response(response)
+            || status != Some(200)
+            || mime != Some("application/json")
+        {
             return Err(MessageListNetworkError::ResponseRejected);
         }
         let shape = message_list_request_shape(url)

@@ -256,6 +256,49 @@ fn network_capture_rejects_url_drift_bad_response_and_failure() {
 }
 
 #[test]
+fn cached_conversation_list_reply_is_not_fresh_evidence() {
+    for (flag, value) in [
+        ("fromDiskCache", json!(true)),
+        ("fromServiceWorker", json!(true)),
+        ("fromPrefetchCache", json!(true)),
+        ("fromDiskCache", json!(null)),
+        ("fromServiceWorker", json!("false")),
+    ] {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        let request = request_event("session-a", "cached", "GET", URL);
+        capture.observe(&request).expect("track conversation list");
+        // jig-ignore-next-line: canonical synthetic response fixture.
+        let mut response = response_event("session-a", "cached", URL, 200, "application/json");
+        response["params"]["response"][flag] = value;
+        assert_eq!(
+            capture.observe(&response),
+            Err(ConversationListNetworkError::ResponseRejected),
+            "conversation list cannot accept {flag} provenance"
+        );
+    }
+}
+
+#[test]
+fn explicitly_uncached_conversation_list_reply_remains_observable() {
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "fresh", "GET", URL))
+        .expect("track conversation list");
+    // jig-ignore-next-line: canonical synthetic response fixture.
+    let mut response = response_event("session-a", "fresh", URL, 200, "application/json");
+    for field in ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"] {
+        response["params"]["response"][field] = json!(false);
+    }
+    capture
+        .observe(&response)
+        .expect("accept uncached response");
+    capture
+        .observe(&finished_event("session-a", "fresh"))
+        .expect("complete conversation list");
+    assert_eq!(capture.take_finished_request_ids(), ["fresh"]);
+}
+
+#[test]
 fn network_capture_ignores_neighbor_traffic_and_bounds_capacity() {
     let mut capture = ConversationListNetworkCapture::new("session-a");
     capture

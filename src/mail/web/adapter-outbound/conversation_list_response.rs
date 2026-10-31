@@ -51,6 +51,18 @@ const MAX_TRACKED_CONVERSATION_LIST_REQUESTS: usize = 128;
 const MAX_CONVERSATION_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_CONVERSATIONS: usize = 200;
 
+// Even a body that claims to be non-stale is not fresh list evidence when
+// Chrome reports a cached or service-worker response. Explicit source flags
+// must be boolean false, while omitted optional flags remain compatible.
+fn uncached_list_response(response: &Value) -> bool {
+    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
+        .iter()
+        .all(|field| {
+            let source = response.get(*field);
+            matches!(source, None | Some(Value::Bool(false)))
+        })
+}
+
 /// Redacted CDP request identity plus sanitized pagination evidence.
 #[expect(
     clippy::redundant_pub_crate,
@@ -274,6 +286,7 @@ impl ConversationListNetworkCapture {
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         if !is_conversation_list_url(url)
+            || !uncached_list_response(response)
             || request.url_fingerprint != url_fingerprint(url, &self.hashers)
             || status != Some(200)
             || mime != Some("application/json")

@@ -818,3 +818,10 @@ Ship useful read access before any mailbox mutation is enabled.
   type-contract and nested value tests guard the return paths without a live
   browser; caller-owned normalized mail outputs retain their existing public
   representation and must be handled as sensitive application data.
+
+- Passive message-list and conversation-list Network captures now reject
+  CDP responses explicitly sourced from disk cache, prefetch cache, or service
+  workers, including malformed source-marker types. A provider body advertising
+  `Stale: 0` does not override contradictory transport provenance. Red-first
+  synthetic CDP events prove both formerly accepted cached list replies fail
+  closed; omitted or explicit-false source flags remain compatible.
