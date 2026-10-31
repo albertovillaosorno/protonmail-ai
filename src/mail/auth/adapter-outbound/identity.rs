@@ -211,7 +211,7 @@ impl AuthorizationPolicy {
         validate_versioned_app(app_version).ok()?;
         reject_reserved(app_version, child_client_id).ok()?;
 
-        validate_date(self.evidence_reviewed_on)?;
+        let review_date = validate_date(self.evidence_reviewed_on)?;
         validate_evidence_field(self.evidence_reference)?;
         let api_base = validate_api_base(self.api_base?)?;
         let fork_payload_version = self.fork_payload_version?;
@@ -222,6 +222,11 @@ impl AuthorizationPolicy {
         let login_path = validate_login_path(path, fork_payload_version)?;
         let approval_ref = validate_evidence_field(self.approval_ref?)?;
         let approved_on = validate_date(self.approved_on?)?;
+        // ISO Gregorian dates sort chronologically as bytes. Registration
+        // evidence cannot be reviewed before the claimed provider approval.
+        if approved_on > review_date {
+            return None;
+        }
 
         Some(ApprovedMailIdentity {
             app_version,

@@ -193,6 +193,13 @@ authorization snapshot. That request identity binds both the approved
 `x-pm-appversion` and approved API base; raw getters remain private to the
 adapter so external transports must use the fail-closed live accessors.
 
+The approval gate also rejects chronologically inconsistent evidence: a valid
+Gregorian provider `approved_on` date must be no later than the recorded
+`evidence_reviewed_on` date. An offline red-first approval fixture proved the
+previous independent date checks accepted later approvals; same-day and
+previous-day legitimate review records remain valid. This does not approve any
+current Proton Mail client identity.
+
 ## Approval evidence required by this repository
 
 The P0 blocker may close only with provider evidence that identifies the allowed

@@ -106,6 +106,38 @@ fn approval_policy_requires_real_gregorian_evidence_dates() {
 }
 
 #[test]
+fn approval_policy_requires_approval_before_or_at_evidence_review() {
+    for (review, approval) in [
+        ("2026-10-29", "2026-10-30"),
+        ("2025-12-31", "2026-01-01"),
+        ("2024-02-28", "2024-02-29"),
+    ] {
+        let policy = AuthorizationPolicy {
+            evidence_reviewed_on: review,
+            approved_on: Some(approval),
+            ..synthetic_approved_policy()
+        };
+        assert!(policy.approved_identity().is_none());
+        assert_eq!(
+            policy.snapshot().status(),
+            ProviderAuthorizationStatus::Blocked
+        );
+    }
+    for (review, approval) in [
+        ("2026-10-30", "2026-10-30"),
+        ("2026-10-30", "2026-10-29"),
+        ("2026-01-01", "2025-12-31"),
+    ] {
+        let policy = AuthorizationPolicy {
+            evidence_reviewed_on: review,
+            approved_on: Some(approval),
+            ..synthetic_approved_policy()
+        };
+        assert!(policy.approved_identity().is_some());
+    }
+}
+
+#[test]
 fn approval_policy_rejects_noncanonical_or_injected_api_origins() {
     for unsafe_api in [
         "https://",
