@@ -2463,9 +2463,14 @@ web application without requiring Bridge or a third-party direct API identity.
 
 - Passive Mail API GET provenance now cross-checks optional browser
   `Sec-Fetch-*` headers against the observed XHR/Fetch resource type. A
-  red-first
-  synthetic GET marked `Sec-Fetch-Mode: navigate` or `Sec-Fetch-Dest: document`
+  synthetic red-first GET with navigation/destination Fetch Metadata had
   previously entered active list capture. Explicit navigation, embedded
   destinations, cross-site source and user-navigation headers now disqualify
   reads; omitted metadata and ordinary first-party AJAX hints remain valid.
   No request headers or mailbox content are retained.
+
+- An explicit browser `Origin` header on a passive Mail API GET must now be
+  exactly `https://mail.proton.me`. Red-first synthetic requests from foreign
+  and sandboxed origins previously entered capture when CDP omitted documentURL.
+  Missing `Origin` remains compatible with ordinary same-origin browser GETs;
+  matching Mail origin is accepted without logging or retaining the header.

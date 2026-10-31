@@ -287,6 +287,30 @@ fn unreviewed_request_speculation_markers_cannot_prove_active_mail_get() {
 }
 
 #[test]
+fn explicit_foreign_origin_header_cannot_prove_mail_api_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Origin": "https://mail.proton.me"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for origin in [
+        json!("https://account.proton.me"),
+        json!("https://mail.proton.me.evil.invalid"),
+        json!("http://mail.proton.me"),
+        json!("null"),
+        json!("https://mail.proton.me:8443"),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"]["Origin"] = origin;
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "explicit foreign Origin must reject passive Mail API read"
+        );
+    }
+}
+
+#[test]
 fn navigation_fetch_metadata_cannot_prove_active_mail_ajax() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",

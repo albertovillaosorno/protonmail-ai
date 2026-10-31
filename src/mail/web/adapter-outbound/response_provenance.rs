@@ -142,6 +142,11 @@ fn active_mail_fetch_metadata(request: &Map<String, Value>) -> bool {
     match request.get("headers") {
         None => true,
         Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
+            if name.eq_ignore_ascii_case("Origin") {
+                // A foreign/sandboxed document cannot become Mail-owned just
+                // because CDP omitted documentURL and classified it Fetch.
+                return value.as_str() == Some("https://mail.proton.me");
+            }
             if name.eq_ignore_ascii_case("Sec-Fetch-Mode") {
                 let mode = value.as_str();
                 return matches!(mode, Some("cors" | "same-origin" | "no-cors"));
