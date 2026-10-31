@@ -115,6 +115,32 @@ fn ax_visible<'role_nodes>(
     }
     let mut any_visible = false;
     for node in nodes {
+        // A filtered AXNode may include names, values and ordinary Chrome
+        // metadata, which stay unread and unretained. Unknown extensions can
+        // carry unrelated private data or change the meaning of shell proof.
+        // Only accept the documented AXNode field set.
+        let fields = node.as_object().ok_or(())?;
+        let allowed = [
+            "nodeId",
+            "ignored",
+            "ignoredReasons",
+            "role",
+            "chromeRole",
+            "name",
+            "description",
+            "value",
+            "properties",
+            "parentId",
+            "childIds",
+            "backendDOMNodeId",
+            "frameId",
+        ];
+        if fields
+            .keys()
+            .any(|field| !allowed.contains(&field.as_str()))
+        {
+            return Err(());
+        }
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;
         // CDP AXNode requires a unique string nodeId and a typed role. A
         // sparse or aliased node cannot prove a visible browser landmark.

@@ -200,6 +200,77 @@ fn structural_roles_make_mail_shell_ready_without_using_names() {
 }
 
 #[test]
+fn unreviewed_ax_node_fields_cannot_prove_mail_shell() {
+    use serde_json::json;
+
+    for (label, field, value) in [
+        (
+            "private-extra",
+            "futurePrivateData",
+            json!({"message":"private"}),
+        ),
+        ("unexpected-null", "futureFlag", json!(null)),
+        ("wrong-case", "NodeId", json!("ax-other")),
+        ("unreviewed-array", "computedDetails", json!(["private"])),
+    ] {
+        let mut navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "role":{"type":"role","value":"navigation"}
+        }]);
+        navigation[0][field] = value;
+        let navigation = navigation.to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "unreviewed AXNode field {field} must not establish shell readiness"
+        );
+    }
+}
+
+#[test]
+fn documented_optional_ax_node_metadata_preserves_mail_shell_readiness() {
+    use serde_json::json;
+
+    let navigation = json!([{
+        "ignored":false, "nodeId":"ax-navigation",
+        "role":{"type":"role", "value":"navigation"},
+        "chromeRole":{"type":"internalRole", "value":"navigation"},
+        "name":{"type":"computedString", "value":"private name"},
+        "description":{"type":"computedString", "value":"private description"},
+        "value":{"type":"string", "value":"private value"},
+        "properties":[{
+            "name":"busy", "value":{"type":"boolean", "value":false}
+        }]
+    }])
+    .to_string();
+    let roles = RoleFixture {
+        navigation: &navigation,
+        ..RoleFixture::ready()
+    };
+    let evidence = inspect(
+        "documented-ax-node-properties",
+        "https://mail.proton.me/u/0/inbox",
+        "mail.proton.me",
+        &roles,
+    )
+    .expect("documented AXNode optional fields remain compatible");
+    assert!(evidence.ready());
+    let debug = format!("{evidence:?}");
+    for text in ["private name", "private description", "private value"] {
+        assert!(!debug.contains(text), "AXNode text must never be retained");
+    }
+}
+
+#[test]
 fn unreviewed_accessibility_role_value_fields_cannot_prove_shell() {
     let base = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
