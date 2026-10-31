@@ -275,6 +275,22 @@ fn malformed_accessibility_source_values_cannot_prove_shell() {
                 }
             }),
         ),
+        (
+            "nested-value-undefined-composite",
+            json!({
+                "type":"implicit", "value":{
+                    "type":"valueUndefined", "value":{"private":"unreviewed"}
+                }
+            }),
+        ),
+        (
+            "nested-tristate-array",
+            json!({
+                "type":"implicit", "value":{
+                    "type":"tristate", "value":["unreviewed"]
+                }
+            }),
+        ),
     ] {
         let navigation = json!([{
             "ignored":false,
@@ -297,6 +313,38 @@ fn malformed_accessibility_source_values_cannot_prove_shell() {
             "malformed optional AXValueSource: {label}"
         );
     }
+}
+
+#[test]
+fn primitive_nested_ax_source_values_preserve_shell_readiness() {
+    use serde_json::json;
+
+    let navigation = json!([{
+        "ignored":false, "nodeId":"ax-navigation",
+        "role":{
+            "type":"role", "value":"navigation", "sources":[
+                {"type":"implicit",
+                 "value":{"type":"tristate", "value":"mixed"}},
+                {"type":"attribute", "value":{"type":"token", "value":"valid"}},
+                {"type":"implicit", "value":{"type":"valueUndefined"}}
+            ]
+        }
+    }])
+    .to_string();
+    let roles = RoleFixture {
+        navigation: &navigation,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "scalar-nested-ax-source",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("primitive AXValue source types remain compatible")
+        .ready()
+    );
 }
 
 #[test]
@@ -454,6 +502,13 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
                 r#"[{"name":"notVisible","#,
                 r#""value":{"type":"boolean","sources":[{"type":"implicit","#,
                 r#""invalid":"false"}]}}]"#
+            )),
+        ),
+        (
+            "reason-composite-token-value",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"token","value":{"private":true}}}]"#
             )),
         ),
         ("ordinary-property-as-reason", reason("selected", "boolean")),

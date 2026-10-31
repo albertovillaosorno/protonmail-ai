@@ -125,6 +125,15 @@ web application without requiring Bridge or a third-party direct API identity.
   Unreviewed security-state spelling variants and extensions also fail closed,
   rather than bypassing a valid `securityState` with a contradictory alias.
 
+## Refuse unreviewed compound AX scalar values
+
+- Red-first synthetic role and ignored-reason evidence showed AXValue types
+  outside the initial scalar guards could include an arbitrary object or array
+  and still pass shell inspection. `AXValue.value` is a CDP `any`, but complex
+  payloads are unnecessary for this structural proof. The shared value guard
+  now rejects unaudited composite payloads in nested source values and hidden
+  reasons, while preserving ordinary scalars and absent optional values.
+
 ## Reject accessibility cycles expressed through child IDs
 
 - Red-first synthetic Mail-shell replies accepted two role nodes that named

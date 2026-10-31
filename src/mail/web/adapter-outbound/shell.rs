@@ -416,7 +416,12 @@ fn valid_ax_scalar(kind: &str, value: Option<&Value>) -> bool {
         ("integer", Some(raw)) => raw.as_i64().is_some(),
         ("number", Some(raw)) => raw.is_number(),
         (_, Some(raw)) if text_kinds.contains(&kind) => raw.is_string(),
-        _ => true,
+        // CDP declares AXValue.value as `any`. An object or array is not
+        // required for structural Mail-shell proof and would expose an
+        // unreviewed nested data shape. Treat only primitive values as safe
+        // until a specific composite encoding has its own audited contract.
+        (_, Some(raw)) => !raw.is_object() && !raw.is_array(),
+        (_, None) => true,
     }
 }
 
