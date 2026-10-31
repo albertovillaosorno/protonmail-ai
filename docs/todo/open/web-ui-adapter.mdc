@@ -60,6 +60,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- CDP inbound frame assembly now uses the same scrub-on-growth buffer
+  as serialized commands. Partial browser frames spanning the read cache can
+  no longer release older private frame prefixes during Vec expansion; the
+  bounded NUL parser and absolute timeout behavior stay intact. A synthetic
+  multi-cache fixture checks both passive and ordinary reader paths.
+
 - CDP outbound command serialization now routes through a scrub-on-growth
   writer. When request JSON exceeds an initial vector allocation, each old
   private prefix is erased before its storage is freed. The NUL frame marker

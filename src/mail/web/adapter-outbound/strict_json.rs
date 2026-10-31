@@ -86,6 +86,14 @@ impl SensitiveJsonWriteBuffer {
         Ok(())
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
     pub(crate) fn into_guarded(self) -> Zeroizing<Vec<u8>> {
         self.bytes
     }

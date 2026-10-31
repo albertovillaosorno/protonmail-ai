@@ -2147,6 +2147,33 @@ fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
 }
 
 #[test]
+fn both_cdp_frame_readers_preserve_multi_cache_private_payloads() {
+    use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+    use zeroize::Zeroizing;
+
+    // Exceed the eight-KiB read cache, forcing raw frame assembly to grow.
+    let private_frame = b"private-mail-metadata".repeat(600);
+    for waiting in [false, true] {
+        let (mut sender, receiver) = UnixStream::pair().expect("CDP pipe");
+        sender.write_all(&private_frame).expect("frame payload");
+        sender.write_all(&[0]).expect("NUL frame delimiter");
+        let mut reader = SensitiveFrameReader::new(receiver);
+        let frame = if waiting {
+            read_frame_waiting(&mut reader)
+                .expect("waiting read")
+                .expect("frame present")
+        } else {
+            read_frame(&mut reader).expect("read frame")
+        };
+        let _: &Zeroizing<Vec<u8>> = &frame;
+        assert_eq!(frame.as_slice(), private_frame);
+        assert!(reader.cache[..reader.offset].iter().all(|byte| *byte == 0));
+    }
+}
+
+#[test]
 fn sensitive_frame_reader_scrubs_consumed_cache_before_next_frame() {
     use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
     use std::io::Write as _;

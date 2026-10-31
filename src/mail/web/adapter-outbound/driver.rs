@@ -4474,9 +4474,9 @@ fn read_frame_waiting(
     reader: &mut SensitiveFrameReader,
 ) -> Result<Option<Zeroizing<Vec<u8>>>, BrowserDriverError> {
     with_frame_deadline(reader, |reader, deadline| {
-        // Raw CDP bytes may include account-scoped metadata; scrub on every
-        // exit path, including malformed frames and deadline failures.
-        let mut frame = Zeroizing::new(Vec::new());
+        // Raw CDP bytes can contain private browser and mailbox metadata.
+        // Scrub every replaced allocation as frames span cache reads.
+        let mut frame = strict_json::SensitiveJsonWriteBuffer::new();
         loop {
             if Instant::now() >= deadline {
                 return if frame.is_empty() {
@@ -4509,7 +4509,9 @@ fn read_frame_waiting(
             if total > MAX_FRAME_BYTES {
                 return Err(BrowserDriverError::Protocol);
             }
-            frame.extend_from_slice(&available[..payload]);
+            frame
+                .append(&available[..payload])
+                .map_err(|_error| BrowserDriverError::PipeIo)?;
             let consumed = if terminator.is_some() {
                 payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
             } else {
@@ -4517,7 +4519,7 @@ fn read_frame_waiting(
             };
             reader.consume(consumed);
             if terminator.is_some() {
-                return Ok(Some(frame));
+                return Ok(Some(frame.into_guarded()));
             }
         }
     })
@@ -4526,9 +4528,9 @@ fn read_frame_waiting(
 // jig-ignore-next-line: rustfmt requires the flat private frame signature.
 fn read_frame(reader: &mut SensitiveFrameReader) -> FrameReadResult<Zeroizing<Vec<u8>>> {
     with_frame_deadline(reader, |reader, deadline| {
-        // Raw CDP bytes may include account-scoped metadata; scrub on every
-        // exit path, including malformed frames and deadline failures.
-        let mut frame = Zeroizing::new(Vec::new());
+        // Raw CDP bytes can contain private browser and mailbox metadata.
+        // Scrub every replaced allocation as frames span cache reads.
+        let mut frame = strict_json::SensitiveJsonWriteBuffer::new();
         loop {
             arm_frame_deadline(reader, deadline)?;
             let available = reader
@@ -4546,7 +4548,9 @@ fn read_frame(reader: &mut SensitiveFrameReader) -> FrameReadResult<Zeroizing<Ve
             if total > MAX_FRAME_BYTES {
                 return Err(BrowserDriverError::Protocol);
             }
-            frame.extend_from_slice(&available[..payload]);
+            frame
+                .append(&available[..payload])
+                .map_err(|_error| BrowserDriverError::PipeIo)?;
             let consumed = if terminator.is_some() {
                 payload.checked_add(1).ok_or(BrowserDriverError::Protocol)?
             } else {
@@ -4554,7 +4558,7 @@ fn read_frame(reader: &mut SensitiveFrameReader) -> FrameReadResult<Zeroizing<Ve
             };
             reader.consume(consumed);
             if terminator.is_some() {
-                return Ok(frame);
+                return Ok(frame.into_guarded());
             }
         }
     })
