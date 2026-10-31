@@ -4720,6 +4720,14 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
             };
             field_count_ok && fields.get("result").is_some_and(Value::is_object)
         }
+        "DOM.getDocument" => {
+            let root = fields.get("root");
+            fields.len() == 1 && root.is_some_and(Value::is_object)
+        }
+        "Accessibility.queryAXTree" => {
+            let nodes = fields.get("nodes");
+            fields.len() == 1 && nodes.is_some_and(Value::is_array)
+        }
         "Target.attachToTarget" => {
             fields.len() == 1
                 && fields

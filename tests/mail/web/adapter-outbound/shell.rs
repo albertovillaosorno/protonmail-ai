@@ -192,6 +192,46 @@ fn structural_roles_make_mail_shell_ready_without_using_names() {
 }
 
 #[test]
+fn unreviewed_dom_and_ax_result_fields_cannot_authorize_shell() {
+    for (label, from, to) in [
+        (
+            "ax-result-extra",
+            r#""nodes":%s}}"#,
+            r#""nodes":%s,"unreviewed":true}}"#,
+        ),
+        (
+            "dom-result-extra",
+            r#""root":{"nodeId":1}}"#,
+            r#""root":{"nodeId":1},"unreviewed":true}"#,
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let browser = fake_browser(
+            &root,
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            "mail.proton.me",
+            &RoleFixture::ready(),
+        );
+        let source = fs::read_to_string(&browser).expect("read fixture");
+        assert!(source.contains(from), "fixture {label} must be present");
+        fs::write(&browser, source.replacen(from, to, 1))
+            .expect("insert unreviewed CDP result property");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        let page = managed.provider_page().expect("discover Mail page");
+        assert_eq!(
+            managed.require_mail_shell(&page),
+            Err(BrowserDriverError::Protocol),
+            "{label} must fail closed"
+        );
+        drop(managed);
+        fs::remove_dir_all(root).expect("remove synthetic root");
+    }
+}
+
+#[test]
 fn required_mail_shell_rejects_missing_landmark() {
     let roles = RoleFixture {
         search: IGNORED,

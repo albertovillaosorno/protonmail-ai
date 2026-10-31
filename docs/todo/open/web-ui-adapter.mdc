@@ -1781,3 +1781,9 @@ web application without requiring Bridge or a third-party direct API identity.
   origin despite unexpected sibling fields; both now fail closed. A distinct
   legacy `wasThrown: false` runtime reply remains accepted. This does not
   change target metadata handling or enable a live Mail account.
+
+- Browser CDP shell inspection now also requires exact result objects for
+  `DOM.getDocument` and `Accessibility.queryAXTree` before using the root node
+  or role-filtered landmarks. Red-first fake Chromium replies with extra
+  sibling properties previously proved a ready shell; both now fail closed
+  before reading message metadata. Exact canonical results remain supported.
