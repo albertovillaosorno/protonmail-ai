@@ -1303,7 +1303,7 @@ let headingZeroArea=false,senderZeroArea=false;
 let headingCovered=false,senderCovered=false,offscreenTitles=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
-let ariaHiddenUpper=false;
+let ariaHiddenUpper=false,ancestorBusy=false,rowBusy=false;
 let duplicateRows=false,titleReads=0,invalidSecondRow=false;
 let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
@@ -1331,18 +1331,21 @@ const sender={contains:()=>false,
   closest:(q)=>(ancestorInert&&q.includes('[inert]')||
   ariaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?ancestor:null};
 const ancestor={parentElement:null};
-const row={getAttribute:(key)=>key==='data-element-id'?idValue:
+const row={closest:(q)=>rowBusy&&q.includes('[aria-busy=')?row:null,
+ getAttribute:(key)=>key==='data-element-id'?idValue:
   key==='aria-labelledby'?'heading-id':null,
   querySelectorAll:(key)=>key==='[id]'?[heading]:[sender],
   parentElement:ancestor,classList:{contains:()=>true}};
 heading.parentElement=row;sender.parentElement=row;
 const brokenHeading={id:'heading-b',getClientRects:()=>[],
  closest:()=>null};
-const brokenRow={getAttribute:(key)=>key==='data-element-id'?'row-b':
+const brokenRow={closest:()=>null,
+ getAttribute:(key)=>key==='data-element-id'?'row-b':
  key==='aria-labelledby'?'heading-b':null,
  querySelectorAll:(key)=>key==='[id]'?[brokenHeading]:[sender]};
 brokenHeading.parentElement=brokenRow;brokenRow.parentElement=ancestor;
-const root={querySelectorAll:()=>duplicateRows?[row,row]:
+const root={closest:(q)=>ancestorBusy&&q.includes('[aria-busy=')?
+ root:null,querySelectorAll:()=>duplicateRows?[row,row]:
  invalidSecondRow?[row,brokenRow]:[row]};
 globalThis.document={elementFromPoint:(x)=>
  offscreenTitles?null:x<100?(headingCovered?{}:heading):
@@ -1357,7 +1360,15 @@ if(!Array.isArray(projected)||projected.length!==1||
  projected[0].addresses!=='sender@example.test'||!projected[0].unread){
  throw Error('visible row projection failed');
 }
-headingCovered=true;titleReads=0;
+ancestorBusy=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('ARIA-busy loaded root exposed private title');
+}
+ancestorBusy=false;rowBusy=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('ARIA-busy loaded row exposed private title');
+}
+rowBusy=false;headingCovered=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('covered subject exposed private title');
 }
@@ -1558,6 +1569,7 @@ let ancestorLegacyClip=false;
 let ancestorMasked=false;
 let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
+let loadedBusy=false,rowBusy=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
 let nativeDialog=false;
 let rowId='synthetic-row',pageId='pagination-row:go-to-page-2';
@@ -1566,14 +1578,17 @@ const row={contains:()=>false,getAttribute:()=>rowId,
  getClientRects:()=>rowHidden?[]:[{left:10,top:10,
  width:rowZeroArea?0:90,
  height:rowZeroArea?0:18}],
- closest:(q)=>(rootInert&&q.includes('[inert]')||
+ closest:(q)=>rowBusy&&q.includes('[aria-busy=')?row:
+ (rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
 const empty={contains:()=>false,
  getClientRects:()=>[{left:110,top:10,width:emptyZeroArea?0:90,
  height:emptyZeroArea?0:18}],
  closest:(q)=>(rootInert&&q.includes('[inert]')||
  rootAriaHiddenUpper&&q.includes('[aria-hidden=\"true\" i]'))?loaded:null};
-const loaded={parentElement:ancestor,querySelectorAll:(q)=>
+const loaded={parentElement:ancestor,
+ closest:(q)=>loadedBusy&&q.includes('[aria-busy=')?loaded:null,
+ querySelectorAll:(q)=>
  q.includes(':not(')?[]:
  q.includes('empty-view-placeholder')?(showEmpty?[empty]:[]):
  (showEmpty?[]:duplicateRows?[row,row]:[row])};
@@ -1612,7 +1627,15 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
  'pagination-row:go-to-page-2'||ready.nextDisabled!==false){
  throw Error('visible list projection was not complete');
 }
-overlayNext=true;
+loadedBusy=true;
+if(eval(expression)!==null){
+ throw Error('ARIA-busy loaded root proved settled Mail');
+}
+loadedBusy=false;rowBusy=true;
+if(eval(expression)!==null){
+ throw Error('ARIA-busy loaded row released list ID');
+}
+rowBusy=false;overlayNext=true;
 if(eval(expression)!==null){
  throw Error('covered enabled Next reported actionable');
 }

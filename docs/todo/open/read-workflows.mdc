@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Transitional ARIA-busy Mail regions are not settled snapshots
+
+- Red-first synthetic DOM fixtures showed that a loaded root or row with
+  `aria-busy="true"` could still project message IDs or read title attributes
+  when the previous rows remained mounted during an update. The Mail list and
+  title projections now reject busy loaded roots and row subtrees before
+  releasing private metadata; explicitly loading-only state remains
+  content-free. No live account or external provider response was used.
+
 ## Legacy CSS clipping must not prove visible read authority
 
 - Red-first synthetic Node tests exposed the legacy positioned-element

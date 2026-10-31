@@ -69,6 +69,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "const roots=[...document.querySelectorAll('[data-testid=\"message-list-loaded\"]')];",
     "if(roots.length!==1){return null;}",
     "const root=roots[0];",
+    // ARIA-busy explicitly marks content as transitional, not settled.
+    "if(root.closest('[aria-busy=\"true\" i]')){return null;}",
     // Include opacity and visibility of ancestors as computed opacity does
     // not inherit, unlike visibility. Bound traversal to fail on path drift.
     "const visibleTree=(node)=>{let current=node;",
@@ -103,6 +105,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
     "if(rows.length>200){return null;}",
+    "if(rows.some((row)=>row.closest('[aria-busy=\"true\" i]')))",
+    "{return null;}",
     // Unicode noncharacters have no interchange identity. Reject every plane
     // before Chrome serializes the ID or projects any message text.
     "const unsafeScalar=(text)=>[...text].some((c)=>{",
