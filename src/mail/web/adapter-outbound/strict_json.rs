@@ -48,12 +48,21 @@ use zeroize::{Zeroize as _, Zeroizing};
 #[expect(clippy::redundant_pub_crate, reason = "private serialization guard")]
 pub(crate) struct SensitiveJsonWriteBuffer {
     bytes: Zeroizing<Vec<u8>>,
+    limit: Option<usize>,
 }
 
 impl SensitiveJsonWriteBuffer {
     pub(crate) fn new() -> Self {
         Self {
             bytes: Zeroizing::new(Vec::new()),
+            limit: None,
+        }
+    }
+
+    pub(crate) fn new_bounded(max_bytes: usize) -> Self {
+        Self {
+            bytes: Zeroizing::new(Vec::new()),
+            limit: Some(max_bytes),
         }
     }
 
@@ -66,6 +75,9 @@ impl SensitiveJsonWriteBuffer {
             .len()
             .checked_add(additional)
             .ok_or_else(|| io::Error::other("sensitive buffer size overflow"))?;
+        if self.limit.is_some_and(|limit| needed > limit) {
+            return Err(io::Error::other("sensitive buffer exceeds size limit"));
+        }
         if needed > self.bytes.capacity() {
             let capacity = needed.checked_next_power_of_two().unwrap_or(needed);
             let mut replacement = Zeroizing::new(Vec::new());

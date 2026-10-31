@@ -2086,6 +2086,24 @@ fn outbound_cdp_frame_encoder_uses_scrub_on_drop_bytes() {
 }
 
 #[test]
+fn oversized_outbound_cdp_frame_is_rejected_before_encoding() {
+    use super::{BrowserDriverError, MAX_FRAME_BYTES, encode_cdp_request_frame};
+    use crate::strict_json::SensitiveValue;
+
+    let oversized =
+        // jig-ignore-next-line: canonical oversized synthetic command length.
+        "synthetic-private-command".repeat(MAX_FRAME_BYTES.div_ceil(24).saturating_add(1));
+    let command = SensitiveValue::from_owned(json!({
+        "id": 17u64, "method": "Runtime.evaluate",
+        "params": {"expression": oversized}
+    }));
+    assert!(matches!(
+        encode_cdp_request_frame(&command),
+        Err(BrowserDriverError::Protocol)
+    ));
+}
+
+#[test]
 fn browser_command_and_runtime_returns_keep_scrub_on_drop_ownership() {
     use super::ManagedBrowser;
     use crate::strict_json::SensitiveValue;

@@ -4452,7 +4452,10 @@ fn encode_cdp_request_frame(
 ) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
     // Serialize through scrub-on-grow storage. Ordinary Vec reallocation
     // would release earlier private command prefixes without erasing them.
-    let mut frame = strict_json::SensitiveJsonWriteBuffer::new();
+    // Bound outbound commands to the same one-MiB JSON ceiling as inbound
+    // frames, plus exactly one NUL delimiter. Reject during serialization.
+    // jig-ignore-next-line: canonical bounded private CDP writer.
+    let mut frame = strict_json::SensitiveJsonWriteBuffer::new_bounded(MAX_FRAME_BYTES + 1);
     // jig-ignore-next-line: canonical scrub-on-grow writer call.
     serde_json::to_writer(&mut frame, &**request).map_err(|_error| BrowserDriverError::Protocol)?;
     frame

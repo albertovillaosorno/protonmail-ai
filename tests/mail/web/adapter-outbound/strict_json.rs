@@ -35,6 +35,18 @@ use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
 
 #[test]
+fn bounded_sensitive_json_writer_refuses_extra_bytes_without_mutation() {
+    use super::SensitiveJsonWriteBuffer;
+    use std::io::Write as _;
+
+    let mut writer = SensitiveJsonWriteBuffer::new_bounded(7);
+    writer.write_all(b"private").expect("fill guarded writer");
+    assert!(writer.write_all(b"!").is_err());
+    let guarded = writer.into_guarded();
+    assert_eq!(guarded.as_slice(), b"private");
+}
+
+#[test]
 fn sensitive_json_writer_owns_growth_and_final_headroom() {
     use super::SensitiveJsonWriteBuffer;
     use std::io::Write as _;

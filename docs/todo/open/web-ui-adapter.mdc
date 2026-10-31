@@ -60,6 +60,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- Outbound CDP commands now enforce the inbound one-MiB JSON ceiling
+  plus their NUL delimiter while serializing through guarded storage.
+  Oversized synthetic runtime commands fail with redacted protocol errors;
+  a writer-limit fixture confirms rejected bytes do not modify the guarded
+  private prefix. Ordinary requests and response framing remain unchanged.
+
 - CDP inbound frame assembly now uses the same scrub-on-growth buffer
   as serialized commands. Partial browser frames spanning the read cache can
   no longer release older private frame prefixes during Vec expansion; the
