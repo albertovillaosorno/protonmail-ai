@@ -864,3 +864,11 @@ Ship useful read access before any mailbox mutation is enabled.
   response source, Cache Storage name or service-worker router metadata, even
   when earlier flags conflict. Red-first synthetic evidence covers each exact
   GET family; omitted hints and explicit-false source flags preserve reads.
+
+- Passive message, conversation, attachment, list and catalog observers now
+  inspect `Network.responseReceivedExtraInfo.statusCode` when present. CDP may
+  report HTTP 200 in `responseReceived` but an actual cache revalidation 304
+  here, before or after that event. Tracked requests reject all non-200 or
+  malformed extra statuses; unrelated requests are ignored. The shared helper
+  checks status only without retaining headers or response body. Red-first
+  synthetic 304 events reproduced the acceptance gap.

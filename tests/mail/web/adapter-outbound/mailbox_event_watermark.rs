@@ -565,6 +565,106 @@ fn latest_network_capture_discards_failed_attempt_before_retry() {
 }
 
 #[test]
+fn actual_network_status_200_preserves_event_cursor_capture() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use serde_json::json;
+
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (is_latest, url) in [(true, latest), (false, URL)] {
+        let request = json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"event","request":{
+                "method":"GET","url":url
+            }}
+        });
+        let response = json!({
+            "sessionId":"session-1","method":"Network.responseReceived",
+            "params":{"requestId":"event","response":{
+                "url":url,"status":200u16,"mimeType":"application/json"
+            }}
+        });
+        let extra = json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"event","statusCode":200u16}
+        });
+        let finished = json!({
+            "sessionId":"session-1","method":"Network.loadingFinished",
+            "params":{"requestId":"event"}
+        });
+        if is_latest {
+            let session = "session-1";
+            let mut capture = LatestMailboxEventNetworkCapture::new(session);
+            capture.observe(&request).expect("track latest GET");
+            capture.observe(&extra).expect("accept actual HTTP 200");
+            capture.observe(&response).expect("accept response");
+            capture.observe(&finished).expect("complete latest GET");
+            assert_eq!(capture.take_finished_request_ids(), ["event"]);
+        } else {
+            let mut capture = MailboxEventNetworkCapture::new("session-1");
+            capture.observe(&request).expect("track poll GET");
+            capture.observe(&extra).expect("accept actual HTTP 200");
+            capture.observe(&response).expect("accept response");
+            capture.observe(&finished).expect("complete poll GET");
+            assert_eq!(capture.take_finished_request_ids(), ["event"]);
+        }
+    }
+}
+
+#[test]
+fn revalidated_cache_status_rejects_both_event_cursor_gets() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (is_latest, url) in [(true, latest), (false, URL)] {
+        for after_response in [false, true] {
+            let request = json!({
+                "sessionId":"session-1","method":"Network.requestWillBeSent",
+                "params":{"requestId":"event","request":{
+                    "method":"GET","url":url
+                }}
+            });
+            let response = json!({
+                "sessionId":"session-1","method":"Network.responseReceived",
+                "params":{"requestId":"event","response":{
+                    "url":url,"status":200u16,"mimeType":"application/json"
+                }}
+            });
+            let extra = json!({
+                "sessionId":"session-1",
+                "method":"Network.responseReceivedExtraInfo",
+                "params":{"requestId":"event","statusCode":304u16}
+            });
+            if is_latest {
+                let session = "session-1";
+                // jig-ignore-next-line: canonical constructor call.
+                let mut capture = LatestMailboxEventNetworkCapture::new(session);
+                capture.observe(&request).expect("track latest request");
+                if after_response {
+                    capture.observe(&response).expect("first report 200");
+                }
+                assert_eq!(
+                    capture.observe(&extra),
+                    Err(MailboxEventNetworkError::ResponseRejected)
+                );
+            } else {
+                let mut capture = MailboxEventNetworkCapture::new("session-1");
+                capture.observe(&request).expect("track event request");
+                if after_response {
+                    capture.observe(&response).expect("first report 200");
+                }
+                assert_eq!(
+                    capture.observe(&extra),
+                    Err(MailboxEventNetworkError::ResponseRejected)
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn standalone_cache_hit_rejects_both_event_watermark_requests() {
     use mail_web_adapter::MailboxEventNetworkCapture;
     use mail_web_adapter::MailboxEventNetworkError;

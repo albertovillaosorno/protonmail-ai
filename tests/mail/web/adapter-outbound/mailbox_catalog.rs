@@ -347,6 +347,31 @@ fn network_capture_tracks_only_exact_mail_category_gets() {
 }
 
 #[test]
+fn revalidated_cache_status_rejects_catalog_get() {
+    for after_response in [false, true] {
+        let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+        capture
+            .observe(&request("session-a", "catalog", "GET", LABEL_URL))
+            .expect("track exact GET");
+        let extra = json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"catalog","statusCode":304u16}
+        });
+        if after_response {
+            capture
+                .observe(&response("session-a", "catalog", LABEL_URL))
+                .expect("first report 200");
+        }
+        assert_eq!(
+            capture.observe(&extra),
+            Err(MailboxCatalogNetworkError::ResponseRejected),
+            "reject actual 304 status before or after responseReceived",
+        );
+    }
+}
+
+#[test]
 fn standalone_cache_hit_rejects_all_catalog_kinds() {
     for url in [LABEL_URL, FOLDER_URL, SYSTEM_URL] {
         for after_response in [false, true] {

@@ -268,6 +268,43 @@ fn network_capture_tracks_only_exact_get_list_lifecycle() {
 }
 
 #[test]
+fn revalidated_cache_status_rejects_message_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for after_response in [false, true] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1","method":"Network.requestWillBeSent",
+                "params":{"requestId":"list","request":{
+                    "method":"GET","url":URL
+                }}
+            }))
+            .expect("track exact GET");
+        if after_response {
+            capture
+                .observe(&json!({
+                    "sessionId":"session-1","method":"Network.responseReceived",
+                    "params":{"requestId":"list","response":{
+                        "url":URL,"status":200u16,"mimeType":"application/json"
+                    }}
+                }))
+                .expect("first report 200");
+        }
+        let extra = json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"list","statusCode":304u16}
+        });
+        assert_eq!(
+            capture.observe(&extra),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+    }
+}
+
+#[test]
 fn standalone_cache_hit_rejects_message_list_request() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

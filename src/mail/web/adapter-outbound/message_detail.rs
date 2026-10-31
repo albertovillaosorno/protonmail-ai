@@ -37,6 +37,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::direct_extra_status_is_200;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -134,8 +135,14 @@ impl MessageDetailNetworkCapture {
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
-            // jig-ignore-next-line: canonical rustfmt line.
-            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
+            // jig-ignore-next-line: canonical extra-info CDP match guard.
+            Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
+                network_request_id(event).map(|_| ())
+            }
+            // jig-ignore-next-line: combined CDP cache and extra-status match.
+            Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {
+                self.observe_cache_hit(event)
+            }
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),

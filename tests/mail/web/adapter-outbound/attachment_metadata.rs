@@ -336,6 +336,37 @@ fn memory_cache_notification_cannot_authorize_attachment_get() {
 }
 
 #[test]
+fn revalidated_cache_status_rejects_attachment_get() {
+    for after_response in [false, true] {
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "metadata", "GET", URL))
+            .expect("track exact GET");
+        let extra = json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"metadata","statusCode":304u16}
+        });
+        if after_response {
+            capture
+                .observe(&response_event(
+                    "session-a",
+                    "metadata",
+                    URL,
+                    200,
+                    "application/json",
+                ))
+                .expect("first report 200");
+        }
+        assert_eq!(
+            capture.observe(&extra),
+            Err(AttachmentMetadataNetworkError::ResponseRejected),
+            "reject actual 304 status before or after responseReceived",
+        );
+    }
+}
+
+#[test]
 fn cached_attachment_responses_cannot_authorize_provider_metadata() {
     for (source, value) in [
         ("fromDiskCache", json!(true)),

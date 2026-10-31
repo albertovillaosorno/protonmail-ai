@@ -256,6 +256,37 @@ fn network_capture_rejects_url_drift_bad_response_and_failure() {
 }
 
 #[test]
+fn revalidated_cache_status_rejects_conversation_list_get() {
+    for after_response in [false, true] {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "list", "GET", URL))
+            .expect("track exact GET");
+        let extra = json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"list","statusCode":304u16}
+        });
+        if after_response {
+            capture
+                .observe(&response_event(
+                    "session-a",
+                    "list",
+                    URL,
+                    200,
+                    "application/json",
+                ))
+                .expect("first report 200");
+        }
+        assert_eq!(
+            capture.observe(&extra),
+            Err(ConversationListNetworkError::ResponseRejected),
+            "reject actual 304 status before or after responseReceived",
+        );
+    }
+}
+
+#[test]
 fn standalone_cache_hit_rejects_conversation_list_request() {
     for after_response in [false, true] {
         let mut capture = ConversationListNetworkCapture::new("session-a");

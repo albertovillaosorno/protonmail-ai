@@ -407,6 +407,65 @@ fn memory_cache_notification_cannot_authorize_message_get() {
 }
 
 #[test]
+fn actual_network_status_200_preserves_message_detail_capture() {
+    let mut capture = MessageDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+        .expect("track exact GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"detail","statusCode":200u16}
+        }))
+        .expect("accept actual HTTP 200");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "detail",
+            MESSAGE_URL,
+            200,
+            "application/json",
+        ))
+        .expect("accept matching 200 response");
+    capture
+        .observe(&finished_event("session-a", "detail"))
+        .expect("complete exact request");
+    assert_eq!(capture.take_finished_requests().len(), 1);
+}
+
+#[test]
+fn revalidated_cache_status_rejects_message_get() {
+    for after_response in [false, true] {
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+            .expect("track exact GET");
+        let extra = json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"detail","statusCode":304u16}
+        });
+        if after_response {
+            capture
+                .observe(&response_event(
+                    "session-a",
+                    "detail",
+                    MESSAGE_URL,
+                    200,
+                    "application/json",
+                ))
+                .expect("first report 200");
+        }
+        assert_eq!(
+            capture.observe(&extra),
+            Err(MessageDetailNetworkError::ResponseRejected),
+            "reject actual 304 status before or after responseReceived",
+        );
+    }
+}
+
+#[test]
 fn cached_message_responses_cannot_authorize_provider_metadata() {
     for (source, value) in [
         ("fromDiskCache", json!(true)),

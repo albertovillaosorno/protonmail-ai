@@ -318,3 +318,8 @@ bounded resource use.
 - Event bootstrap and polling use the same shared CDP response-provenance
   validator as list/detail/catalog reads, refusing independent service-worker
   source, Cache Storage and router hints before cursor progress is accepted.
+
+- Both core event watermark observers now reject tracked extra-info statuses
+  other than HTTP 200, including Chromium's 304 cache revalidation status
+  despite responseReceived reporting 200. Synthetic red-first tests cover
+  both notification orders and both cursor paths.
