@@ -60,6 +60,14 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- The private CDP frame reader now uses an 8 KiB scrub-on-drop read-ahead
+  cache instead of the standard buffered stream. Consumed frame bytes are
+  erased immediately, while coalesced unread replies remain available until
+  parsed or dropped. Raw frame output and outbound bytes retain their existing
+  zeroizing custody. Synthetic tests prove cache scrubbing after complete and
+  partial/deadline-failed replies and recovery after idle socket timeouts;
+  browser-side and kernel copies are outside this Rust allocation boundary.
+
 - The managed browser's flattened CDP session token now leaves `attach()` in
   `Zeroizing<String>`, and both attach/detach command parameter objects stay
   in the scrub-on-drop strict JSON guard. This prevents ordinary intermediate

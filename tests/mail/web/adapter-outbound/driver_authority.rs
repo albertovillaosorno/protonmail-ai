@@ -2023,8 +2023,8 @@ fn decoded_cdp_notifications_scrub_parsed_private_fields_on_drop() {
 
 #[test]
 fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
-    use super::{read_frame, read_frame_waiting};
-    use std::io::{BufReader, Write as _};
+    use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
+    use std::io::Write as _;
     use std::os::unix::net::UnixStream;
     use zeroize::Zeroizing;
 
@@ -2038,7 +2038,7 @@ fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
         sender
             .write_all(b"private-CDP-payload\0")
             .expect("synthetic frame");
-        let mut reader = BufReader::new(receiver);
+        let mut reader = SensitiveFrameReader::new(receiver);
         let frame = if waiting {
             read_frame_waiting(&mut reader)
                 .expect("waiting read")
@@ -2052,9 +2052,95 @@ fn raw_cdp_frames_are_owned_by_scrub_on_drop_buffers() {
 }
 
 #[test]
+fn sensitive_frame_reader_scrubs_consumed_cache_before_next_frame() {
+    use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+    use zeroize::Zeroizing;
+
+    fn require_guarded_cache(_: &Zeroizing<[u8; 8192]>) {}
+
+    let pair = UnixStream::pair().expect("synthetic CDP pipe");
+    let (mut writer, receiver) = pair;
+    writer
+        .write_all(b"first-private\0second-private\0")
+        .expect("coalesced response frames");
+    let mut reader = SensitiveFrameReader::new(receiver);
+    require_guarded_cache(&reader.cache);
+    assert_eq!(
+        &*read_frame(&mut reader).expect("first frame"),
+        b"first-private"
+    );
+    assert!(reader.cache[..reader.offset].iter().all(|byte| *byte == 0));
+    assert_eq!(
+        &*read_frame_waiting(&mut reader)
+            .expect("second waiting frame")
+            .expect("second frame"),
+        b"second-private"
+    );
+    assert!(reader.cache.iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn sensitive_frame_reader_resumes_after_empty_timeout_and_prior_consumption() {
+    use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    let pair = UnixStream::pair().expect("synthetic CDP pipe");
+    let (mut writer, receiver) = pair;
+    writer.write_all(b"first-private\0").expect("first frame");
+    receiver
+        .set_read_timeout(Some(Duration::from_millis(25)))
+        .expect("set timeout");
+    let mut reader = SensitiveFrameReader::new(receiver);
+    assert_eq!(
+        &*read_frame(&mut reader).expect("read first"),
+        b"first-private"
+    );
+    assert!(
+        read_frame_waiting(&mut reader)
+            .expect("idle timeout")
+            .is_none()
+    );
+    writer.write_all(b"second-private\0").expect("second frame");
+    assert_eq!(
+        &*read_frame_waiting(&mut reader)
+            .expect("resumed read")
+            .expect("second frame"),
+        b"second-private"
+    );
+    assert!(reader.cache.iter().all(|byte| *byte == 0));
+}
+
+#[test]
+fn sensitive_frame_reader_scrubs_cache_during_partial_deadline_failure() {
+    use super::{BrowserDriverError, SensitiveFrameReader, read_frame_waiting};
+    use std::io::Write as _;
+    use std::os::unix::net::UnixStream;
+    use std::time::Duration;
+
+    let pair = UnixStream::pair().expect("synthetic CDP pipe");
+    let (mut writer, receiver) = pair;
+    writer
+        .write_all(b"private-partial")
+        .expect("partial response");
+    receiver
+        .set_read_timeout(Some(Duration::from_millis(30)))
+        .expect("set timeout");
+    let mut reader = SensitiveFrameReader::new(receiver);
+    assert!(matches!(
+        read_frame_waiting(&mut reader),
+        Err(BrowserDriverError::PipeIo)
+    ));
+    assert!(reader.cache.iter().all(|byte| *byte == 0));
+}
+
+#[test]
 fn cdp_frame_readers_bound_total_time_not_each_byte_interval() {
-    use super::{read_frame, read_frame_waiting};
-    use std::io::{BufReader, Write as _};
+    use super::{SensitiveFrameReader, read_frame, read_frame_waiting};
+    use std::io::Write as _;
     use std::os::unix::net::UnixStream;
     use std::thread;
     use std::time::{Duration, Instant};
@@ -2077,7 +2163,7 @@ fn cdp_frame_readers_bound_total_time_not_each_byte_interval() {
             }
             let _ignored = writer.write_all(&[0]);
         });
-        let mut input = BufReader::new(reader);
+        let mut input = SensitiveFrameReader::new(reader);
         let start = Instant::now();
         let outcome = if waiting {
             read_frame_waiting(&mut input).map(|_frame| ())

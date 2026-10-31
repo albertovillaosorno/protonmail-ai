@@ -35,7 +35,7 @@ use nix::errno::Errno;
 
 use std::collections::HashSet;
 use std::fmt;
-use std::io::{BufRead as _, BufReader, Error as IoError, ErrorKind, Write as _};
+use std::io::{Error as IoError, ErrorKind, Read as _, Write as _};
 use std::mem::take;
 use std::os::fd::OwnedFd;
 use std::os::unix::net::UnixStream;
@@ -127,6 +127,7 @@ const LOCATION_EXPRESSION: &str = concat!(
 const DEVTOOLS_READ_FD: i32 = 3;
 const DEVTOOLS_WRITE_FD: i32 = 4;
 const MAX_FRAME_BYTES: usize = 1_048_576;
+const CDP_READ_CACHE_BYTES: usize = 8192;
 const MAX_UNSOLICITED: u16 = 128;
 const PIPE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_TEXT_BUSY_RETRIES: u8 = 12;
@@ -479,6 +480,55 @@ impl SortMenuActivation {
     }
 }
 
+// A standard BufReader leaves provider frame bytes in its internal allocation
+// after consume(), even though read_frame() owns a zeroizing output. Retain
+// bounded read-ahead for coalesced CDP replies, but scrub each consumed prefix
+// immediately; the remaining unread suffix is erased when the reader drops.
+struct SensitiveFrameReader {
+    stream: UnixStream,
+    cache: Zeroizing<[u8; CDP_READ_CACHE_BYTES]>,
+    offset: usize,
+    filled: usize,
+}
+
+impl SensitiveFrameReader {
+    fn new(stream: UnixStream) -> Self {
+        Self {
+            stream,
+            cache: Zeroizing::new([0; CDP_READ_CACHE_BYTES]),
+            offset: 0,
+            filled: 0,
+        }
+    }
+
+    const fn get_ref(&self) -> &UnixStream {
+        &self.stream
+    }
+
+    const fn get_mut(&mut self) -> &mut UnixStream {
+        &mut self.stream
+    }
+
+    fn fill_buf(&mut self) -> Result<&[u8], IoError> {
+        if self.offset == self.filled {
+            // consume() has already scrubbed every byte in the old cache.
+            // Reset both bounds *before* I/O: a timeout must not make the
+            // next read expose the prior (now zeroed) buffer as new data.
+            self.offset = 0;
+            self.filled = 0;
+            self.filled = self.stream.read(&mut self.cache[..])?;
+        }
+        Ok(&self.cache[self.offset..self.filled])
+    }
+
+    fn consume(&mut self, amount: usize) {
+        // Match BufRead::consume's saturation semantics for a bad caller.
+        let end = self.offset.saturating_add(amount).min(self.filled);
+        self.cache[self.offset..end].zeroize();
+        self.offset = end;
+    }
+}
+
 /// Managed Chromium process connected over private `DevTools` file descriptors.
 pub struct ManagedBrowser {
     child: Child,
@@ -488,7 +538,7 @@ pub struct ManagedBrowser {
     label_catalog_snapshot: Option<MailboxCatalogSnapshot>,
     mailbox_catalog_snapshot: Option<MailboxCatalogSnapshot>,
     next_id: u64,
-    reader: BufReader<UnixStream>,
+    reader: SensitiveFrameReader,
     writer: UnixStream,
     _lease: AutomationProfileLease,
 }
@@ -618,7 +668,7 @@ impl ManagedBrowser {
             label_catalog_snapshot: None,
             mailbox_catalog_snapshot: None,
             next_id: 1,
-            reader: BufReader::new(reader),
+            reader: SensitiveFrameReader::new(reader),
             writer,
             _lease: lease,
         };
@@ -4325,11 +4375,12 @@ fn spawn_browser(
 // sending partial bytes just before every socket timeout must not extend the
 // wall-clock budget indefinitely. Restore the caller's socket timeout even on
 // a framing error, so later cleanup uses its original deadline.
+type FrameReadResult<T> = Result<T, BrowserDriverError>;
+
 fn with_frame_deadline<T>(
-    reader: &mut BufReader<UnixStream>,
-    // jig-ignore-next-line: canonical rustfmt bounded-frame closure signature.
-    read: impl FnOnce(&mut BufReader<UnixStream>, Instant) -> Result<T, BrowserDriverError>,
-) -> Result<T, BrowserDriverError> {
+    reader: &mut SensitiveFrameReader,
+    read: impl FnOnce(&mut SensitiveFrameReader, Instant) -> FrameReadResult<T>,
+) -> FrameReadResult<T> {
     let previous = reader
         .get_ref()
         .read_timeout()
@@ -4347,7 +4398,7 @@ fn with_frame_deadline<T>(
 }
 
 fn arm_frame_deadline(
-    reader: &BufReader<UnixStream>,
+    reader: &SensitiveFrameReader,
     deadline: Instant,
 ) -> Result<(), BrowserDriverError> {
     let remaining = deadline.saturating_duration_since(Instant::now());
@@ -4385,7 +4436,7 @@ fn decode_cdp_frame(frame: &[u8]) -> Result<strict_json::SensitiveValue, Browser
 }
 
 fn read_frame_waiting(
-    reader: &mut BufReader<UnixStream>,
+    reader: &mut SensitiveFrameReader,
 ) -> Result<Option<Zeroizing<Vec<u8>>>, BrowserDriverError> {
     with_frame_deadline(reader, |reader, deadline| {
         // Raw CDP bytes may include account-scoped metadata; scrub on every
@@ -4437,9 +4488,8 @@ fn read_frame_waiting(
     })
 }
 
-fn read_frame(
-    reader: &mut BufReader<UnixStream>,
-) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
+// jig-ignore-next-line: rustfmt requires the flat private frame signature.
+fn read_frame(reader: &mut SensitiveFrameReader) -> FrameReadResult<Zeroizing<Vec<u8>>> {
     with_frame_deadline(reader, |reader, deadline| {
         // Raw CDP bytes may include account-scoped metadata; scrub on every
         // exit path, including malformed frames and deadline failures.
