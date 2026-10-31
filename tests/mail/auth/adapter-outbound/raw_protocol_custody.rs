@@ -150,6 +150,58 @@ fn accepted_auth_scope_collections_remain_scrub_on_drop() {
 }
 
 #[test]
+fn child_session_rejects_ambiguous_duplicate_private_authority_fields() {
+    let duplicate_uid = br#"{
+        "UID":"synthetic-uid", "UID":"synthetic-alias",
+        "UserID":"synthetic-user", "AccessToken":"synthetic-access",
+        "RefreshToken":"synthetic-refresh", "Scopes":[]
+    }"#;
+    let duplicate_token = br#"{
+        "UID":"synthetic-uid", "UserID":"synthetic-user",
+        "AccessToken":"synthetic-access", "AccessToken":"synthetic-alias",
+        "RefreshToken":"synthetic-refresh", "Scopes":[]
+    }"#;
+    let duplicate_payload = br#"{
+        "UID":"synthetic-uid", "UserID":"synthetic-user",
+        "AccessToken":"synthetic-access", "RefreshToken":"synthetic-refresh",
+        "Scopes":[], "Payload":"first", "Payload":"second"
+    }"#;
+    for body in [
+        duplicate_uid.as_slice(),
+        duplicate_token.as_slice(),
+        duplicate_payload.as_slice(),
+    ] {
+        assert!(serde_json::from_slice::<RawForkSession>(body).is_err());
+        assert!(ForkPoll::parse(200, body).is_err());
+    }
+}
+
+#[test]
+fn malformed_child_session_rejects_after_directly_parsed_private_authority() {
+    // Malformed trailing scope/payload fields must drop already-read bearer
+    // fields without Serde's flattened-map content buffer.
+    for malformed in [
+        br#"{
+            "UID":"synthetic-uid", "UserID":"synthetic-user",
+            "AccessToken":"synthetic-private-access",
+            "RefreshToken":"synthetic-private-refresh",
+            "Scopes":["synthetic-private-scope",42]
+        }"#
+        .as_slice(),
+        br#"{
+            "UID":"synthetic-uid", "UserID":"synthetic-user",
+            "AccessToken":"synthetic-private-access",
+            "RefreshToken":"synthetic-private-refresh",
+            "Scopes":["scope"], "Payload":42
+        }"#
+        .as_slice(),
+    ] {
+        assert!(serde_json::from_slice::<RawForkSession>(malformed).is_err());
+        assert!(ForkPoll::parse(200, malformed).is_err());
+    }
+}
+
+#[test]
 fn malformed_scope_arrays_fail_after_partial_sensitive_decode() {
     // A later invalid scope must not turn a previously parsed private scope
     // back into an unguarded temporary vector during the error path.
@@ -175,11 +227,11 @@ fn raw_child_session_and_decrypted_password_fields_are_zeroizing() {
         }"#,
     )
     .expect("synthetic completed authority must deserialize");
-    requires_zeroizing_string(&child.auth.uid);
-    requires_zeroizing_string(child.auth.user_id.as_ref().expect("bound user"));
-    requires_zeroizing_string(&child.auth.access_token);
-    requires_zeroizing_string(&child.auth.refresh_token);
-    requires_zeroizing_scopes(&child.auth.scopes);
+    requires_zeroizing_string(&child.uid);
+    requires_zeroizing_string(child.user_id.as_ref().expect("bound user"));
+    requires_zeroizing_string(&child.access_token);
+    requires_zeroizing_string(&child.refresh_token);
+    requires_zeroizing_scopes(&child.scopes);
     requires_zeroizing_string(child.payload.as_ref().expect("encoded payload"));
 
     let plaintext: RawForkPayload =

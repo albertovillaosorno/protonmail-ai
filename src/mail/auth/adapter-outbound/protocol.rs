@@ -573,11 +573,11 @@ impl ForkPoll {
         }
         let parsed = serde_json::from_slice::<RawForkSession>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
-        let user_id = raw.auth.user_id.ok_or(ProtocolError::MissingUserId)?;
-        if raw.auth.uid.is_empty()
+        let user_id = raw.user_id.ok_or(ProtocolError::MissingUserId)?;
+        if raw.uid.is_empty()
             || user_id.is_empty()
-            || raw.auth.access_token.is_empty()
-            || raw.auth.refresh_token.is_empty()
+            || raw.access_token.is_empty()
+            || raw.refresh_token.is_empty()
         {
             return Err(ProtocolError::IncompleteAuthority);
         }
@@ -589,11 +589,11 @@ impl ForkPoll {
             .transpose()?;
 
         Ok(Self::Complete(ForkSession {
-            uid: raw.auth.uid,
+            uid: raw.uid,
             user_id,
-            access_token: SecretText::new(raw.auth.access_token),
-            refresh_token: SecretText::new(raw.auth.refresh_token),
-            scopes: raw.auth.scopes,
+            access_token: SecretText::new(raw.access_token),
+            refresh_token: SecretText::new(raw.refresh_token),
+            scopes: raw.scopes,
             payload,
         }))
     }
@@ -906,11 +906,22 @@ struct RawAuth {
     scopes: Zeroizing<Vec<String>>,
 }
 
+// Avoid serde(flatten): Serde buffers a flattened map in intermediate
+// content before visiting its fields, briefly owning unguarded authority
+// strings. Read each child-session field directly into zeroizing storage.
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawForkSession {
-    #[serde(flatten)]
-    auth: RawAuth,
+    #[serde(rename = "UID", deserialize_with = "read_sensitive")]
+    uid: Zeroizing<String>,
+    #[serde(rename = "UserID", default, deserialize_with = "read_opt_secret")]
+    user_id: Option<Zeroizing<String>>,
+    #[serde(deserialize_with = "read_sensitive")]
+    access_token: Zeroizing<String>,
+    #[serde(deserialize_with = "read_sensitive")]
+    refresh_token: Zeroizing<String>,
+    #[serde(deserialize_with = "read_sensitive_scopes")]
+    scopes: Zeroizing<Vec<String>>,
     #[serde(default, deserialize_with = "read_opt_secret")]
     payload: Option<Zeroizing<String>>,
 }
