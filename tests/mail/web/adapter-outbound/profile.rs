@@ -422,10 +422,8 @@ fn visible_browser_cannot_read_cli_stdin_or_write_cli_output_channels() {
     assert_eq!(captured.as_deref(), Some(""), "browser must receive EOF");
     // The browser itself records its live stdin fd. This proves detachment
     // even if the CLI's pipe closed before the attempted marker write.
-    assert_eq!(
-        fs::read_to_string(&fd_capture).expect("browser stdin descriptor evidence"),
-        "/dev/null\n"
-    );
+    let descriptor = fs::read_to_string(&fd_capture).expect("read fd0");
+    assert_eq!(descriptor, "/dev/null\n");
     let stdout = String::from_utf8(output.stdout).expect("UTF-8 CLI stdout");
     let stderr = String::from_utf8(output.stderr).expect("UTF-8 CLI stderr");
     assert!(!stdout.contains("browser-stdout-private-marker"));

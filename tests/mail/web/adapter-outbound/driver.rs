@@ -2185,6 +2185,9 @@ fn invalid_provider_target_attachment_metadata_is_not_authority() {
     }
 }
 
+const PROVIDER_TEST_HOSTS: [(&str, &str); 2] =
+    [("mail", "mail.proton.me"), ("account", "account.proton.me")];
+
 #[test]
 fn provider_prerender_or_malformed_subtype_is_not_visible_page_authority() {
     use serde_json::json;
@@ -2195,7 +2198,7 @@ fn provider_prerender_or_malformed_subtype_is_not_visible_page_authority() {
         ("number", json!(1u8)),
         ("object", json!({"kind":"prerender"})),
     ] {
-        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+        for (kind, host) in PROVIDER_TEST_HOSTS {
             let root = test_root(&format!("{kind}-subtype-{label}"));
             fs::create_dir_all(&root).expect("create synthetic root");
             let targets = json!([{
@@ -2204,7 +2207,8 @@ fn provider_prerender_or_malformed_subtype_is_not_visible_page_authority() {
             }]);
             let browser = fake_browser(&root, &targets.to_string(), host);
             let browser_plan = plan(&root, &browser);
-            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            let launched = ManagedBrowser::launch(&browser_plan);
+            let mut managed = launched.expect("CDP");
             assert_eq!(
                 managed.provider_page(),
                 Err(BrowserDriverError::Protocol),
@@ -2227,7 +2231,7 @@ fn popup_or_child_provider_target_cannot_be_selected_as_root_page() {
         ("opener-can-access", json!({"canAccessOpener":true})),
         ("invalid-access", json!({"canAccessOpener":null})),
     ] {
-        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+        for (kind, host) in PROVIDER_TEST_HOSTS {
             let root = test_root(&format!("{kind}-{label}"));
             fs::create_dir_all(&root).expect("create synthetic root");
             let mut target = json!({
@@ -2238,9 +2242,11 @@ fn popup_or_child_provider_target_cannot_be_selected_as_root_page() {
                 .as_object_mut()
                 .expect("fixture object")
                 .extend(metadata.as_object().expect("metadata object").clone());
-            let browser = fake_browser(&root, &json!([target]).to_string(), host);
+            let catalog = json!([target]).to_string();
+            let browser = fake_browser(&root, &catalog, host);
             let browser_plan = plan(&root, &browser);
-            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            let launched = ManagedBrowser::launch(&browser_plan);
+            let mut managed = launched.expect("CDP");
             assert_eq!(
                 managed.provider_page(),
                 Err(BrowserDriverError::Protocol),
@@ -2261,7 +2267,7 @@ fn unexpected_provider_target_metadata_cannot_establish_selected_page() {
         ("numeric-title", json!({"title":7u8})),
         ("oversized-title", json!({"title":"x".repeat(16_385)})),
     ] {
-        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+        for (kind, host) in PROVIDER_TEST_HOSTS {
             let root = test_root(&format!("{kind}-{label}-target-metadata"));
             fs::create_dir_all(&root).expect("create synthetic root");
             let mut target = json!({
@@ -2273,9 +2279,11 @@ fn unexpected_provider_target_metadata_cannot_establish_selected_page() {
                 .as_object_mut()
                 .expect("fixture object")
                 .extend(extra.as_object().expect("metadata object").clone());
-            let browser = fake_browser(&root, &json!([target]).to_string(), host);
+            let catalog = json!([target]).to_string();
+            let browser = fake_browser(&root, &catalog, host);
             let browser_plan = plan(&root, &browser);
-            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            let launched = ManagedBrowser::launch(&browser_plan);
+            let mut managed = launched.expect("CDP");
             assert_eq!(
                 managed.provider_page(),
                 Err(BrowserDriverError::Protocol),
@@ -2508,7 +2516,11 @@ fn unrelated_well_typed_browser_targets_remain_ignorable() {
     let root = test_root("well-typed-other-targets");
     fs::create_dir_all(&root).expect("create fake browser profile");
     let targets = json!([
-        {"type":"service_worker","targetId":"worker-0","futureMetadata":"ignored"},
+        {
+            "type":"service_worker",
+            "targetId":"worker-0",
+            "futureMetadata":"ignored"
+        },
         {"type":"shared_worker","targetId":"worker-1"},
         // jig-ignore-next-line: canonical rustfmt line.
         {"targetId":"mail-1","type":"page","url":"https://mail.proton.me/u/0/inbox"}

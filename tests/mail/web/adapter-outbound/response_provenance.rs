@@ -126,7 +126,7 @@ fn unknown_response_source_markers_cannot_prove_direct_http() {
         response[name] = marker;
         assert!(
             !uncached_provider_response(&response),
-            "unreviewed response source marker {name} must not prove direct HTTP"
+            "unreviewed source marker {name} must not prove direct HTTP"
         );
     }
     assert!(!uncached_provider_response(&json!(null)));
