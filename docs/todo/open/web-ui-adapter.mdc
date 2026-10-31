@@ -291,6 +291,15 @@ web application without requiring Bridge or a third-party direct API identity.
   as it rejects remote handles and unserializable primitives. Chromium is
   only asked for one bounded by-value result; no browser account is used.
 
+## Restrict by-value Runtime object descriptors
+
+- Red-first synthetic CDP origins accepted unreviewed `RemoteObject` keys and
+  malformed `className`/`description` metadata while proving Mail origin.
+  Return-by-value results now admit only audited descriptors with bounded
+  optional string metadata; a valid `Object` class/description still works.
+  Unexpected metadata cannot silently introduce a second browser-owned data
+  channel alongside the static origin projection.
+
 ## Reject unsolicited runtime object previews
 
 - Red-first synthetic browser replies carried a plausible trusted-origin

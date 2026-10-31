@@ -1803,6 +1803,12 @@ fn by_value_runtime_evidence_rejects_conflicting_remote_object_authority() {
             "runtime-unrequested-custom-preview",
             r#""customPreview":{"header":"private"},"#,
         ),
+        (
+            "runtime-unknown-property",
+            r#""futureOwnerContext":{"private":true},"#,
+        ),
+        ("runtime-class-name-null", r#""className":null,"#),
+        ("runtime-description-number", r#""description":42,"#),
     ] {
         let root = test_root(label);
         fs::create_dir_all(&root).expect("create synthetic profile");
@@ -1824,6 +1830,71 @@ fn by_value_runtime_evidence_rejects_conflicting_remote_object_authority() {
         drop(driver);
         cleanup(&root);
     }
+}
+
+#[test]
+fn excessive_runtime_object_descriptions_cannot_prove_origin() {
+    use serde_json::json;
+
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    for (label, field, length) in [
+        ("large-class-name", "className", 513),
+        ("large-description", "description", 4097),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_browser(&root, targets, "mail.proton.me");
+        let script = fs::read_to_string(&browser).expect("read fixture");
+        let type_field = r#""type":"object","#;
+        let extension = format!(r#""{field}":{},"#, json!("X".repeat(length)));
+        assert!(script.contains(type_field));
+        install_script(
+            &browser,
+            script.replacen(type_field, &format!("{type_field}{extension}"), 1),
+        )
+        .expect("install excessive remote descriptor");
+        let browser_plan = plan(&root, &browser);
+        let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+        let page = driver.provider_page().expect("discover Mail page");
+        assert_eq!(
+            driver.verify_provider_origin(&page),
+            Err(BrowserDriverError::Protocol)
+        );
+        drop(driver);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn runtime_by_value_accepts_documented_string_metadata() {
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    let root = test_root("runtime-normal-object-descriptors");
+    fs::create_dir_all(&root).expect("create synthetic profile");
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let script = fs::read_to_string(&browser).expect("read fixture");
+    let remote_type = r#""type":"object","#;
+    let safe = concat!(
+        r#""type":"object","className":"Object","#,
+        r#""description":"Object","#
+    );
+    assert!(script.contains(remote_type));
+    install_script(&browser, script.replacen(remote_type, safe, 1))
+        .expect("install standard RemoteObject metadata");
+    let browser_plan = plan(&root, &browser);
+    let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = driver.provider_page().expect("discover Mail page");
+    assert_eq!(
+        driver.verify_provider_origin(&page),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(driver);
+    cleanup(&root);
 }
 
 #[test]

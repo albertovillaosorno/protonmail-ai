@@ -912,6 +912,27 @@ impl ManagedBrowser {
             .filter(|remote| remote.is_object())
             .ok_or(BrowserDriverError::Protocol)?;
         let value = remote.get("value").ok_or(BrowserDriverError::Protocol)?;
+        // A by-value result must use the audited RemoteObject fields only.
+        // Unknown descriptors can carry private secondary representations,
+        // even if the returned JSON location remains plausible.
+        let fields = remote.as_object().ok_or(BrowserDriverError::Protocol)?;
+        let allowed = ["type", "subtype", "className", "description", "value"];
+        if fields
+            .keys()
+            .any(|field| !allowed.contains(&field.as_str()))
+        {
+            return Err(BrowserDriverError::Protocol);
+        }
+        let typed_descriptions = [("className", 512), ("description", 4096)];
+        if typed_descriptions.iter().any(|(field, maximum)| {
+            fields.get(*field).is_some_and(|value| {
+                value
+                    .as_str()
+                    .is_none_or(|description| description.len() > *maximum)
+            })
+        }) {
+            return Err(BrowserDriverError::Protocol);
+        }
         // By-value evidence cannot simultaneously supply remote handles,
         // alternate serializations, or unrequested object previews. Such
         // metadata can contradict the trusted JSON or carry private values.
