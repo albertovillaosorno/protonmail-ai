@@ -907,15 +907,38 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
     }
     for (resource, initiator) in [
         ("Fetch", "script"),
-        ("XHR", "parser"),
+        ("XHR", "script"),
         ("Fetch", "other"),
-        ("XHR", "SignedExchange"),
+        ("XHR", "other"),
     ] {
         let mut event = ordinary.clone();
         event["params"]["type"] = json!(resource);
         event["params"]["initiator"]["type"] = json!(initiator);
         assert!(non_speculative_cdp_get(&event));
     }
+}
+
+#[test]
+fn parser_and_signed_exchange_initiators_cannot_authorize_mail_ajax() {
+    // A parser or signed exchange can fetch a resource, but it is not an
+    // application-initiated XHR/Fetch even if that independent type is set.
+    let ordinary = json!({"params": {"type":"Fetch",
+        "initiator":{"type":"script"},
+        "request":{"method":"GET", "isLinkPreload":false}}});
+    assert!(non_speculative_cdp_get(&ordinary));
+    let invalid_initiators = [("XHR", "parser"), ("Fetch", "SignedExchange")];
+    for (resource, initiator) in invalid_initiators {
+        let mut event = ordinary.clone();
+        event["params"]["type"] = json!(resource);
+        event["params"]["initiator"]["type"] = json!(initiator);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "non-AJAX initiator {initiator} must not prove active Mail read"
+        );
+    }
+    let mut other = ordinary;
+    other["params"]["initiator"]["type"] = json!("other");
+    assert!(non_speculative_cdp_get(&other));
 }
 
 #[test]

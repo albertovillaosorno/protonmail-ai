@@ -2671,3 +2671,10 @@ web application without requiring Bridge or a third-party direct API identity.
   quotes in otherwise plausible JSON MIME metadata. Safe extension tokens,
   quoted values, and canonical UTF-8 charset remain supported. The check
   runs before any passive response body read and uses no account data.
+
+- Passive Mail XHR/Fetch evidence now rejects `parser` and `SignedExchange`
+  CDP request initiators, even when the separate resource type claims Fetch
+  or XHR. Red-first shared and message-list capture fixtures previously
+  admitted these non-application-initiated requests. Script and unclassified
+  `other` initiators remain compatible; omission remains legacy-compatible.
+  This validation only inspects synthetic source metadata, not mailbox data.

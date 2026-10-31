@@ -128,6 +128,29 @@ fn redirected_into_exact_message_list_get_is_not_fresh_evidence() {
 }
 
 #[test]
+fn parser_or_signed_exchange_cannot_initiate_passive_mail_ajax_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let invalid_initiators = [("XHR", "parser"), ("Fetch", "SignedExchange")];
+    for (resource, initiator) in invalid_initiators {
+        let event = json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"non-ajax-list", "type":resource,
+                "initiator":{"type":initiator},
+                "request":{"method":"GET", "url":URL}}
+        });
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "non-AJAX initiator {initiator} cannot authorize a list read"
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn speculative_event_initiator_hint_cannot_authorize_mail_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

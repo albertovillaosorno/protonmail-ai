@@ -418,9 +418,12 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     let normal_initiator = match params.get("initiator") {
         None => true,
         Some(Value::Object(initiator)) => {
+            // Parser and SignedExchange initiators describe resource loading,
+            // not a Mail application XHR/Fetch. A separate Fetch/XHR resource
+            // hint cannot override that contradictory initiator evidence.
             let normal_type = matches!(
                 initiator.get("type").and_then(Value::as_str),
-                Some("parser" | "script" | "SignedExchange" | "other")
+                Some("script" | "other")
             );
             let normal_hints = !initiator
                 .keys()
