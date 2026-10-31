@@ -76,6 +76,11 @@ bounded resource use.
   synthetic regressions prove malformed accounts never create a scope, while
   adapter and generation matching rules remain unchanged.
 
+- Cursor scope account identity now refuses Unicode noncharacters in addition
+  to hidden-format aliases. Synthetic U+FDD0/U+FFFE/U+10FFFF scopes failed
+  red-first, then reject as `MalformedScope` without normalizing ordinary
+  printable Unicode or changing adapter/generation matching.
+
 ## Watermark input safety
 
 - Cursor-bound `EventID` values are now rejected when they contain ASCII

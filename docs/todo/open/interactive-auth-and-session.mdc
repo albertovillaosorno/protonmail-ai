@@ -196,6 +196,11 @@ account credentials. The primary web UI login remains a separate P1 path.
   retaining provider authority. Positive synthetic fixtures preserve normal
   printable Unicode and the exact byte ceiling; this does not permit live auth.
 
+- Completed-fork account IDs now also refuse Unicode noncharacters, which
+  previously passed the invisible-alias guard despite having no meaningful
+  interchange identity. Red-first U+FDD0/U+FFFE/U+10FFFF fixtures now reject
+  malformed authority while accented letters and emoji remain accepted.
+
 ## Additional invisible account-alias rejection
 
 - A second red-first account-binding check found `UserID` still accepted

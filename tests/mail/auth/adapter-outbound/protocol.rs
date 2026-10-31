@@ -402,6 +402,9 @@ fn completed_fork_rejects_ambiguous_account_binding_user_ids() {
         "synthetic\u{3164}user",
         "synthetic\u{fe0f}user",
         "synthetic\u{e0020}user",
+        "synthetic\u{fdd0}user",
+        "synthetic\u{fffe}user",
+        "synthetic\u{10ffff}user",
         oversized.as_str(),
     ];
     for user_id in invalid {

@@ -1013,9 +1013,21 @@ fn safe_account_binding_id(id: &str) -> bool {
 // Account identifiers are not display names. Exclude default-ignorable and
 // invisible formatting aliases that can impersonate a different account even
 // when ordinary whitespace/control checks pass. Keep normal Unicode letters.
+// Account identity must not contain code points with no interchange meaning.
+// The exact scalar conversion is lossless; stable const From<char> is absent.
+#[expect(
+    clippy::as_conversions,
+    reason = "lossless char to u32 conversion in a stable const predicate"
+)]
+const fn is_account_noncharacter(character: char) -> bool {
+    let codepoint = character as u32;
+    matches!(codepoint, 0xfdd0..=0xfdef) || codepoint & 0xfffe == 0xfffe
+}
+
 const fn unsafe_account_binding_character(character: char) -> bool {
     character.is_control()
         || character.is_whitespace()
+        || is_account_noncharacter(character)
         || matches!(
             character,
             '\u{00ad}' | '\u{034f}' | '\u{0600}'..='\u{0605}'

@@ -126,6 +126,9 @@ fn cursor_account_rejects_ambiguous_identity_without_normalizing_unicode() {
         "account\u{2800}",
         "account\u{fe0f}",
         "account\u{e0100}",
+        "account\u{fdd0}",
+        "account\u{fffe}",
+        "account\u{10ffff}",
     ] {
         assert_eq!(
             EventCursorScope::new(bad, "web", "generation"),

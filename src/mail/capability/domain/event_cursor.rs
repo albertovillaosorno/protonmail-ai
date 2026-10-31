@@ -240,9 +240,21 @@ const fn validate_component(value: &str) -> Result<(), EventCursorBindingError> 
 // Cursor-bound accounts must not permit visually hidden identity aliases.
 // Keep printable Unicode while excluding default-ignorable format characters
 // already refused by the offline session account-binding boundary.
+// Account identity must not contain code points with no interchange meaning.
+// The exact scalar conversion is lossless; stable const From<char> is absent.
+#[expect(
+    clippy::as_conversions,
+    reason = "lossless char to u32 conversion in a stable const predicate"
+)]
+const fn is_account_noncharacter(character: char) -> bool {
+    let codepoint = character as u32;
+    matches!(codepoint, 0xfdd0..=0xfdef) || codepoint & 0xfffe == 0xfffe
+}
+
 const fn ambiguous_account_character(character: char) -> bool {
     character.is_control()
         || character.is_whitespace()
+        || is_account_noncharacter(character)
         || matches!(
             character,
             '\u{00ad}' | '\u{034f}' | '\u{0600}'..='\u{0605}'
