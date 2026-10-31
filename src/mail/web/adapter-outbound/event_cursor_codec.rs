@@ -33,6 +33,7 @@
 
 use crate::strict_json;
 use std::fmt;
+use std::mem::take;
 
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{AeadInOut as _, KeyInit as _};
@@ -51,6 +52,30 @@ const CURSOR_AAD_PREFIX: &[u8] = b"protonmail-ai:web-event-cursor:v1:";
 const CURSOR_KEY_BYTES: usize = 32;
 const CURSOR_NONCE_BYTES: usize = 12;
 const MAX_ENCODED_CURSOR_BYTES: usize = 4096;
+
+// Preflight the complete public cursor length before allocating an encoded
+// bearer token. Base64 appends directly into exactly pre-sized guarded text.
+fn encode_guarded_token(
+    generation: &str,
+    body: &[u8],
+) -> Result<Zeroizing<String>, WebEventCursorCodecError> {
+    let error = WebEventCursorCodecError::EncodingFailed;
+    let encoded_len = base64::encoded_len(body.len(), false).ok_or(error)?;
+    let capacity = CURSOR_VERSION
+        .len()
+        .checked_add(generation.len())
+        .and_then(|len| len.checked_add(2))
+        .and_then(|len| len.checked_add(encoded_len))
+        .filter(|len| *len <= MAX_ENCODED_CURSOR_BYTES)
+        .ok_or(error)?;
+    let mut token = Zeroizing::new(String::with_capacity(capacity));
+    token.push_str(CURSOR_VERSION);
+    token.push('.');
+    token.push_str(generation);
+    token.push('.');
+    URL_SAFE_NO_PAD.encode_string(body, &mut token);
+    Ok(token)
+}
 
 #[derive(serde::Serialize)]
 struct BorrowedEventCursorPayload<'scope> {
@@ -143,14 +168,11 @@ impl WebEventCursorCodec {
         let mut body = Vec::with_capacity(capacity);
         body.extend_from_slice(&nonce_bytes);
         body.extend_from_slice(&payload_bytes);
-        let token = format!(
-            "{CURSOR_VERSION}.{generation}.{}",
-            URL_SAFE_NO_PAD.encode(body)
-        );
-        if token.len() > MAX_ENCODED_CURSOR_BYTES {
-            return Err(WebEventCursorCodecError::EncodingFailed);
-        }
-        Ok(token)
+        // The token itself is a resumable capability. Avoid an unguarded
+        // intermediate base64 String and keep rejected output scrub-on-drop.
+        // The successful allocation transfers directly to the caller.
+        let mut token = encode_guarded_token(generation, &body)?;
+        Ok(take(&mut *token))
     }
 
     /// Authenticates one token and restores its exact scoped provider state.

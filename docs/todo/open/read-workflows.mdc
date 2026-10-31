@@ -25,6 +25,14 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Encrypted event/catalog cursor encoders now assemble final bearer-token
+  text directly inside one pre-sized zeroizing String, not through unguarded
+  temporary Base64 and formatted Strings. A checked encoded-length preflight
+  rejects oversized tokens before allocation; successful tokens transfer their
+  existing allocation to the caller without cloning. Synthetic private type,
+  framing, and oversized-token tests preserve cursor compatibility. Public
+  caller-owned token strings remain outside the codec's drop-time custody.
+
 - Event and catalog cursor JSON serialization now uses a bounded-growth
   zeroizing writer that erases earlier plaintext allocations before replacing
   capacity. Both codecs reserve the AES-GCM tag's 16 bytes before encrypting

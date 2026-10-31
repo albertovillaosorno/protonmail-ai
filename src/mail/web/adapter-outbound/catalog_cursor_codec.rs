@@ -32,6 +32,7 @@
 
 use crate::strict_json;
 use std::fmt;
+use std::mem::take;
 
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{AeadInOut as _, KeyInit as _};
@@ -53,6 +54,30 @@ const MAX_ACCOUNT_BYTES: usize = 512;
 const GENERATION_TAG_CHARS: usize = 32;
 const SNAPSHOT_TAG_CHARS: usize = 32;
 const WEB_ADAPTER_ID: &str = "proton-mail-web-v1";
+
+// Preflight the complete public cursor length before allocating an encoded
+// bearer token. Base64 appends directly into exactly pre-sized guarded text.
+fn encode_guarded_token(
+    generation: &str,
+    body: &[u8],
+) -> Result<Zeroizing<String>, WebCatalogCursorCodecError> {
+    let error = WebCatalogCursorCodecError::EncodingFailed;
+    let encoded_len = base64::encoded_len(body.len(), false).ok_or(error)?;
+    let capacity = CURSOR_VERSION
+        .len()
+        .checked_add(generation.len())
+        .and_then(|len| len.checked_add(2))
+        .and_then(|len| len.checked_add(encoded_len))
+        .filter(|len| *len <= MAX_ENCODED_CURSOR_BYTES)
+        .ok_or(error)?;
+    let mut token = Zeroizing::new(String::with_capacity(capacity));
+    token.push_str(CURSOR_VERSION);
+    token.push('.');
+    token.push_str(generation);
+    token.push('.');
+    URL_SAFE_NO_PAD.encode_string(body, &mut token);
+    Ok(token)
+}
 
 #[derive(serde::Serialize)]
 struct BorrowedCatalogCursorPayload<'scope> {
@@ -130,14 +155,11 @@ impl WebCatalogCursorCodec {
         let mut body = Vec::with_capacity(body_capacity);
         body.extend_from_slice(&nonce_bytes);
         body.extend_from_slice(&payload_bytes);
-        let token = format!(
-            "{CURSOR_VERSION}.{generation}.{}",
-            URL_SAFE_NO_PAD.encode(body)
-        );
-        if token.len() > MAX_ENCODED_CURSOR_BYTES {
-            return Err(WebCatalogCursorCodecError::EncodingFailed);
-        }
-        Ok(token)
+        // The token itself is a resumable capability. Avoid an unguarded
+        // intermediate base64 String and keep rejected output scrub-on-drop.
+        // The successful allocation transfers directly to the caller.
+        let mut token = encode_guarded_token(generation, &body)?;
+        Ok(take(&mut *token))
     }
 
     pub(super) fn decode(

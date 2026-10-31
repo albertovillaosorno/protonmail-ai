@@ -30,11 +30,14 @@
 
 //! Checks guarded decryption for catalog continuation cursors.
 
-use super::encrypt_into_guarded;
 use super::{CURSOR_KEY_BYTES, CURSOR_NONCE_BYTES, decrypt_into_guarded};
+use super::{CURSOR_VERSION, MAX_ENCODED_CURSOR_BYTES};
+use super::{encode_guarded_token, encrypt_into_guarded};
 use aes_gcm::aead::consts::U12;
 use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use zeroize::Zeroizing;
 
 #[test]
@@ -82,4 +85,23 @@ fn authenticated_encryption_never_copies_plaintext_to_unprotected_output() {
         // jig-ignore-next-line: canonical guarded decrypt assertion.
         decrypt_into_guarded(&cipher, &nonce, aad, &plaintext).expect("recover synthetic cursor");
     assert_eq!(opened.as_slice(), b"private synthetic catalog state");
+}
+
+#[test]
+fn opaque_cursor_token_uses_guarded_storage_without_extra_base64_copy() {
+    let opaque_bytes = [0u8, 1, 2, 253, 254, 255];
+    let encoded = encode_guarded_token("0123456789abcdef", &opaque_bytes);
+    let guarded: Zeroizing<String> = encoded.expect("synthetic cursor token");
+    let expected = format!(
+        "{CURSOR_VERSION}.0123456789abcdef.{}",
+        URL_SAFE_NO_PAD.encode(opaque_bytes)
+    );
+    assert_eq!(guarded.as_str(), expected);
+    assert!(guarded.capacity() >= guarded.len());
+}
+
+#[test]
+fn oversized_cursor_token_is_refused_before_encoding() {
+    let oversized = vec![0xadu8; MAX_ENCODED_CURSOR_BYTES];
+    assert!(encode_guarded_token("0123456789abcdef", &oversized).is_err());
 }
