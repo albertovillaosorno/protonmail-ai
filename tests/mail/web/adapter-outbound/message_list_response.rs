@@ -524,6 +524,66 @@ fn refined_wire_headers_cannot_contradict_passive_message_list_get() {
 }
 
 #[test]
+fn raw_refined_request_headers_cannot_launder_mail_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let path = URL
+        .strip_prefix("https://mail.proton.me")
+        .expect("Mail URL");
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"raw-refined", "type":"Fetch",
+            "request":{"method":"GET", "url":URL}}
+    });
+    let valid_raw =
+        // jig-ignore-next-line: synthetic HTTP/1 wire fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nCookie: private=test\r\n\r\n");
+    for wire in [
+        format!("POST {path} HTTP/1.1\r\nHost: mail.proton.me\r\n\r\n"),
+        format!("GET {path} HTTP/1.1\r\nHost: foreign.invalid\r\n\r\n"),
+        format!(
+            // jig-ignore-next-line: synthetic HTTP/1 wire fixture.
+            "GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nTransfer-Encoding: chunked\r\n\r\n"
+        ),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture.observe(&request).expect("tracked Mail GET");
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"raw-refined", "type":"Fetch",
+                "response":{"url":URL, "status":200u16,
+                    "mimeType":"application/json",
+                    "requestHeaders":{"Host":"mail.proton.me"},
+                    "requestHeadersText":wire}}
+        });
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture.observe(&request).expect("tracked Mail GET");
+    let response = json!({
+        "sessionId":"session-1", "method":"Network.responseReceived",
+        "params":{"requestId":"raw-refined", "type":"Fetch",
+            "response":{"url":URL, "status":200u16,
+                "mimeType":"application/json",
+                "requestHeaders":{"Host":"mail.proton.me"},
+                "requestHeadersText":valid_raw}}
+    });
+    capture.observe(&response).expect("consistent raw wire GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.loadingFinished",
+            "params":{"requestId":"raw-refined"}
+        }))
+        .expect("finish matching request");
+    assert_eq!(capture.take_finished_request_ids(), ["raw-refined"]);
+}
+
+#[test]
 fn conflicting_response_extra_content_type_rejects_mail_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

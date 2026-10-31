@@ -927,6 +927,53 @@ fn refined_wire_request_headers_must_confirm_passive_get_provenance() {
 }
 
 #[test]
+fn raw_http_request_headers_must_confirm_bodyless_mail_get() {
+    let url = "https://mail.proton.me/api/mail/v4/messages?Page=0";
+    let path = "/api/mail/v4/messages?Page=0";
+    let safe_raw =
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nCookie: opaque=private\r\n\r\n");
+    let original = json!({"url":url, "requestHeaders":{
+        "Host":"mail.proton.me", "Accept":"application/json"},
+        "requestHeadersText":safe_raw});
+    assert!(uncached_provider_response(&original));
+    let mut absent = original.clone();
+    absent
+        .as_object_mut()
+        .expect("response object")
+        .remove("requestHeadersText");
+    assert!(uncached_provider_response(&absent));
+
+    for raw in [
+        format!("POST {path} HTTP/1.1\r\nHost: mail.proton.me\r\n\r\n"),
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        String::from("GET /api/core/v4/users HTTP/1.1\r\nHost: mail.proton.me\r\n\r\n"),
+        format!("GET {path} HTTP/1.1\r\nHost: foreign.invalid\r\n\r\n"),
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nContent-Length: 5\r\n\r\n"),
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nPurpose: prefetch\r\n\r\n"),
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nSec-Fetch-Mode: navigate\r\n\r\n"),
+        // jig-ignore-next-line: synthetic HTTP/1 header fixture.
+        format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nHost: mail.proton.me\r\n\r\n"),
+        format!("GET {path} HTTP/1.1\nHost: mail.proton.me\n\n"),
+    ] {
+        let mut swapped = original.clone();
+        swapped["requestHeadersText"] = json!(raw);
+        assert!(
+            !uncached_provider_response(&swapped),
+            "contradictory raw request"
+        );
+    }
+    for invalid in [json!(null), json!(12i32), json!([]), json!("")] {
+        let mut swapped = original.clone();
+        swapped["requestHeadersText"] = invalid;
+        assert!(!uncached_provider_response(&swapped));
+    }
+}
+
+#[test]
 fn response_event_resource_type_must_be_a_known_active_read() {
     let ordinary = json!({
         "params": {"type": "Fetch", "response": {

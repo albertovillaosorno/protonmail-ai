@@ -2591,3 +2591,13 @@ web application without requiring Bridge or a third-party direct API identity.
   Set-Cookie or other private header contents are inspected only as borrowed
   text and never retained; message-list lifecycle tests cover either event
   order without any browser, account or provider request.
+
+- `Network.Response.requestHeadersText` can report raw HTTP/1 request-line and
+  header bytes that contradict the parsed `requestHeaders` map. A red-first
+  synthetic response accepted a POST or foreign Host under a claimed canonical
+  Mail GET. The shared response predicate now validates a bounded raw GET and
+  exact observed API path, first-party Host, Fetch Metadata, bodyless framing,
+  and non-speculative intent before consuming read evidence. This uses borrowed
+  text without retaining private Cookie or authorization values; message-list
+  capture regression tests cover rejection and a valid raw request, without
+  contacting Proton or any browser.

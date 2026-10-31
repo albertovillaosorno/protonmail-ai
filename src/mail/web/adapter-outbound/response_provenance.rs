@@ -584,16 +584,118 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
     })
 }
 
+// CDP also exposes raw HTTP/1 request headers as transmitted on the wire.
+// Structured requestHeaders may contradict that text: validate the actual
+// request line and first-party read metadata without storing private cookies.
+fn raw_mail_get_headers(text: &str, url: Option<&str>) -> bool {
+    if text.len() > 64 * 1024 {
+        return false;
+    }
+    let observed_url = url.unwrap_or_default();
+    let mail_path = observed_url.strip_prefix("https://mail.proton.me");
+    let Some(url_path) = mail_path else {
+        return false;
+    };
+    if url_path.len() > 16 * 1024
+        || !url_path.starts_with("/api/")
+        || !url_path
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() && byte != b'#')
+    {
+        return false;
+    }
+    let Some(text) = text.strip_suffix("\r\n\r\n") else {
+        return false;
+    };
+    let mut lines = text.split("\r\n");
+    let mut request_line = lines.next().unwrap_or_default().split(' ');
+    if request_line.next() != Some("GET")
+        || request_line.next() != Some(url_path)
+        || !matches!(request_line.next(), Some("HTTP/1.0" | "HTTP/1.1"))
+        || request_line.next().is_some()
+    {
+        return false;
+    }
+    let singletons = [
+        "Host",
+        "Origin",
+        "Referer",
+        "Sec-Fetch-Mode",
+        "Sec-Fetch-Dest",
+        "Sec-Fetch-Site",
+        "Content-Length",
+    ];
+    let mut seen = [false; 7];
+    for line in lines {
+        let Some((name, value)) = line.split_once(':') else {
+            return false;
+        };
+        if name.starts_with(':') || !cdp_header_name_is_token(name) {
+            return false;
+        }
+        let value = value.trim_ascii();
+        if !value
+            .chars()
+            .all(|character| character == '\t' || !character.is_control())
+        {
+            return false;
+        }
+        for (index, singleton) in singletons.iter().enumerate() {
+            if name.eq_ignore_ascii_case(singleton) {
+                if seen[index] {
+                    return false;
+                }
+                seen[index] = true;
+            }
+        }
+        if speculative_purpose_header(name)
+            || method_override_header(name)
+            || proxy_routing_header(name)
+            || name.eq_ignore_ascii_case("Transfer-Encoding")
+            || name.eq_ignore_ascii_case("Sec-Fetch-User")
+        {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("Host") && !mail_http_authority(value)
+            // jig-ignore-next-line: canonical rustfmt logical expression.
+            || name.eq_ignore_ascii_case("Origin") && value != "https://mail.proton.me"
+            // jig-ignore-next-line: canonical rustfmt logical expression.
+            || name.eq_ignore_ascii_case("Referer") && !serialized_mail_document_url(value)
+            || name.eq_ignore_ascii_case("Sec-Fetch-Mode")
+                && !matches!(value, "cors" | "same-origin")
+            || name.eq_ignore_ascii_case("Sec-Fetch-Dest") && value != "empty"
+            // jig-ignore-next-line: canonical rustfmt logical expression.
+            || name.eq_ignore_ascii_case("Sec-Fetch-Site") && value != "same-origin"
+            || name.eq_ignore_ascii_case("Content-Length") && value != "0"
+            // jig-ignore-next-line: canonical rustfmt logical expression.
+            || name.eq_ignore_ascii_case("Cache-Control") && cache_only_directive(value)
+        {
+            return false;
+        }
+    }
+    // A real HTTP/1 request must identify the target Mail authority, even
+    // when Chromium's structured map omits it for legacy compatibility.
+    seen[0]
+}
+
 // CDP Response.requestHeaders may contain the refined HTTP request headers
 // actually transmitted, not just provisional Request.headers. If present,
 // they must not contradict the previously verified body-free Mail GET.
 fn refined_request_headers_are_safe(response: &Map<String, Value>) -> bool {
+    let url = response.get("url").and_then(Value::as_str);
+    let safe_raw = match response.get("requestHeadersText") {
+        None => true,
+        Some(Value::String(text)) => raw_mail_get_headers(text, url),
+        Some(_) => false,
+    };
+    if !safe_raw {
+        return false;
+    }
     match response.get("requestHeaders") {
         None => true,
         Some(Value::Object(headers)) => {
             let safe_headers = bodyless_cdp_headers(headers);
             let active_headers = active_mail_fetch_headers(headers);
-            let url = response.get("url").and_then(Value::as_str);
             let matching_path = same_mail_http_path(headers, url);
             let mut names = headers.keys();
             let has_purpose = names.any(|key| speculative_purpose_header(key));
