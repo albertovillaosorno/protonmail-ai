@@ -686,6 +686,90 @@ fn normal_cross_query_parent_chain_preserves_shell_readiness() {
 }
 
 #[test]
+fn cross_query_child_parent_contradictions_cannot_prove_mail_shell() {
+    use serde_json::json;
+
+    for (label, navigation_children, search_children, search_parent) in [
+        (
+            "explicit-child-contradicts-parent",
+            vec!["ax-search"],
+            vec![],
+            Some("ax-other"),
+        ),
+        (
+            "two-explicit-parents-for-child",
+            vec!["ax-shared"],
+            vec!["ax-shared"],
+            None,
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "childIds":navigation_children,
+            "role":{"type":"role","value":"navigation"}
+        }])
+        .to_string();
+        let mut search = json!([{
+            "ignored":false, "nodeId":"ax-search",
+            "childIds":search_children,
+            "role":{"type":"role","value":"search"}
+        }]);
+        if let Some(parent) = search_parent {
+            search[0]["parentId"] = json!(parent);
+        }
+        let search = search.to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            search: &search,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "contradictory cross-query child edge {label}"
+        );
+    }
+}
+
+#[test]
+fn cross_query_consistent_child_parent_edges_preserve_mail_readiness() {
+    use serde_json::json;
+
+    let navigation = json!([{
+        "ignored":false, "nodeId":"ax-navigation",
+        "childIds":["ax-search"],
+        "role":{"type":"role","value":"navigation"}
+    }])
+    .to_string();
+    let search = json!([{
+        "ignored":false, "nodeId":"ax-search",
+        "parentId":"ax-navigation",
+        "role":{"type":"role","value":"search"}
+    }])
+    .to_string();
+    let roles = RoleFixture {
+        navigation: &navigation,
+        search: &search,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "cross-query-consistent-child-parent",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("consistent AX parent and child edges")
+        .ready()
+    );
+}
+
+#[test]
 fn ordinary_ax_node_parent_and_child_metadata_remains_compatible() {
     let navigation = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,

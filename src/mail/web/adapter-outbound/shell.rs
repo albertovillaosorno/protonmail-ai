@@ -44,6 +44,15 @@ pub struct MailShellEvidence {
     search_visible: bool,
 }
 
+// Session-scoped, bounded AX node identities from four role queries.
+// Relationship data is borrowed only for shell classification, never returned.
+#[derive(Default)]
+struct AxGraph<'nodes> {
+    ids: HashSet<&'nodes str>,
+    parents: BTreeMap<&'nodes str, &'nodes str>,
+    child_owners: BTreeMap<&'nodes str, &'nodes str>,
+}
+
 impl MailShellEvidence {
     /// Returns whether a visible navigation landmark was observed.
     #[must_use]
@@ -79,13 +88,12 @@ impl MailShellEvidence {
         // CDP AXNodeId identifies one accessibility node for the session.
         // A node cannot simultaneously establish distinct role-filtered
         // landmarks; aliases across responses are contradictory shell proof.
-        let mut ids = HashSet::new();
-        let mut parents = BTreeMap::new();
-        let modal = ax_visible(dialog, "dialog", &mut ids, &mut parents)?;
-        let alert = ax_visible(alerts, "alertdialog", &mut ids, &mut parents)?;
-        let nav = ax_visible(navigation, "navigation", &mut ids, &mut parents)?;
-        let search = ax_visible(search, "search", &mut ids, &mut parents)?;
-        if !valid_ax_parent_graph(&parents) {
+        let mut graph = AxGraph::default();
+        let modal = ax_visible(dialog, "dialog", &mut graph)?;
+        let alert = ax_visible(alerts, "alertdialog", &mut graph)?;
+        let nav = ax_visible(navigation, "navigation", &mut graph)?;
+        let search = ax_visible(search, "search", &mut graph)?;
+        if !valid_ax_parent_graph(&graph) {
             return Err(());
         }
         Ok(Self {
@@ -99,8 +107,7 @@ impl MailShellEvidence {
 fn ax_visible<'role_nodes>(
     result: &'role_nodes Value,
     expected_role: &str,
-    ids: &mut HashSet<&'role_nodes str>,
-    parents: &mut BTreeMap<&'role_nodes str, &'role_nodes str>,
+    graph: &mut AxGraph<'role_nodes>,
 ) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
     if nodes.len() > MAX_AX_ROLE_MATCH_NODES {
@@ -112,7 +119,7 @@ fn ax_visible<'role_nodes>(
         // CDP AXNode requires a unique string nodeId and a typed role. A
         // sparse or aliased node cannot prove a visible browser landmark.
         let id = node.get("nodeId").and_then(Value::as_str).ok_or(())?;
-        if !valid_ax_node_id(id) || !ids.insert(id) {
+        if !valid_ax_node_id(id) || !graph.ids.insert(id) {
             return Err(());
         }
         // Node relationships do not establish a landmark by themselves,
@@ -127,14 +134,13 @@ fn ax_visible<'role_nodes>(
             None
         };
         if let Some(parent) = parent_id {
-            parents.insert(id, parent);
+            graph.parents.insert(id, parent);
         }
         if let Some(children) = node.get("childIds") {
             let children = children.as_array().ok_or(())?;
             if children.len() > 4096 {
                 return Err(());
             }
-            let mut child_ids = HashSet::with_capacity(children.len());
             for child in children {
                 let child = child.as_str().ok_or(())?;
                 // The same node cannot be both parent and child of this AX
@@ -144,7 +150,7 @@ fn ax_visible<'role_nodes>(
                 if !valid_ax_node_id(child) || contradictory_edge {
                     return Err(());
                 }
-                if !child_ids.insert(child) {
+                if graph.child_owners.insert(child, id).is_some() {
                     return Err(());
                 }
             }
@@ -195,14 +201,23 @@ fn ax_visible<'role_nodes>(
 
 // Parent IDs can point to role nodes seen in a different query reply.
 // Each local node may look valid even when those responses jointly claim a
-// circular accessibility tree. Only explicit edges are considered; missing
-// parent nodes are ordinary for a role-filtered query. At most 4 * 256 nodes
-// are examined and no private AX names or values are retained.
-fn valid_ax_parent_graph(parents: &BTreeMap<&str, &str>) -> bool {
-    for &start in parents.keys() {
+// circular accessibility tree or conflicting child ownership. Only explicit
+// edges are considered; missing nodes are ordinary for role-filtered queries.
+// At most 4 * 256 role nodes are examined; no private AX text is retained.
+fn valid_ax_parent_graph(graph: &AxGraph<'_>) -> bool {
+    for (child, owner) in &graph.child_owners {
+        if graph
+            .parents
+            .get(child)
+            .is_some_and(|parent| parent != owner)
+        {
+            return false;
+        }
+    }
+    for &start in graph.parents.keys() {
         let mut visited = BTreeSet::new();
         let mut current = start;
-        while let Some(parent) = parents.get(current).copied() {
+        while let Some(parent) = graph.parents.get(current).copied() {
             if !visited.insert(current) {
                 return false;
             }

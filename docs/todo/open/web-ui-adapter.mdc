@@ -114,6 +114,15 @@ web application without requiring Bridge or a third-party direct API identity.
   source types and known outer properties. Canonical optional source and
   related-node objects remain accepted without retaining their content.
 
+## Reject conflicting AX child ownership across role replies
+
+- Red-first synthetic role queries accepted an explicitly claimed child with a
+  different reported parent, or two distinct role nodes both claiming one
+  child ID. Cross-query shell evidence now checks explicit child ownership
+  against observed parent IDs and rejects multiple owners. Missing parent or
+  child entries still remain normal for a role-filtered query; a consistent
+  navigation/search pair passes without retaining accessibility text.
+
 ## Reject cycles across accessibility role query results
 
 - Red-first synthetic Mail-shell queries allowed navigation/search role nodes
