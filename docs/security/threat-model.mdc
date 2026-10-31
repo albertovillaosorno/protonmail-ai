@@ -108,10 +108,11 @@ shape. `account.proton.me` is accepted only as human-owned login/challenge
 state. A lookalike host or a page with Mail-like controls but the wrong origin
 is incompatible and cannot authorize a mailbox target.
 
-Both visible sign-in and managed Chromium launches use `--disable-extensions`
-for the dedicated mail profile. Installed browser extensions are not granted
-ambient access to authenticated mailbox UI content; this launch restriction
-reduces exposure but does not replace Chromium or profile integrity checks.
+Both visible sign-in and managed Chromium launches share dedicated-profile
+privacy flags: `--disable-extensions` and `--disable-sync`. Installed browser
+extensions cannot run, and Chromium browser-account synchronization is disabled
+for the mail profile. These launch restrictions reduce exposure without
+replacing Chromium or profile integrity checks.
 
 Managed automation never exposes a DevTools TCP listener. Chromium receives
 `--remote-debugging-pipe` only with the dedicated `--user-data-dir`; the parent

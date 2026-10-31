@@ -213,6 +213,7 @@ fn xdg_login_uses_dedicated_private_profile() {
     assert!(args.lines().any(|line| line == expected));
     assert!(args.lines().any(|line| line == "https://mail.proton.me/"));
     assert!(args.lines().any(|line| line == "--disable-extensions"));
+    assert!(args.lines().any(|line| line == "--disable-sync"));
     assert!(!args.contains("remote-debugging"));
     assert!(!args.contains("password"));
     assert!(!args.contains("captcha"));

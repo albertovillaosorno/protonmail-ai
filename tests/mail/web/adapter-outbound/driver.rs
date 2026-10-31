@@ -403,6 +403,7 @@ fn managed_browser_uses_private_pipe_and_dedicated_profile() {
     assert!(args.lines().any(|line| line == expected));
     assert!(args.lines().any(|line| line == "--remote-debugging-pipe"));
     assert!(args.lines().any(|line| line == "--disable-extensions"));
+    assert!(args.lines().any(|line| line == "--disable-sync"));
     assert!(!args.contains("remote-debugging-port"));
     assert!(args.lines().any(|line| line == "https://mail.proton.me/"));
 

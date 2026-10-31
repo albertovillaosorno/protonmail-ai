@@ -115,6 +115,7 @@ use crate::message_list_response::ObservedMessageListResponse;
 use crate::message_list_response::ObservedMessageMetadata;
 use crate::message_list_response::ReconciledVisibleMessageMetadata;
 use crate::policy::PageOrigin;
+use crate::profile::PRIVATE_PROFILE_FLAGS;
 use crate::profile::user_data_dir_argument;
 use crate::profile::{DedicatedBrowserProfile, WebLoginError, WebLoginPlan};
 use crate::shell::MailShellEvidence;
@@ -4384,9 +4385,7 @@ fn spawn_browser(
     command
         .arg(user_data)
         .arg("--remote-debugging-pipe")
-        .arg("--disable-extensions")
-        .arg("--no-first-run")
-        .arg("--no-default-browser-check")
+        .args(PRIVATE_PROFILE_FLAGS)
         .arg(MAIL_URL)
         .stdin(Stdio::null())
         .stdout(Stdio::null())

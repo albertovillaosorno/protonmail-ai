@@ -67,6 +67,19 @@ const MAX_TEXT_BUSY_RETRIES: u8 = 32;
 const BROWSER_ENV: &str = "PROTONMAIL_AI_BROWSER";
 const APP_DIR: &str = "protonmail-ai";
 const PROFILE_DIR: &str = "browser-profile";
+// Keep all dedicated-profile Chromium privacy flags identical in visible
+// login and managed automation; only managed automation enables DevTools.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "sibling driver shares the profile flags"
+)]
+pub(crate) const PRIVATE_PROFILE_FLAGS: [&str; 4] = [
+    "--disable-extensions",
+    "--disable-sync",
+    "--no-first-run",
+    "--no-default-browser-check",
+];
+
 const BROWSER_CANDIDATES: [&str; 5] = [
     "google-chrome-stable",
     "google-chrome",
@@ -186,9 +199,7 @@ impl WebLoginPlan {
         let mut command = Command::new(&self.browser);
         command
             .arg(user_data)
-            .arg("--disable-extensions")
-            .arg("--no-first-run")
-            .arg("--no-default-browser-check")
+            .args(PRIVATE_PROFILE_FLAGS)
             .arg(MAIL_URL)
             // A visible browser must never inherit caller input or write its
             // own diagnostics into human CLI / future transport channels.
