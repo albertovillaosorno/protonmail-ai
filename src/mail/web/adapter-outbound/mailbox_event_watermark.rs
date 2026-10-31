@@ -59,6 +59,18 @@ const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
 const MAX_EVENT_SEQUENCE_CHANGES: usize = 4096;
 const CONTACTS_ONLY_REFRESH_BIT: u64 = 2;
 
+// A cached or service-worker-generated event response cannot prove the latest
+// provider watermark. Absent CDP source flags remain compatible with Chromium
+// variants that do not report them; an explicit flag must be boolean false.
+fn uncached_event_response(response: &Value) -> bool {
+    ["fromDiskCache", "fromServiceWorker", "fromPrefetchCache"]
+        .iter()
+        .all(|field| {
+            let source = response.get(*field);
+            matches!(source, None | Some(Value::Bool(false)))
+        })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum EventRequestState {
     Requested,
@@ -318,6 +330,7 @@ impl LatestMailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
+            || !uncached_event_response(response)
             || mime != Some("application/json")
             || !is_latest_event_url(url)
             || url_fingerprint != request.url_fingerprint
@@ -583,6 +596,7 @@ impl MailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
+            || !uncached_event_response(response)
             || mime != Some("application/json")
             || event_id != request.event_id.as_str()
             || url_fingerprint != request.url_fingerprint

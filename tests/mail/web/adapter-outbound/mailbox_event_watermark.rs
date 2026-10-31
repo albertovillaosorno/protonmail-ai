@@ -565,6 +565,99 @@ fn latest_network_capture_discards_failed_attempt_before_retry() {
 }
 
 #[test]
+fn core_event_watermarks_reject_cache_and_service_worker_responses() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+
+    let latest_url = "https://mail.proton.me/api/core/v4/events/latest";
+    for (flag, value) in [
+        ("fromDiskCache", json!(true)),
+        ("fromServiceWorker", json!(true)),
+        ("fromPrefetchCache", json!(true)),
+        ("fromDiskCache", json!("false")),
+        ("fromServiceWorker", json!(null)),
+    ] {
+        for (label, url) in [("latest", latest_url), ("poll", URL)] {
+            let request = json!({
+                "sessionId":"session-1","method":"Network.requestWillBeSent",
+                "params":{
+                    "requestId":"r-1","request":{"method":"GET","url":url}
+                }
+            });
+            let mut response = json!({
+                "sessionId":"session-1","method":"Network.responseReceived",
+                "params":{"requestId":"r-1","response":{
+                    "url":url,"status":200u16,"mimeType":"application/json"
+                }}
+            });
+            response["params"]["response"][flag] = value.clone();
+            if label == "latest" {
+                let session = "session-1";
+                // jig-ignore-next-line: required synthetic session constructor.
+                let mut capture = LatestMailboxEventNetworkCapture::new(session);
+                capture.observe(&request).expect("track latest request");
+                assert_eq!(
+                    capture.observe(&response),
+                    Err(MailboxEventNetworkError::ResponseRejected),
+                    "latest must reject {flag}"
+                );
+            } else {
+                let mut capture = MailboxEventNetworkCapture::new("session-1");
+                capture.observe(&request).expect("track poll request");
+                assert_eq!(
+                    capture.observe(&response),
+                    Err(MailboxEventNetworkError::ResponseRejected),
+                    "poll must reject {flag}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn explicitly_uncached_core_event_responses_preserve_cursor_progress() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use serde_json::json;
+
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (label, url) in [("latest", latest), ("poll", URL)] {
+        let request = json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"fresh","request":{"method":"GET","url":url}}
+        });
+        let response = json!({
+            "sessionId":"session-1","method":"Network.responseReceived",
+            "params":{"requestId":"fresh","response":{
+                "url":url,"status":200u16,"mimeType":"application/json",
+                "fromDiskCache":false,"fromServiceWorker":false,
+                "fromPrefetchCache":false
+            }}
+        });
+        let finished = json!({
+            "sessionId":"session-1","method":"Network.loadingFinished",
+            "params":{"requestId":"fresh"}
+        });
+        if label == "latest" {
+            let session = "session-1";
+            let mut capture = LatestMailboxEventNetworkCapture::new(session);
+            capture.observe(&request).expect("track latest");
+            capture.observe(&response).expect("accept uncached latest");
+            capture.observe(&finished).expect("complete latest");
+            let expected = [String::from("fresh")];
+            assert_eq!(capture.take_finished_request_ids(), expected);
+        } else {
+            let mut capture = MailboxEventNetworkCapture::new("session-1");
+            capture.observe(&request).expect("track poll");
+            capture.observe(&response).expect("accept uncached poll");
+            capture.observe(&finished).expect("complete poll");
+            let expected = [String::from("fresh")];
+            assert_eq!(capture.take_finished_request_ids(), expected);
+        }
+    }
+}
+
+#[test]
 fn network_capture_tracks_exact_event_get_lifecycle() {
     use mail_web_adapter::MailboxEventNetworkCapture;
     use serde_json::json;

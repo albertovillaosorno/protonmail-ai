@@ -298,3 +298,10 @@ bounded resource use.
   implemented a drop-time scrub contract; synthetic scope, resume and Debug
   regressions retain their previous behavior. This does not clear caller-owned
   copies or authenticate event cursors by itself.
+
+- Core-event bootstrap and continuation Network observations now refuse CDP
+  responses explicitly marked as disk-cache, service-worker, or prefetch-cache
+  sourced, as well as malformed source flags. Such responses cannot prove a
+  fresh provider watermark for cursor progression. Red-first synthetic CDP
+  cases previously accepted these statuses; omitted and explicit-false flags
+  remain compatible. This is a source-provenance safeguard, not a live test.
