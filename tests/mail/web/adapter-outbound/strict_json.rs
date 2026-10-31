@@ -125,6 +125,22 @@ fn taking_nested_cdp_reply_values_transfers_guarded_ownership() {
 }
 
 #[test]
+fn duplicate_json_keys_fail_before_decoding_repeated_values() {
+    // A repeated key already violates the trusted parsing boundary. Even if
+    // its value is malformed or enormous, do not deserialize it first.
+    for text in [
+        r#"{"private":"first","private":]"#,
+        r#"{"private":{"nested":1},"private":["unexpected",]}"#,
+        r#"{"outer":{"id":"private","id":truX}}"#,
+    ] {
+        let error = from_sensitive_slice(text.as_bytes())
+            .err()
+            .expect("duplicate object keys must be rejected");
+        assert!(error.to_string().contains("duplicate key"));
+    }
+}
+
+#[test]
 fn map_keys_are_guarded_before_decoding_their_values() {
     use zeroize::Zeroizing;
 

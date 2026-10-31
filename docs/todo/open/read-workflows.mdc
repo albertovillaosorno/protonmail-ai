@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Strict provider/browser JSON objects now reject repeated keys as soon as
+  the repeated key is decoded, before parsing its value. A duplicate cannot
+  induce parsing of a large or malformed nested value; the rejected key and
+  previously accepted private fields remain scrub-on-drop. Synthetic nested
+  and malformed-value precedence tests prove the early refusal.
+
 - Mailbox list readiness/evidence now validates and deduplicates borrowed row
   IDs before checking skeleton state and pagination. It allocates copies only
   once the entire observation is accepted into `MailboxListEvidence`, whose

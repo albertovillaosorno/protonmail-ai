@@ -323,11 +323,17 @@ impl<'de> Deserialize<'de> for StrictValue {
                 let mut object = StrictValue(Value::Object(Map::new()));
                 while let Some(key) = map.next_key::<String>()? {
                     let mut key = guarded_json_key(key);
+                    // The repeated name alone invalidates this object.
+                    // Reject it before decoding its potentially large or
+                    // malformed value, while the key and partial tree still
+                    // have explicit scrub-on-drop ownership.
+                    if let Value::Object(entries) = &object.0
+                        && entries.contains_key(key.as_str())
+                    {
+                        return Err(A::Error::custom("duplicate key"));
+                    }
                     let mut value = map.next_value::<StrictValue>()?;
                     if let Value::Object(entries) = &mut object.0 {
-                        if entries.contains_key(key.as_str()) {
-                            return Err(A::Error::custom("duplicate key"));
-                        }
                         entries.insert(take(&mut *key), take(&mut value.0));
                     }
                 }
