@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Catalog item projection now borrows provider IDs and names from the
+  scrub-on-drop strict JSON tree through identifier, display text, kind,
+  order, and parent validation. Only validated entries receive private
+  String copies inside scrub-on-drop catalog items. Late rejection no longer
+  drops unguarded temporary IDs and names; numeric and string parent
+  semantics and combined folder-graph checks remain unchanged.
+
 - Message-detail projection now borrows bounded IDs, subject, recipient
   display/address fields, label IDs, and nested attachment text directly from
   the strict scrub-on-drop provider JSON until validation succeeds. Only

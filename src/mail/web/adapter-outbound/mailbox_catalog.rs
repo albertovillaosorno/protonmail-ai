@@ -653,11 +653,14 @@ fn parse_item(
     kind: MailboxCatalogKind,
     value: &Value,
 ) -> Result<ObservedMailboxCatalogItem, MailboxCatalogResponseError> {
-    let id = bounded_string(value, "ID", MAX_CATALOG_ID_BYTES)?;
-    if !safe_read_id(&id, MAX_CATALOG_ID_BYTES) {
+    // Keep provider-private identifiers and names borrowed from guarded JSON
+    // until every catalog field passes validation. Only the final item owns
+    // scrub-on-drop copies; a failed item never drops plain temporary text.
+    let id = bounded_str(value, "ID", MAX_CATALOG_ID_BYTES)?;
+    if !safe_read_id(id, MAX_CATALOG_ID_BYTES) {
         return Err(MailboxCatalogResponseError::Malformed);
     }
-    let name = bounded_string(value, "Name", MAX_CATALOG_NAME_BYTES)?;
+    let name = bounded_str(value, "Name", MAX_CATALOG_NAME_BYTES)?;
     if name.chars().any(unsafe_catalog_name_character) {
         return Err(MailboxCatalogResponseError::Malformed);
     }
@@ -680,8 +683,8 @@ fn parse_item(
     };
     Ok(ObservedMailboxCatalogItem {
         kind,
-        id,
-        name,
+        id: String::from(id),
+        name: String::from(name),
         order,
         parent_id,
     })
@@ -693,17 +696,17 @@ const fn unsafe_catalog_name_character(character: char) -> bool {
     character != '\n' && unsafe_display_character(character)
 }
 
-fn bounded_string(
-    value: &Value,
+fn bounded_str<'source>(
+    value: &'source Value,
     field: &str,
     max_bytes: usize,
-) -> Result<String, MailboxCatalogResponseError> {
+) -> Result<&'source str, MailboxCatalogResponseError> {
     let text = value
         .get(field)
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty() && text.len() <= max_bytes)
         .ok_or(MailboxCatalogResponseError::Malformed)?;
-    Ok(String::from(text))
+    Ok(text)
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

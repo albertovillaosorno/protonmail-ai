@@ -1994,3 +1994,40 @@ fn cdp_catalog_envelope_refuses_unexpected_fields() {
     let changed = ObservedMailboxCatalogResponse::parse_cdp_body(kind, &envelope);
     assert_eq!(changed, Err(MailboxCatalogResponseError::Malformed));
 }
+
+#[test]
+fn rejected_catalog_fields_never_expose_private_id_or_display_name() {
+    let parse = ObservedMailboxCatalogResponse::parse;
+    let secret_id = "synthetic-private-folder-id";
+    let secret_name = "synthetic-private-folder-name";
+    let rejected = [
+        json!({
+            "Code":1_000u16,
+            // jig-ignore-next-line: rustfmt preserves the synthetic JSON row.
+            "Labels":[{"ID":secret_id,"Name":"bad\rname", "Type":3u8,"Order":1i64}]
+        }),
+        json!({
+            "Code":1_000u16,
+            // jig-ignore-next-line: rustfmt preserves the synthetic JSON row.
+            "Labels":[{"ID":secret_id,"Name":secret_name,"Type":1u8,"Order":1i64}]
+        }),
+        json!({
+            "Code":1_000u16,
+            // jig-ignore-next-line: rustfmt preserves the synthetic JSON row.
+            "Labels":[{"ID":secret_id,"Name":secret_name,"Type":3u8,"Order":1i64,
+                "ParentID":"unsafe/parent"}]
+        }),
+    ];
+    for body in rejected {
+        let response = parse(
+            MailboxCatalogKind::Folder,
+            "GET",
+            FOLDER_URL,
+            &body.to_string(),
+        );
+        assert_eq!(response, Err(MailboxCatalogResponseError::Malformed));
+        let diagnostic = format!("{response:?}");
+        assert!(!diagnostic.contains(secret_id));
+        assert!(!diagnostic.contains(secret_name));
+    }
+}
