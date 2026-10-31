@@ -324,7 +324,9 @@ impl MessageListNetworkCapture {
                 sort_key,
                 descending,
                 anchor,
-                anchor_id: anchor_id.map(Zeroizing::new),
+                // The validated selector was borrowed from the guarded CDP
+                // event JSON until the request actually entered capture state.
+                anchor_id: anchor_id.map(|id| Zeroizing::new(String::from(id))),
             },
         );
         Ok(())
@@ -386,7 +388,7 @@ impl MessageListNetworkCapture {
             || request.descending != descending
             || self.context_fingerprint != Some(context_fingerprint)
             || request.anchor != anchor
-            || saved_anchor_id != anchor_id.as_deref()
+            || saved_anchor_id != anchor_id
         {
             return Err(MessageListNetworkError::ResponseRejected);
         }
@@ -471,7 +473,7 @@ fn message_list_request_shape(
         MessageListSortKey,
         bool,
         Option<u64>,
-        Option<String>,
+        Option<&str>,
     )>,
     MessageListNetworkError,
 > {
@@ -504,7 +506,7 @@ fn message_list_request_shape(
     let anchor = numeric_query_parameter(url, "Anchor")?;
     // jig-ignore-next-line: canonical rustfmt line.
     let anchor_id = bounded_query_parameter(url, "AnchorID", MAX_MESSAGE_LIST_ID_BYTES)?;
-    let kind = match (page, page_size, anchor, anchor_id.as_deref()) {
+    let kind = match (page, page_size, anchor, anchor_id) {
         (Some(_page), Some(size), None, None) if size == raw_limit => {
             MessageListRequestKind::Initial
         }
@@ -601,18 +603,19 @@ fn numeric_query_parameter(url: &str, name: &str) -> Result<Option<u64>, Message
         .map_err(|_error| MessageListNetworkError::MalformedEvent)
 }
 
-fn bounded_query_parameter(
-    url: &str,
+fn bounded_query_parameter<'url>(
+    url: &'url str,
     name: &str,
     max_bytes: usize,
-) -> Result<Option<String>, MessageListNetworkError> {
+) -> Result<Option<&'url str>, MessageListNetworkError> {
     let Some(value) = raw_query_parameter(url, name)? else {
         return Ok(None);
     };
     if !safe_read_id(value, max_bytes) {
         return Err(MessageListNetworkError::MalformedEvent);
     }
-    Ok(Some(String::from(value)))
+    // Borrow the original validated query field until accepted capture state.
+    Ok(Some(value))
 }
 
 fn raw_query_parameter<'url>(

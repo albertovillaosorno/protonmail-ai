@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Message-list Network continuation `AnchorID` now stays borrowed from
+  guarded event JSON throughout query-shape parsing, context hashing,
+  capacity checks, and response matching. Only accepted tracked requests
+  allocate an owned `Zeroizing<String>`; malformed or rejected continuation
+  selectors no longer drop ordinary temporary private query strings.
+
 - Catalog item projection now borrows provider IDs and names from the
   scrub-on-drop strict JSON tree through identifier, display text, kind,
   order, and parent validation. Only validated entries receive private

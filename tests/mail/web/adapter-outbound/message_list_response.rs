@@ -1307,3 +1307,42 @@ fn message_metadata_reconciliation_rejects_unbounded_batch_chain() {
         Err(MessageListReconciliationError::TooManyObservedBatches)
     );
 }
+
+#[test]
+fn rejected_private_continuation_selector_never_reaches_capture_diagnostics() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = |id: &str, url: &str| {
+        json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":id,"request":{"method":"GET","url":url}}
+        })
+    };
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    let initial = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Page=0&PageSize=50&Limit=50&Sort=Time&Desc=1&LabelID=inbox"
+    );
+    capture
+        .observe(&request("initial", initial))
+        .expect("initial batch");
+
+    let malformed = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Limit=50&Anchor=7&AnchorID=synthetic-private-anchor&",
+        "PageSize=50&Sort=Time&Desc=1&LabelID=inbox"
+    );
+    assert_eq!(capture.observe(&request("bad-shape", malformed)), Ok(()));
+
+    let drifted = concat!(
+        "https://mail.proton.me/api/mail/v4/messages?",
+        "Limit=50&Anchor=7&AnchorID=synthetic-private-anchor&",
+        "Sort=Time&Desc=1&LabelID=other-folder"
+    );
+    let result = capture.observe(&request("drifted", drifted));
+    assert_eq!(result, Err(MessageListNetworkError::QueryContextChanged));
+    let diagnostic = format!("{capture:?} {result:?}");
+    assert!(!diagnostic.contains("synthetic-private-anchor"));
+    assert!(!diagnostic.contains("other-folder"));
+}
