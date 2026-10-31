@@ -878,3 +878,8 @@ Ship useful read access before any mailbox mutation is enabled.
   exact message detail evidence before body retrieval, and still invoke
   `Network.disable`. The browser session remains usable for subsequent Mail
   shell checks. No live provider account or message data is needed.
+
+- All passive read Network observers now refuse late `responseReceivedExtraInfo`
+  HTTP-200 notices after the exact request ID was consumed. Such late events
+  no longer bypass the existing completed-ID replay rule; tests first proved
+  acceptance in message, conversation, attachment, list and catalog flows.

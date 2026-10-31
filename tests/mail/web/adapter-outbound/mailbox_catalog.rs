@@ -1465,6 +1465,11 @@ fn completed_catalog_requests_reject_replay_and_late_failure() {
         response("session-a", "private-id", LABEL_URL),
         finished("session-a", "private-id"),
         failed("session-a", "private-id"),
+        json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"private-id","statusCode":200u16}
+        }),
     ] {
         assert_eq!(
             capture.observe(&late),

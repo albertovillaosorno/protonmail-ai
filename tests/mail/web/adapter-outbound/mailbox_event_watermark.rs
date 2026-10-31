@@ -1987,6 +1987,14 @@ fn latest_event_consumed_ids_reject_all_late_lifecycle_events() {
             Err(MailboxEventNetworkError::InvalidSequence)
         );
     }
+    assert_eq!(
+        capture.observe(&serde_json::json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"latest-secret","statusCode":200u16}
+        })),
+        Err(MailboxEventNetworkError::InvalidSequence)
+    );
     assert!(!format!("{capture:?}").contains("latest-secret"));
 }
 
@@ -2017,6 +2025,14 @@ fn event_poll_consumed_ids_reject_all_late_lifecycle_events() {
             Err(MailboxEventNetworkError::InvalidSequence)
         );
     }
+    assert_eq!(
+        capture.observe(&serde_json::json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"poll-secret","statusCode":200u16}
+        })),
+        Err(MailboxEventNetworkError::InvalidSequence)
+    );
     assert!(!format!("{capture:?}").contains("poll-secret"));
 }
 

@@ -861,7 +861,12 @@ fn consumed_message_list_id_rejects_late_network_lifecycle_events() {
         .observe(&response)
         .expect("observe still-pending response");
     assert_ne!(capture, untouched);
-    for late in [request, changed_method, response, finished, failure] {
+    let extra = json!({
+        "sessionId":"session-1",
+        "method":"Network.responseReceivedExtraInfo",
+        "params":{"requestId":"list-1","statusCode":200u16}
+    });
+    for late in [request, changed_method, response, finished, failure, extra] {
         assert_eq!(
             capture.observe(&late),
             Err(MessageListNetworkError::InvalidSequence)

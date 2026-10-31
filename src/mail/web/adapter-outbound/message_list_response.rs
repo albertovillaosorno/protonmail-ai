@@ -179,7 +179,12 @@ impl MessageListNetworkCapture {
             Some("Network.responseReceived") => self.observe_response(event),
             // jig-ignore-next-line: canonical extra-info CDP match guard.
             Some("Network.responseReceivedExtraInfo") if direct_extra_status_is_200(event) => {
-                network_request_id(event).map(|_| ())
+                let request_id = network_request_id(event)?;
+                if self.completed_ids.contains(request_id) {
+                    Err(MessageListNetworkError::InvalidSequence)
+                } else {
+                    Ok(())
+                }
             }
             // jig-ignore-next-line: combined CDP cache and extra-status match.
             Some("Network.responseReceivedExtraInfo" | "Network.requestServedFromCache") => {

@@ -329,3 +329,7 @@ bounded resource use.
   responses through the full browser driver, even after responseReceived
   reports 200. All four cases disable Network before returning a redacted
   error and leave the Mail CDP session usable; no provider account is used.
+
+- Both event cursor observers now reject a late HTTP-200 extra-info event
+  for an already-consumed request ID as invalid sequence, matching their
+  existing response, failed and finished lifecycle replay protection.

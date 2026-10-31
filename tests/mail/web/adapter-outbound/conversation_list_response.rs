@@ -287,6 +287,35 @@ fn revalidated_cache_status_rejects_conversation_list_get() {
 }
 
 #[test]
+fn consumed_conversation_list_rejects_late_network_200_extra_info() {
+    let mut capture = ConversationListNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "list", "GET", URL))
+        .expect("track list GET");
+    capture
+        .observe(&response_event(
+            "session-a",
+            "list",
+            URL,
+            200,
+            "application/json",
+        ))
+        .expect("receive list response");
+    capture
+        .observe(&finished_event("session-a", "list"))
+        .expect("finish list GET");
+    assert_eq!(capture.take_finished_request_ids(), ["list"]);
+    assert_eq!(
+        capture.observe(&json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"list","statusCode":200u16}
+        })),
+        Err(ConversationListNetworkError::InvalidSequence)
+    );
+}
+
+#[test]
 fn standalone_cache_hit_rejects_conversation_list_request() {
     for after_response in [false, true] {
         let mut capture = ConversationListNetworkCapture::new("session-a");

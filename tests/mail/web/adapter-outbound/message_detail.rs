@@ -1122,6 +1122,11 @@ fn consumed_detail_request_ids_reject_all_late_lifecycle_events() {
         response_event("session-a", "detail", MESSAGE_URL, 200, "application/json"),
         finished_event("session-a", "detail"),
         failed_event("session-a", "detail"),
+        json!({
+            "sessionId":"session-a",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"detail","statusCode":200u16}
+        }),
     ] {
         assert_eq!(
             capture.observe(&late),
