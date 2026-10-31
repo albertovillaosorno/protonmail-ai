@@ -41,9 +41,10 @@ use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
 const VISIBLE: &str =
     // jig-ignore-next-line: indivisible synthetic AX privacy fixture.
-    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"},"value":{"value":"secreto"}}]"#;
-// jig-ignore-next-line: indivisible synthetic AXNode fixture.
-const IGNORED: &str = r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"}}]"#;
+    r#"[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"},"value":{"value":"secreto"}}]"#;
+const IGNORED: &str =
+    // jig-ignore-next-line: indivisible synthetic AXNode fixture.
+    r#"[{"ignored":true,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"no-leer"}}]"#;
 const ABSENT: &str = "[]";
 
 struct RoleFixture<'fixture> {
@@ -196,6 +197,53 @@ fn structural_roles_make_mail_shell_ready_without_using_names() {
     let diagnostic = format!("{evidence:?}");
     assert!(!diagnostic.contains("no-leer"));
     assert!(!diagnostic.contains("secreto"));
+}
+
+#[test]
+fn one_accessibility_node_cannot_prove_two_different_shell_roles() {
+    // One AX node cannot prove incompatible navigation and search roles.
+    let shared =
+        // jig-ignore-next-line: indivisible cross-role AX protocol fixture.
+        r#"[{"ignored":false,"nodeId":"ax-shared","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    let roles = RoleFixture {
+        navigation: shared,
+        search: shared,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "cross-role-node-alias",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
+}
+
+#[test]
+fn ignored_dialog_node_cannot_alias_a_visible_navigation_node() {
+    // Even an ignored dialog node cannot alias the navigation landmark.
+    let dialog =
+        // jig-ignore-next-line: indivisible cross-role AX protocol fixture.
+        r#"[{"ignored":true,"nodeId":"ax-shared","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    let navigation =
+        // jig-ignore-next-line: indivisible cross-role AX protocol fixture.
+        r#"[{"ignored":false,"nodeId":"ax-shared","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    let roles = RoleFixture {
+        dialog,
+        navigation,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "ignored-dialog-node-alias",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
 }
 
 #[test]
@@ -545,11 +593,11 @@ fn visible_ax_landmark_cannot_hide_malformed_trailing_nodes() {
 fn well_formed_multiple_role_nodes_preserve_ready_shell_without_names() {
     let roles = RoleFixture {
         // jig-ignore-next-line: canonical rustfmt line.
-        navigation: r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"secret"}},{"ignored":true,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
+        navigation: r#"[{"ignored":false,"nodeId":"nav-1","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"secret"}},{"ignored":true,"nodeId":"nav-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
         // jig-ignore-next-line: canonical rustfmt line.
-        search: r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":false,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"hidden"}}]"#,
+        search: r#"[{"ignored":true,"nodeId":"search-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":false,"nodeId":"search-2","role":{"type":"role","value":"__AX_ROLE__"},"name":{"value":"hidden"}}]"#,
         // jig-ignore-next-line: indivisible synthetic AXNode fixture.
-        dialog: r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":true,"nodeId":"ax-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
+        dialog: r#"[{"ignored":true,"nodeId":"dialog-1","role":{"type":"role","value":"__AX_ROLE__"}},{"ignored":true,"nodeId":"dialog-2","role":{"type":"role","value":"__AX_ROLE__"}}]"#,
         alertdialog: ABSENT,
     };
     let evidence = inspect(

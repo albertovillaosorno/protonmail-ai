@@ -69,30 +69,38 @@ impl MailShellEvidence {
         landmarks && !self.modal_blocker_visible
     }
 
-    pub(crate) fn from_role_queries(
-        navigation: &Value,
-        search: &Value,
-        dialog: &Value,
-        alertdialog: &Value,
+    pub(crate) fn from_role_queries<'role_nodes>(
+        navigation: &'role_nodes Value,
+        search: &'role_nodes Value,
+        dialog: &'role_nodes Value,
+        alertdialog: &'role_nodes Value,
     ) -> Result<Self, ()> {
-        let dialog_visible = visible_match(dialog, "dialog")?;
-        let alertdialog_visible = visible_match(alertdialog, "alertdialog")?;
-        let modal_blocker_visible = dialog_visible || alertdialog_visible;
+        // CDP AXNodeId identifies one accessibility node for the session.
+        // A node cannot simultaneously establish distinct role-filtered
+        // landmarks; aliases across responses are contradictory shell proof.
+        let mut ids = HashSet::new();
+        let dialog_visible = visible_match(dialog, "dialog", &mut ids)?;
+        let alert = visible_match(alertdialog, "alertdialog", &mut ids)?;
+        let nav = visible_match(navigation, "navigation", &mut ids)?;
+        let search = visible_match(search, "search", &mut ids)?;
         Ok(Self {
-            navigation_visible: visible_match(navigation, "navigation")?,
-            search_visible: visible_match(search, "search")?,
-            modal_blocker_visible,
+            modal_blocker_visible: dialog_visible || alert,
+            navigation_visible: nav,
+            search_visible: search,
         })
     }
 }
 
-fn visible_match(result: &Value, expected_role: &str) -> Result<bool, ()> {
+fn visible_match<'role_nodes>(
+    result: &'role_nodes Value,
+    expected_role: &str,
+    ids: &mut HashSet<&'role_nodes str>,
+) -> Result<bool, ()> {
     let nodes = result.get("nodes").and_then(Value::as_array).ok_or(())?;
     if nodes.len() > MAX_AX_ROLE_MATCH_NODES {
         return Err(());
     }
     let mut any_visible = false;
-    let mut ids = HashSet::with_capacity(nodes.len());
     for node in nodes {
         let ignored = node.get("ignored").and_then(Value::as_bool).ok_or(())?;
         // CDP AXNode requires a unique string nodeId and a typed role. A

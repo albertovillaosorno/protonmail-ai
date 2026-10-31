@@ -70,6 +70,15 @@ web application without requiring Bridge or a third-party direct API identity.
   closed, while valid synthetic Chromium replies, role-count limits and
   late-origin checks remain supported without projecting accessible names.
 
+## Reject cross-role accessibility node aliases
+
+- Red-first fake-browser evidence showed the same CDP accessibility node ID
+  could satisfy both navigation and search queries with incompatible roles.
+  The bounded Mail-shell classifier now requires IDs unique across all four
+  role queries, including ignored dialog nodes, rather than only within each
+  response. Distinct-role fixtures still prove ready and blocked states, and
+  no accessible names or account data are retained.
+
 ## Require full document-root evidence before AX inspection
 
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`

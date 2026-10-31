@@ -41,7 +41,7 @@ use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
 
 const VISIBLE_AX: &str =
     // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    r#"[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const ABSENT_AX: &str = "[]";
 const STABLE_LIST: &str = r#"{
   "loading":false,"loaded":true,"rowIds":["row-a","row-b"],
@@ -367,7 +367,7 @@ fn expired_mail_shell_after_projection_refuses_visible_page() {
     let ready = format!("nodes='{VISIBLE_AX}'");
     let late_expiry = format!(
         // jig-ignore-next-line: indivisible fake-browser shell fragment.
-        "nodes='{VISIBLE_AX}'; if [ \"$list_probe\" -gt 1 ]; then nodes='[{{\"ignored\":true,\"nodeId\":\"ax-1\",\"role\":{{\"type\":\"role\",\"value\":\"__AX_ROLE__\"}}}}]'; fi"
+        "nodes='{VISIBLE_AX}'; if [ \"$list_probe\" -gt 1 ]; then nodes='[{{\"ignored\":true,\"nodeId\":\"ax-__AX_ROLE__\",\"role\":{{\"type\":\"role\",\"value\":\"__AX_ROLE__\"}}}}]'; fi"
     );
     assert!(script.contains(&ready));
     fs::write(&browser, script.replace(&ready, &late_expiry))

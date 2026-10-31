@@ -624,7 +624,7 @@ while IFS= read -r -d '' message <&3; do
     *'Accessibility.queryAXTree'*)
       case "$message" in
         # jig-ignore-next-line: indivisible synthetic shell fixture.
-        *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]';;
+        *'"role":"navigation"'*|*'"role":"search"'*) nodes='[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]';;
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac

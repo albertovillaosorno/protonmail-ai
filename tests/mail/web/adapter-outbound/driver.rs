@@ -197,7 +197,7 @@ while IFS= read -r -d '' message <&3; do
       case "$message" in
         *'"role":"navigation"'*|*'"role":"search"'*)
           # jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-          nodes='[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]';;
+          nodes='[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]';;
         *'"role":"dialog"'*|*'"role":"alertdialog"'*) nodes='[]';;
         *) exit 91;;
       esac

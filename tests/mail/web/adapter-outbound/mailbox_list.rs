@@ -42,10 +42,10 @@ use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
 
 const VISIBLE_AX: &str =
     // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    r#"[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const IGNORED_AX: &str =
     // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-    r#"[{"ignored":true,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    r#"[{"ignored":true,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const ABSENT_AX: &str = "[]";
 
 const ROWS: &str = r#"{

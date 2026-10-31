@@ -1374,7 +1374,7 @@ while IFS= read -r -d '' message <&3; do
       # jig-ignore-next-line: indivisible synthetic shell fixture.
       if [[ "$message" == *'"role":"navigation"'* || "$message" == *'"role":"search"'* ]]; then
         # jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-        nodes='[{{"ignored":false,"nodeId":"ax-1","role":{{"type":"role","value":"__AX_ROLE__"}}}}]'
+        nodes='[{{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{{"type":"role","value":"__AX_ROLE__"}}}}]'
       else
         nodes='[]'
       fi

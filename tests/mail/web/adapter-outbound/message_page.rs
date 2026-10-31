@@ -44,7 +44,7 @@ use mail_web_adapter::{MailboxRenderMode, NextPageControl};
 
 const VISIBLE_AX: &str =
     // jig-ignore-next-line: indivisible synthetic CDP AXNode fixture.
-    r#"[{"ignored":false,"nodeId":"ax-1","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
+    r#"[{"ignored":false,"nodeId":"ax-__AX_ROLE__","role":{"type":"role","value":"__AX_ROLE__"}}]"#;
 const ABSENT_AX: &str = "[]";
 const STABLE_LIST: &str = r#"{
   "loading":false,"loaded":true,"rowIds":["message-a"],
