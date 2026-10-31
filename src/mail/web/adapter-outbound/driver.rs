@@ -1136,12 +1136,7 @@ impl ManagedBrowser {
                 }
             }
             for (request_id, kind) in finished {
-                let body = self.call_in_session_observing(
-                    session,
-                    "Network.getResponseBody",
-                    &json!({"requestId": request_id}),
-                    capture,
-                )?;
+                let body = self.read_cdp_body(session, &request_id, capture)?;
                 // jig-ignore-next-line: canonical rustfmt line.
                 let response = ObservedMailboxCatalogResponse::parse_cdp_body(kind, &body)
                     .map_err(BrowserDriverError::MailboxCatalogResponse)?;
@@ -1495,12 +1490,8 @@ impl ManagedBrowser {
                 cancellation,
             )?;
             ensure_event_wait_not_cancelled(cancellation)?;
-            let latest_body = self.call_in_session_observing(
-                session,
-                "Network.getResponseBody",
-                &json!({"requestId": latest_request}),
-                &mut capture,
-            )?;
+            // jig-ignore-next-line: canonical event capture request invocation.
+            let latest_body = self.read_cdp_body(session, &latest_request, &mut capture)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let bootstrap = ObservedLatestMailboxEventWatermark::parse_cdp_body(&latest_body)
                 .map_err(BrowserDriverError::MailboxEventWatermark)?;
@@ -1598,12 +1589,7 @@ impl ManagedBrowser {
             self.call_in_session_observing(session, "Page.reload", &json!({}), &mut capture)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let request_id = self.wait_for_latest_mailbox_event_request(&mut capture, deadline)?;
-            let body = self.call_in_session_observing(
-                session,
-                "Network.getResponseBody",
-                &json!({"requestId": request_id}),
-                &mut capture,
-            )?;
+            let body = self.read_cdp_body(session, &request_id, &mut capture)?;
             ObservedLatestMailboxEventWatermark::parse_cdp_body(&body)
                 .map_err(BrowserDriverError::MailboxEventWatermark)
         })();
@@ -1900,12 +1886,7 @@ impl ManagedBrowser {
         request: &(String, String),
         capture: &mut MailboxEventNetworkCapture,
     ) -> Result<ObservedMailboxEventWatermark, BrowserDriverError> {
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request.0.as_str()}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, request.0.as_str(), capture)?;
         ObservedMailboxEventWatermark::parse_cdp_body(&request.1, &body)
             .map_err(BrowserDriverError::MailboxEventWatermark)
     }
@@ -2003,12 +1984,7 @@ impl ManagedBrowser {
         request: &(String, String),
         capture: &mut InitialMailboxEventCapture,
     ) -> Result<ObservedMailboxEventWatermark, BrowserDriverError> {
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request.0.as_str()}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, request.0.as_str(), capture)?;
         ObservedMailboxEventWatermark::parse_cdp_body(&request.1, &body)
             .map_err(BrowserDriverError::MailboxEventWatermark)
     }
@@ -2299,12 +2275,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request_id}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, &request_id, capture)?;
         // jig-ignore-next-line: canonical rustfmt line.
         ObservedConversationDetailResponse::parse_cdp_body(&conversation_id, &body)
             .map(Some)
@@ -2453,12 +2424,7 @@ impl ManagedBrowser {
         }) {
             return Err(BrowserDriverError::ConversationListPageUnproven);
         }
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request_id}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, &request_id, capture)?;
         let response = ObservedConversationListResponse::parse_cdp_body(&body)
             .map_err(BrowserDriverError::ConversationListResponse)?;
         Ok(Some(CapturedConversationListResponse {
@@ -2698,12 +2664,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request_id}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, &request_id, capture)?;
         ObservedAttachmentMetadataResponse::parse_cdp_body(
             &attachment_id,
             expected_message_id,
@@ -2842,12 +2803,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request_id}),
-            capture,
-        )?;
+        let body = self.read_cdp_body(session, &request_id, capture)?;
         ObservedMessageDetailResponse::parse_cdp_body(&message_id, &body)
             .map(Some)
             .map_err(BrowserDriverError::MessageDetailResponse)
@@ -3136,12 +3092,8 @@ impl ManagedBrowser {
         request: &CompletedMessageListRequest,
         capture: &mut MessageListNetworkCapture,
     ) -> Result<ObservedMessageListResponse, BrowserDriverError> {
-        let body = self.call_in_session_observing(
-            session,
-            "Network.getResponseBody",
-            &json!({"requestId": request.request_id.as_str()}),
-            capture,
-        )?;
+        // jig-ignore-next-line: canonical list capture request invocation.
+        let body = self.read_cdp_body(session, request.request_id.as_str(), capture)?;
         ObservedMessageListResponse::parse_cdp_body(&body)
             .map_err(BrowserDriverError::MessageListResponse)
     }
@@ -3555,6 +3507,21 @@ impl ManagedBrowser {
     ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
         // jig-ignore-next-line: canonical rustfmt line.
         self.call_with_session_observer(Some(session), method, params, Some(capture))
+    }
+
+    // Request identifiers are private correlation selectors. Keep the
+    // source parameter JSON guarded just like the encoded CDP frame.
+    fn read_cdp_body(
+        &mut self,
+        session: &str,
+        request_id: &str,
+        capture: &mut dyn CdpEventObserver,
+    ) -> Result<strict_json::SensitiveValue, BrowserDriverError> {
+        let params = strict_json::SensitiveValue::from_owned(json!({
+            "requestId": request_id
+        }));
+        let method = "Network.getResponseBody";
+        self.call_in_session_observing(session, method, &params, capture)
     }
 
     /// Enables a reload-based Network capture, disabling on protocol rejection.

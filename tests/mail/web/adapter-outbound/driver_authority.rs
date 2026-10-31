@@ -40,6 +40,20 @@ use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runt
 use serde_json::json;
 
 #[test]
+fn response_body_capture_returns_guarded_json() {
+    use super::{CdpEventObserver, ManagedBrowser};
+    use crate::strict_json::SensitiveValue;
+
+    type ReadBody = fn(
+        &mut ManagedBrowser,
+        &str,
+        &str,
+        &mut dyn CdpEventObserver,
+    ) -> Result<SensitiveValue, BrowserDriverError>;
+    let _: ReadBody = ManagedBrowser::read_cdp_body;
+}
+
+#[test]
 fn scoped_browser_attachment_has_guarded_string_custody() {
     use super::{ManagedBrowser, ProviderPage};
     use zeroize::Zeroizing;

@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- All ten CDP `Network.getResponseBody` commands now route through a single
+  helper holding temporary request-ID JSON in the strict scrub-on-drop guard,
+  not an ordinary `json!` temporary. The helper keeps the exact Network
+  allowlist and passive event observation path unchanged, while the returned
+  response still uses guarded JSON decoding.
+
 - Passive CDP Network request-ID map keys and completed-ID set entries now
   have a shared bounded scrub-on-remove, scrub-on-retain, and scrub-on-drop
   custody helper. It preserves exact lookup and lifecycle membership while
