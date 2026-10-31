@@ -180,6 +180,13 @@ account credentials. The primary web UI login remains a separate P1 path.
   session authority, while ordinary and maximum-length synthetic labels remain
   compatible. The provider registration gate remains blocked.
 
+- Repeated provider scope labels now fail closed for both anonymous and
+  completed-fork sessions rather than appearing as additional granted
+  permissions. The bounded sensitive scope visitor compares retained labels
+  directly without making unguarded private String copies. Red-first offline
+  fixtures reject duplicates and preserve 128 distinct printable labels; live
+  provider identity approval remains blocked.
+
 ## Completed fork account identity safety
 
 - A red-first offline completed-fork fixture proved that a child `UserID` made

@@ -219,7 +219,10 @@ fn provider_scope_allocations_stay_within_individual_and_array_bounds() {
     use super::ProtocolError;
     use serde_json::json;
 
-    for accepted in [json!(vec!["scope"; 128]), json!(["x".repeat(4_096)])] {
+    let distinct = (0u16..128u16)
+        .map(|index| format!("scope-{index}"))
+        .collect::<Vec<_>>();
+    for accepted in [json!(distinct), json!(["x".repeat(4_096)])] {
         let body = json!({
             "UID":"synthetic-uid", "UserID":null,
             "AccessToken":"synthetic-access",

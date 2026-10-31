@@ -1107,7 +1107,11 @@ where
                 let invalid_scope = scope.is_empty()
                     || scope.len() > MAX_AUTH_SCOPE_BYTES
                     || !scope.bytes().all(|byte| byte.is_ascii_graphic());
-                if too_many || invalid_scope {
+                // Scopes are authority labels, not a multiset. Compare the
+                // guarded retained strings without allocating plain copies.
+                // jig-ignore-next-line: canonical rustfmt scope equality.
+                let duplicate_scope = scopes.iter().any(|existing| existing == &*scope);
+                if too_many || invalid_scope || duplicate_scope {
                     return Err(A::Error::custom("invalid authorization scope"));
                 }
                 scopes.push(take(&mut *scope));

@@ -314,6 +314,46 @@ fn provider_authority_refuses_ambiguous_scope_labels() {
 }
 
 #[test]
+fn provider_authority_refuses_duplicate_scope_labels() {
+    type JsonValue = serde_json::Value;
+    for completed in [false, true] {
+        let mut response = if completed {
+            serde_json::from_slice::<JsonValue>(&complete_response(None))
+                .expect("completed synthetic authority")
+        } else {
+            json!({
+                "UID":"synthetic-anonymous-uid", "UserID":null,
+                "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+                "Scopes":["loggedin"]
+            })
+        };
+        // An exact repeat is not a distinct capability and must not be
+        // accepted even when the total scope count is within its bound.
+        response["Scopes"] = json!(["loggedin", "mail.read", "loggedin"]);
+        let body = response.to_string();
+        let parsed = if completed {
+            ForkPoll::parse(200, body.as_bytes()).map(|_| ())
+        } else {
+            AnonymousSession::parse(200, body.as_bytes()).map(|_| ())
+        };
+        assert_eq!(parsed, Err(ProtocolError::MalformedJson));
+
+        // A full set of different visible labels remains supported.
+        let labels = (0u16..128u16)
+            .map(|i| format!("scope-{i}"))
+            .collect::<Vec<_>>();
+        response["Scopes"] = json!(labels);
+        let body = response.to_string();
+        let accepted = if completed {
+            ForkPoll::parse(200, body.as_bytes()).map(|_| ())
+        } else {
+            AnonymousSession::parse(200, body.as_bytes()).map(|_| ())
+        };
+        assert_eq!(accepted, Ok(()));
+    }
+}
+
+#[test]
 fn provider_authority_accepts_bounded_ascii_scope_labels() {
     type JsonValue = serde_json::Value;
     let at_limit = "s".repeat(4_096);
