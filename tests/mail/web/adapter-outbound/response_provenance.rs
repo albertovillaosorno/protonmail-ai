@@ -461,6 +461,46 @@ fn unknown_request_payload_markers_cannot_prove_bodyless_get() {
 }
 
 #[test]
+fn malformed_cdp_headers_cannot_prove_bodyless_get() {
+    let clean = json!({
+        "method": "GET", "url": "https://mail.proton.me/api/mail/v4/messages",
+        "headers": {"Accept": "application/json", "Content-Length": "0"}
+    });
+    assert!(bodyless_cdp_get(&clean));
+    for invalid in [
+        json!(null),
+        json!(true),
+        json!(0i32),
+        json!([]),
+        json!({"nested": "value"}),
+        json!("application/json\r\nTransfer-Encoding: chunked"),
+        json!("application/json\u{0}invalid"),
+        json!("application/json\u{7f}invalid"),
+    ] {
+        let mut request = clean.clone();
+        request["headers"]["Accept"] = invalid;
+        assert!(
+            !bodyless_cdp_get(&request),
+            "untyped or control-bearing CDP header must reject a passive GET"
+        );
+    }
+    for name in ["Content-Length\r\nTransfer-Encoding", "X-Test\nInjected"] {
+        let mut request = clean.clone();
+        request["headers"][name] = json!("0");
+        assert!(
+            !bodyless_cdp_get(&request),
+            "invalid CDP header name must reject a passive GET"
+        );
+    }
+    let mut duplicate = clean;
+    duplicate["headers"]["content-length"] = json!("0");
+    assert!(
+        !bodyless_cdp_get(&duplicate),
+        "case-aliased length fields cannot prove unambiguous GET framing"
+    );
+}
+
+#[test]
 fn request_headers_cannot_contradict_bodyless_get_provenance() {
     let clean = json!({
         "method": "GET", "url": "https://mail.proton.me/api/mail/v4/messages",

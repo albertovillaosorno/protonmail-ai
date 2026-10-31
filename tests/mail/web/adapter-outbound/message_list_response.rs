@@ -128,6 +128,32 @@ fn redirected_into_exact_message_list_get_is_not_fresh_evidence() {
 }
 
 #[test]
+fn malformed_header_metadata_cannot_authorize_message_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for invalid in [
+        json!(null),
+        json!({"nested": "value"}),
+        json!("ok\r\nInjected: x"),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let request = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "synthetic-list", "request": {
+                "method": "GET", "url": URL,
+                "headers": {"Accept": invalid}
+            }}
+        });
+        assert_eq!(
+            capture.observe(&request),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn malformed_or_duplicate_metadata_fails_closed() {
     for body in [
         r#"{"Stale":0,"Total":1,"Messages":[{"ID":"","Time":1,"Order":1}]}"#,

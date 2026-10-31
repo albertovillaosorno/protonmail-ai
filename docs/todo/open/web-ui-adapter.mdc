@@ -2421,3 +2421,12 @@ web application without requiring Bridge or a third-party direct API identity.
   and event fixtures proved a speculative GET previously looked like direct
   mailbox evidence. All eight passive captures share the predicate while
   ordinary Fetch/XHR/script and omitted legacy hints remain compatible.
+
+- Passive Mail API GETs now require canonical HTTP header metadata when CDP
+  reports Request.headers. Red-first synthetic capture accepted a GET with an
+  object-valued `Accept` field and a CRLF-bearing header, even though neither
+  can represent a trustworthy browser-serialized HTTP field. The shared read
+  gate now checks token header names, string values without control characters,
+  and unique case-insensitive zero `Content-Length`; missing headers and
+  ordinary GET headers remain supported. This covers all eight passive read
+  paths without retaining header content or using a live browser or account.

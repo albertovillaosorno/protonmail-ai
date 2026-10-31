@@ -32,6 +32,23 @@
 
 use serde_json::Value;
 
+// Validate the HTTP field shape, not its private content. A malformed CDP
+// Headers object cannot establish a meaningful body-free HTTP request.
+fn cdp_header_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&byte)
+}
+
+fn cdp_header_name_is_token(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(cdp_header_token_byte)
+}
+
+fn cdp_header_value_is_safe(value: &Value) -> bool {
+    value.as_str().is_some_and(|text| {
+        text.chars()
+            .all(|character| character == '\t' || !character.is_control())
+    })
+}
+
 // A CDP Request claiming GET does not prove body-free read semantics when
 // transport metadata also reports payload bytes. `Network.enable` may omit
 // postData text, so the boolean and entry-array flags need checking too.
@@ -68,15 +85,28 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
         // beyond the relevant key or retaining private request headers.
         let bodyless_headers = match fields.get("headers") {
             None => true,
-            Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
-                if !name.is_ascii() {
-                    return false;
-                }
-                if name.eq_ignore_ascii_case("content-length") {
-                    return value.as_str() == Some("0");
-                }
-                !name.eq_ignore_ascii_case("transfer-encoding")
-            }),
+            Some(Value::Object(headers)) => {
+                let mut seen_content_length = false;
+                headers.iter().all(|(name, value)| {
+                    // CDP Network.Headers is a map of HTTP header names to
+                    // strings. Non-token names, untyped values, and control
+                    // characters cannot prove what went onto the wire.
+                    if !cdp_header_name_is_token(name) {
+                        return false;
+                    }
+                    if !cdp_header_value_is_safe(value) {
+                        return false;
+                    }
+                    if name.eq_ignore_ascii_case("content-length") {
+                        if seen_content_length {
+                            return false;
+                        }
+                        seen_content_length = true;
+                        return value.as_str() == Some("0");
+                    }
+                    !name.eq_ignore_ascii_case("transfer-encoding")
+                })
+            }
             Some(_) => false,
         };
         let body_flag = fields.get("hasPostData");
