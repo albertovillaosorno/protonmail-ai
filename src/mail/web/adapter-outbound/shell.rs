@@ -149,7 +149,7 @@ fn visible_match<'role_nodes>(
         // absence is compatible with Chromium responses that omit this field.
         if let Some(frame) = node.get("frameId") {
             let frame = frame.as_str().ok_or(())?;
-            if !valid_ax_node_id(frame) {
+            if !valid_ax_frame_id(frame) {
                 return Err(());
             }
         }
@@ -186,6 +186,16 @@ fn visible_match<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// Browser frame IDs have narrower syntax than AX node IDs. Keep ordinary
+// AXNodeId punctuation compatible, but refuse path/query frame ID aliases.
+fn valid_ax_frame_id(id: &str) -> bool {
+    let allowed = id.bytes().all(|byte| match byte {
+        b'-' | b'_' => true,
+        _ => byte.is_ascii_alphanumeric(),
+    });
+    !id.is_empty() && id.len() <= 512 && allowed
 }
 
 fn valid_ax_node_id(id: &str) -> bool {

@@ -105,6 +105,14 @@ web application without requiring Bridge or a third-party direct API identity.
   32-bit protocol integer. Omitted identities and in-range IDs remain valid;
   no accessible names, DOM text, or live account data are inspected.
 
+## Keep AX frame identities aligned with CDP endpoint syntax
+
+- Red-first fake-browser evidence showed `AXNode.frameId` could report a
+  separator-bearing string (`/`, `?`, or `:`) and still prove shell readiness.
+  Unlike an AX node identifier, a browser frame ID is a bounded endpoint
+  identity and now requires ASCII letters, digits, hyphens, or underscores.
+  Normal frame tokens and omitted optional frame metadata remain valid.
+
 ## Refuse malformed optional accessibility frame identities
 
 - Red-first fake-browser query results proved a search/navigation landmark

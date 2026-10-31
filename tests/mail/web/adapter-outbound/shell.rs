@@ -449,6 +449,9 @@ fn malformed_ax_frame_id_cannot_prove_landmarks() {
         ("numeric-frame-id", String::from("123")),
         ("hidden-frame-id", String::from(r#""f\u200b1""#)),
         ("control-frame-id", String::from(r#""f\n1""#)),
+        ("slash-frame-id", String::from(r#""frame/other""#)),
+        ("query-frame-id", String::from(r#""frame?other""#)),
+        ("colon-frame-id", String::from(r#""frame:other""#)),
         ("oversized-frame-id", format!("\"{}\"", "f".repeat(513))),
     ] {
         let navigation = format!(r#"{base},"frameId":{frame}}}]"#);
