@@ -87,6 +87,15 @@ web application without requiring Bridge or a third-party direct API identity.
   validates optional reason metadata even on ignored nodes, and retains
   ordinary visible nodes with empty reasons. No accessible names are read.
 
+## Require coherent accessibility node relationships
+
+- Red-first fake-browser roles could prove Mail shell readiness even when
+  an `AXNode` reported itself as its parent or listed itself as a child.
+  Optional parent and child IDs now use the same bounded printable identity
+  guard as the node itself; self-links, duplicate children and malformed
+  metadata fail closed, while ordinary external relationships remain valid.
+  The driver does not traverse private accessibility subtrees.
+
 ## Require full document-root evidence before AX inspection
 
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`

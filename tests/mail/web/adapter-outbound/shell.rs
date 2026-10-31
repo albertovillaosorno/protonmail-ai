@@ -306,6 +306,114 @@ fn ordinary_accessibility_ignored_reasons_remain_compatible() {
 }
 
 #[test]
+fn accessibility_node_cannot_be_its_own_parent_or_child() {
+    let base = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}"#
+    );
+    for (label, extra) in [
+        ("self-parent", r#", "parentId":"ax-navigation""#),
+        ("self-child", r#", "childIds":["ax-navigation"]"#),
+    ] {
+        let node = format!("{base}{extra}}}]");
+        let roles = RoleFixture {
+            navigation: &node,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol)
+        );
+    }
+}
+
+#[test]
+fn ordinary_ax_node_parent_and_child_metadata_remains_compatible() {
+    let navigation = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"},"#,
+        r#""parentId":"ax-root","childIds":["ax-one","ax-two"]}]"#
+    );
+    let roles = RoleFixture {
+        navigation,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "valid-ax-relationships",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("valid AX topology")
+        .ready()
+    );
+}
+
+#[test]
+fn malformed_ax_node_relationships_cannot_prove_landmarks() {
+    let base = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}"#
+    );
+    for (label, extra) in [
+        ("numeric-parent", r#", "parentId":4"#),
+        ("missing-child-id", r#", "childIds":[null]"#),
+        ("duplicate-children", r#", "childIds":["ax-one","ax-one"]"#),
+        ("wrong-children-type", r#", "childIds":false"#),
+    ] {
+        let node = format!("{base}{extra}}}]");
+        let roles = RoleFixture {
+            navigation: &node,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol)
+        );
+    }
+}
+
+#[test]
+fn oversized_ax_child_list_cannot_prove_navigation_landmark() {
+    let children = (0..4097u32)
+        .map(|index| format!(r#""ax-child-{index}""#))
+        .collect::<Vec<_>>()
+        .join(",");
+    let navigation = format!(
+        concat!(
+            r#"[{{"ignored":false,"nodeId":"ax-navigation","#,
+            r#""role":{{"type":"role","value":"__AX_ROLE__"}},"#,
+            r#""childIds":[{children}]}}]"#
+        ),
+        children = children
+    );
+    let roles = RoleFixture {
+        navigation: &navigation,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "oversized-ax-children",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
+}
+
+#[test]
 fn one_accessibility_node_cannot_prove_two_different_shell_roles() {
     // One AX node cannot prove incompatible navigation and search roles.
     let shared =

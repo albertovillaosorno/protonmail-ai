@@ -106,12 +106,32 @@ fn visible_match<'role_nodes>(
         // CDP AXNode requires a unique string nodeId and a typed role. A
         // sparse or aliased node cannot prove a visible browser landmark.
         let id = node.get("nodeId").and_then(Value::as_str).ok_or(())?;
-        if id.is_empty()
-            || id.len() > 512
-            || !id.bytes().all(|byte| byte.is_ascii_graphic())
-            || !ids.insert(id)
-        {
+        if !valid_ax_node_id(id) || !ids.insert(id) {
             return Err(());
+        }
+        // Node relationships do not establish a landmark by themselves,
+        // but they cannot claim an impossible self-parent or self-child.
+        if let Some(parent) = node.get("parentId") {
+            let parent = parent.as_str().ok_or(())?;
+            if !valid_ax_node_id(parent) || parent == id {
+                return Err(());
+            }
+        }
+        if let Some(children) = node.get("childIds") {
+            let children = children.as_array().ok_or(())?;
+            if children.len() > 4096 {
+                return Err(());
+            }
+            let mut child_ids = HashSet::with_capacity(children.len());
+            for child in children {
+                let child = child.as_str().ok_or(())?;
+                if !valid_ax_node_id(child) || child == id {
+                    return Err(());
+                }
+                if !child_ids.insert(child) {
+                    return Err(());
+                }
+            }
         }
         let role = node.get("role").ok_or(())?;
         let kind = role.get("type").and_then(Value::as_str);
@@ -146,4 +166,9 @@ fn visible_match<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+fn valid_ax_node_id(id: &str) -> bool {
+    let bounded = !id.is_empty() && id.len() <= 512;
+    bounded && id.bytes().all(|byte| byte.is_ascii_graphic())
 }
