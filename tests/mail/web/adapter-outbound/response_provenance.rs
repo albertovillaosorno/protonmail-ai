@@ -334,6 +334,42 @@ fn cross_site_cdp_request_hint_cannot_prove_active_mail_read() {
 }
 
 #[test]
+fn only_if_cached_request_directive_cannot_prove_direct_http() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Cache-Control": "no-cache"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for directive in [
+        "only-if-cached",
+        "max-age=0, only-if-cached",
+        "ONLY-IF-CACHED",
+        "no-cache, ONLY-IF-CACHED, max-age=0",
+    ] {
+        let mut event = ordinary.clone();
+        let headers = &mut event["params"]["request"]["headers"];
+        headers["Cache-Control"] = json!(directive);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "explicit cache-only request cannot prove direct provider HTTP"
+        );
+        let mut refined = json!({
+            "params": {"type": "Fetch", "response": {
+                "status": 200u16, "mimeType": "application/json",
+                "requestHeaders": {"Cache-Control": "no-cache"}
+            }}
+        });
+        let wire = &mut refined["params"]["response"]["requestHeaders"];
+        wire["Cache-Control"] = json!(directive);
+        assert!(
+            !direct_cdp_read_response(&refined),
+            "refined cache-only request cannot prove direct provider HTTP"
+        );
+    }
+}
+
+#[test]
 fn duplicated_origin_singleton_headers_cannot_prove_mail_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",

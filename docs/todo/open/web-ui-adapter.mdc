@@ -2535,3 +2535,12 @@ web application without requiring Bridge or a third-party direct API identity.
   repeated singletons ambiguously. The shared Mail-owned read check rejects
   repeated Host, Origin, Referer, and Sec-Fetch Mode/Site/Dest headers without
   reading or preserving their values. Ordinary single headers remain valid.
+
+- An explicit request `Cache-Control: only-if-cached` directive now prevents a
+  passive Mail GET from being interpreted as fresh provider HTTP, regardless
+  of otherwise normal source flags. Red-first synthetic shared and message-list
+  captures previously accepted this explicitly cache-only request. The shared
+  origin/header gate checks both provisional and refined transmitted request
+  headers, including comma-separated case-insensitive directives; ordinary
+  `no-cache` and omitted Cache-Control remain supported without retaining
+  header values or accessing a real browser.

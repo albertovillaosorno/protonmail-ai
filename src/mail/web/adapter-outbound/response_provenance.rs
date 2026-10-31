@@ -189,6 +189,15 @@ fn proxy_routing_header(name: &str) -> bool {
     .any(|header| name.eq_ignore_ascii_case(header))
 }
 
+// An only-if-cached request expressly forbids using provider network HTTP.
+// Other Cache-Control directives may legitimately revalidate via HTTP 200.
+fn cache_only_directive(value: &str) -> bool {
+    value.split(',').any(|part| {
+        let directive = part.trim_ascii();
+        directive.eq_ignore_ascii_case("only-if-cached")
+    })
+}
+
 // Fetch Metadata headers describe the actual browser request destination.
 // Navigation, embedded resources, or cross-site requests cannot corroborate
 // an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
@@ -215,6 +224,11 @@ fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
         }
         if proxy_routing_header(name) {
             return false;
+        }
+        if name.eq_ignore_ascii_case("Cache-Control") {
+            return value
+                .as_str()
+                .is_some_and(|text| !cache_only_directive(text));
         }
         if name.eq_ignore_ascii_case("Host") {
             // A conflicting HTTP authority cannot establish a direct
