@@ -248,6 +248,50 @@ fn extra_status_wire_content_type_must_confirm_json_response() {
 }
 
 #[test]
+fn raw_wire_response_headers_must_correlate_with_structured_json_200() {
+    let original = json!({"params":{"statusCode":200u16,
+        "headers":{"Content-Type":"application/json; charset=utf-8"},
+        // jig-ignore-next-line: synthetic raw wire CRLF fixture.
+        "headersText":"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nDate: Sat, 31 Oct 2026 09:00:00 GMT\r\n\r\n"}});
+    assert!(direct_extra_status_is_200(&original));
+    let accepted = json!({"params":{"statusCode":200u16,
+        // jig-ignore-next-line: synthetic raw wire CRLF fixture.
+        "headersText":"HTTP/1.0 200\r\nContent-Type: application/json\r\n\r\n"}});
+    assert!(direct_extra_status_is_200(&accepted));
+
+    for raw in [
+        "HTTP/1.1 304 Not Modified\r\nContent-Type: application/json\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n",
+        // jig-ignore-next-line: synthetic raw wire CRLF fixture.
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Type: text/html\r\n\r\n",
+        // jig-ignore-next-line: synthetic raw wire CRLF fixture.
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Type: application/json\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\n\n",
+        // jig-ignore-next-line: synthetic raw wire CRLF fixture.
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\nInjected: unknown\r\n\r\n",
+    ] {
+        let mut changed = original.clone();
+        changed["params"]["headersText"] = json!(raw);
+        assert!(
+            !direct_extra_status_is_200(&changed),
+            "raw headers must not override structured proof"
+        );
+    }
+    for invalid in [json!(null), json!([]), json!(0u16), json!("")] {
+        let mut changed = original.clone();
+        changed["params"]["headersText"] = invalid;
+        assert!(!direct_extra_status_is_200(&changed));
+    }
+    let mut conflicting = original;
+    conflicting["params"]["headersText"] =
+        json!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n");
+    assert!(
+        !direct_extra_status_is_200(&conflicting),
+        "raw and structured media types must agree"
+    );
+}
+
+#[test]
 fn contradictory_source_hints_override_false_flags() {
     let mut response = json!({
         "fromDiskCache": false,

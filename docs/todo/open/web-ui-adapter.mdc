@@ -2581,3 +2581,13 @@ web application without requiring Bridge or a third-party direct API identity.
   extra-status header gate accepts only an explicit `:status: 200` consistent
   with CDP statusCode 200; request pseudo-headers and mismatched values fail
   closed. Synthetic evidence covers accepted and rejected variants.
+
+- Optional raw HTTP/1 `Network.responseReceivedExtraInfo.headersText` must
+  corroborate the parsed JSON HTTP 200 evidence. A red-first synthetic fixture
+  showed a raw HTTP 304 or HTML Content-Type was ignored when the parsed header
+  map reported JSON 200. The shared passive-response gate now checks bounded
+  raw status and header structure, rejects conflicting or duplicate media
+  types, and agrees with the structured Content-Type when both appear. Raw
+  Set-Cookie or other private header contents are inspected only as borrowed
+  text and never retained; message-list lifecycle tests cover either event
+  order without any browser, account or provider request.

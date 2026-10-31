@@ -738,6 +738,80 @@ impl ExtraStatusEvidence {
     }
 }
 
+// Chromium may include raw HTTP/1 response headers as well as the parsed
+// Headers map. A proxy or malformed wire response cannot turn a raw 304 or
+// HTML reply into an apparent JSON 200 merely by contradictory parsed fields.
+// Scan borrowed slices only: raw header text can contain Set-Cookie secrets.
+// jig-ignore-next-line: canonical rustfmt type signature.
+fn raw_json_200_headers(text: &str, structured: Option<&Map<String, Value>>) -> bool {
+    if text.len() > 64 * 1024 {
+        return false;
+    }
+    let Some(text) = text.strip_suffix("\r\n\r\n") else {
+        return false;
+    };
+    let mut lines = text.split("\r\n");
+    let Some(status) = lines.next() else {
+        return false;
+    };
+    let status_200 = matches!(status, "HTTP/1.0 200" | "HTTP/1.1 200")
+        || status.starts_with("HTTP/1.0 200 ")
+        || status.starts_with("HTTP/1.1 200 ");
+    if !status_200
+        || !status
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() || byte == b' ')
+    {
+        return false;
+    }
+    let mut raw_content_type = None;
+    for line in lines {
+        let Some((name, value)) = line.split_once(':') else {
+            return false;
+        };
+        if name.starts_with(':') || !cdp_header_name_is_token(name) {
+            return false;
+        }
+        let value = value.trim_ascii();
+        if !value
+            .chars()
+            .all(|character| character == '\t' || !character.is_control())
+        {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("Content-Type")
+            // jig-ignore-next-line: canonical rustfmt logical expression.
+            && (raw_content_type.replace(value).is_some() || !json_content_type(value))
+        {
+            return false;
+        }
+    }
+    if let Some(structured) = structured {
+        for (name, value) in structured {
+            if name.eq_ignore_ascii_case("Content-Type") {
+                return value.as_str().is_some_and(|content_type| {
+                    raw_content_type
+                        // jig-ignore-next-line: canonical rustfmt closure.
+                        .is_some_and(|raw| raw.eq_ignore_ascii_case(content_type.trim_ascii()))
+                });
+            }
+        }
+    }
+    true
+}
+
+fn json_content_type(value: &str) -> bool {
+    if value.len() > 256 {
+        return false;
+    }
+    value
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim_ascii()
+        .eq_ignore_ascii_case("application/json")
+}
+
 // A conditional HTTP-cache revalidation can report 200 in responseReceived
 // while the network stack reports 304 here. Accept only exact 200 if the
 // optional extra-info event is provided for a tracked provider GET.
@@ -753,9 +827,16 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
         return false;
     }
     let headers = match params.get("headers") {
-        None => return true,
-        Some(Value::Object(headers)) => headers,
+        None => None,
+        Some(Value::Object(headers)) => Some(headers),
         Some(_) => return false,
+    };
+    let Some(headers) = headers else {
+        return match params.get("headersText") {
+            None => true,
+            Some(Value::String(text)) => raw_json_200_headers(text, None),
+            Some(_) => false,
+        };
     };
     // Extra-info carries the actual HTTP response headers. A conflicting
     // content type cannot corroborate a passive Mail JSON response even if
@@ -781,19 +862,16 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
             let Some(content_type) = value.as_str() else {
                 return false;
             };
-            if content_type.len() > 256 {
-                return false;
-            }
-            let media_type = content_type.split(';').next().unwrap_or_default();
-            if !media_type
-                .trim_ascii()
-                .eq_ignore_ascii_case("application/json")
-            {
+            if !json_content_type(content_type) {
                 return false;
             }
         }
     }
-    true
+    match params.get("headersText") {
+        None => true,
+        Some(Value::String(text)) => raw_json_200_headers(text, Some(headers)),
+        Some(_) => false,
+    }
 }
 
 #[cfg(test)]

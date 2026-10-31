@@ -815,6 +815,54 @@ fn declared_extra_status_is_required_before_completion() {
 }
 
 #[test]
+fn contradictory_raw_wire_headers_reject_message_list_completion() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for first_extra in [false, true] {
+        for raw_headers in [
+            // jig-ignore-next-line: synthetic CDP wire fixture.
+            "HTTP/1.1 304 Not Modified\r\nContent-Type: application/json\r\n\r\n",
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n",
+        ] {
+            let mut capture = MessageListNetworkCapture::new("session-1");
+            capture
+                .observe(&json!({
+                    // jig-ignore-next-line: synthetic CDP wire fixture.
+                    "sessionId":"session-1", "method":"Network.requestWillBeSent",
+                    // jig-ignore-next-line: synthetic CDP wire fixture.
+                    "params":{"requestId":"raw", "request":{"method":"GET", "url":URL}}
+                }))
+                .expect("track provider GET");
+            let response = json!({
+                "sessionId":"session-1", "method":"Network.responseReceived",
+                "params":{"requestId":"raw", "hasExtraInfo":true, "response":{
+                    "url":URL, "status":200u16, "mimeType":"application/json"}}
+            });
+            let extra = json!({
+                // jig-ignore-next-line: synthetic CDP wire fixture.
+                "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+                "params":{"requestId":"raw", "statusCode":200u16,
+                    "headers":{"Content-Type":"application/json"},
+                    "headersText":raw_headers}
+            });
+            if !first_extra {
+                capture.observe(&response).expect("nominal JSON HTTP 200");
+            }
+            assert_eq!(
+                capture.observe(&extra),
+                Err(MessageListNetworkError::ResponseRejected)
+            );
+            if first_extra {
+                // Early extra info may precede responseReceived: it must be
+                // rejected rather than cached as future positive evidence.
+                assert!(capture.take_finished_request_ids().is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn revalidated_cache_status_rejects_message_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
