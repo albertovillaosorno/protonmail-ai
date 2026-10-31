@@ -193,7 +193,26 @@ fn proxy_routing_header(name: &str) -> bool {
 // Navigation, embedded resources, or cross-site requests cannot corroborate
 // an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
 fn active_mail_fetch_headers(headers: &Map<String, Value>) -> bool {
+    // HTTP singletons cannot be supplied twice under different case aliases.
+    // Otherwise competing client and intermediary interpretations are unclear.
+    let singleton_names = [
+        "Host",
+        "Origin",
+        "Referer",
+        "Sec-Fetch-Mode",
+        "Sec-Fetch-Dest",
+        "Sec-Fetch-Site",
+    ];
+    let mut seen_singletons = [false; 6];
     headers.iter().all(|(name, value)| {
+        for (index, singleton) in singleton_names.iter().enumerate() {
+            if name.eq_ignore_ascii_case(singleton) {
+                if seen_singletons[index] {
+                    return false;
+                }
+                seen_singletons[index] = true;
+            }
+        }
         if proxy_routing_header(name) {
             return false;
         }

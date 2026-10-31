@@ -2527,3 +2527,11 @@ web application without requiring Bridge or a third-party direct API identity.
   predicates now reject known forwarded host, protocol, port, and URL rewrite
   fields without parsing or logging their values. Ordinary Mail AJAX headers
   remain supported and no real provider request was performed.
+
+- HTTP origin and Fetch Metadata singleton headers now require one canonical
+  case-insensitive occurrence in both early request and refined wire maps.
+  Red-first synthetic request and message-list captures accepted `Host` plus
+  `host` aliases with matching values, although HTTP intermediaries may treat
+  repeated singletons ambiguously. The shared Mail-owned read check rejects
+  repeated Host, Origin, Referer, and Sec-Fetch Mode/Site/Dest headers without
+  reading or preserving their values. Ordinary single headers remain valid.

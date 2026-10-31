@@ -334,6 +334,46 @@ fn cross_site_cdp_request_hint_cannot_prove_active_mail_read() {
 }
 
 #[test]
+fn duplicated_origin_singleton_headers_cannot_prove_mail_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Host": "mail.proton.me"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for (canonical, duplicate, value) in [
+        ("Host", "host", "mail.proton.me"),
+        ("Origin", "origin", "https://mail.proton.me"),
+        ("Referer", "referer", "https://mail.proton.me/u/0/inbox"),
+        ("Sec-Fetch-Mode", "sec-fetch-mode", "cors"),
+        ("Sec-Fetch-Site", "sec-fetch-site", "same-origin"),
+        ("Sec-Fetch-Dest", "sec-fetch-dest", "empty"),
+    ] {
+        let mut event = ordinary.clone();
+        let headers = &mut event["params"]["request"]["headers"];
+        headers[canonical] = json!(value);
+        headers[duplicate] = json!(value);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "duplicate singleton {canonical} cannot establish origin"
+        );
+        let mut refined = json!({
+            "params": {"type": "Fetch", "response": {
+                "status": 200u16, "mimeType": "application/json",
+                "requestHeaders": {"Accept": "application/json"}
+            }}
+        });
+        let wire = &mut refined["params"]["response"]["requestHeaders"];
+        wire[canonical] = json!(value);
+        wire[duplicate] = json!(value);
+        assert!(
+            !direct_cdp_read_response(&refined),
+            "duplicate transmitted singleton {canonical} is ambiguous"
+        );
+    }
+}
+
+#[test]
 fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",
