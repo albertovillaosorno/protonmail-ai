@@ -76,6 +76,13 @@ account credentials. The primary web UI login remains a separate P1 path.
 
 ## Sensitive diagnostics boundary
 
+- Completed fork responses now Base64-decode optional encrypted payloads
+  directly into bounded zeroizing output, so malformed payloads cannot release
+  a partially decoded ordinary Vec. Padding-only unused tail bytes are wiped
+  before truncation, and decoded ciphertext cannot exceed the 64 KiB budget.
+  Synthetic typed, valid/padded, malformed, and over-limit regressions preserve
+  offline session-fork behavior without enabling live provider authentication.
+
 - QR fork-key encoding now targets a fixed zeroizing base64 buffer;
   the four-field handoff payload and selector-bearing poll route append
   directly into pre-sized zeroizing Strings. This removes ordinary temporary

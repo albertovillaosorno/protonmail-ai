@@ -44,7 +44,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize as _, Zeroizing};
 
 use crate::identity::ApprovedMailIdentity;
 use crate::identity::ProviderAuthorizationSnapshot;
@@ -63,6 +63,28 @@ const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
 const MAX_ENCRYPTED_PAYLOAD_BYTES: usize = 65_536;
 const ENCODED_PAYLOAD_CHUNKS: usize = MAX_ENCRYPTED_PAYLOAD_BYTES.div_ceil(3);
 const MAX_ENCODED_PAYLOAD_BYTES: usize = ENCODED_PAYLOAD_CHUNKS * 4;
+
+// Decode encrypted fork authority directly into guarded memory: ordinary
+// Engine::decode can discard partially written bytes on invalid base64.
+// jig-ignore-next-line: rustfmt fixes this private bounded decoder signature.
+fn decode_encrypted_fork_payload(encoded: &str) -> ForkResult<Zeroizing<Vec<u8>>> {
+    if encoded.len() > MAX_ENCODED_PAYLOAD_BYTES {
+        return Err(ProtocolError::InvalidEncryptedPayload);
+    }
+    let capacity = base64::decoded_len_estimate(encoded.len());
+    let mut decoded = Zeroizing::new(vec![0u8; capacity]);
+    let used = STANDARD
+        .decode_slice(encoded, &mut decoded)
+        .map_err(|_error| ProtocolError::InvalidPayloadEncoding)?;
+    if used > MAX_ENCRYPTED_PAYLOAD_BYTES {
+        return Err(ProtocolError::InvalidEncryptedPayload);
+    }
+    // Base64 padding can leave bytes past the decoded prefix. Scrub them
+    // before truncating: Zeroizing will only wipe a Vec's live length.
+    decoded[used..].zeroize();
+    decoded.truncate(used);
+    Ok(decoded)
+}
 
 type LegacyAes256Gcm = AesGcm<Aes256, U16>;
 
@@ -560,19 +582,11 @@ impl ForkPoll {
             return Err(ProtocolError::IncompleteAuthority);
         }
 
-        if raw
-            .payload
-            .as_ref()
-            .is_some_and(|encoded| encoded.len() > MAX_ENCODED_PAYLOAD_BYTES)
-        {
-            return Err(ProtocolError::InvalidEncryptedPayload);
-        }
         let payload = raw
             .payload
-            .map(|encoded| STANDARD.decode(encoded.as_bytes()))
-            .transpose()
-            .map_err(|_error| ProtocolError::InvalidPayloadEncoding)?
-            .map(Zeroizing::new);
+            .as_deref()
+            .map(|encoded| decode_encrypted_fork_payload(encoded))
+            .transpose()?;
 
         Ok(Self::Complete(ForkSession {
             uid: raw.auth.uid,

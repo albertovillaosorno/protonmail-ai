@@ -238,3 +238,40 @@ fn partial_refresh_serialization_fails_inside_guarded_buffer() {
         Err(ProtocolError::SerializationFailed)
     ));
 }
+
+#[test]
+fn fork_payload_base64_decodes_directly_into_zeroizing_storage() {
+    use super::decode_encrypted_fork_payload;
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD;
+
+    let expected = [0u8, 1, 2, 3, 4, 254, 255];
+    let encoded = STANDARD.encode(expected);
+    let result = decode_encrypted_fork_payload(&encoded);
+    let decoded: Zeroizing<Vec<u8>> = result.expect("synthetic fork payload");
+    assert_eq!(decoded.as_slice(), expected);
+    assert_eq!(decoded.len(), expected.len());
+}
+
+#[test]
+fn fork_payload_base64_failed_decode_drops_guarded_prefix() {
+    use super::{ProtocolError, decode_encrypted_fork_payload};
+
+    // The parser can write a partial output prefix before finding bad base64.
+    assert!(matches!(
+        decode_encrypted_fork_payload("AAEC!AAA"),
+        Err(ProtocolError::InvalidPayloadEncoding)
+    ));
+}
+
+#[test]
+fn fork_payload_base64_refuses_decoded_size_above_auth_bound() {
+    use super::decode_encrypted_fork_payload;
+    use super::{MAX_ENCODED_PAYLOAD_BYTES, ProtocolError};
+
+    let encoded = "A".repeat(MAX_ENCODED_PAYLOAD_BYTES);
+    assert!(matches!(
+        decode_encrypted_fork_payload(&encoded),
+        Err(ProtocolError::InvalidEncryptedPayload)
+    ));
+}
