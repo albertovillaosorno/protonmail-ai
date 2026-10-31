@@ -122,6 +122,8 @@ web application without requiring Bridge or a third-party direct API identity.
   reported resource security state to be exactly `secure`. Omission remains
   compatible with older CDP fixtures; all eight passive read collectors share
   this check, with no certificate, header, or mailbox content retained.
+  Unreviewed security-state spelling variants and extensions also fail closed,
+  rather than bypassing a valid `securityState` with a contradictory alias.
 
 ## Reject conflicting AX child ownership across role replies
 

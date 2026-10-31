@@ -54,20 +54,21 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
     let Some(fields) = response.as_object() else {
         return false;
     };
-    // Future CDP releases may introduce a new cache/SW provenance marker.
+    // Future CDP releases may introduce cache/SW or security-state markers.
     // Do not silently treat an unknown source-like key as direct HTTP, even
     // when its current value appears false or spells a known key differently.
     let unknown_source_marker = fields.keys().any(|field| {
-        let source_like = ["from", "serviceWorker", "cacheStorage"]
+        let marker = ["from", "serviceWorker", "cacheStorage", "securityState"]
             .iter()
             .any(|prefix| {
                 field
                     .get(..prefix.len())
                     .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
             });
-        source_like
+        marker
             && !source_flags.contains(&field.as_str())
             && !source_hints.contains(&field.as_str())
+            && field != "securityState"
     });
     // An HTTPS endpoint cannot establish a trusted direct response if the
     // browser explicitly reports insecure, neutral, or unknown transport.

@@ -115,6 +115,14 @@ fn insecure_network_security_states_cannot_prove_direct_provider_http() {
     let mut secure = ordinary.clone();
     secure["securityState"] = json!("secure");
     assert!(uncached_provider_response(&secure));
+    for alias in ["SecurityState", "securitySTATE", "securityStateFuture"] {
+        let mut ambiguous = secure.clone();
+        ambiguous[alias] = json!("insecure");
+        assert!(
+            !uncached_provider_response(&ambiguous),
+            "unreviewed CDP security state alias {alias} must fail closed"
+        );
+    }
     for invalid in [
         json!("insecure"),
         json!("insecure-broken"),
