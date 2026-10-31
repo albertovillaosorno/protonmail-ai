@@ -857,3 +857,10 @@ Ship useful read access before any mailbox mutation is enabled.
   prefetch-cache provenance. Explicit true or malformed values fail closed;
   omitted and false values remain compatible. Red-first tests reproduced this
   gap independently across every observed provider GET type.
+
+- All passive read response observers now share one private cache-provenance
+  validator, eliminating seven formerly duplicated predicates. In addition to
+  the four source flags, the shared gate rejects any reported service-worker
+  response source, Cache Storage name or service-worker router metadata, even
+  when earlier flags conflict. Red-first synthetic evidence covers each exact
+  GET family; omitted hints and explicit-false source flags preserve reads.

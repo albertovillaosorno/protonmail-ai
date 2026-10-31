@@ -314,3 +314,7 @@ bounded resource use.
 - Both event watermark capture states also reject `fromEarlyHints` prefetch
   provenance; red-first synthetic CDP replies verify latest and core-v5 event
   GETs before any cursor progress can be trusted.
+
+- Event bootstrap and polling use the same shared CDP response-provenance
+  validator as list/detail/catalog reads, refusing independent service-worker
+  source, Cache Storage and router hints before cursor progress is accepted.

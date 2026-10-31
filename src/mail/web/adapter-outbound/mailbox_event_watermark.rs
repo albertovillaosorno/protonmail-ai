@@ -33,6 +33,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -58,23 +59,6 @@ const MAX_PROJECTED_CHANGES: usize = 512;
 const MAX_EVENT_SEQUENCE_PAGES: usize = 32;
 const MAX_EVENT_SEQUENCE_CHANGES: usize = 4096;
 const CONTACTS_ONLY_REFRESH_BIT: u64 = 2;
-
-// A cached or service-worker-generated event response cannot prove the latest
-// provider watermark. Absent CDP source flags remain compatible with Chromium
-// variants that do not report them; an explicit flag must be boolean false.
-fn uncached_event_response(response: &Value) -> bool {
-    [
-        "fromDiskCache",
-        "fromServiceWorker",
-        "fromPrefetchCache",
-        "fromEarlyHints",
-    ]
-    .iter()
-    .all(|field| {
-        let source = response.get(*field);
-        matches!(source, None | Some(Value::Bool(false)))
-    })
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum EventRequestState {
@@ -337,7 +321,7 @@ impl LatestMailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
-            || !uncached_event_response(response)
+            || !uncached_provider_response(response)
             || mime != Some("application/json")
             || !is_latest_event_url(url)
             || url_fingerprint != request.url_fingerprint
@@ -619,7 +603,7 @@ impl MailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::InvalidSequence);
         }
         if status != Some(200)
-            || !uncached_event_response(response)
+            || !uncached_provider_response(response)
             || mime != Some("application/json")
             || event_id != request.event_id.as_str()
             || url_fingerprint != request.url_fingerprint

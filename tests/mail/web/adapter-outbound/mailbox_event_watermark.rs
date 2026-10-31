@@ -643,6 +643,20 @@ fn core_event_watermarks_reject_cache_and_service_worker_responses() {
         ("fromPrefetchCache", json!(true)),
         ("fromEarlyHints", json!(true)),
         ("fromEarlyHints", json!(null)),
+        ("serviceWorkerResponseSource", json!("cache-storage")),
+        ("serviceWorkerResponseSource", json!("network")),
+        ("serviceWorkerResponseSource", json!(null)),
+        ("cacheStorageCacheName", json!("mail-cache")),
+        ("cacheStorageCacheName", json!(null)),
+        (
+            "serviceWorkerRouterInfo",
+            json!({"actualSourceType":"cache"}),
+        ),
+        (
+            "serviceWorkerRouterInfo",
+            json!({"actualSourceType":"network"}),
+        ),
+        ("serviceWorkerRouterInfo", json!(null)),
         ("fromDiskCache", json!("false")),
         ("fromServiceWorker", json!(null)),
     ] {

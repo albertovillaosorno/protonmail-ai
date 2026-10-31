@@ -343,6 +343,20 @@ fn cached_attachment_responses_cannot_authorize_provider_metadata() {
         ("fromPrefetchCache", json!(true)),
         ("fromEarlyHints", json!(true)),
         ("fromEarlyHints", json!(null)),
+        ("serviceWorkerResponseSource", json!("cache-storage")),
+        ("serviceWorkerResponseSource", json!("network")),
+        ("serviceWorkerResponseSource", json!(null)),
+        ("cacheStorageCacheName", json!("mail-cache")),
+        ("cacheStorageCacheName", json!(null)),
+        (
+            "serviceWorkerRouterInfo",
+            json!({"actualSourceType":"cache"}),
+        ),
+        (
+            "serviceWorkerRouterInfo",
+            json!({"actualSourceType":"network"}),
+        ),
+        ("serviceWorkerRouterInfo", json!(null)),
         ("fromDiskCache", json!(null)),
         ("fromServiceWorker", json!("false")),
     ] {

@@ -34,6 +34,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -50,23 +51,6 @@ const MAX_CONVERSATION_ID_BYTES: usize = 512;
 const MAX_MESSAGE_ID_BYTES: usize = 512;
 const MAX_CONVERSATION_MESSAGES: usize = 512;
 const MAX_TRACKED_CONVERSATION_DETAIL_REQUESTS: usize = 16;
-
-// Cached or service-worker-derived metadata cannot prove current provider
-// state. CDP may omit these optional markers, but a present marker must be
-// boolean false rather than ambiguous or affirmative cache provenance.
-fn uncached_conversation_detail_response(response: &Value) -> bool {
-    [
-        "fromDiskCache",
-        "fromServiceWorker",
-        "fromPrefetchCache",
-        "fromEarlyHints",
-    ]
-    .iter()
-    .all(|field| {
-        let source = response.get(*field);
-        matches!(source, None | Some(Value::Bool(false)))
-    })
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ConversationDetailRequestState {
@@ -264,7 +248,7 @@ impl ConversationDetailNetworkCapture {
         let mime = response.get("mimeType").and_then(Value::as_str);
         if response_conversation_id != Some(request.conversation_id.as_str())
             || status != Some(200)
-            || !uncached_conversation_detail_response(response)
+            || !uncached_provider_response(response)
             || mime != Some("application/json")
         {
             return Err(ConversationDetailNetworkError::ResponseRejected);

@@ -31,6 +31,7 @@
 //! Content-minimizing projection of Proton Mail message-list responses.
 
 use crate::request_id_custody::{retain_request_ids, scrub_all_request_ids};
+use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, BTreeSet};
@@ -49,23 +50,6 @@ const MAX_MESSAGE_LIST_ID_BYTES: usize = 512;
 const MAX_TRACKED_MESSAGE_LIST_REQUESTS: usize = 128;
 const MAX_MESSAGE_LIST_URL_BYTES: usize = 16_384;
 const MAX_VISIBLE_MESSAGE_METADATA: usize = 200;
-
-// A provider `Stale: 0` response body alone cannot establish list freshness
-// when the browser declares a cached or service-worker response. Missing
-// source flags preserve compatibility; present flags must be boolean false.
-fn uncached_list_response(response: &Value) -> bool {
-    [
-        "fromDiskCache",
-        "fromServiceWorker",
-        "fromPrefetchCache",
-        "fromEarlyHints",
-    ]
-    .iter()
-    .all(|field| {
-        let source = response.get(*field);
-        matches!(source, None | Some(Value::Bool(false)))
-    })
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NetworkRequestState {
@@ -406,7 +390,7 @@ impl MessageListNetworkCapture {
         let status = response.get("status").and_then(Value::as_u64);
         let mime = response.get("mimeType").and_then(Value::as_str);
         if !is_message_list_url(url)
-            || !uncached_list_response(response)
+            || !uncached_provider_response(response)
             || status != Some(200)
             || mime != Some("application/json")
         {

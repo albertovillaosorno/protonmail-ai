@@ -35,6 +35,7 @@
 use crate::request_id_custody::discard_request_id;
 use crate::request_id_custody::retain_request_ids;
 use crate::request_id_custody::scrub_all_request_ids;
+use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -50,23 +51,6 @@ const MAX_CATALOG_ITEMS: usize = 2_048;
 const MAX_CATALOG_ID_BYTES: usize = 512;
 const MAX_CATALOG_NAME_BYTES: usize = 1_024;
 const MAX_TRACKED_CATALOG_REQUESTS: usize = 16;
-
-// A cached or service-worker-derived catalog cannot prove current provider
-// folder and label metadata. Absent source flags remain compatible with CDP;
-// present flags must explicitly be boolean false.
-fn uncached_catalog_response(response: &Value) -> bool {
-    [
-        "fromDiskCache",
-        "fromServiceWorker",
-        "fromPrefetchCache",
-        "fromEarlyHints",
-    ]
-    .iter()
-    .all(|field| {
-        let source = response.get(*field);
-        matches!(source, None | Some(Value::Bool(false)))
-    })
-}
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum CatalogRequestState {
@@ -291,7 +275,7 @@ impl MailboxCatalogNetworkCapture {
             return Err(MailboxCatalogNetworkError::InvalidSequence);
         }
         if status != Some(200)
-            || !uncached_catalog_response(response)
+            || !uncached_provider_response(response)
             || mime != Some("application/json")
             || response_kind != Some(request.kind)
         {

@@ -389,6 +389,20 @@ fn cached_mailbox_catalog_responses_are_not_authoritative() {
             ("fromPrefetchCache", json!(true)),
             ("fromEarlyHints", json!(true)),
             ("fromEarlyHints", json!(null)),
+            ("serviceWorkerResponseSource", json!("cache-storage")),
+            ("serviceWorkerResponseSource", json!("network")),
+            ("serviceWorkerResponseSource", json!(null)),
+            ("cacheStorageCacheName", json!("mail-cache")),
+            ("cacheStorageCacheName", json!(null)),
+            (
+                "serviceWorkerRouterInfo",
+                json!({"actualSourceType":"cache"}),
+            ),
+            (
+                "serviceWorkerRouterInfo",
+                json!({"actualSourceType":"network"}),
+            ),
+            ("serviceWorkerRouterInfo", json!(null)),
             ("fromDiskCache", json!(null)),
             ("fromServiceWorker", json!("false")),
         ] {
