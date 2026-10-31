@@ -23,6 +23,18 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Hidden CSS-composited mailbox controls and content
+
+- Red-first executable Node browser fixtures showed that a parent with
+  `clip-path: inset(100%)` could hide Mail rows, pagination controls and sort
+  options while every child retained nonempty, positive-area layout boxes.
+  A parent with `filter: opacity(0)` similarly hid private row titles and
+  controls without changing computed `opacity` or the rectangles. The audited
+  bounded ancestor gates now refuse non-default clip paths and CSS filters
+  before either exposing Mail row metadata or triggering read-only clicks.
+  Synthetic tests retain ordinary, unfiltered controls; no live account or
+  browser was involved.
+
 ## Collapsed content is not a visible mailbox snapshot
 
 - Red-first executable synthetic browser fixtures exposed nonempty but

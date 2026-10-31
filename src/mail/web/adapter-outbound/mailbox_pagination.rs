@@ -48,6 +48,9 @@ const NEXT_PAGE_CLICK_EXPRESSION: &str = concat!(
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
     "style.contentVisibility==='hidden'||",
+    // Rectangles remain positive for fully clipped or filtered-out trees.
+    "(style.clipPath&&style.clipPath!=='none')||",
+    "(style.filter&&style.filter!=='none')||",
     "style.pointerEvents==='none'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",

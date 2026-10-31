@@ -53,6 +53,9 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
     "style.contentVisibility==='hidden'||",
+    // Rectangles remain positive for fully clipped or filtered-out trees.
+    "(style.clipPath&&style.clipPath!=='none')||",
+    "(style.filter&&style.filter!=='none')||",
     "style.pointerEvents==='none'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
@@ -113,6 +116,9 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
     "style.contentVisibility==='hidden'||",
+    // Rectangles remain positive for fully clipped or filtered-out trees.
+    "(style.clipPath&&style.clipPath!=='none')||",
+    "(style.filter&&style.filter!=='none')||",
     "style.pointerEvents==='none'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
@@ -162,6 +168,9 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "const style=getComputedStyle(current);",
     "if(!style||style.visibility!=='visible'||",
     "style.contentVisibility==='hidden'||",
+    // Rectangles remain positive for fully clipped or filtered-out trees.
+    "(style.clipPath&&style.clipPath!=='none')||",
+    "(style.filter&&style.filter!=='none')||",
     "style.pointerEvents==='none'||",
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",

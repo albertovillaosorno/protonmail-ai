@@ -1293,6 +1293,7 @@ fn visible_row_javascript_projects_only_rendered_synthetic_content() {
 globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let ancestorContentHidden=false;
+let ancestorClip=false,ancestorFilter=false;
 let headingZeroArea=false,senderZeroArea=false;
 let subjectValue='synthetic subject',addressValue='sender@example.test';
 let idValue='row-a',modal=false,ancestorInert=false,nativeDialog=false;
@@ -1301,6 +1302,8 @@ let duplicateRows=false,titleReads=0,invalidSecondRow=false;
 let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
+ clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
+ filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
  opacity:node===heading?subjectOpacity:node===sender?senderOpacity:
  node===ancestor?ancestorOpacity:'1'});
 const heading={id:'heading-id',
@@ -1405,7 +1408,15 @@ ancestorOpacity='1';ancestorContentHidden=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('content-hidden ancestor leaked row content');
 }
-ancestorContentHidden=false;
+ancestorContentHidden=false;ancestorClip=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('clipped parent exposed private row titles');
+}
+ancestorClip=false;ancestorFilter=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('filtered-out parent exposed private row titles');
+}
+ancestorFilter=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1483,6 +1494,8 @@ fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
+ clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
+ filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
  pointerEvents:node===loaded&&parentPointerBlocked?'none':
  node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
  opacity:node===row?rowOpacity:node===current?currentOpacity:
@@ -1494,7 +1507,7 @@ let fieldsetDisabled=false;
 let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
-let ancestorContentHidden=false;
+let ancestorContentHidden=false,ancestorClip=false,ancestorFilter=false;
 let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
 let rootAriaHiddenUpper=false,nextAriaUpper=false;
@@ -1566,7 +1579,15 @@ ancestorOpacity='1';ancestorContentHidden=true;
 if(eval(expression)!==null){
  throw Error('content-hidden list root was exposed');
 }
-ancestorContentHidden=false;
+ancestorContentHidden=false;ancestorClip=true;
+if(eval(expression)!==null){
+ throw Error('clipped loaded list reported visible rows');
+}
+ancestorClip=false;ancestorFilter=true;
+if(eval(expression)!==null){
+ throw Error('filtered-out loaded list reported visible rows');
+}
+ancestorFilter=false;
 const chain=Array.from({length:70},()=>({parentElement:null}));
 chain.forEach((node,index)=>{node.parentElement=chain[index+1]||null;});
 ancestor.parentElement=chain[0];
@@ -1700,6 +1721,7 @@ let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let optionParentContentHidden=false,toggleParentContentHidden=false;
+let optionParentClip=false,toggleParentFilter=false;
 let zeroOptionArea=false,zeroToggleArea=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
@@ -1729,6 +1751,8 @@ globalThis.getComputedStyle=(node)=>({
  visibility:'visible',
  contentVisibility:(node===optionParent&&optionParentContentHidden)||
  (node===toggleParent&&toggleParentContentHidden)?'hidden':'visible',
+ clipPath:node===optionParent&&optionParentClip?'inset(100%)':'none',
+ filter:node===toggleParent&&toggleParentFilter?'opacity(0)':'none',
  pointerEvents:(node===optionParent&&optionParentPointerBlocked)||
  (node===toggleParent&&toggleParentPointerBlocked)?'none':'auto',
  opacity:node===option?optionOpacity:
@@ -1773,7 +1797,11 @@ optionParentContentHidden=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('content-hidden sort options allowed programmatic action');
 }
-optionParentContentHidden=false;zeroOptionArea=true;
+optionParentContentHidden=false;optionParentClip=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('clipped sort options authorized an action');
+}
+optionParentClip=false;zeroOptionArea=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('zero-area sort options passed geometry proof');
 }
@@ -1804,7 +1832,11 @@ toggleParentContentHidden=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('content-hidden sort toggle was programmatically clicked');
 }
-toggleParentContentHidden=false;zeroToggleArea=true;
+toggleParentContentHidden=false;toggleParentFilter=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('filtered-out sort toggle received a click');
+}
+toggleParentFilter=false;zeroToggleArea=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('zero-area sort toggle received programmatic click');
 }
@@ -1903,6 +1935,7 @@ let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 let parentPointerBlocked=false,parentContentHidden=false;
+let parentClip=false,parentFilter=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
@@ -1920,6 +1953,8 @@ Object.defineProperty(next,'disabled',{get:()=>disabled});
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===parent&&parentContentHidden?'hidden':'visible',
+ clipPath:node===parent&&parentClip?'inset(100%)':'none',
+ filter:node===parent&&parentFilter?'opacity(0)':'none',
  pointerEvents:node===parent&&parentPointerBlocked?'none':'auto',
  opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
@@ -1947,7 +1982,15 @@ parentPointerBlocked=false;parentContentHidden=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('content-hidden Next parent permitted a programmatic click');
 }
-parentContentHidden=false;
+parentContentHidden=false;parentClip=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('clipped Next parent permitted programmatic click');
+}
+parentClip=false;parentFilter=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('filtered-out Next parent permitted programmatic click');
+}
+parentFilter=false;
 next.getClientRects=()=>[{width:0,height:0}];
 if(eval(script).clicked||clicks!==1){
  throw Error('zero-area Next control received programmatic click');
