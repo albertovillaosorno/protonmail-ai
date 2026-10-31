@@ -191,7 +191,6 @@ fn optional_document_metadata_must_match_cdp_shapes() {
         ("compatibilityMode", json!("LimitedQuirksMode")),
         ("compatibilityMode", json!("NoQuirksMode")),
         ("baseURL", json!("https://assets.example.test/")),
-        ("frameId", json!("frame-A_1")),
     ] {
         root[field] = valid;
         assert!(valid_cdp_document_root(&root));
@@ -204,6 +203,8 @@ fn optional_document_metadata_must_match_cdp_shapes() {
         ("baseURL", json!(null)),
         ("baseURL", json!(9u32)),
         ("baseURL", json!("B".repeat(16_385))),
+        // DOM.Node.frameId is only valid for a frame owner, not #document.
+        ("frameId", json!("frame-A_1")),
         ("frameId", json!(null)),
         ("frameId", json!(42u32)),
         ("frameId", json!("frame/bad")),

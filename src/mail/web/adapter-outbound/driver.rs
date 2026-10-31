@@ -4866,7 +4866,7 @@ fn valid_cdp_document_root(root: &Value) -> bool {
         "documentURL",
         "baseURL",
         "compatibilityMode",
-        "frameId",
+        // frameId belongs to frame-owner elements, not the Document root.
     ];
     if fields
         .keys()
@@ -4898,13 +4898,9 @@ fn valid_cdp_document_root(root: &Value) -> bool {
             Some("QuirksMode" | "LimitedQuirksMode" | "NoQuirksMode")
         )
     });
-    let valid_frame_id = fields
-        .get("frameId")
-        .is_none_or(|value| value.as_str().is_some_and(safe_cdp_endpoint_id));
     document_url_matches
         && valid_base_url
         && valid_mode
-        && valid_frame_id
         // Requested depth=0 cannot return private descendant subtrees.
         // Pseudo elements and shadow roots also cannot belong to #document.
         && [

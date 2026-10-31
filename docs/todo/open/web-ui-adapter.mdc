@@ -160,11 +160,19 @@ web application without requiring Bridge or a third-party direct API identity.
 ## Validate optional CDP document metadata shapes
 
 - Red-first protocol and fake-browser tests showed arbitrary values for
-  optional `DOM.Node.compatibilityMode`, `baseURL`, and `frameId` could
-  establish Mail-shell readiness. These fields now require respectively an
-  audited CDP enum, a bounded string, and a bounded browser-opaque ID. The
-  base URL may legitimately point off origin, so it is never used as an
-  origin proof; missing fields remain compatible.
+  optional `DOM.Node.compatibilityMode` and `baseURL` could establish
+  Mail-shell readiness. These document fields now require respectively an
+  audited CDP enum and a bounded string. The base URL may legitimately point
+  off origin, so it is never used as origin proof; missing fields remain
+  compatible.
+
+## Reject frame-owner identity in document roots
+
+- A red-first protocol and fake-browser regression showed that a document
+  root with a syntactically valid `frameId` still proved a ready Mail shell.
+  CDP reserves `DOM.Node.frameId` for frame-owner elements, not document
+  nodes. Any such field now fails closed regardless of shape, while valid
+  document metadata without a frame-owner identity stays supported.
 
 ## Refuse non-document node metadata in CDP roots
 
@@ -199,7 +207,7 @@ web application without requiring Bridge or a third-party direct API identity.
   results could include an arbitrary unknown property carrying nested private
   data while still proving a ready Mail shell. The parser now admits only the
   required document identity and the already audited optional child count,
-  URL, base URL, compatibility mode and frame ID. Other properties, including
+  URL, base URL and compatibility mode. Other properties, including
   null-valued extensions and element-only SVG flags, fail closed before AX
   queries. Ordinary optional document metadata remains supported.
 

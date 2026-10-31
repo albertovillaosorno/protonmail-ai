@@ -2792,6 +2792,11 @@ fn malformed_optional_document_metadata_cannot_prove_mail_shell() {
             r#""nodeValue":"","baseURL":9"#,
         ),
         (
+            "valid-looking-frame-owner-id",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","frameId":"frame-A_1""#,
+        ),
+        (
             "invalid-frame-id",
             r#""nodeValue":"""#,
             r#""nodeValue":"","frameId":"frame/bad""#,
