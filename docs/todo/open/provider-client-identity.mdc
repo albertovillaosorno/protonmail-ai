@@ -83,9 +83,13 @@ path.
   offline approval validator now accepts only the currently documented Mail
   API base `https://mail.proton.me/api`; a newly provider-approved base
   requires explicit source review before it can replace that constant.
-  Login paths must be ASCII root-relative without normalization hazards.
-  Tests prove the actual repository authorization remains `Blocked` without
-  evidence and cannot be unlocked by these synthetic fixtures.
+  Login paths must match the audited desktop Mail route exactly: no alternate
+  app, dot-segment path, re-ordered/extra query parameters, or mismatched
+  fork-payload version. Any future provider-approved route requires reviewed
+  code, rather than being accepted only because it is root-relative.
+  Synthetic versions 1 through 3 prove exact version binding. Tests prove
+  the actual repository authorization remains `Blocked` without evidence
+  and cannot be unlocked by these synthetic fixtures.
 
 ## Calendar-valid authorization evidence
 

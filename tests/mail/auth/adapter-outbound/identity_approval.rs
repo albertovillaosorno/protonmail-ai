@@ -148,3 +148,51 @@ fn approval_policy_rejects_protocol_relative_and_encoded_login_paths() {
         );
     }
 }
+
+#[test]
+fn approval_policy_requires_exact_mail_desktop_handoff_and_matching_version() {
+    for unsafe_path in [
+        "/desktop/login?app=drive&pv=3",
+        "/desktop/login?app=mail&pv=1",
+        "/desktop/login?app=mail&pv=3&redirect=https://evil.example",
+        "/desktop/login?app=mail&pv=3&app=drive",
+        "/desktop/../desktop/login?app=mail&pv=3",
+        "/desktop/login?pv=3&app=mail",
+        "/desktop/login?app=mail&pv=03",
+        "/desktop/login?app=mail&pv=3?next=evil",
+    ] {
+        let policy = AuthorizationPolicy {
+            login_path: Some(unsafe_path),
+            ..synthetic_approved_policy()
+        };
+        assert!(
+            policy.approved_identity().is_none(),
+            "unreviewed alternate login route must not authorize"
+        );
+        assert_eq!(
+            policy.snapshot().status(),
+            ProviderAuthorizationStatus::Blocked
+        );
+    }
+
+    for (version, route) in [
+        (1u8, "/desktop/login?app=mail&pv=1"),
+        (2u8, "/desktop/login?app=mail&pv=2"),
+        (3u8, "/desktop/login?app=mail&pv=3"),
+    ] {
+        let policy = AuthorizationPolicy {
+            fork_payload_version: Some(version),
+            login_path: Some(route),
+            ..synthetic_approved_policy()
+        };
+        let identity = policy
+            .approved_identity()
+            .expect("synthetic matching version");
+        assert_eq!(identity.desktop_login_path(), route);
+    }
+    assert!(
+        ProviderAuthorizationSnapshot::current()
+            .approved()
+            .is_none()
+    );
+}

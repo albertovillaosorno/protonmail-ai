@@ -218,7 +218,8 @@ impl AuthorizationPolicy {
         if !(1..=3).contains(&fork_payload_version) {
             return None;
         }
-        let login_path = validate_login_path(self.login_path?)?;
+        let path = self.login_path?;
+        let login_path = validate_login_path(path, fork_payload_version)?;
         let approval_ref = validate_evidence_field(self.approval_ref?)?;
         let approved_on = validate_date(self.approved_on?)?;
 
@@ -247,15 +248,16 @@ fn validate_api_base(value: &str) -> Option<&str> {
     (value == TRUSTED_MAIL_API_BASE).then_some(value)
 }
 
-fn validate_login_path(value: &str) -> Option<&str> {
+fn validate_login_path(value: &str, version: u8) -> Option<&str> {
     let value = validate_evidence_field(value)?;
-    // Block protocol-relative origins, backslash normalization, fragments,
-    // encoded delimiters and visually ambiguous non-ASCII path characters.
-    let safe_path = value.is_ascii()
-        && value.starts_with('/')
-        && !value.starts_with("//")
-        && !value.contains(['\\', '%', '#']);
-    safe_path.then_some(value)
+    // Only the audited Mail desktop-fork handoff is acceptable. A merely
+    // root-relative URL could target a different product, override the
+    // payload version, or introduce an unreviewed redirect parameter.
+    // A provider-approved alternate route requires an explicit code review.
+    let suffix = value.strip_prefix("/desktop/login?app=mail&pv=")?;
+    let parsed_version = suffix.parse::<u8>().ok()?;
+    let exact_version = suffix.len() == 1 && parsed_version == version;
+    exact_version.then_some(value)
 }
 
 const fn is_date_byte((index, byte): (usize, u8)) -> bool {
