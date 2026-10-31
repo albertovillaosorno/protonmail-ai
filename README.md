@@ -102,9 +102,15 @@ symlinks fail closed. `PROTONMAIL_AI_BROWSER` may explicitly select the browser
 executable; otherwise a supported Chromium-family executable is discovered on
 `PATH`.
 
-This command currently launches the safe login surface only. Managed automation
-uses a separate exclusive lease and refuses to start while Chromium's
-`SingletonLock` identifies any live local process or foreign host.
+This command currently launches the safe login surface only. Both visible
+login and managed automation disable browser extensions and browser-account
+sync for the dedicated profile. Visible login refuses to reuse an existing
+Chromium `SingletonLock`, including an unknown or foreign owner, because a
+running browser may ignore new startup privacy flags. Close the dedicated
+browser before retrying `auth login`; a proven stale local lock is allowed.
+
+Managed automation uses a separate exclusive lease and refuses to start while
+Chromium's `SingletonLock` identifies any live local process or foreign host.
 An existing PID without an executable link (such as an unreaped process)
 is still treated as busy; only an absent local PID proves a stale lock.
 
