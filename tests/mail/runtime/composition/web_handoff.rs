@@ -301,6 +301,27 @@ fn generated_composer_url_has_scrub_on_drop_ownership() {
 }
 
 #[test]
+fn long_unicode_and_reserved_body_encodes_without_truncation() {
+    let body = "synthetic private \u{2615} %?&=+ /".repeat(500);
+    let input = ComposeInput::parse(&[
+        "--to".into(),
+        "candidate@example.test".into(),
+        "--subject".into(),
+        "Interview \u{2615}".into(),
+        "--body".into(),
+        body,
+    ])
+    .expect("synthetic long Unicode composition");
+    let url: Zeroizing<String> = input.web_url();
+    assert!(url.starts_with("https://mail.proton.me/inbox/#mailto="));
+    assert!(url.contains("Interview%2520%25E2%2598%2595"));
+    assert!(url.contains("%2520%25E2%2598%2595%2520%2525%253F%2526%253D%252B"));
+    assert!(url.ends_with("%2520%252F"));
+    let parts = url.matches("synthetic%2520private").count();
+    assert_eq!(parts, 500);
+}
+
+#[test]
 fn compose_input_and_error_debug_redact_mail_and_path_content() {
     let input = ComposeInput::parse(&[
         "--to".into(),

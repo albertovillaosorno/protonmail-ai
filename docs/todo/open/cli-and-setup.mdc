@@ -47,6 +47,13 @@ to register as a local MCP server.
 
 ## Existing compose-url diagnostic safety
 
+- Human compose URLs now reserve each percent-encoded field and the
+  assembled mailto URI before writing sensitive message data. Previously
+  escaped Unicode or reserved bytes expanded beyond the initial zeroizing
+  String capacity, potentially releasing earlier private encoded prefixes on
+  heap growth. A long synthetic Unicode/reserved-character fixture preserves
+  the exact nested encoding and validates full body output.
+
 - The explicit human `mail compose-url` helper now redacts all recipients,
   subject, and body content from `ComposeInput` Debug output. Unknown CLI
   options and unreadable body-file paths are no longer echoed through

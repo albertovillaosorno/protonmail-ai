@@ -159,15 +159,29 @@ impl ComposeInput {
     }
 
     fn mailto_uri(&self) -> Zeroizing<String> {
-        let mut value = Zeroizing::new(String::from("mailto:"));
-        value.push_str(&percent_encode(&self.to));
-        let mut separator = '?';
-        for (key, item) in [
+        let fields = [
             ("subject", self.subject.as_deref()),
             ("cc", self.cc.as_deref()),
             ("bcc", self.bcc.as_deref()),
             ("body", self.body.as_deref()),
-        ] {
+        ];
+        // A guarded String still releases old plaintext allocations on
+        // growth. Reserve every escaped field and delimiter before writing.
+        let mut capacity = "mailto:"
+            .len()
+            .saturating_add(percent_encoded_len(&self.to));
+        for (key, item) in fields {
+            if let Some(item) = item {
+                capacity = capacity
+                    .saturating_add(key.len().saturating_add(2))
+                    .saturating_add(percent_encoded_len(item));
+            }
+        }
+        let mut value = Zeroizing::new(String::with_capacity(capacity));
+        value.push_str("mailto:");
+        value.push_str(&percent_encode(&self.to));
+        let mut separator = '?';
+        for (key, item) in fields {
             if let Some(item) = item {
                 value.push(separator);
                 value.push_str(key);
@@ -422,7 +436,10 @@ const fn is_unsupported_body_byte(byte: u8) -> bool {
 }
 
 fn percent_encode(value: &str) -> Zeroizing<String> {
-    let mut encoded = Zeroizing::new(String::with_capacity(value.len()));
+    // Escapes can triple the UTF-8 byte count. Reserve once so private
+    // partially encoded prefixes never survive in freed String allocations.
+    // jig-ignore-next-line: canonical exact escaped output capacity.
+    let mut encoded = Zeroizing::new(String::with_capacity(percent_encoded_len(value)));
     for byte in value.bytes() {
         if is_unreserved(byte) {
             encoded.push(char::from(byte));
@@ -433,6 +450,12 @@ fn percent_encode(value: &str) -> Zeroizing<String> {
         }
     }
     encoded
+}
+
+fn percent_encoded_len(value: &str) -> usize {
+    value.bytes().fold(0usize, |size, byte| {
+        size.saturating_add(if is_unreserved(byte) { 1 } else { 3 })
+    })
 }
 
 const fn is_unreserved(byte: u8) -> bool {
