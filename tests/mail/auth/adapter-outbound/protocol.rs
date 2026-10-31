@@ -226,6 +226,77 @@ fn header_bound_authority_refuses_unsafe_or_oversized_provider_values() {
 }
 
 #[test]
+fn provider_authority_refuses_ambiguous_scope_labels() {
+    type JsonValue = serde_json::Value;
+    let unsafe_scopes = [
+        "",
+        " ",
+        "ma il",
+        "scope\nline",
+        "scope\0byte",
+        "scope\u{202e}",
+        "scope\u{200b}",
+        "caf\u{00e9}",
+    ];
+    for scope in unsafe_scopes {
+        for completed in [false, true] {
+            let mut response = if completed {
+                serde_json::from_slice::<JsonValue>(&complete_response(None))
+                    .expect("completed synthetic authority")
+            } else {
+                json!({
+                    "UID":"synthetic-anonymous-uid", "UserID":null,
+                    "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+                    "Scopes":["loggedin"]
+                })
+            };
+            response["Scopes"] = json!(["loggedin", scope]);
+            let body = response.to_string();
+            let parsed = if completed {
+                ForkPoll::parse(200, body.as_bytes()).map(|_| ())
+            } else {
+                AnonymousSession::parse(200, body.as_bytes()).map(|_| ())
+            };
+            assert_eq!(parsed, Err(ProtocolError::MalformedJson));
+        }
+    }
+}
+
+#[test]
+fn provider_authority_accepts_bounded_ascii_scope_labels() {
+    type JsonValue = serde_json::Value;
+    let at_limit = "s".repeat(4_096);
+    for label in ["full", "mail.read:write+/-._", at_limit.as_str()] {
+        for completed in [false, true] {
+            let mut response = if completed {
+                serde_json::from_slice::<JsonValue>(&complete_response(None))
+                    .expect("completed synthetic authority")
+            } else {
+                json!({
+                    "UID":"synthetic-anonymous-uid", "UserID":null,
+                    "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+                    "Scopes":["loggedin"]
+                })
+            };
+            response["Scopes"] = json!(["loggedin", label]);
+            let body = response.to_string();
+            if completed {
+                let poll = ForkPoll::parse(200, body.as_bytes());
+                let poll = poll.expect("valid fork scopes");
+                let ForkPoll::Complete(session) = poll else {
+                    panic!("expected completed fork");
+                };
+                assert_eq!(session.scopes()[1], label);
+            } else {
+                let session = AnonymousSession::parse(200, body.as_bytes());
+                let session = session.expect("valid anonymous scopes");
+                assert_eq!(session.scopes()[1], label);
+            }
+        }
+    }
+}
+
+#[test]
 fn completed_fork_rejects_ambiguous_account_binding_user_ids() {
     type JsonValue = serde_json::Value;
     let oversized = "a".repeat(8_193);

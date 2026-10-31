@@ -1076,11 +1076,14 @@ where
                 // provider text must not be dropped as an ordinary String.
                 let mut scope = Zeroizing::new(scope);
                 let too_many = scopes.len() >= MAX_AUTH_SCOPE_COUNT;
-                let too_large = scope.len() > MAX_AUTH_SCOPE_BYTES;
-                if too_many || too_large {
-                    return Err(A::Error::custom(
-                        "authorization scopes exceed safety bounds",
-                    ));
+                // Provider authorization scope tokens are distinct, visible
+                // ASCII labels. Never retain blank, control or invisible
+                // permission metadata as if it were a granted capability.
+                let invalid_scope = scope.is_empty()
+                    || scope.len() > MAX_AUTH_SCOPE_BYTES
+                    || !scope.bytes().all(|byte| byte.is_ascii_graphic());
+                if too_many || invalid_scope {
+                    return Err(A::Error::custom("invalid authorization scope"));
                 }
                 scopes.push(take(&mut *scope));
             }

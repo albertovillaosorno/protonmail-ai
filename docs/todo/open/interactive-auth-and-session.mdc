@@ -160,6 +160,16 @@ account credentials. The primary web UI login remains a separate P1 path.
   without parsing a provider body; live auth still requires provider approval
   and transport/store integration.
 
+## Provider authority scope label safety
+
+- Red-first anonymous and completed-fork JSON fixtures proved that scope arrays
+  previously accepted empty, whitespace, control, and hidden Unicode entries
+  as permission labels. The shared sensitive scope visitor now requires each
+  label to be nonempty, visible ASCII within the existing 4,096-byte limit.
+  Both response types reject invalid labels as malformed JSON before retaining
+  session authority, while ordinary and maximum-length synthetic labels remain
+  compatible. The provider registration gate remains blocked.
+
 ## Completed fork account identity safety
 
 - A red-first offline completed-fork fixture proved that a child `UserID` made
