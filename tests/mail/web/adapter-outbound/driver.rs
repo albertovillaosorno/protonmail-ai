@@ -2673,7 +2673,7 @@ fn browser_version_allows_standard_optional_string_fields() {
 
 #[test]
 fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
-    for (label, original_field, contradiction) in [
+    let cases = [
         ("element-node", r#""nodeType":9"#, r#""nodeType":1"#),
         ("null-node", r#""nodeType":9"#, r#""nodeType":null"#),
         (
@@ -2732,7 +2732,49 @@ fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
             // jig-ignore-next-line: exact cross-origin CDP URL fixture.
             r#""nodeValue":"","documentURL":"https://mail.proton.me@evil.invalid/""#,
         ),
-    ] {
+    ];
+    assert_rejects_document_root(&cases);
+}
+
+#[test]
+fn element_only_metadata_cannot_prove_mail_document_root() {
+    let cases = [
+        (
+            "document-as-frame-owner",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","contentDocument":{"nodeValue":"private"}"#,
+        ),
+        (
+            "document-as-template",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","templateContent":{"nodeValue":"private"}"#,
+        ),
+        (
+            "document-as-import-link",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","importedDocument":{"nodeValue":"private"}"#,
+        ),
+        (
+            "document-with-distribution",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","distributedNodes":[{"nodeName":"private"}]"#,
+        ),
+        (
+            "document-with-attributes",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","attributes":["name","private"]"#,
+        ),
+        (
+            "document-with-assigned-slot",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","assignedSlot":{"nodeName":"private"}"#,
+        ),
+    ];
+    assert_rejects_document_root(&cases);
+}
+
+fn assert_rejects_document_root(cases: &[(&str, &str, &str)]) {
+    for &(label, original_field, contradiction) in cases {
         let root = test_root(&format!("dom-root-{label}"));
         fs::create_dir_all(&root).expect("create synthetic root");
         let browser = fake_network_browser(

@@ -4873,6 +4873,14 @@ fn valid_cdp_document_root(root: &Value) -> bool {
             "children",
             "pseudoElements",
             "shadowRoots",
+            // These fields belong to frame owners, templates, insertion
+            // points, or elements, never a top-level Document node.
+            "contentDocument",
+            "templateContent",
+            "importedDocument",
+            "distributedNodes",
+            "attributes",
+            "assignedSlot",
         ]
         .iter()
         .all(|field| !fields.contains_key(*field))

@@ -88,6 +88,12 @@ fn sparse_dom_root_cannot_establish_document_identity() {
         ("children", json!([{"nodeValue":"private mailbox"}])),
         ("pseudoElements", json!([{"nodeValue":"private mailbox"}])),
         ("shadowRoots", json!([{"nodeValue":"private mailbox"}])),
+        ("contentDocument", json!({"nodeValue":"private mailbox"})),
+        ("templateContent", json!({"nodeValue":"private mailbox"})),
+        ("importedDocument", json!({"nodeValue":"private mailbox"})),
+        ("distributedNodes", json!([{"nodeName":"private mailbox"}])),
+        ("attributes", json!(["secret", "private mailbox"])),
+        ("assignedSlot", json!({"nodeName":"private mailbox"})),
     ] {
         let mut contradictory = root.clone();
         contradictory[field] = value;

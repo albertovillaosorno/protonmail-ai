@@ -132,6 +132,15 @@ web application without requiring Bridge or a third-party direct API identity.
   a nonnegative signed 32-bit CDP integer; missing and valid counts remain
   compatible. This does not read DOM descendants or private mailbox text.
 
+## Reject element-only metadata on document roots
+
+- Red-first CDP schema and fake-browser fixtures showed that a top-level
+  document could carry frame-owner, template, HTML import, distribution,
+  element attribute, or slot metadata yet still authorize Mail-shell AX
+  inspection. `DOM.Node` reserves those fields for non-document elements.
+  The parser now refuses these contradictory fields; document metadata
+  such as URL and compatibility mode stays independently compatible.
+
 ## Refuse unsolicited CDP document-root subtrees
 
 - Red-first protocol and synthetic-browser cases proved that a depth-zero
