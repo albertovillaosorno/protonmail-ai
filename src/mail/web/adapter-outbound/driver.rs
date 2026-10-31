@@ -805,6 +805,11 @@ impl ManagedBrowser {
     // jig-ignore-next-line: canonical rustfmt line.
     fn runtime_origin(&mut self, session: &str) -> Result<PageOrigin, BrowserDriverError> {
         let value = self.runtime_value(session, LOCATION_EXPRESSION)?;
+        // The static projection emits exactly these three properties.
+        // Accepting an extended object would silently widen origin evidence.
+        if value.as_object().is_none_or(|fields| fields.len() != 3) {
+            return Err(BrowserDriverError::Protocol);
+        }
         let protocol = value
             .get("protocol")
             .and_then(Value::as_str)

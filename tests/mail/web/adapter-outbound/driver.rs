@@ -1548,6 +1548,32 @@ fn unexpected_attached_session_result_fields_cannot_authorize_origin() {
 }
 
 #[test]
+fn unexpected_runtime_location_fields_cannot_prove_trusted_origin() {
+    let root = test_root("runtime-location-extra");
+    fs::create_dir_all(&root).expect("create synthetic profile");
+    let targets = concat!(
+        r#"[{"targetId":"page-1","type":"page","#,
+        r#""url":"https://mail.proton.me/"}]"#,
+    );
+    let browser = fake_browser(&root, targets, "mail.proton.me");
+    let script = fs::read_to_string(&browser).expect("read fake browser");
+    let expected = r#""hostname":"mail.proton.me","port":"""#;
+    assert!(script.contains(expected));
+    let with_extra = format!(r#"{expected},"unreviewed":true"#);
+    install_script(&browser, script.replacen(expected, &with_extra, 1))
+        .expect("inject unexpected location field");
+    let browser_plan = plan(&root, &browser);
+    let mut driver = ManagedBrowser::launch(&browser_plan).expect("launch");
+    let page = driver.provider_page().expect("discover Mail page");
+    assert_eq!(
+        driver.verify_provider_origin(&page),
+        Err(BrowserDriverError::Protocol),
+    );
+    drop(driver);
+    cleanup(&root);
+}
+
+#[test]
 fn malformed_attached_session_ids_fail_before_runtime_origin_evaluation() {
     use serde_json::json;
     for (index, invalid) in [

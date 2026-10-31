@@ -58,6 +58,14 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-vs-mutation control boundary tests
 - Draft/send side-effect tests
 - Redacted opt-in Free-account transcript
+## Exact shape for browser-origin evidence
+
+- A red-first fake-Chromium CDP reply proved that an extended location
+  projection with an unexpected property still classified as trusted Mail.
+  The driver now requires exactly the three properties produced by its static
+  location script before checking protocol, hostname and port. This fails
+  closed on runtime reply drift without accepting new origins or selectors.
+
 ## Trusting the complete browser origin
 
 - The public `PageOrigin` policy now requires the normalized `location.port`
