@@ -638,7 +638,11 @@ fn conversation_id_from_detail_url(
     let Some(conversation_id) = url.strip_prefix(CONVERSATION_DETAIL_URL_PREFIX) else {
         return Ok(None);
     };
-    if !safe_read_id(conversation_id, MAX_CONVERSATION_ID_BYTES) {
+    // Browser-serialized URL paths encode Unicode route identifiers.
+    // Do not confuse a raw path with exact provider identity evidence.
+    if !url.bytes().all(|byte| byte.is_ascii_graphic())
+        || !safe_read_id(conversation_id, MAX_CONVERSATION_ID_BYTES)
+    {
         return Err(ConversationDetailResponseError::UnexpectedEndpoint);
     }
     Ok(Some(conversation_id))

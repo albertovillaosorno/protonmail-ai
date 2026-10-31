@@ -1122,6 +1122,35 @@ fn complete_conversation_detail_endpoint_refuses_unsafe_route_ids() {
 }
 
 #[test]
+fn raw_non_ascii_conversation_detail_urls_cannot_prove_provider_membership() {
+    let endpoint = "https://mail.proton.me/api/mail/v4/conversations/";
+    for raw_id in ["conversation-\u{e9}", "conversation-\u{1f680}"] {
+        let url = format!("{endpoint}{raw_id}");
+        let mut body = conversation_body();
+        body["Conversation"]["ID"] = json!(raw_id);
+        body["Messages"][0]["ConversationID"] = json!(raw_id);
+        body["Messages"][1]["ConversationID"] = json!(raw_id);
+        let parse = ObservedConversationDetailResponse::parse;
+        let got = parse("GET", &url, &body.to_string());
+        assert_eq!(
+            got,
+            Err(ConversationDetailResponseError::UnexpectedEndpoint)
+        );
+        let mut capture = ConversationDetailNetworkCapture::new("session-a");
+        let event = request_event("session-a", "unicode", "GET", &url);
+        assert_eq!(
+            capture.observe(&event),
+            Err(ConversationDetailNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_requests().is_empty());
+    }
+    let mut capture = ConversationDetailNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "ascii", "GET", URL))
+        .expect("canonical ASCII route remains accepted");
+}
+
+#[test]
 fn cdp_detail_envelope_refuses_unexpected_fields() {
     let mut envelope = json!({
         "body": conversation_body().to_string(), "base64Encoded": false

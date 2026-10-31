@@ -2293,3 +2293,8 @@ web application without requiring Bridge or a third-party direct API identity.
   aliases without rejecting Unicode metadata IDs. Red-first synthetic
   matching provider IDs previously projected a message through a URL that
   Chromium should percent-encode; canonical ASCII detail URLs stay valid.
+
+- Conversation-detail membership capture and direct response parsing now
+  reject non-ASCII raw URL path components. Red-first synthetic Unicode
+  conversation identity previously authorized complete members despite a
+  noncanonical browser URL; exact ASCII paths remain supported.
