@@ -323,3 +323,9 @@ bounded resource use.
   other than HTTP 200, including Chromium's 304 cache revalidation status
   despite responseReceived reporting 200. Synthetic red-first tests cover
   both notification orders and both cursor paths.
+
+- A synthetic Chromium pipe verifies both the latest-event bootstrap and
+  core-v5 polling reject standalone memory-cache hits and extra-info HTTP 304
+  responses through the full browser driver, even after responseReceived
+  reports 200. All four cases disable Network before returning a redacted
+  error and leave the Mail CDP session usable; no provider account is used.

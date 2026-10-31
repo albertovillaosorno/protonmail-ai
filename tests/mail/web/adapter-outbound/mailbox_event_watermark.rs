@@ -2498,6 +2498,114 @@ fn latest_bootstrap_response_must_match_full_private_request_url() {
 }
 
 #[test]
+fn browser_event_cache_notices_reject_and_disable_network() {
+    use mail_web_adapter::{BrowserDriverError, MailboxEventNetworkError};
+    use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
+    use std::fs;
+    use std::time::Duration;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock fake event browsers");
+    for (poll, method, suffix, kind) in [
+        (false, "Network.requestServedFromCache", "", "latest-cache"),
+        (true, "Network.requestServedFromCache", "", "poll-cache"),
+        (
+            false,
+            "Network.responseReceivedExtraInfo",
+            ",\"statusCode\":304",
+            "latest-304",
+        ),
+        (
+            true,
+            "Network.responseReceivedExtraInfo",
+            ",\"statusCode\":304",
+            "poll-304",
+        ),
+    ] {
+        let root = event_browser_root(kind);
+        fs::create_dir_all(&root).expect("create isolated browser root");
+        let browser = fake_event_browser(&root, false, poll);
+        // jig-ignore-next-line: rustfmt synthetic browser call.
+        let script = fs::read_to_string(&browser).expect("read browser fixture");
+        let branch = if poll {
+            "    *'Network.enable'*)"
+        } else {
+            "    *'Page.reload'*)"
+        };
+        let head = script
+            .find(branch)
+            .expect("locate browser lifecycle branch");
+        // jig-ignore-next-line: indivisible synthetic browser CDP fixture.
+        let emission = r#"printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4"#;
+        let emitted = script
+            .get(head..)
+            .expect("valid shell suffix")
+            .find(emission)
+            .expect("find exact browser emission")
+            + head;
+        let id = if poll { "event-1" } else { "latest-1" };
+        let notice = format!(
+            // jig-ignore-next-line: indivisible synthetic browser CDP fixture.
+            r#"{{"sessionId":"session-1","method":"{method}","params":{{"requestId":"{id}"{suffix}}}}}"#
+        );
+        let replacement = format!(
+            // jig-ignore-next-line: indivisible synthetic browser CDP fixture.
+            "status='{notice}'\n          printf '%s\\0%s\\0%s\\0%s\\0' \"$request\" \"$response\" \"$status\" \"$finished\" >&4"
+        );
+        let mut injected = script
+            .get(..emitted)
+            .expect("valid shell prefix")
+            .to_owned();
+        injected.push_str(&replacement);
+        injected.push_str(
+            script
+                .get(emitted + emission.len()..)
+                .expect("valid suffix"),
+        );
+        let disable = "    *'Network.disable'*)";
+        assert!(injected.contains(disable));
+        let audit = format!(
+            "{disable}\n      printf 'disabled\\n' >> '{}'",
+            root.join("network-disabled.log").display()
+        );
+        fs::write(&browser, injected.replacen(disable, &audit, 1))
+            .expect("install cached synthetic event and Network audit");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("browser executable path UTF-8"),
+            &root.join("data"),
+        )
+        .expect("isolated Mail profile");
+        // jig-ignore-next-line: rustfmt synthetic browser call.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = managed.provider_page().expect("discover Mail page");
+        let observed = if poll {
+            managed
+                .observe_mailbox_event_sequence(&page, Duration::from_secs(1))
+                .map(|_value| ())
+        } else {
+            managed
+                .observe_mailbox_event_bootstrap(&page)
+                .map(|_value| ())
+        };
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::MailboxEventNetwork(
+                MailboxEventNetworkError::ResponseRejected
+            ))
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("session remains usable");
+        drop(managed);
+        let audit = fs::read_to_string(root.join("network-disabled.log"))
+            .expect("Network.disable must run on refusal");
+        assert_eq!(audit, "disabled\n");
+        fs::remove_dir_all(&root).expect("clean isolated browser fixture");
+    }
+}
+
+#[test]
 fn event_url_query_drift_during_browser_capture_stays_fail_closed() {
     use mail_web_adapter::{BrowserDriverError, MailboxEventNetworkError};
     use mail_web_adapter::{ManagedBrowser, ManagedBrowserPlan};
