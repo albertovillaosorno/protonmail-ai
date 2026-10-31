@@ -206,6 +206,8 @@ impl LatestMailboxEventNetworkCapture {
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),
@@ -341,6 +343,20 @@ impl LatestMailboxEventNetworkCapture {
         Ok(())
     }
 
+    // Chrome reports cache hits separately from response metadata. A hit
+    // disqualifies this exact provider GET regardless of notification order.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_cache_hit(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if self.requests.contains_key(request_id) {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
+        Ok(())
+    }
+
     // jig-ignore-next-line: canonical rustfmt line.
     fn observe_finished(&mut self, event: &Value) -> Result<(), MailboxEventNetworkError> {
         let request_id = network_request_id(event)?;
@@ -450,6 +466,8 @@ impl MailboxEventNetworkCapture {
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),
@@ -604,6 +622,20 @@ impl MailboxEventNetworkCapture {
             return Err(MailboxEventNetworkError::ResponseRejected);
         }
         request.state = EventRequestState::Responded;
+        Ok(())
+    }
+
+    // Chrome reports cache hits separately from response metadata. A hit
+    // disqualifies this exact provider GET regardless of notification order.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_cache_hit(&self, event: &Value) -> Result<(), MailboxEventNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MailboxEventNetworkError::InvalidSequence);
+        }
+        if self.requests.contains_key(request_id) {
+            return Err(MailboxEventNetworkError::ResponseRejected);
+        }
         Ok(())
     }
 

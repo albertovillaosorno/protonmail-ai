@@ -256,6 +256,44 @@ fn network_capture_rejects_url_drift_bad_response_and_failure() {
 }
 
 #[test]
+fn standalone_cache_hit_rejects_conversation_list_request() {
+    for after_response in [false, true] {
+        let mut capture = ConversationListNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "list", "GET", URL))
+            .expect("track list GET");
+        let cache = json!({
+            "sessionId":"session-a",
+                "method":"Network.requestServedFromCache",
+            "params":{"requestId":"list"}
+        });
+        capture
+            .observe(&json!({
+                "sessionId":"session-a",
+                "method":"Network.requestServedFromCache",
+                "params":{"requestId":"unrelated"}
+            }))
+            .expect("ignore unrelated cache hit");
+        if after_response {
+            capture
+                .observe(&response_event(
+                    "session-a",
+                    "list",
+                    URL,
+                    200,
+                    "application/json",
+                ))
+                .expect("receive response before cache notification");
+        }
+        assert_eq!(
+            capture.observe(&cache),
+            Err(ConversationListNetworkError::ResponseRejected)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn cached_conversation_list_reply_is_not_fresh_evidence() {
     for (flag, value) in [
         ("fromDiskCache", json!(true)),

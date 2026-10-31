@@ -845,3 +845,9 @@ Ship useful read access before any mailbox mutation is enabled.
   provenance that cannot be excluded by response source flags alone. Red-first
   synthetic events prove the prior acceptance; unrelated cache traffic stays
   ignored and no extra provider data is retained.
+
+- The message-list, conversation-list and mailbox catalog passive Network
+  captures now reject standalone CDP `Network.requestServedFromCache` events
+  for matching GET request IDs before or after responseReceived. Red-first
+  synthetic lifecycle tests exercise both orders, all catalog types and
+  unrelated cache traffic; response flags alone cannot exclude memory cache.

@@ -305,3 +305,8 @@ bounded resource use.
   fresh provider watermark for cursor progression. Red-first synthetic CDP
   cases previously accepted these statuses; omitted and explicit-false flags
   remain compatible. This is a source-provenance safeguard, not a live test.
+
+- Latest-event bootstrap and core-v5 event polling now reject standalone
+  CDP cache-hit notifications for exact tracked GETs, before or after the
+  response. Red-first synthetic lifecycle tests cover both cursor paths and
+  unrelated cache events without exposing private event identifiers.

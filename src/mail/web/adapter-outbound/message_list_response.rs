@@ -187,6 +187,8 @@ impl MessageListNetworkCapture {
         match method {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),
@@ -423,6 +425,20 @@ impl MessageListNetworkCapture {
             return Err(MessageListNetworkError::ResponseRejected);
         }
         request.state = NetworkRequestState::Responded;
+        Ok(())
+    }
+
+    // Chrome reports cache hits separately from response metadata. A hit
+    // disqualifies this exact provider GET regardless of notification order.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_cache_hit(&self, event: &Value) -> Result<(), MessageListNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageListNetworkError::InvalidSequence);
+        }
+        if self.requests.contains_key(request_id) {
+            return Err(MessageListNetworkError::ResponseRejected);
+        }
         Ok(())
     }
 

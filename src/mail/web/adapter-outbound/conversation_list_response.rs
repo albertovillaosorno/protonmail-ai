@@ -144,6 +144,8 @@ impl ConversationListNetworkCapture {
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),
@@ -294,6 +296,20 @@ impl ConversationListNetworkCapture {
             return Err(ConversationListNetworkError::ResponseRejected);
         }
         request.state = ConversationListRequestState::Responded;
+        Ok(())
+    }
+
+    // Chrome reports cache hits separately from response metadata. A hit
+    // disqualifies this exact provider GET regardless of notification order.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_cache_hit(&self, event: &Value) -> Result<(), ConversationListNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(ConversationListNetworkError::InvalidSequence);
+        }
+        if self.requests.contains_key(request_id) {
+            return Err(ConversationListNetworkError::ResponseRejected);
+        }
         Ok(())
     }
 

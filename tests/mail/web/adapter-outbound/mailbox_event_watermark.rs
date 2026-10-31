@@ -565,6 +565,72 @@ fn latest_network_capture_discards_failed_attempt_before_retry() {
 }
 
 #[test]
+fn standalone_cache_hit_rejects_both_event_watermark_requests() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+
+    let latest = "https://mail.proton.me/api/core/v4/events/latest";
+    for (is_latest, url) in [(true, latest), (false, URL)] {
+        for after_response in [false, true] {
+            let request = json!({
+                "sessionId":"session-1","method":"Network.requestWillBeSent",
+                "params":{"requestId":"event","request":{
+                    "method":"GET","url":url
+                }}
+            });
+            let response = json!({
+                "sessionId":"session-1","method":"Network.responseReceived",
+                "params":{"requestId":"event","response":{
+                    "url":url,"status":200u16,"mimeType":"application/json"
+                }}
+            });
+            let cache = json!({
+                "sessionId":"session-1",
+                "method":"Network.requestServedFromCache",
+                "params":{"requestId":"event"}
+            });
+            let unrelated = json!({
+                "sessionId":"session-1",
+                "method":"Network.requestServedFromCache",
+                "params":{"requestId":"unrelated"}
+            });
+            if is_latest {
+                let session = "session-1";
+                // jig-ignore-next-line: canonical constructor call.
+                let mut capture = LatestMailboxEventNetworkCapture::new(session);
+                capture.observe(&request).expect("track latest GET");
+                capture.observe(&unrelated).expect("ignore unrelated cache");
+                if after_response {
+                    capture
+                        .observe(&response)
+                        .expect("response before cache hit");
+                }
+                assert_eq!(
+                    capture.observe(&cache),
+                    Err(MailboxEventNetworkError::ResponseRejected)
+                );
+                assert!(capture.take_finished_request_ids().is_empty());
+            } else {
+                let mut capture = MailboxEventNetworkCapture::new("session-1");
+                capture.observe(&request).expect("track event GET");
+                capture.observe(&unrelated).expect("ignore unrelated cache");
+                if after_response {
+                    capture
+                        .observe(&response)
+                        .expect("response before cache hit");
+                }
+                assert_eq!(
+                    capture.observe(&cache),
+                    Err(MailboxEventNetworkError::ResponseRejected)
+                );
+                assert!(capture.take_finished_request_ids().is_empty());
+            }
+        }
+    }
+}
+
+#[test]
 fn core_event_watermarks_reject_cache_and_service_worker_responses() {
     use mail_web_adapter::MailboxEventNetworkCapture;
     use mail_web_adapter::MailboxEventNetworkError;

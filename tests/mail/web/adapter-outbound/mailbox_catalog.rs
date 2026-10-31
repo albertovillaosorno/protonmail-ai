@@ -347,6 +347,40 @@ fn network_capture_tracks_only_exact_mail_category_gets() {
 }
 
 #[test]
+fn standalone_cache_hit_rejects_all_catalog_kinds() {
+    for url in [LABEL_URL, FOLDER_URL, SYSTEM_URL] {
+        for after_response in [false, true] {
+            let mut capture = MailboxCatalogNetworkCapture::new("session-a");
+            capture
+                .observe(&request("session-a", "catalog", "GET", url))
+                .expect("track catalog GET");
+            let cache = json!({
+                "sessionId":"session-a",
+                "method":"Network.requestServedFromCache",
+                "params":{"requestId":"catalog"}
+            });
+            capture
+                .observe(&json!({
+                    "sessionId":"session-a",
+                "method":"Network.requestServedFromCache",
+                    "params":{"requestId":"unrelated"}
+                }))
+                .expect("ignore unrelated cache hit");
+            if after_response {
+                capture
+                    .observe(&response("session-a", "catalog", url))
+                    .expect("receive response before cache notification");
+            }
+            assert_eq!(
+                capture.observe(&cache),
+                Err(MailboxCatalogNetworkError::ResponseRejected)
+            );
+            assert!(capture.take_finished_request_ids().is_empty());
+        }
+    }
+}
+
+#[test]
 fn cached_mailbox_catalog_responses_are_not_authoritative() {
     for url in [LABEL_URL, FOLDER_URL, SYSTEM_URL] {
         for (flag, value) in [
