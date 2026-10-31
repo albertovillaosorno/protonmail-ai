@@ -1892,3 +1892,44 @@ fn speculative_get_cannot_prove_message_list_read() {
     });
     assert_eq!(clean.observe(&event), Ok(()));
 }
+
+#[test]
+fn foreign_document_get_cannot_prove_visible_mail_message_batch() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for document in [
+        json!("https://example.invalid/embedded-frame"),
+        json!("https://account.proton.me/u/0/settings"),
+        json!("https://mail.proton.me.evil.invalid/"),
+        json!(null),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let event = json!({
+            "sessionId": "session-1",
+            "method": "Network.requestWillBeSent",
+            "params": {
+                "requestId": "foreign-frame-list",
+                "request": {"method": "GET", "url": URL},
+                "documentURL": document
+            }
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "untrusted requesting document must not establish mailbox list"
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    let mut trusted = MessageListNetworkCapture::new("session-1");
+    let request = json!({
+        "sessionId": "session-1",
+        "method": "Network.requestWillBeSent",
+        "params": {
+            "requestId": "mail-document-list",
+            "request": {"method": "GET", "url": URL},
+            "documentURL": "https://mail.proton.me/u/0/inbox"
+        }
+    });
+    assert_eq!(trusted.observe(&request), Ok(()));
+}

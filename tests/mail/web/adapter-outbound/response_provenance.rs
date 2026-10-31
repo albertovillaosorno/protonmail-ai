@@ -273,3 +273,40 @@ fn speculative_browser_gets_cannot_establish_active_read_provenance() {
         assert!(!non_speculative_cdp_get(&event), "unsafe {field}");
     }
 }
+
+#[test]
+fn request_document_origin_cannot_be_laundered_as_mail_activity() {
+    let ordinary = json!({
+        "params": {
+            "request": {"method": "GET"},
+            "documentURL": "https://mail.proton.me/u/0/inbox"
+        }
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for unsafe_document in [
+        json!("https://example.invalid/frame"),
+        json!("https://mail.proton.me.evil.invalid/u/0/inbox"),
+        json!("https://mail.proton.me:8443/u/0/inbox"),
+        json!("http://mail.proton.me/u/0/inbox"),
+        json!("https://account.proton.me/u/0/inbox"),
+        json!("https://mail.proton.me\\@evil.invalid/"),
+        json!("https://mail.proton.me/line break"),
+        json!("https://mail.proton.me/\u{1f48c}"),
+        json!(null),
+        json!(42i32),
+        json!(format!("https://mail.proton.me/{}", "a".repeat(16 * 1024))),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["documentURL"] = unsafe_document.clone();
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "foreign or malformed requesting document {unsafe_document}"
+        );
+    }
+    let mut legacy = ordinary;
+    legacy["params"]
+        .as_object_mut()
+        .expect("synthetic params object")
+        .remove("documentURL");
+    assert!(non_speculative_cdp_get(&legacy));
+}

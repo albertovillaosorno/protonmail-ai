@@ -448,6 +448,21 @@ web application without requiring Bridge or a third-party direct API identity.
   default HTTPS origin and the exact `443` spelling. Offline synthetic tests
   cover both Mail and Account hostnames; no browser login is automated.
 
+## Bind passive browser GETs to an explicit Mail document origin
+
+- A synthetic Network.requestWillBeSent message-list event carrying a valid
+  Mail API GET URL but a foreign `documentURL` previously became a tracked
+  first-page request. The common read provenance predicate now requires any
+  reported requesting document URL to be a bounded browser-serialized Mail
+  HTTPS origin, not a foreign frame, Account origin, alternate port, or
+  malformed/Unicode URL. Red-first shared and message-list tests prove that
+  the foreign-document request fails while a first-party Mail document works.
+
+- All eight read observers already use the common predicate. Legacy CDP
+  events omitting the optional document hint remain supported; this check
+  therefore cannot prove main-frame ownership for omitted hints or same-origin
+  subframes. No request URLs or message content are persisted by the guard.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

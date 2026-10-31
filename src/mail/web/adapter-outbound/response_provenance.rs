@@ -51,8 +51,9 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
 // A speculative preload or prefetch can fetch an endpoint and return 200
 // without the active Mail view requesting those records. Chromium reports
 // these separately in Request, requestWillBeSent resource type and initiator.
-// Absence is compatible with older CDP versions, but explicit hints must
-// establish a normal application read rather than a speculative fetch.
+// A foreign document/frame can likewise request a Mail API URL without the
+// active Mail document owning it. Optional CDP hints must not contradict
+// ordinary first-party activity; omission remains legacy-compatible.
 #[expect(
     clippy::redundant_pub_crate,
     reason = "private sibling read observers share speculative GET provenance"
@@ -87,7 +88,29 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         },
         Some(_) => false,
     };
-    normal_link && normal_resource && normal_initiator
+    // documentURL is the requesting document, not the API URL. Binding an
+    // explicit hint to the active Mail origin prevents foreign iframes and
+    // unrelated documents from laundering their GET as mailbox activity.
+    // CDP URL strings are browser-serialized; reject raw Unicode/whitespace,
+    // alternate ports or ambiguous host prefixes without retaining the URL.
+    let normal_document = match params.get("documentURL") {
+        None => true,
+        Some(Value::String(url)) => {
+            let bounded = url.len() <= 16 * 1024;
+            let serialized = url.bytes().all(|byte| byte.is_ascii_graphic());
+            let same_origin = url
+                .strip_prefix("https://mail.proton.me")
+                .is_some_and(|suffix| {
+                    suffix.is_empty()
+                        || suffix.starts_with('/')
+                        || suffix.starts_with('?')
+                        || suffix.starts_with('#')
+                });
+            bounded && serialized && same_origin
+        }
+        Some(_) => false,
+    };
+    normal_link && normal_resource && normal_initiator && normal_document
 }
 
 // Browser source flags may be absent on some CDP versions, but present values
