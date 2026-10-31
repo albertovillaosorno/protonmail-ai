@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use nix::errno::Errno;
-use nix::fcntl::{AtFlags, OFlag, open, openat};
+use nix::fcntl::{AtFlags, Flock, FlockArg, OFlag, open, openat};
 use nix::sys::stat::{Mode, SFlag, fstatat};
 use nix::unistd::{UnlinkatFlags, unlinkat};
 
@@ -58,7 +58,9 @@ fn lease_io<T>(_error: T) -> ProfileLeaseError {
 /// Exclusive ownership of one project browser profile for managed automation.
 pub struct AutomationProfileLease {
     file: File,
-    parent: File,
+    // The exclusive project-directory lock lives for the entire lease.
+    // Every cooperative owner serializes stale recovery and unlink against it.
+    parent: Flock<File>,
     device: u64,
     inode: u64,
     path: PathBuf,
@@ -76,6 +78,13 @@ impl AutomationProfileLease {
     pub(crate) fn is_active(profile: &Profile) -> LoginResult<bool> {
         // jig-ignore-next-line: canonical rustfmt line.
         let path = automation_lease_path(profile).map_err(|_error| WebLoginError::LeaseInspect)?;
+        // A managed acquirer can hold the project lock before its lease
+        // file exists. Visible login must not race that launch window.
+        let _parent = match locked_lease_parent(&path) {
+            Ok(parent) => parent,
+            Err(ProfileLeaseError::AutomationInUse) => return Ok(true),
+            Err(_error) => return Err(WebLoginError::LeaseInspect),
+        };
         match inspect_existing_lease(&path) {
             Ok(ExistingLease::Absent | ExistingLease::Stale(_)) => Ok(false),
             Ok(ExistingLease::Active) => Ok(true),
@@ -147,7 +156,7 @@ impl Drop for AutomationProfileLease {
             return;
         }
         let Ok(named) = fstatat(
-            &self.parent,
+            &*self.parent,
             Path::new(AUTOMATION_LEASE),
             AtFlags::AT_SYMLINK_NOFOLLOW,
         ) else {
@@ -158,7 +167,7 @@ impl Drop for AutomationProfileLease {
         // jig-ignore-next-line: canonical rustfmt line.
         if regular && named.st_dev == self.device && named.st_ino == self.inode {
             let _ignored = unlinkat(
-                &self.parent,
+                &*self.parent,
                 Path::new(AUTOMATION_LEASE),
                 UnlinkatFlags::NoRemoveDir,
             );
@@ -296,31 +305,49 @@ fn open_lease_parent(path: &Path) -> Result<File, IoError> {
     Ok(directory)
 }
 
-fn acquire_local_lease(path: &Path) -> LeaseResult<AutomationProfileLease> {
-    match create_lease(path) {
-        Ok(lease) => Ok(lease),
-        Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-            reclaim_or_reject_existing(path)?;
-            create_lease(path).map_err(|error| {
-                if error.kind() == ErrorKind::AlreadyExists {
-                    ProfileLeaseError::AutomationInUse
-                } else {
-                    ProfileLeaseError::LeaseIo
-                }
-            })
+// Linux directory flock binds all cooperative lease mutations to one
+// inode rather than to the replaceable .automation-lease name. Retain it
+// throughout the browser lease lifetime: even a delayed Drop cannot unlink
+// a lease another process has just reclaimed or installed.
+fn locked_lease_parent(path: &Path) -> LeaseResult<Flock<File>> {
+    let parent = open_lease_parent(path).map_err(lease_io)?;
+    let locked = Flock::lock(parent, FlockArg::LockExclusiveNonblock);
+    locked.map_err(|(_parent, error)| {
+        if error == Errno::EWOULDBLOCK {
+            ProfileLeaseError::AutomationInUse
+        } else {
+            ProfileLeaseError::LeaseIo
         }
-        Err(_error) => Err(ProfileLeaseError::LeaseIo),
-    }
+    })
 }
 
-fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
+fn acquire_local_lease(path: &Path) -> LeaseResult<AutomationProfileLease> {
+    let parent = locked_lease_parent(path)?;
+    // Do not drop the directory lock between stale-inode inspection,
+    // unlink and O_EXCL creation; that gap previously allowed another
+    // cooperative acquirer to install a new lease under the same name.
+    match inspect_existing_lease(path)? {
+        ExistingLease::Active => return Err(ProfileLeaseError::AutomationInUse),
+        ExistingLease::Stale(identity) => remove_stale(path, identity)?,
+        ExistingLease::Absent => {}
+    }
+    create_lease(path, parent).map_err(|error| {
+        if error.kind() == ErrorKind::AlreadyExists {
+            ProfileLeaseError::AutomationInUse
+        } else {
+            ProfileLeaseError::LeaseIo
+        }
+    })
+}
+
+// jig-ignore-next-line: canonical Rustfmt signature for held directory lock.
+fn create_lease(path: &Path, parent: Flock<File>) -> Result<AutomationProfileLease, IoError> {
     let owner = current_owner()?;
-    let parent = open_lease_parent(path)?;
     let flags =
         // jig-ignore-next-line: canonical rustfmt line.
         OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
     let fd = openat(
-        &parent,
+        &*parent,
         Path::new(AUTOMATION_LEASE),
         flags,
         Mode::from_bits_truncate(0o600),
@@ -358,14 +385,6 @@ fn create_lease(path: &Path) -> Result<AutomationProfileLease, IoError> {
         return Err(IoError::from(ErrorKind::PermissionDenied));
     }
     Ok(lease)
-}
-
-fn reclaim_or_reject_existing(path: &Path) -> LeaseResult<()> {
-    match inspect_existing_lease(path)? {
-        ExistingLease::Active => Err(ProfileLeaseError::AutomationInUse),
-        ExistingLease::Absent => Ok(()),
-        ExistingLease::Stale(identity) => remove_stale(path, identity),
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

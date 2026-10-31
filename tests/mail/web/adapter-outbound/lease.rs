@@ -217,6 +217,58 @@ fn stale_automation_owner_is_reclaimed() {
 }
 
 #[test]
+fn stale_recovery_refuses_a_competing_project_directory_lock() {
+    use nix::fcntl::{Flock, FlockArg};
+
+    let root = test_root("stale-directory-lock");
+    let profile = profile(&root);
+    let project = project_dir(&profile);
+    fs::create_dir_all(project).expect("prepare project directory");
+    let lease_path = lease_path(&profile);
+    let stale = "v1 4294967295 1\n";
+    fs::write(&lease_path, stale).expect("install stale lease");
+    let parent = fs::File::open(project).expect("open held project directory");
+    let lock = Flock::lock(parent, FlockArg::LockExclusiveNonblock)
+        .expect("lock project directory for competing owner");
+
+    let attempt = acquire(&profile);
+    let blocked = matches!(attempt, Err(LeaseError::AutomationInUse));
+    drop(attempt);
+    let preserved = fs::read_to_string(&lease_path).ok();
+    drop(lock);
+    cleanup(&root);
+    assert!(blocked, "recovery cannot race a held directory lease lock");
+    assert_eq!(preserved.as_deref(), Some(stale));
+}
+
+#[test]
+fn lease_directory_lock_is_held_until_owned_lease_is_dropped() {
+    use nix::errno::Errno;
+    use nix::fcntl::{Flock, FlockArg};
+
+    let root = test_root("lifetime-directory-lock");
+    let profile = profile(&root);
+    let lease = acquire(&profile).expect("acquire lease");
+    let parent = fs::File::open(project_dir(&profile)).expect("open project");
+    let blocked = matches!(
+        Flock::lock(parent, FlockArg::LockExclusiveNonblock),
+        Err((_file, Errno::EWOULDBLOCK))
+    );
+    let named_lease = lease_path(&profile);
+    let held = named_lease.is_file();
+    drop(lease);
+    let removed_after_drop = !named_lease.exists();
+    let project = project_dir(&profile);
+    let parent = fs::File::open(project).expect("open after drop");
+    let result = Flock::lock(parent, FlockArg::LockExclusiveNonblock);
+    let reacquired = result.expect("drop releases directory lock");
+    drop(reacquired);
+    cleanup(&root);
+    assert!(blocked && held, "live owner must hold the directory lock");
+    assert!(removed_after_drop, "drop must remove its own lease");
+}
+
+#[test]
 fn malformed_lease_fails_closed() {
     let root = test_root("malformed");
     let profile = profile(&root);

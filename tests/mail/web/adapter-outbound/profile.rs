@@ -267,6 +267,32 @@ fn visible_login_retries_only_transient_busy_executable() {
 }
 
 #[test]
+fn visible_login_refuses_inflight_automation_directory_lock() {
+    use nix::fcntl::{Flock, FlockArg};
+
+    let root = test_root("pending-automation-lease-lock");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let browser = fake_browser(&root);
+    let data_home = root.join("xdg-data");
+    let project = data_home.join("protonmail-ai");
+    fs::create_dir_all(&project).expect("create project parent");
+    let parent = fs::File::open(&project).expect("open project parent");
+    let lock = Flock::lock(parent, FlockArg::LockExclusiveNonblock)
+        .expect("hold in-flight automation acquisition");
+    let output = login(&root, &browser, Some(&data_home));
+    let refused = !output.status.success();
+    let diagnostic = String::from_utf8_lossy(&output.stderr).into_owned();
+    let started = root.join("browser-args.txt").exists();
+    drop(lock);
+    cleanup(&root);
+    assert!(
+        refused && !started,
+        "in-flight lease must block browser login"
+    );
+    assert!(diagnostic.contains("managed automation"));
+}
+
+#[test]
 fn visible_login_rechecks_automation_lease_during_busy_executable_retry() {
     let root = test_root("lease-acquired-during-retry");
     fs::create_dir_all(&root).expect("create synthetic root");

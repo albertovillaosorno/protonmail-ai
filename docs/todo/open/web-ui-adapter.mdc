@@ -1765,3 +1765,12 @@ web application without requiring Bridge or a third-party direct API identity.
   checks. Red-first Rust and synthetic Node regressions prove rejection of
   submit and form-associated buttons; ordinary pagination and sort toggles
   remain supported. This does not authorize any mailbox mutation.
+
+- Managed browser automation now retains an exclusive advisory lock on the
+  private project-directory inode for the whole automation lease lifetime.
+  Cooperative stale-lease recovery, creation and identity-checked `Drop`
+  unlink therefore cannot interleave at a replaceable lease pathname.
+  Visible login also refuses the directory lock during the pre-file
+  acquisition window. Red-first synthetic contention and CLI tests prove
+  all three cases, retaining stale recovery after process exit; cooperation
+  is required because unrelated same-UID processes can still alter paths.
