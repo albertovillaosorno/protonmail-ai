@@ -125,6 +125,15 @@ web application without requiring Bridge or a third-party direct API identity.
   Unreviewed security-state spelling variants and extensions also fail closed,
   rather than bypassing a valid `securityState` with a contradictory alias.
 
+## Require canonical URL characters in browser origin metadata
+
+- Red-first synthetic `TargetInfo.url` and DOM `documentURL` evidence could
+  contain raw whitespace, controls, or Unicode and still pass the provider
+  origin prefix check. Those characters must be serialized in percent-encoded
+  form in browser-owned URLs; unescaped values are incompatible metadata and
+  can be reinterpreted by URL parsers. Shared URL-origin validation now rejects
+  non-printable or non-ASCII bytes while keeping valid percent-encoded routes.
+
 ## Validate nested AXNode computed property collections
 
 - Red-first synthetic role queries accepted arbitrary objects and malformed

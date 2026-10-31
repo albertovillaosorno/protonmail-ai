@@ -5178,6 +5178,13 @@ fn trusted_origin(raw_url: &str) -> PageOrigin {
 }
 
 fn trusted_url(raw_url: &str, origin: &str) -> bool {
+    // TargetInfo.url and DOM.documentURL are browser-serialized URLs. Raw
+    // spaces, controls and Unicode should already be percent-encoded, so
+    // accepting such metadata as an origin proof would trust a noncanonical
+    // representation that the actual navigation parser may reinterpret.
+    if !raw_url.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return false;
+    }
     let Some(rest) = raw_url.strip_prefix(origin) else {
         return false;
     };

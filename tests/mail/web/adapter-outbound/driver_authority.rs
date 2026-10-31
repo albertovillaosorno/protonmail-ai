@@ -178,6 +178,44 @@ fn documented_root_url_cannot_contradict_the_mail_page_origin() {
 }
 
 #[test]
+fn noncanonical_browser_urls_cannot_prove_provider_origin() {
+    use super::{PageOrigin, trusted_origin, valid_cdp_document_root};
+    use serde_json::json;
+
+    let root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    let ordinary = "https://mail.proton.me/u/0/caf%C3%A9";
+    assert_eq!(trusted_origin(ordinary), PageOrigin::ProtonMail);
+    let mut documented = root;
+    documented["documentURL"] = json!(ordinary);
+    assert!(valid_cdp_document_root(&documented));
+
+    for (label, suffix) in [
+        ("raw-space", "/u/0/in box"),
+        ("newline", "/u/0/inbox\nprivate"),
+        ("tab", "/u/0/inbox\tprivate"),
+        ("null", "/u/0/inbox\0private"),
+        ("delete", "/u/0/inbox\u{7f}"),
+        ("raw-unicode", "/u/0/caf\u{e9}"),
+        ("direction-control", "/u/0/inbox\u{202e}"),
+    ] {
+        let url = format!("https://mail.proton.me{suffix}");
+        assert_eq!(
+            trusted_origin(&url),
+            PageOrigin::Other,
+            "noncanonical target URL {label} must not be trusted"
+        );
+        documented["documentURL"] = json!(url);
+        assert!(
+            !valid_cdp_document_root(&documented),
+            "noncanonical DOM document URL {label} cannot prove Mail origin"
+        );
+    }
+}
+
+#[test]
 fn optional_document_metadata_must_match_cdp_shapes() {
     use super::valid_cdp_document_root;
     use serde_json::json;
