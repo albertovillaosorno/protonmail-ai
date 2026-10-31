@@ -621,40 +621,47 @@ fn query_context_fingerprint(
 
 // jig-ignore-next-line: canonical rustfmt line.
 fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkError> {
-    // Recognized provider filters are allowed to repeat (notably LabelID),
-    // but their wire spelling cannot change. Case-aliased names may collapse
-    // into an ambiguous effective filter after provider query parsing.
-    if let Some((_path, query)) = url.split_once('?') {
-        let mut keyword_seen = false;
-        let mut unread_seen = false;
-        for pair in query.split('&') {
-            let key = pair.split_once('=').map_or(pair, |(key, _value)| key);
-            // LabelID intentionally supports multiple values, but Keyword
-            // and Unread are scalar selectors with one unambiguous value.
-            let repeated_scalar = match key {
-                "Keyword" => replace(&mut keyword_seen, true),
-                "Unread" => replace(&mut unread_seen, true),
-                _ => false,
-            };
-            if repeated_scalar {
-                return Err(MessageListNetworkError::MalformedEvent);
-            }
-            if ["LabelID", "Keyword", "Unread"]
-                .iter()
-                .any(|known| known.eq_ignore_ascii_case(key) && *known != key)
-            {
-                return Err(MessageListNetworkError::MalformedEvent);
-            }
+    // Only audited pagination, sort, and filter keys can prove a visible
+    // provider batch. An unreviewed key might alter which messages were
+    // selected even if the observed rows happen to match the current view.
+    let Some((_path, query)) = url.split_once('?') else {
+        return Ok(false);
+    };
+    let visible = [
+        // Pagination and ordering keys.
+        "Page", "PageSize", "Limit", "Anchor", "AnchorID", "Sort", "Desc",
+        // Audited filters.
+        "LabelID", "Keyword", "Unread",
+    ];
+    let non_visible_selectors = ["Begin", "End", "BeginID", "EndID", "ID"];
+    let mut keyword_seen = false;
+    let mut unread_seen = false;
+    let mut non_visible = false;
+    for pair in query.split('&') {
+        let key = pair.split_once('=').map_or(pair, |(key, _value)| key);
+        if key.contains('%') {
+            return Err(MessageListNetworkError::MalformedEvent);
         }
-    }
-    // Time/range boundaries are independent selectors even when the optional
-    // companion ID is absent: neither can prove a visible list batch.
-    for name in ["Begin", "End", "BeginID", "EndID", "ID"] {
-        if raw_query_parameter(url, name)?.is_some() {
-            return Ok(true);
+        if visible
+            .iter()
+            .chain(&non_visible_selectors)
+            .any(|known| known.eq_ignore_ascii_case(key) && *known != key)
+        {
+            return Err(MessageListNetworkError::MalformedEvent);
         }
+        // LabelID intentionally permits repeated values. Keyword and Unread
+        // are scalar selectors and must have a single canonical value.
+        let repeated_scalar = match key {
+            "Keyword" => replace(&mut keyword_seen, true),
+            "Unread" => replace(&mut unread_seen, true),
+            _ => false,
+        };
+        if repeated_scalar {
+            return Err(MessageListNetworkError::MalformedEvent);
+        }
+        non_visible |= !visible.contains(&key);
     }
-    Ok(false)
+    Ok(non_visible)
 }
 
 // jig-ignore-next-line: canonical rustfmt line.

@@ -1036,7 +1036,7 @@ fn message_list_cdp_url_length_is_bounded_before_query_hashing() {
             "params":{"requestId":"bounded","request":{"method":"GET","url":url}}
         })
     };
-    let prefix = format!("{URL}&Filter=");
+    let prefix = format!("{URL}&Keyword=");
     let accepted = format!("{prefix}{}", "x".repeat(CEILING - prefix.len()));
     assert_eq!(accepted.len(), CEILING);
     let mut capture = MessageListNetworkCapture::new("session-1");
@@ -1509,6 +1509,82 @@ fn message_list_body_envelope_rejects_unexpected_cdp_fields() {
         ObservedMessageListResponse::parse_cdp_body(&response),
         Err(MessageListResponseError::Malformed)
     );
+}
+
+#[test]
+fn unreviewed_message_list_query_keys_cannot_prove_visible_batches() {
+    use serde_json::json;
+
+    for (label, base, selector) in [
+        ("initial-extra-filter", URL, "Priority=1"),
+        ("initial-extra-sort", URL, "OrderBy=Size"),
+        (
+            "continuation-extra-filter",
+            concat!(
+                "https://mail.proton.me/api/mail/v4/messages?",
+                "Limit=50&Anchor=7&AnchorID=m-50&Sort=Time&Desc=1"
+            ),
+            "FutureFilter=1",
+        ),
+    ] {
+        let url = format!("{base}&{selector}");
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let request = json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":label,
+                "request":{"method":"GET","url":url}}
+        });
+        capture
+            .observe(&request)
+            .expect("ignore unreviewed selector");
+        let response = json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.responseReceived",
+            "params":{"requestId":label,"response":{
+                "url":url,"status":200u16,"mimeType":"application/json"
+            }}
+        });
+        capture
+            .observe(&response)
+            .expect("ignore untracked response");
+        capture
+            .observe(&json!({
+                "sessionId":"synthetic-session",
+                "method":"Network.loadingFinished",
+                "params":{"requestId":label}
+            }))
+            .expect("ignore untracked completion");
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    // Supported filters still select a bounded provider batch.
+    let canonical = format!("{URL}&LabelID=sent&Keyword=hello&Unread=1");
+    let mut capture = MessageListNetworkCapture::new("synthetic-session");
+    capture
+        .observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"canonical",
+                "request":{"method":"GET","url":canonical}}
+        }))
+        .expect("reviewed filters remain compatible");
+    capture
+        .observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.responseReceived",
+            "params":{"requestId":"canonical","response":{
+                "url":canonical,"status":200u16,"mimeType":"application/json"
+            }}
+        }))
+        .expect("reviewed response evidence");
+    capture
+        .observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.loadingFinished",
+            "params":{"requestId":"canonical"}
+        }))
+        .expect("reviewed response completion");
+    assert_eq!(capture.take_finished_request_ids(), ["canonical"]);
 }
 
 #[test]

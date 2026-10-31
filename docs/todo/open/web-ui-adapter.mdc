@@ -2267,3 +2267,9 @@ web application without requiring Bridge or a third-party direct API identity.
   selectors before any request can become a tracked provider batch.
   Red-first requests with conflicting scalar values were accepted previously;
   multi-valued canonical `LabelID` continues to support ordered repeats.
+
+- Passive message-list initial and anchored continuation capture now refuses
+  unreviewed query keys before they can count as visible batch evidence.
+  Red-first synthetic HTTP-200 completion previously accepted added future
+  filter/sort selectors; canonical LabelID, Keyword, and Unread filters remain
+  compatible. Query content is never retained in diagnostics.
