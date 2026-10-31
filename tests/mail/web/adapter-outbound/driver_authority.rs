@@ -64,6 +64,41 @@ fn scoped_browser_attachment_has_guarded_string_custody() {
 }
 
 #[test]
+fn accepted_cdp_request_selectors_scrub_when_handling_aborts() {
+    use super::guard_selected_request;
+    use std::cell::Cell;
+    use zeroize::{Zeroize, Zeroizing};
+
+    struct Probe<'flag>(&'flag Cell<bool>);
+
+    impl Zeroize for Probe<'_> {
+        fn zeroize(&mut self) {
+            self.0.set(true);
+        }
+    }
+
+    fn assert_guarded<T>(_: &Zeroizing<T>)
+    where
+        T: Zeroize,
+    {
+    }
+
+    let single = Cell::new(false);
+    let paired = [Cell::new(false), Cell::new(false)];
+    let failed = || -> Result<(), BrowserDriverError> {
+        let request = guard_selected_request(Probe(&single));
+        let pair = (Probe(&paired[0]), Probe(&paired[1]));
+        let tuple = guard_selected_request(pair);
+        assert_guarded(&request);
+        assert_guarded(&tuple);
+        Err(BrowserDriverError::Protocol)
+    };
+    assert!(matches!(failed(), Err(BrowserDriverError::Protocol)));
+    assert!(single.get());
+    assert!(paired.iter().all(Cell::get));
+}
+
+#[test]
 fn ambiguous_finished_request_rows_scrub_every_rejected_value() {
     use super::{BrowserDriverError, take_exactly_one_finished};
     use std::cell::Cell;

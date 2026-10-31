@@ -648,6 +648,12 @@ Ship useful read access before any mailbox mutation is enabled.
   Synthetic probes verify every rejected row is erased, while empty/single
   results retain their previous behavior.
 
+- Successful passive CDP request selection now places the copied request
+  selector (and any conversation, message, attachment, or event ID companion)
+  into zeroizing custody before cancellation, page validation, body fetch, or
+  parse can fail. This extends rejected-batch protection to accepted rows;
+  a synthetic abort-path probe verifies both single and paired drop scrubbing.
+
 ## CDP command-reply stream ambiguity
 
 - A red-first fake-browser regression found the central CDP command-response

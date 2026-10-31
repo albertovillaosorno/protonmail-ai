@@ -1544,6 +1544,7 @@ impl ManagedBrowser {
                 bootstrap_deadline,
                 cancellation,
             )?;
+            let latest_request = guard_selected_request(latest_request);
             ensure_event_wait_not_cancelled(cancellation)?;
             // jig-ignore-next-line: canonical event capture request invocation.
             let latest_body = self.read_cdp_body(session, &latest_request, &mut capture)?;
@@ -1644,6 +1645,7 @@ impl ManagedBrowser {
             self.call_in_session_observing(session, "Page.reload", &json!({}), &mut capture)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let request_id = self.wait_for_latest_mailbox_event_request(&mut capture, deadline)?;
+            let request_id = guard_selected_request(request_id);
             let body = self.read_cdp_body(session, &request_id, &mut capture)?;
             ObservedLatestMailboxEventWatermark::parse_cdp_body(&body)
                 .map_err(BrowserDriverError::MailboxEventWatermark)
@@ -1915,6 +1917,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let first_request = guard_selected_request(first_request);
         ensure_event_wait_not_cancelled(cancellation)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_mailbox_event_body(session, &first_request, capture)?;
@@ -1925,6 +1928,7 @@ impl ManagedBrowser {
                 // jig-ignore-next-line: canonical rustfmt line.
                 .wait_for_mailbox_event_request(capture, deadline, cancellation)?
                 .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            let request = guard_selected_request(request);
             ensure_event_wait_not_cancelled(cancellation)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let page = self.read_mailbox_event_body(session, &request, capture)?;
@@ -2013,6 +2017,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let first_request = guard_selected_request(first_request);
         ensure_event_wait_not_cancelled(cancellation)?;
         // jig-ignore-next-line: canonical rustfmt line.
         let first = self.read_initial_mailbox_event_body(session, &first_request, capture)?;
@@ -2023,6 +2028,7 @@ impl ManagedBrowser {
                 // jig-ignore-next-line: canonical rustfmt line.
                 .wait_for_initial_mailbox_event_request(capture, deadline, cancellation)?
                 .ok_or(BrowserDriverError::MailboxEventResponseUnavailable)?;
+            let request = guard_selected_request(request);
             ensure_event_wait_not_cancelled(cancellation)?;
             // jig-ignore-next-line: canonical rustfmt line.
             let page = self.read_initial_mailbox_event_body(session, &request, capture)?;
@@ -2330,6 +2336,8 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let request_id = guard_selected_request(request_id);
+        let conversation_id = guard_selected_request(conversation_id);
         let body = self.read_cdp_body(session, &request_id, capture)?;
         // jig-ignore-next-line: canonical rustfmt line.
         ObservedConversationDetailResponse::parse_cdp_body(&conversation_id, &body)
@@ -2470,6 +2478,7 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let request_id = guard_selected_request(request_id);
         // Never decode an irrelevant provider body when the already-visible
         // pagination evidence rules out a match to this request.
         if expected_page.is_some_and(|visible| {
@@ -2719,6 +2728,8 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let request_id = guard_selected_request(request_id);
+        let attachment_id = guard_selected_request(attachment_id);
         let body = self.read_cdp_body(session, &request_id, capture)?;
         ObservedAttachmentMetadataResponse::parse_cdp_body(
             &attachment_id,
@@ -2858,6 +2869,8 @@ impl ManagedBrowser {
         else {
             return Ok(None);
         };
+        let request_id = guard_selected_request(request_id);
+        let message_id = guard_selected_request(message_id);
         let body = self.read_cdp_body(session, &request_id, capture)?;
         ObservedMessageDetailResponse::parse_cdp_body(&message_id, &body)
             .map(Some)
@@ -4217,6 +4230,15 @@ fn ensure_message_list_page_matches(
         return Ok(());
     }
     Err(BrowserDriverError::MessageListPageMismatch)
+}
+
+// A successfully selected network selector also has private String custody:
+// guard it immediately before any fallible observation or parsing step.
+fn guard_selected_request<T>(value: T) -> Zeroizing<T>
+where
+    T: zeroize::Zeroize,
+{
+    Zeroizing::new(value)
 }
 
 // A rejected multi-request batch still contains copied private request IDs.
