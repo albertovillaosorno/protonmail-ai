@@ -757,9 +757,54 @@ impl ManagedBrowser {
             if selected.is_some() {
                 return Err(BrowserDriverError::AmbiguousProviderPages);
             }
-            selected = Some(page);
+            let context = info.get("browserContextId");
+            selected = Some((page, context.and_then(Value::as_str)));
         }
-        selected.ok_or(BrowserDriverError::MissingProviderPage)
+        // Bind context proof to the same target entry that established page
+        // identity. A different target type may reuse an ID in bad metadata.
+        let selected = selected.ok_or(BrowserDriverError::MissingProviderPage)?;
+        let (page, context_id) = selected;
+        if let Some(context_id) = context_id {
+            self.require_default_browser_context(context_id)?;
+        }
+        Ok(page)
+    }
+
+    // Verify a browser-reported profile context against the browser's own
+    // default context, not merely against the list of incognito contexts.
+    // Some Chromium versions omit this optional metadata; when the target
+    // names a context but the browser cannot prove its default, fail closed.
+    fn require_default_browser_context(
+        &mut self,
+        target_context: &str,
+    ) -> Result<(), BrowserDriverError> {
+        let response = self.call("Target.getBrowserContexts", &json!({}))?;
+        let default = response
+            .get("defaultBrowserContextId")
+            .and_then(Value::as_str)
+            .filter(|id| safe_cdp_endpoint_id(id))
+            .ok_or(BrowserDriverError::Protocol)?;
+        let contexts = response
+            .get("browserContextIds")
+            .and_then(Value::as_array)
+            .ok_or(BrowserDriverError::Protocol)?;
+        if contexts.len() > MAX_DISCOVERABLE_TARGETS {
+            return Err(BrowserDriverError::Protocol);
+        }
+        let mut seen = HashSet::new();
+        for context in contexts {
+            let id = context
+                .as_str()
+                .filter(|id| safe_cdp_endpoint_id(id))
+                .ok_or(BrowserDriverError::Protocol)?;
+            if !seen.insert(id) || id == default {
+                return Err(BrowserDriverError::Protocol);
+            }
+        }
+        if default != target_context {
+            return Err(BrowserDriverError::Protocol);
+        }
+        Ok(())
     }
 
     /// Re-checks provider origin inside the selected page execution context.
@@ -4591,6 +4636,7 @@ fn allowed_mail_cdp_method(session: Option<&str>, method: &str) -> bool {
             "Browser.getVersion"
                 | "Browser.close"
                 | "Target.getTargets"
+                | "Target.getBrowserContexts"
                 | "Target.attachToTarget"
                 | "Target.detachFromTarget"
         ),
@@ -4630,10 +4676,11 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
                 // jig-ignore-next-line: canonical rustfmt line.
                 && fields.get("returnByValue").and_then(Value::as_bool) == Some(true)
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        "Browser.getVersion" | "Browser.close" | "Target.getTargets" | "Network.disable" => {
-            fields.is_empty()
-        }
+        "Browser.getVersion"
+        | "Browser.close"
+        | "Target.getTargets"
+        | "Target.getBrowserContexts"
+        | "Network.disable" => fields.is_empty(),
         "Target.attachToTarget" => {
             fields.len() == 2
                 && fields.get("flatten").and_then(Value::as_bool) == Some(true)
@@ -4711,6 +4758,13 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
         "Target.getTargets" => {
             let discovered = fields.get("targetInfos");
             fields.len() == 1 && discovered.is_some_and(Value::is_array)
+        }
+        "Target.getBrowserContexts" => {
+            fields.len() == 2
+                && fields.get("browserContextIds").is_some_and(Value::is_array)
+                && fields
+                    .get("defaultBrowserContextId")
+                    .is_some_and(Value::is_string)
         }
         "Runtime.evaluate" => {
             let field_count_ok = match fields.len() {

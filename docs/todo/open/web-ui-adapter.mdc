@@ -1792,7 +1792,17 @@ web application without requiring Bridge or a third-party direct API identity.
   another debugger already attached (`TargetInfo.attached: true`), malformed
   attachment-state types, or malformed browser context IDs. Red-first synthetic
   browser catalogs previously selected attached targets. Chromium can include
-  `browserContextId` even for ordinary profile tabs; validating its shape does
-  not prove the page belongs to the default profile. A future context-binding
-  check must compare target metadata against `Target.getBrowserContexts` before
-  making any stronger profile-isolation claim.
+  `browserContextId` even for ordinary profile tabs; validating its shape alone
+  cannot establish default-profile ownership.
+
+- For a selected Mail/Account target with `browserContextId`, the adapter now
+  queries the read-only `Target.getBrowserContexts` command and requires an
+  explicit matching `defaultBrowserContextId`. Unrelated contexts, malformed
+  or duplicate context IDs, overlapping context lists, and extra CDP result
+  keys fail closed. Context evidence stays attached to the selected target
+  entry even when an unrelated target reuses its ID.
+
+- Red-first synthetic CDP replies established both the context-selection and
+  duplicate-ID gaps. When older Chromium omits the optional target context ID,
+  origin verification remains necessary but default-context proof from this
+  method is unavailable. No account or live browser is used.

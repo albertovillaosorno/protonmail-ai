@@ -78,6 +78,10 @@ while IFS= read -r -d '' message <&3; do
       printf '%s\0' '{{"id":1,"result":{{"product":"FakeChrome/1"}}}}' >&4;;
     *'Target.getTargets'*)
       printf '%s\0' '{{"id":2,"result":{{"targetInfos":{target_infos}}}}}' >&4;;
+    *'Target.getBrowserContexts'*)
+      contexts='{{"id":3,"result":{{"browserContextIds":["other-context-7"],'
+      contexts+='"defaultBrowserContextId":"default-profile-123"}}}}'
+      printf '%s\0' "$contexts" >&4;;
     *'Target.attachToTarget'*)
       printf '%s\0' '{{"id":3,"result":{{"sessionId":"session-1"}}}}' >&4;;
     *'Runtime.evaluate'*)
@@ -2198,6 +2202,132 @@ fn unattached_provider_target_accepts_optional_default_context_metadata() {
         assert_eq!(
             managed.provider_page().map(|page| page.origin()),
             Ok(PageOrigin::ProtonMail)
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn provider_context_id_requires_proven_default_browser_context() {
+    use serde_json::json;
+    for (label, context, expected) in [
+        (
+            "proven-default-context",
+            "default-profile-123",
+            Ok(PageOrigin::ProtonMail),
+        ),
+        (
+            "foreign-context",
+            "other-context-7",
+            Err(BrowserDriverError::Protocol),
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let targets = json!([{
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox",
+            "attached":false, "browserContextId":context
+        }]);
+        let catalog = targets.to_string();
+        let browser = fake_browser(&root, &catalog, "mail.proton.me");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        assert_eq!(managed.provider_page().map(|page| page.origin()), expected);
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn unrelated_duplicate_target_id_cannot_hide_foreign_provider_context() {
+    use serde_json::json;
+    let root = test_root("duplicate-unrelated-target-id");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let targets = json!([
+        {"targetId":"mail-1", "type":"service_worker"},
+        {
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox",
+            "browserContextId":"other-context-7"
+        }
+    ]);
+    let catalog = targets.to_string();
+    let browser = fake_browser(&root, &catalog, "mail.proton.me");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+    assert_eq!(managed.provider_page(), Err(BrowserDriverError::Protocol));
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
+fn malformed_browser_context_catalog_cannot_authorize_provider_page() {
+    use serde_json::json;
+    let default = r#""defaultBrowserContextId":"default-profile-123""#;
+    let contexts = r#""browserContextIds":["other-context-7"]"#;
+    for (label, from, to) in [
+        (
+            "context-default-missing",
+            default,
+            r#""unknownDefault":"default-profile-123""#,
+        ),
+        (
+            "context-default-null",
+            default,
+            r#""defaultBrowserContextId":null"#,
+        ),
+        (
+            "context-default-extra-result",
+            default,
+            r#""defaultBrowserContextId":"default-profile-123","unknown":true"#,
+        ),
+        (
+            "context-default-noncanonical",
+            default,
+            r#""defaultBrowserContextId":"bad/id""#,
+        ),
+        (
+            "context-list-duplicate",
+            contexts,
+            r#""browserContextIds":["other-context-7","other-context-7"]"#,
+        ),
+        (
+            "context-list-default-overlap",
+            contexts,
+            r#""browserContextIds":["default-profile-123"]"#,
+        ),
+        (
+            "context-list-invalid",
+            contexts,
+            r#""browserContextIds":[null]"#,
+        ),
+        (
+            "context-list-noncanonical",
+            contexts,
+            r#""browserContextIds":["bad/id"]"#,
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let targets = json!([{
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox",
+            "browserContextId":"default-profile-123"
+        }]);
+        let catalog = targets.to_string();
+        let browser = fake_browser(&root, &catalog, "mail.proton.me");
+        let script = fs::read_to_string(&browser).expect("read fixture");
+        assert!(script.contains(from), "missing fixture {label}");
+        install_script(&browser, script.replacen(from, to, 1))
+            .expect("inject malformed browser-context catalog");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        assert_eq!(
+            managed.provider_page(),
+            Err(BrowserDriverError::Protocol),
+            "{label} must not establish default context"
         );
         drop(managed);
         cleanup(&root);
