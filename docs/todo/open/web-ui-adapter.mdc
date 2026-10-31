@@ -105,6 +105,15 @@ web application without requiring Bridge or a third-party direct API identity.
   extensions fail closed. Valid normal hidden reasons remain compatible and
   accessible names are still not projected into Mail-shell evidence.
 
+## Validate AXValue collection elements before shell readiness
+
+- Red-first fake-browser roles and hidden reasons proved non-object
+  `relatedNodes` entries, missing backend node IDs, and unknown `sources`
+  types could still establish a Mail shell. Shared AXValue checks now bound
+  both collections, validate related backend identity, and require documented
+  source types and known outer properties. Canonical optional source and
+  related-node objects remain accepted without retaining their content.
+
 ## Reject contradictory accessibility reason value types
 
 - Red-first synthetic AX replies showed ignored nodes could report boolean

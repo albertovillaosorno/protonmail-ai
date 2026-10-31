@@ -213,6 +213,10 @@ fn unreviewed_accessibility_role_value_fields_cannot_prove_shell() {
         ("unknown-role-null", r#", "futureRoleFlag":null"#),
         ("wrong-related-nodes", r#", "relatedNodes":true"#),
         ("wrong-role-sources", r#", "sources":false"#),
+        ("null-related-node", r#", "relatedNodes":[null]"#),
+        ("unidentified-related-node", r#", "relatedNodes":[{}]"#),
+        ("wrong-source-item", r#", "sources":[true]"#),
+        ("unknown-source-type", r#", "sources":[{"type":"future"}]"#),
     ] {
         let navigation = format!("{base}{extension}}}}}]");
         let roles = RoleFixture {
@@ -265,7 +269,8 @@ fn documented_optional_accessibility_role_arrays_remain_compatible() {
     let navigation = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
         r#""role":{"type":"role","value":"__AX_ROLE__","#,
-        r#""relatedNodes":[],"sources":[]}}]"#
+        r#""relatedNodes":[{"backendDOMNodeId":3}],"#,
+        r#""sources":[{"type":"implicit"}]}}]"#
     );
     let roles = RoleFixture {
         navigation,
@@ -360,6 +365,20 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
                 r#""value":{"type":"boolean","value":true,"relatedNodes":{}}}]"#
             )),
         ),
+        (
+            "reason-null-related-node",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","relatedNodes":[null]}}]"#
+            )),
+        ),
+        (
+            "reason-unknown-source-type",
+            String::from(concat!(
+                r#"[{"name":"notVisible","#,
+                r#""value":{"type":"boolean","sources":[{"type":"future"}]}}]"#
+            )),
+        ),
         ("ordinary-property-as-reason", reason("selected", "boolean")),
         ("unknown-ignored-reason", reason("futureReason", "boolean")),
         (
@@ -375,28 +394,32 @@ fn hidden_accessibility_reasons_require_bounded_typed_metadata() {
             )),
         ),
     ] {
-        let node = format!(
-            concat!(
-                r#"[{{"ignored":true,"nodeId":"ax-search","#,
-                r#""role":{{"type":"role","value":"__AX_ROLE__"}},"#,
-                r#""ignoredReasons":{reasons}}}]"#
-            ),
-            reasons = reasons
-        );
-        let roles = RoleFixture {
-            search: &node,
-            ..RoleFixture::ready()
-        };
-        assert_eq!(
-            inspect(
-                label,
-                "https://mail.proton.me/u/0/inbox",
-                "mail.proton.me",
-                &roles
-            ),
-            Err(BrowserDriverError::Protocol)
-        );
+        assert_malformed_ax_reason(label, &reasons);
     }
+}
+
+fn assert_malformed_ax_reason(label: &str, reasons: &str) {
+    let node = format!(
+        concat!(
+            r#"[{{"ignored":true,"nodeId":"ax-search","#,
+            r#""role":{{"type":"role","value":"__AX_ROLE__"}},"#,
+            r#""ignoredReasons":{reasons}}}]"#
+        ),
+        reasons = reasons
+    );
+    let roles = RoleFixture {
+        search: &node,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            label,
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
 }
 
 #[test]

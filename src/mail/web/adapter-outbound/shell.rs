@@ -195,14 +195,7 @@ fn valid_ax_role(role: Option<&Value>, expected_role: &str) -> bool {
     let allowed = ["type", "value", "relatedNodes", "sources"];
     let mut fields = role.keys();
     let known_fields = fields.all(|field| allowed.contains(&field.as_str()));
-    let max_nodes = MAX_AX_ROLE_MATCH_NODES;
-    let arrays_valid = ["relatedNodes", "sources"]
-        .iter()
-        .all(|field| match role.get(*field) {
-            None => true,
-            Some(Value::Array(entries)) => entries.len() <= max_nodes,
-            Some(_) => false,
-        });
+    let arrays_valid = valid_ax_value_arrays(role);
     let typed = kind == Some("role") && value == Some(expected_role);
     typed && known_fields && arrays_valid
 }
@@ -231,15 +224,7 @@ fn valid_ax_hidden_reason(reason: &Value) -> bool {
             "type" | "value" | "relatedNodes" | "sources"
         )
     });
-    let max_nodes = MAX_AX_ROLE_MATCH_NODES;
-    let arrays_valid =
-        ["relatedNodes", "sources"]
-            .iter()
-            .all(|field| match value_fields.get(*field) {
-                None => true,
-                Some(Value::Array(entries)) => entries.len() <= max_nodes,
-                Some(_) => false,
-            });
+    let arrays_valid = valid_ax_value_arrays(value_fields);
     let text_kinds = ["string", "computedString", "role", "internalRole"];
     let string_kind = text_kinds.contains(&kind);
     let scalar_valid = match (kind, value_fields.get("value")) {
@@ -256,6 +241,74 @@ fn valid_ax_hidden_reason(reason: &Value) -> bool {
         && known
         && arrays_valid
         && scalar_valid
+}
+
+// AXValue's optional collections cannot contain untyped JSON. Validate
+// browser-owned relationship identifiers and source kinds without retaining
+// their private text or recursively projecting their content.
+fn valid_ax_value_arrays(fields: &serde_json::Map<String, Value>) -> bool {
+    ["relatedNodes", "sources"]
+        .iter()
+        .all(|field| match fields.get(*field) {
+            None => true,
+            Some(Value::Array(entries)) => {
+                let bounded = entries.len() <= MAX_AX_ROLE_MATCH_NODES;
+                bounded
+                    && entries.iter().all(|entry| match *field {
+                        "relatedNodes" => valid_ax_related_node(entry),
+                        "sources" => valid_ax_source(entry),
+                        _ => false,
+                    })
+            }
+            Some(_) => false,
+        })
+}
+
+fn valid_ax_related_node(node: &Value) -> bool {
+    let Some(fields) = node.as_object() else {
+        return false;
+    };
+    let backend = fields.get("backendDOMNodeId").and_then(Value::as_u64);
+    let max_backend = MAX_AX_BACKEND_NODE_ID;
+    let valid_backend = backend.is_some_and(|id| id > 0 && id <= max_backend);
+    let allowed = ["backendDOMNodeId", "idref", "text"];
+    let known = fields.keys().all(|field| allowed.contains(&field.as_str()));
+    let text_valid = ["idref", "text"].iter().all(|field| {
+        fields.get(*field).is_none_or(|value| {
+            let text = value.as_str();
+            text.is_some_and(|text| text.len() <= 16_384)
+        })
+    });
+    valid_backend && known && text_valid
+}
+
+fn valid_ax_source(source: &Value) -> bool {
+    let Some(fields) = source.as_object() else {
+        return false;
+    };
+    let kind = fields.get("type").and_then(Value::as_str);
+    let source_kinds = [
+        "attribute",
+        "implicit",
+        "style",
+        "contents",
+        "placeholder",
+        "relatedElement",
+    ];
+    let known_kind = kind.is_some_and(|kind| source_kinds.contains(&kind));
+    let allowed = [
+        "type",
+        "value",
+        "attribute",
+        "attributeValue",
+        "superseded",
+        "nativeSource",
+        "nativeSourceValue",
+        "invalid",
+        "invalidReason",
+    ];
+    let known = fields.keys().all(|field| allowed.contains(&field.as_str()));
+    known_kind && known
 }
 
 // CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.
