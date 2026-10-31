@@ -2438,3 +2438,10 @@ web application without requiring Bridge or a third-party direct API identity.
   The common guard now rejects legacy and current purpose headers without
   inspecting, retaining, or logging their values. Ordinary AJAX GETs remain
   supported, and no live account or browser was accessed.
+
+- Passive GET provenance now refuses unreviewed CDP Request field names that
+  signal preloading, prefetch, preflight, prerender, or speculative scheduling,
+  including case aliases of the canonical `isLinkPreload` marker. Red-first
+  synthetic requests with a false canonical flag and a true aliased flag
+  previously entered message-list capture. Regular documented GET requests
+  and their optional absent flags remain compatible; no live mailbox used.

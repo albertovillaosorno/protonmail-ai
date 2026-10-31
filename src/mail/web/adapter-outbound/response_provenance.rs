@@ -134,6 +134,27 @@ const fn speculative_purpose_header(name: &str) -> bool {
     legacy || current
 }
 
+// Unknown CDP Request fields that advertise speculative scheduling are
+// ambiguous even when the documented isLinkPreload boolean is false.
+// Compare ASCII protocol names without allocating private request metadata.
+fn unreviewed_speculation_field(name: &str) -> bool {
+    if name == "isLinkPreload" {
+        return false;
+    }
+    let hints = [
+        "preload",
+        "prefetch",
+        "preflight",
+        "prerender",
+        "speculative",
+    ];
+    hints.iter().any(|hint| {
+        name.as_bytes()
+            .windows(hint.len())
+            .any(|part| part.eq_ignore_ascii_case(hint.as_bytes()))
+    })
+}
+
 // A speculative preload or prefetch can fetch an endpoint and return 200
 // without the active Mail view requesting those records. Chromium reports
 // these separately in Request, requestWillBeSent resource type and initiator.
@@ -155,6 +176,9 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         request.get("isLinkPreload"),
         None | Some(Value::Bool(false))
     );
+    let normal_hints = !request
+        .keys()
+        .any(|field| unreviewed_speculation_field(field));
     // Browsers also identify speculative requests with purpose headers.
     // Reject the header itself regardless of value: a future purpose token
     // cannot silently establish active Mail API read evidence.
@@ -203,8 +227,8 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         }
         Some(_) => false,
     };
-    let request_active = normal_link && normal_purpose && normal_resource;
-    request_active && normal_initiator && normal_document
+    let request_active = normal_link && normal_hints && normal_purpose;
+    request_active && normal_resource && normal_initiator && normal_document
 }
 
 // Browser source flags may be absent on some CDP versions, but present values
