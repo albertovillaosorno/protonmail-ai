@@ -366,6 +366,7 @@ impl AnonymousSession {
         }
         let parsed = serde_json::from_slice::<RawAuth>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
+        validate_optional_provider_code(raw.code)?;
         if raw.user_id.is_some() {
             return Err(ProtocolError::UnexpectedBoundUser);
         }
@@ -485,6 +486,7 @@ impl ForkChallenge {
         }
         let parsed = serde_json::from_slice::<RawChallenge>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
+        validate_optional_provider_code(raw.code)?;
         // Poll selectors are inserted verbatim into one URL path segment.
         // Permit URL-unreserved bytes and the +/= forms of Base64 only;
         // other reserved punctuation can be reinterpreted by intermediaries.
@@ -584,6 +586,7 @@ impl ForkPoll {
         }
         let parsed = serde_json::from_slice::<RawForkSession>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
+        validate_optional_provider_code(raw.code)?;
         let user_id = raw.user_id.ok_or(ProtocolError::MissingUserId)?;
         if raw.uid.is_empty()
             || user_id.is_empty()
@@ -872,6 +875,8 @@ pub enum ProtocolError {
     ResponseTooLarge,
     /// The response body is not the expected JSON shape.
     MalformedJson,
+    /// An explicit provider API success code contradicts HTTP success.
+    ProviderRejected,
     /// The selector or human-readable code has an invalid shape.
     InvalidChallenge,
     /// Anonymous bootstrap unexpectedly returned a bound user identity.
@@ -901,6 +906,8 @@ type PlainResult = ForkResult<Plaintext>;
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawChallenge {
+    #[serde(default, deserialize_with = "read_present_provider_code")]
+    code: Option<u64>,
     #[serde(deserialize_with = "read_sensitive")]
     selector: Zeroizing<String>,
     #[serde(rename = "UserCode", deserialize_with = "read_sensitive")]
@@ -910,6 +917,8 @@ struct RawChallenge {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawAuth {
+    #[serde(default, deserialize_with = "read_present_provider_code")]
+    code: Option<u64>,
     #[serde(rename = "UID", deserialize_with = "read_sensitive")]
     uid: Zeroizing<String>,
     #[serde(rename = "UserID", default, deserialize_with = "read_opt_secret")]
@@ -928,6 +937,8 @@ struct RawAuth {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct RawForkSession {
+    #[serde(default, deserialize_with = "read_present_provider_code")]
+    code: Option<u64>,
     #[serde(rename = "UID", deserialize_with = "read_sensitive")]
     uid: Zeroizing<String>,
     #[serde(rename = "UserID", default, deserialize_with = "read_opt_secret")]
@@ -976,6 +987,22 @@ fn safe_header_authority(value: &str) -> bool {
 // validation failures also scrub already-deserialized values when it drops.
 type SensitiveString = Zeroizing<String>;
 type SensitiveOption = Option<SensitiveString>;
+
+// An omitted Code is tolerated until the fork wire schema is fully proven.
+// If present, a null/float/string is not equivalent to a missing success code.
+fn read_present_provider_code<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    u64::deserialize(deserializer).map(Some)
+}
+
+fn validate_optional_provider_code(code: Option<u64>) -> ForkResult<()> {
+    if code.is_some_and(|code| code != 1000) {
+        return Err(ProtocolError::ProviderRejected);
+    }
+    Ok(())
+}
 
 fn read_sensitive<'de, D>(deserializer: D) -> Result<SensitiveString, D::Error>
 where

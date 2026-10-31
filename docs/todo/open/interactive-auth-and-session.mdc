@@ -123,6 +123,14 @@ account credentials. The primary web UI login remains a separate P1 path.
 
 ## Bounded auth response parsing
 
+- Offline bootstrap, fork-challenge, and completed-poll projections now refuse
+  an explicit non-1000 provider `Code` even on HTTP 200, rather than accepting
+  otherwise complete-looking bearer or selector fields. A missing `Code` is
+  preserved for unverified wire-schema compatibility; present codes must be
+  unsigned JSON integers (not strings, null, or floating-point aliases).
+  Synthetic red-first tests cover success, rejection, and invalid types for
+  each of the three response families without enabling live authentication.
+
 - HTTP 422 fork polls remain pending without interpreting the provider body,
   but now enforce the same 256 KiB input ceiling as successful polls. An
   oversized pending body fails closed with `ResponseTooLarge`, while the exact

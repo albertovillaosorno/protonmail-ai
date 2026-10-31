@@ -115,6 +115,46 @@ fn anonymous_bootstrap_parses_authority_and_redacts_debug() {
 }
 
 #[test]
+fn explicit_provider_failure_cannot_authorize_synthetic_fork_state() {
+    let bootstrap = json!({
+        "UID":"synthetic-uid", "UserID":null,
+        "AccessToken":ACCESS_TOKEN, "RefreshToken":REFRESH_TOKEN,
+        "Scopes":["loggedin"]
+    });
+    let challenge = json!({"Selector":SELECTOR, "UserCode":USER_CODE});
+    let complete: serde_json::Value =
+        serde_json::from_slice(&complete_response(None)).expect("complete synthetic fork fixture");
+    for (kind, mut response) in [bootstrap, challenge, complete].into_iter().enumerate() {
+        // Each distinct response family must reject an explicit failure;
+        // success and absent Code stay compatible with existing fixtures.
+        let parse = |body: &[u8]| -> Result<(), ProtocolError> {
+            match kind {
+                0 => AnonymousSession::parse(200, body).map(|_| ()),
+                1 => ForkChallenge::parse(200, body).map(|_| ()),
+                _ => ForkPoll::parse(200, body).map(|_| ()),
+            }
+        };
+        assert_eq!(parse(response.to_string().as_bytes()), Ok(()));
+        response["Code"] = json!(1000u64);
+        assert_eq!(parse(response.to_string().as_bytes()), Ok(()));
+        for invalid in [8004u64, 0u64] {
+            response["Code"] = json!(invalid);
+            assert_eq!(
+                parse(response.to_string().as_bytes()),
+                Err(ProtocolError::ProviderRejected)
+            );
+        }
+        for malformed in [json!("1000"), json!(null), json!(-1i64), json!(1000.5f64)] {
+            response["Code"] = malformed;
+            assert_eq!(
+                parse(response.to_string().as_bytes()),
+                Err(ProtocolError::MalformedJson)
+            );
+        }
+    }
+}
+
+#[test]
 fn anonymous_bootstrap_rejects_bound_user() {
     let body = serde_json::to_vec(&json!({
         "UID": "synthetic-anonymous-uid",
