@@ -159,6 +159,15 @@ fn active_mail_fetch_metadata(request: &Map<String, Value>) -> bool {
     match request.get("headers") {
         None => true,
         Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
+            if name.eq_ignore_ascii_case("Host") {
+                // A conflicting HTTP authority cannot establish a direct
+                // Mail read merely because the observed URL looks exact.
+                let host = value.as_str();
+                return host.is_some_and(|value| {
+                    value.eq_ignore_ascii_case("mail.proton.me")
+                        || value.eq_ignore_ascii_case("mail.proton.me:443")
+                });
+            }
             if name.eq_ignore_ascii_case("Origin") {
                 // A foreign/sandboxed document cannot become Mail-owned just
                 // because CDP omitted documentURL and classified it Fetch.

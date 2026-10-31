@@ -2487,3 +2487,10 @@ web application without requiring Bridge or a third-party direct API identity.
   Fetch GETs previously counted as message-list evidence. The shared passive
   gate now permits explicit `cors` and `same-origin` modes while retaining
   compatibility with omitted Fetch Metadata and ordinary first-party reads.
+
+- Explicit HTTP `Host` request metadata must agree with the canonical Mail
+  authority for a passive JSON GET to establish app activity. Red-first direct
+  and message-list synthetic captures previously accepted a foreign Host on
+  an exact Mail URL. The shared gate now refuses conflicting authorities while
+  allowing absent Host, canonical case variants, and the default HTTPS port.
+  No request headers or mailbox content are retained.

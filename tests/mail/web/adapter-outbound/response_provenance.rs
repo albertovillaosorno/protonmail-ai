@@ -311,6 +311,38 @@ fn explicit_foreign_origin_header_cannot_prove_mail_api_read() {
 }
 
 #[test]
+fn mismatched_host_header_cannot_prove_mail_origin_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Host": "mail.proton.me"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for host in ["MAIL.PROTON.ME", "mail.proton.me:443"] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"]["Host"] = json!(host);
+        assert!(non_speculative_cdp_get(&event));
+    }
+    let mut absent = ordinary.clone();
+    absent["params"]["request"]["headers"] = json!({});
+    assert!(non_speculative_cdp_get(&absent));
+    for host in [
+        "evil.invalid",
+        "mail.proton.me.evil.invalid",
+        "mail.proton.me:8443",
+        "mail.proton.me@evil.invalid",
+        "",
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"]["Host"] = json!(host);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "a contradictory HTTP Host must not establish Mail origin"
+        );
+    }
+}
+
+#[test]
 fn foreign_referer_header_cannot_prove_active_mail_read() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",
