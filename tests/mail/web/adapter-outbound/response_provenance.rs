@@ -40,6 +40,41 @@ use super::uncached_provider_response;
 use serde_json::json;
 
 #[test]
+fn provisional_and_refined_http2_paths_match_exact_cdp_url() {
+    let url = "https://mail.proton.me/api/mail/v4/messages?Page=0";
+    let path = "/api/mail/v4/messages?Page=0";
+    let request = json!({"method":"GET", "url":url,
+        "headers":{":method":"GET", ":scheme":"https",
+            ":authority":"mail.proton.me", ":path":path}});
+    assert!(bodyless_cdp_get(&request));
+    let response = json!({"url":url, "status":200u16,
+        "requestHeaders":{":method":"GET", ":scheme":"https",
+            ":authority":"mail.proton.me", ":path":path}});
+    assert!(uncached_provider_response(&response));
+
+    for other in ["/api/core/v4/users", "/api/mail/v4/messages?Page=1"] {
+        let mut swapped_request = request.clone();
+        swapped_request["headers"][":path"] = json!(other);
+        assert!(!bodyless_cdp_get(&swapped_request));
+        let mut swapped_response = response.clone();
+        swapped_response["requestHeaders"][":path"] = json!(other);
+        assert!(!uncached_provider_response(&swapped_response));
+    }
+    let mut missing_url = request;
+    missing_url
+        .as_object_mut()
+        .expect("request object")
+        .remove("url");
+    assert!(!bodyless_cdp_get(&missing_url));
+    let mut missing_url_response = response;
+    missing_url_response
+        .as_object_mut()
+        .expect("response object")
+        .remove("url");
+    assert!(!uncached_provider_response(&missing_url_response));
+}
+
+#[test]
 fn http2_pseudo_headers_must_prove_the_same_mail_get() {
     let ordinary = json!({"params":{"requestId":"h2-request", "headers":{
         ":authority":"mail.proton.me", ":method":"GET", ":scheme":"https",

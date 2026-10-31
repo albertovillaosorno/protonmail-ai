@@ -33,8 +33,12 @@
 use crate::driver::safe_cdp_request_id;
 use serde_json::Map;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::hash_map::RandomState;
+use std::hash::BuildHasher as _;
 use std::mem::take;
+use std::sync::OnceLock;
 use zeroize::Zeroize as _;
 
 // Validate the HTTP field shape, not its private content. A malformed CDP
@@ -71,6 +75,30 @@ fn safe_http_pseudo_header(name: &str, value: &Value) -> bool {
         }),
         _ => false,
     }
+}
+
+// The URL reported by CDP must match any HTTP/2 :path actually carried on
+// the wire. Compare borrowed strings only; no Mail query text is stored.
+// jig-ignore-next-line: canonical rustfmt signature.
+fn same_mail_http_path(headers: &Map<String, Value>, url: Option<&str>) -> bool {
+    match headers.get(":path") {
+        None => true,
+        Some(Value::String(path)) => url
+            .and_then(|url| url.strip_prefix("https://mail.proton.me"))
+            .is_some_and(|suffix| suffix == path),
+        Some(_) => false,
+    }
+}
+
+// Early/late wire events cannot retain query parameters; use two independent
+// keyed digests of the exact serialized request path for correlation only.
+// Keys are per-process and never exported or included in diagnostic output.
+static HTTP_PATH_HASHERS: OnceLock<[RandomState; 2]> = OnceLock::new();
+
+fn http_path_fingerprint(path: &str) -> [u64; 2] {
+    // jig-ignore-next-line: canonical rustfmt hasher initialization.
+    let hashers = HTTP_PATH_HASHERS.get_or_init(|| [RandomState::new(), RandomState::new()]);
+    [hashers[0].hash_one(path), hashers[1].hash_one(path)]
 }
 
 // An HTTP method-override header makes the effective operation ambiguous
@@ -158,7 +186,11 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
         // beyond the relevant key or retaining private request headers.
         let bodyless_headers = match fields.get("headers") {
             None => true,
-            Some(Value::Object(headers)) => bodyless_cdp_headers(headers),
+            Some(Value::Object(headers)) => {
+                let url = fields.get("url").and_then(Value::as_str);
+                let bodyless = bodyless_cdp_headers(headers);
+                bodyless && same_mail_http_path(headers, url)
+            }
             Some(_) => false,
         };
         let body_flag = fields.get("hasPostData");
@@ -427,6 +459,8 @@ const MAX_UNSAFE_EXTRA_REQUEST_IDS: usize = 1_024;
 )]
 pub(super) struct RequestExtraInfoEvidence {
     unsafe_ids: BTreeSet<String>,
+    expected_paths: BTreeMap<String, [u64; 2]>,
+    observed_paths: BTreeMap<String, [u64; 2]>,
 }
 
 #[expect(
@@ -438,6 +472,14 @@ impl Drop for RequestExtraInfoEvidence {
     fn drop(&mut self) {
         for mut id in take(&mut self.unsafe_ids) {
             id.zeroize();
+        }
+        for (mut id, mut hash) in take(&mut self.expected_paths) {
+            id.zeroize();
+            hash.zeroize();
+        }
+        for (mut id, mut hash) in take(&mut self.observed_paths) {
+            id.zeroize();
+            hash.zeroize();
         }
     }
 }
@@ -457,15 +499,70 @@ impl RequestExtraInfoEvidence {
         let safe_headers = bodyless_cdp_headers(headers)
             && active_mail_fetch_headers(headers)
             && !headers.keys().any(|key| speculative_purpose_header(key));
-        if !safe_headers {
-            if !self.unsafe_ids.contains(request_id)
-                && self.unsafe_ids.len() >= MAX_UNSAFE_EXTRA_REQUEST_IDS
-            {
-                return None;
+        let same_path = match headers.get(":path").and_then(Value::as_str) {
+            None => true,
+            Some(path) => {
+                let observed = http_path_fingerprint(path);
+                if let Some(expected) = self.expected_paths.get(request_id) {
+                    *expected == observed
+                // jig-ignore-next-line: canonical rustfmt else-if expression.
+                } else if let Some(earlier) = self.observed_paths.get(request_id) {
+                    *earlier == observed
+                } else {
+                    let count = self.observed_paths.len();
+                    if count >= MAX_UNSAFE_EXTRA_REQUEST_IDS {
+                        return None;
+                    }
+                    self.observed_paths
+                        .insert(String::from(request_id), observed);
+                    true
+                }
             }
-            self.unsafe_ids.insert(String::from(request_id));
+        };
+        if (!safe_headers || !same_path) && !self.mark_unsafe(request_id) {
+            return None;
         }
         Some(request_id)
+    }
+
+    // Track only a keyed digest of a validated Mail API path, not request URL
+    // or query parameters. Both CDP event orders fail closed.
+    // jig-ignore-next-line: canonical rustfmt correlation signature.
+    pub(super) fn observe_request_url(&mut self, request_id: &str, url: &str) -> bool {
+        if self.rejects(request_id) {
+            return false;
+        }
+        let Some(path) = url.strip_prefix("https://mail.proton.me") else {
+            return false;
+        };
+        if path.len() > 16 * 1024 || !path.starts_with("/api/") {
+            return false;
+        }
+        let expected = http_path_fingerprint(path);
+        if let Some(observed) = self.observed_paths.get(request_id)
+            && *observed != expected
+        {
+            let _marked = self.mark_unsafe(request_id);
+            return false;
+        }
+        if !self.expected_paths.contains_key(request_id)
+            && self.expected_paths.len() >= MAX_UNSAFE_EXTRA_REQUEST_IDS
+        {
+            return false;
+        }
+        self.expected_paths
+            .insert(String::from(request_id), expected);
+        true
+    }
+
+    fn mark_unsafe(&mut self, request_id: &str) -> bool {
+        if !self.unsafe_ids.contains(request_id)
+            && self.unsafe_ids.len() >= MAX_UNSAFE_EXTRA_REQUEST_IDS
+        {
+            return false;
+        }
+        self.unsafe_ids.insert(String::from(request_id));
+        true
     }
 
     pub(super) fn rejects(&self, request_id: &str) -> bool {
@@ -496,9 +593,11 @@ fn refined_request_headers_are_safe(response: &Map<String, Value>) -> bool {
         Some(Value::Object(headers)) => {
             let safe_headers = bodyless_cdp_headers(headers);
             let active_headers = active_mail_fetch_headers(headers);
+            let url = response.get("url").and_then(Value::as_str);
+            let matching_path = same_mail_http_path(headers, url);
             let mut names = headers.keys();
             let has_purpose = names.any(|key| speculative_purpose_header(key));
-            safe_headers && active_headers && !has_purpose
+            safe_headers && active_headers && matching_path && !has_purpose
         }
         Some(_) => false,
     }

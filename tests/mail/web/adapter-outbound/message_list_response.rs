@@ -524,6 +524,79 @@ fn refined_wire_headers_cannot_contradict_passive_message_list_get() {
 }
 
 #[test]
+fn wire_http2_path_must_match_the_observed_mail_endpoint() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"synthetic-h2", "type":"Fetch",
+            "request":{"method":"GET", "url":URL}}
+    });
+    let altered_wire = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSentExtraInfo",
+        "params":{"requestId":"synthetic-h2", "headers":{
+            ":authority":"mail.proton.me", ":scheme":"https", ":method":"GET",
+            ":path":"/api/core/v4/users"}}
+    });
+    for extra_first in [false, true] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        if extra_first {
+            capture.observe(&altered_wire).expect("early wire header");
+            assert_eq!(
+                capture.observe(&request),
+                Err(MessageListNetworkError::MalformedEvent)
+            );
+        } else {
+            capture.observe(&request).expect("tracked Mail GET");
+            assert_eq!(
+                capture.observe(&altered_wire),
+                Err(MessageListNetworkError::ResponseRejected)
+            );
+        }
+    }
+}
+
+#[test]
+fn matching_http2_wire_path_allows_both_event_orders() {
+    use serde_json::json;
+
+    let request = json!({"sessionId":"session-1",
+        "method":"Network.requestWillBeSent", "params":{
+            "requestId":"synthetic-h2", "type":"Fetch",
+            "request":{"method":"GET", "url":URL}}
+    });
+    let wire = json!({"sessionId":"session-1",
+        "method":"Network.requestWillBeSentExtraInfo", "params":{
+            "requestId":"synthetic-h2", "headers":{
+                ":method":"GET", ":scheme":"https",
+                ":authority":"mail.proton.me",
+                ":path":concat!(
+                    "/api/mail/v4/messages?Page=0&PageSize=50",
+                    "&Limit=50&Sort=Time&Desc=1"
+                )}}
+    });
+    for early in [true, false] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        if early {
+            capture
+                .observe(&wire)
+                .expect("canonical early H2 wire headers");
+            capture
+                .observe(&request)
+                .expect("canonical GET after H2 headers");
+        } else {
+            capture
+                .observe(&request)
+                .expect("canonical GET before H2 headers");
+            capture
+                .observe(&wire)
+                .expect("canonical late H2 wire headers");
+        }
+    }
+}
+
+#[test]
 fn contradictory_request_extra_info_cannot_authorize_mail_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

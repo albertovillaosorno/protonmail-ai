@@ -2558,3 +2558,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - HTTP/2 and HTTP/3 standard request pseudo-headers are checked for secure
   Mail authority, GET, HTTPS and a bounded API path instead of being mistaken
   for malformed HTTP/1 header names. No live account was used.
+
+- A valid HTTP/2 or HTTP/3 `:path` is not sufficient by shape alone to prove
+  the same read: the transmitted path must exactly match the request URL,
+  including its serialized query. Red-first synthetic message-list requests
+  previously accepted a wire `/api/core/v4/users` path under a claimed Mail
+  list GET. All passive read observers now compare the path using temporary
+  keyed, bounded fingerprints across either event order. Initial and refined
+  CDP header maps are checked directly against their URL; only correlation
+  IDs and keyed digests are retained and scrubbed, never query text.

@@ -350,7 +350,9 @@ impl MessageListNetworkCapture {
         // A GET URL alone cannot prove body-free read semantics.
         if !bodyless_cdp_get(request)
             || !non_speculative_cdp_get(event)
-            || self.extra_request_headers.rejects(request_id)
+            || !self
+                .extra_request_headers
+                .observe_request_url(request_id, url)
         {
             return Err(MessageListNetworkError::MalformedEvent);
         }
