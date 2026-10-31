@@ -160,10 +160,7 @@ fn visible_match<'role_nodes>(
                 return Err(());
             }
         }
-        let role = node.get("role").ok_or(())?;
-        let kind = role.get("type").and_then(Value::as_str);
-        let value = role.get("value").and_then(Value::as_str);
-        if kind != Some("role") || value != Some(expected_role) {
+        if !valid_ax_role(node.get("role"), expected_role) {
             return Err(());
         }
         // A node claiming to be visible cannot simultaneously describe
@@ -203,6 +200,28 @@ fn visible_match<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// Roles prove the landmark through one bounded, audited AXValue shape.
+fn valid_ax_role(role: Option<&Value>, expected_role: &str) -> bool {
+    let Some(role) = role.and_then(Value::as_object) else {
+        return false;
+    };
+    let kind = role.get("type").and_then(Value::as_str);
+    let value = role.get("value").and_then(Value::as_str);
+    let allowed = ["type", "value", "relatedNodes", "sources"];
+    let mut fields = role.keys();
+    let known_fields = fields.all(|field| allowed.contains(&field.as_str()));
+    let max_nodes = MAX_AX_ROLE_MATCH_NODES;
+    let arrays_valid = ["relatedNodes", "sources"]
+        .iter()
+        .all(|field| match role.get(*field) {
+            None => true,
+            Some(Value::Array(entries)) => entries.len() <= max_nodes,
+            Some(_) => false,
+        });
+    let typed = kind == Some("role") && value == Some(expected_role);
+    typed && known_fields && arrays_valid
 }
 
 // CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.

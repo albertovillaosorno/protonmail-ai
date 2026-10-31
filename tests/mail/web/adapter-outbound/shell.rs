@@ -200,6 +200,90 @@ fn structural_roles_make_mail_shell_ready_without_using_names() {
 }
 
 #[test]
+fn unreviewed_accessibility_role_value_fields_cannot_prove_shell() {
+    let base = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__""#
+    );
+    for (label, extension) in [
+        (
+            "unknown-role-payload",
+            r#", "futureRoleData":{"private":true}"#,
+        ),
+        ("unknown-role-null", r#", "futureRoleFlag":null"#),
+        ("wrong-related-nodes", r#", "relatedNodes":true"#),
+        ("wrong-role-sources", r#", "sources":false"#),
+    ] {
+        let navigation = format!("{base}{extension}}}}}]");
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol)
+        );
+    }
+}
+
+#[test]
+fn oversized_accessibility_role_arrays_cannot_prove_shell() {
+    let oversized = format!("[{}]", vec!["null"; 257].join(","));
+    for field in ["relatedNodes", "sources"] {
+        let navigation = format!(
+            concat!(
+                r#"[{{"ignored":false,"nodeId":"ax-navigation","#,
+                r#""role":{{"type":"role","value":"navigation","#,
+                r#""{field}":{oversized}}}}}]"#
+            ),
+            field = field,
+            oversized = oversized
+        );
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                field,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol)
+        );
+    }
+}
+
+#[test]
+fn documented_optional_accessibility_role_arrays_remain_compatible() {
+    let navigation = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__","#,
+        r#""relatedNodes":[],"sources":[]}}]"#
+    );
+    let roles = RoleFixture {
+        navigation,
+        ..RoleFixture::ready()
+    };
+    assert!(
+        inspect(
+            "normal-role-arrays",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        )
+        .expect("normal role AXValue")
+        .ready()
+    );
+}
+
+#[test]
 fn visible_accessibility_landmarks_cannot_report_hidden_reasons() {
     // CDP ignoredReasons describes why a node is hidden. An explicitly
     // visible navigation landmark cannot also carry a nonempty hidden reason.

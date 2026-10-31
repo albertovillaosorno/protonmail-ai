@@ -87,6 +87,15 @@ web application without requiring Bridge or a third-party direct API identity.
   validates optional reason metadata even on ignored nodes, and retains
   ordinary visible nodes with empty reasons. No accessible names are read.
 
+## Require audited AXValue role properties
+
+- Red-first synthetic browser roles showed a valid-looking navigation
+  landmark with an unreviewed nested or null-valued AXValue role property
+  could still prove the Mail shell. Role proof now permits only the four
+  documented AXValue keys, with bounded optional related-node and source
+  arrays; malformed or unknown fields fail closed. Ordinary bare roles and
+  optional empty arrays remain compatible without projecting accessible text.
+
 ## Validate ignored accessibility reason semantics
 
 - Red-first Chromium fixtures showed an ignored AX node could report an
