@@ -33,8 +33,8 @@
 //! Provider-neutral attachment output safety primitives.
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
-use std::path::{Component, Path, PathBuf};
-use zeroize::Zeroize as _;
+use std::path::{Component, Path};
+use zeroize::{Zeroize as _, Zeroizing};
 
 use crate::contract_v1::MAX_INLINE_ATTACHMENT_BYTES;
 
@@ -130,7 +130,7 @@ impl Debug for SanitizedAttachmentFilename {
 
 /// A normalized caller-supplied path strictly relative to an output root.
 #[derive(Clone, Eq, PartialEq)]
-pub struct AttachmentRelativePath(PathBuf);
+pub struct AttachmentRelativePath(Zeroizing<String>);
 
 impl AttachmentRelativePath {
     /// Validates and normalizes a portable relative attachment destination.
@@ -165,7 +165,11 @@ impl AttachmentRelativePath {
             return Err(AttachmentPathError::UnsupportedSyntax);
         }
 
-        let mut normalized = PathBuf::new();
+        // Build the bounded, portable path directly in one guarded allocation.
+        // An ordinary PathBuf would retain private caller file names in heap
+        // allocations that are neither erased on failure nor on success.
+        // jig-ignore-next-line: canonical rustfmt guarded path allocation.
+        let mut normalized = Zeroizing::new(String::with_capacity(untrusted.len()));
         let mut depth = 0usize;
         for component in path.components() {
             match component {
@@ -184,7 +188,10 @@ impl AttachmentRelativePath {
                     if has_nonportable_suffix || reserved {
                         return Err(AttachmentPathError::UnsupportedSyntax);
                     }
-                    normalized.push(value);
+                    if !normalized.is_empty() {
+                        normalized.push('/');
+                    }
+                    normalized.push_str(text);
                 }
                 Component::CurDir => {}
                 // jig-ignore-next-line: canonical rustfmt line.
@@ -194,7 +201,7 @@ impl AttachmentRelativePath {
                 }
             }
         }
-        if normalized.as_os_str().is_empty() {
+        if normalized.is_empty() {
             return Err(AttachmentPathError::Empty);
         }
         Ok(Self(normalized))
@@ -203,7 +210,7 @@ impl AttachmentRelativePath {
     /// Returns the normalized path for a later contained filesystem boundary.
     #[must_use]
     pub fn as_path(&self) -> &Path {
-        &self.0
+        Path::new(&*self.0)
     }
 }
 

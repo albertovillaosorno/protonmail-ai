@@ -227,6 +227,20 @@ fn filename_diagnostics_are_redacted() {
 }
 
 #[test]
+fn normalized_path_preserves_private_names_across_clones() {
+    let selected = "./synthetic-private-directory/./synthetic-private-file.txt";
+    let path = AttachmentRelativePath::new(selected);
+    let path = path.expect("synthetic private path");
+    let normalized = Path::new("synthetic-private-directory");
+    let normalized = normalized.join("synthetic-private-file.txt");
+    assert_eq!(path.as_path(), normalized);
+    let copied = path.clone();
+    drop(path);
+    assert_eq!(copied.as_path(), normalized);
+    assert_eq!(format!("{copied:?}"), "AttachmentRelativePath(<redacted>)");
+}
+
+#[test]
 fn relative_destination_normalizes_current_directory_components() {
     let path = AttachmentRelativePath::new("exports/./mail/attachment.bin")
         .expect("safe relative attachment destination");

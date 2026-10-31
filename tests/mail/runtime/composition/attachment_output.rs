@@ -97,7 +97,15 @@ fn bounded_nested_output_commits_exact_bytes_with_private_mode() {
         .expect("commit bounded attachment output");
 
     assert_eq!(output.relative_path(), Path::new("nested/report.bin"));
-    assert_eq!(output.byte_length(), 26);
+    // The returned path remains independently owned but still scrubbed on
+    // drop, rather than living in an ordinary cloned PathBuf.
+    let cloned_output = output.clone();
+    drop(output);
+    assert_eq!(
+        cloned_output.relative_path(),
+        Path::new("nested/report.bin")
+    );
+    assert_eq!(cloned_output.byte_length(), 26);
     assert_eq!(
         fs::read(root.join("nested/report.bin")).expect("read output"),
         bytes
@@ -106,7 +114,7 @@ fn bounded_nested_output_commits_exact_bytes_with_private_mode() {
     let metadata = fs::metadata(root.join("nested/report.bin")).expect("stat output");
     assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
     assert_eq!(metadata.nlink(), 1);
-    assert!(!format!("{output:?}").contains("report.bin"));
+    assert!(!format!("{cloned_output:?}").contains("report.bin"));
     assert_no_partial_entries(&root.join("nested"));
     cleanup(&root);
 }

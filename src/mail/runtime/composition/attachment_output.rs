@@ -33,11 +33,11 @@
 //! Race-resistant attachment file output under an explicit destination root.
 
 use core::fmt::{Debug, Formatter, Result as FmtResult};
-use std::ffi::OsString;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Write as _;
 use std::os::fd::OwnedFd;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
 use mail_capability_domain::AttachmentRelativePath;
 use nix::errno::Errno;
@@ -144,20 +144,21 @@ impl AttachmentFileOutputRoot {
             return Err(AttachmentFileOutputError::PostCommitCleanupFailed);
         }
         Ok(AttachmentFileOutput {
-            relative_path: destination.as_path().to_path_buf(),
+            relative_path: destination.clone(),
             byte_length,
         })
     }
 
-    fn open_destination_parent(
+    fn open_destination_parent<'destination>(
         &self,
-        destination: &AttachmentRelativePath,
-    ) -> Result<(OwnedFd, OsString), AttachmentFileOutputError> {
+        destination: &'destination AttachmentRelativePath,
+    ) -> Result<(OwnedFd, &'destination OsStr), AttachmentFileOutputError> {
         let path = destination.as_path();
+        // Borrow the validated leaf from the scrub-on-drop destination.
+        // Copying it to OsString would leave an ordinary private heap buffer.
         let final_name = path
             .file_name()
-            .ok_or(AttachmentFileOutputError::UnsafeDestination)?
-            .to_os_string();
+            .ok_or(AttachmentFileOutputError::UnsafeDestination)?;
         let mut directory =
             // jig-ignore-next-line: canonical rustfmt line.
             dup(&self.directory).map_err(|_error| AttachmentFileOutputError::UnsafeDestination)?;
@@ -203,7 +204,7 @@ impl Debug for AttachmentFileOutputRoot {
 /// A successfully committed attachment file result.
 #[derive(Clone, Eq, PartialEq)]
 pub struct AttachmentFileOutput {
-    relative_path: PathBuf,
+    relative_path: AttachmentRelativePath,
     byte_length: u64,
 }
 
@@ -211,7 +212,7 @@ impl AttachmentFileOutput {
     /// Returns the caller-validated relative output path.
     #[must_use]
     pub fn relative_path(&self) -> &Path {
-        &self.relative_path
+        self.relative_path.as_path()
     }
 
     /// Returns the exact number of plaintext bytes committed.
