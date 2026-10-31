@@ -688,6 +688,31 @@ fn raw_initial_response_headers_cannot_launder_list_capture() {
 }
 
 #[test]
+fn malformed_mime_parameter_cannot_complete_mail_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"mime-params", "request":{
+                "method":"GET", "url":URL}}
+        }))
+        .expect("canonical Mail GET");
+    let event = json!({
+        "sessionId":"session-1", "method":"Network.responseReceived",
+        "params":{"requestId":"mime-params", "response":{
+            "url":URL, "status":200u16, "mimeType":"application/json",
+            "headers":{"Content-Type":"application/json; profile=bad value"}}}
+    });
+    assert_eq!(
+        capture.observe(&event),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+}
+
+#[test]
 fn response_headers_cannot_disagree_with_message_list_json_mime() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

@@ -2663,3 +2663,11 @@ web application without requiring Bridge or a third-party direct API identity.
   now rejects it in provisional headers, transmitted header maps, and raw
   HTTP/1 text without reading or preserving any private header value.
   Canonical Mail HTTP GETs remain supported; no live browser was accessed.
+
+- JSON Content-Type parameter values now require a syntactically valid HTTP
+  token or complete quoted-string, including non-dangling escapes. Red-first
+  shared initial/extra response and message-list capture fixtures previously
+  accepted unquoted spaces, extra equals signs, non-ASCII tokens, and broken
+  quotes in otherwise plausible JSON MIME metadata. Safe extension tokens,
+  quoted values, and canonical UTF-8 charset remain supported. The check
+  runs before any passive response body read and uses no account data.

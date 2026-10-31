@@ -243,6 +243,35 @@ fn extra_status_http2_pseudo_header_must_confirm_200() {
 }
 
 #[test]
+fn malformed_json_mime_extension_parameters_are_not_http_evidence() {
+    for valid in [
+        "application/json; profile=standard",
+        "application/json; profile=\"multi word\"",
+        "application/json; charset=utf-8; profile=\"other\"",
+    ] {
+        let event = json!({"params":{"statusCode":200u16,
+            "headers":{"Content-Type":valid}}});
+        assert!(direct_extra_status_is_200(&event));
+    }
+    for bad in [
+        "application/json; profile=two words",
+        "application/json; profile=two=words",
+        "application/json; profile=\"unterminated",
+        "application/json; profile=\"ok\"garbage",
+        "application/json; profile=inv\u{e1}lido",
+    ] {
+        let event = json!({"params":{"statusCode":200u16,
+            "headers":{"Content-Type":bad}}});
+        assert!(
+            !direct_extra_status_is_200(&event),
+            "malformed MIME parameter"
+        );
+        let response = json!({"headers":{"Content-Type":bad}});
+        assert!(!uncached_provider_response(&response));
+    }
+}
+
+#[test]
 fn extra_status_wire_content_type_must_confirm_json_response() {
     for valid in [
         "application/json",

@@ -959,6 +959,34 @@ fn raw_json_200_headers(text: &str, structured: Option<&Map<String, Value>>) -> 
     true
 }
 
+// A MIME parameter is an HTTP token or a well-formed quoted-string. Unknown
+// parameters must not bypass grammar validation by claiming JSON first.
+fn safe_mime_parameter_value(value: &str) -> bool {
+    if !value.starts_with('"') {
+        return !value.is_empty() && value.bytes().all(cdp_header_token_byte);
+    }
+    let Some(inside) = value
+        .strip_prefix('"')
+        .and_then(|part| part.strip_suffix('"'))
+    else {
+        return false;
+    };
+    let mut escaped = false;
+    for byte in inside.bytes() {
+        let whitespace = matches!(byte, b' ' | b'\t');
+        let printable = byte.is_ascii_graphic() || whitespace;
+        if !printable || (!escaped && byte == b'"') {
+            return false;
+        }
+        if escaped {
+            escaped = false;
+        } else if byte == b'\\' {
+            escaped = true;
+        }
+    }
+    !escaped
+}
+
 fn json_content_type(value: &str) -> bool {
     // A comma after parameters can disguise a second media type. Duplicate
     // or foreign charsets make JSON decoding ambiguous even for a MIME 200.
@@ -981,7 +1009,9 @@ fn json_content_type(value: &str) -> bool {
         };
         let name = name.trim_ascii();
         let parameter = parameter.trim_ascii();
-        if !cdp_header_name_is_token(name) || parameter.is_empty() {
+        let valid_name = cdp_header_name_is_token(name);
+        let valid_value = safe_mime_parameter_value(parameter);
+        if !valid_name || !valid_value {
             return false;
         }
         if name.eq_ignore_ascii_case("charset") {
