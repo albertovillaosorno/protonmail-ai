@@ -709,6 +709,10 @@ fn existing_dedicated_directories_are_private_after_login() {
             0o700
         );
     }
+    // The CLI detaches its synthetic browser. Wait for its final argument
+    // write before removing the fake profile tree, otherwise a late child
+    // creation can race remove_dir_all and make this test intermittent.
+    let _arguments = wait_for_args(&root);
     cleanup(&root);
 }
 
