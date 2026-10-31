@@ -639,6 +639,15 @@ Ship useful read access before any mailbox mutation is enabled.
   Synthetic nonadjacent duplicate and distinct-prefix tests preserve exact
   rejection and ordering without fetching any provider data.
 
+- The managed CDP driver now guards temporary completed network-request
+  batches before selecting a single response. Ambiguous replies scrub all
+  copied request IDs, optional anchor IDs, and other metadata on failure;
+  a single accepted row transfers into its existing scrub-on-drop model.
+  Catalog batches also wrap each copied request ID before parsing or rejecting
+  duplicate kinds. ID-only accessors scrub discarded event and anchor IDs.
+  Synthetic probes verify every rejected row is erased, while empty/single
+  results retain their previous behavior.
+
 ## CDP command-reply stream ambiguity
 
 - A red-first fake-browser regression found the central CDP command-response

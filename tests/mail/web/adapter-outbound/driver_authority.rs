@@ -64,6 +64,49 @@ fn scoped_browser_attachment_has_guarded_string_custody() {
 }
 
 #[test]
+fn ambiguous_finished_request_rows_scrub_every_rejected_value() {
+    use super::{BrowserDriverError, take_exactly_one_finished};
+    use std::cell::Cell;
+    use zeroize::Zeroize;
+
+    struct Probe<'flag>(&'flag Cell<bool>);
+
+    impl Zeroize for Probe<'_> {
+        fn zeroize(&mut self) {
+            self.0.set(true);
+        }
+    }
+
+    let flags = [Cell::new(false), Cell::new(false)];
+    let failed = take_exactly_one_finished(
+        vec![Probe(&flags[0]), Probe(&flags[1])],
+        BrowserDriverError::MessageDetailAmbiguous,
+    );
+    assert!(matches!(
+        failed,
+        Err(BrowserDriverError::MessageDetailAmbiguous)
+    ));
+    assert!(flags.iter().all(Cell::get));
+
+    let kept = Cell::new(false);
+    let success = take_exactly_one_finished(
+        vec![Probe(&kept)],
+        BrowserDriverError::MessageDetailAmbiguous,
+    );
+    assert!(matches!(success, Ok(Some(_))));
+    assert!(
+        !kept.get(),
+        "one completed row is transferred to its caller"
+    );
+
+    let empty = take_exactly_one_finished(
+        Vec::<String>::new(),
+        BrowserDriverError::MessageDetailAmbiguous,
+    );
+    assert!(matches!(empty, Ok(None)));
+}
+
+#[test]
 fn passive_network_captures_require_scrub_on_drop() {
     use crate::AttachmentMetadataNetworkCapture;
     use crate::ConversationDetailNetworkCapture;

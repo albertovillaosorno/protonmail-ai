@@ -176,11 +176,16 @@ impl MessageListNetworkCapture {
                     _continuation,
                     _limit,
                     _page,
-                    _sort_key,
+                    sort_key,
                     _descending,
                     _anchor,
-                    _anchor_id,
-                )| request_id,
+                    anchor_id,
+                )| {
+                    // ID-only projections must still scrub discarded copies.
+                    let _guarded_sort = Zeroizing::new(sort_key);
+                    let _guarded_anchor = Zeroizing::new(anchor_id);
+                    request_id
+                },
             )
             .collect()
     }

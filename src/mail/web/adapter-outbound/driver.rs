@@ -1174,7 +1174,12 @@ impl ManagedBrowser {
         // jig-ignore-next-line: canonical rustfmt line.
         let mut responses: Vec<ObservedMailboxCatalogResponse> = Vec::with_capacity(3);
         for _event in 0..MAX_UNSOLICITED {
-            let finished = capture.take_finished_requests();
+            let finished = capture
+                .take_finished_requests()
+                .into_iter()
+                // Error paths must erase ID copies, even on catalog ambiguity.
+                .map(|(id, kind)| (Zeroizing::new(id), kind))
+                .collect::<Vec<_>>();
             for (index, (_request_id, kind)) in finished.iter().enumerate() {
                 // jig-ignore-next-line: canonical rustfmt line.
                 let already_projected = responses.iter().any(|response| response.kind() == *kind);
@@ -4214,26 +4219,40 @@ fn ensure_message_list_page_matches(
     Err(BrowserDriverError::MessageListPageMismatch)
 }
 
-fn take_one_finished_latest_mailbox_event_request(
-    capture: &mut LatestMailboxEventNetworkCapture,
-) -> Result<Option<String>, BrowserDriverError> {
-    let mut finished = capture.take_finished_request_ids();
+// A rejected multi-request batch still contains copied private request IDs.
+// Guard the whole temporary vector before matching its cardinality; only a
+// single accepted row may leave this scope for the existing typed caller.
+fn take_exactly_one_finished<T>(
+    finished: Vec<T>,
+    ambiguous: BrowserDriverError,
+) -> Result<Option<T>, BrowserDriverError>
+where
+    T: zeroize::Zeroize,
+{
+    let mut finished = Zeroizing::new(finished);
     match finished.len() {
         0 => Ok(None),
         1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
+        _ => Err(ambiguous),
     }
+}
+
+fn take_one_finished_latest_mailbox_event_request(
+    capture: &mut LatestMailboxEventNetworkCapture,
+) -> Result<Option<String>, BrowserDriverError> {
+    take_exactly_one_finished(
+        capture.take_finished_request_ids(),
+        BrowserDriverError::MailboxEventResponseAmbiguous,
+    )
 }
 
 fn take_one_finished_mailbox_event_request(
     capture: &mut MailboxEventNetworkCapture,
 ) -> Result<Option<(String, String)>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::MailboxEventResponseAmbiguous),
-    }
+    take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::MailboxEventResponseAmbiguous,
+    )
 }
 
 fn conversation_request_page_matches(
@@ -4251,70 +4270,62 @@ fn conversation_request_page_matches(
 fn take_one_finished_conversation_list_request(
     capture: &mut ConversationListNetworkCapture,
 ) -> Result<Option<CapturedConversationListRequest>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::ConversationListAmbiguous),
-    }
+    take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::ConversationListAmbiguous,
+    )
 }
 
 fn take_one_finished_conversation_detail_request(
     capture: &mut ConversationDetailNetworkCapture,
 ) -> Result<Option<(String, String)>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::ConversationDetailAmbiguous),
-    }
+    take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::ConversationDetailAmbiguous,
+    )
 }
 
 fn take_one_finished_attachment_metadata_request(
     capture: &mut AttachmentMetadataNetworkCapture,
 ) -> Result<Option<(String, String)>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::AttachmentMetadataAmbiguous),
-    }
+    take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::AttachmentMetadataAmbiguous,
+    )
 }
 
 fn take_one_finished_message_detail_request(
     capture: &mut MessageDetailNetworkCapture,
 ) -> Result<Option<(String, String)>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => finished.pop().map(Some).ok_or(BrowserDriverError::Protocol),
-        _ => Err(BrowserDriverError::MessageDetailAmbiguous),
-    }
+    take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::MessageDetailAmbiguous,
+    )
 }
 
 fn take_one_finished_request(
     capture: &mut MessageListNetworkCapture,
 ) -> Result<Option<CompletedMessageListRequest>, BrowserDriverError> {
-    let mut finished = capture.take_finished_requests();
-    match finished.len() {
-        0 => Ok(None),
-        1 => {
-            // jig-ignore-next-line: canonical rustfmt line.
-            let (request_id, continuation, limit, page, sort_key, descending, anchor, anchor_id) =
-                finished.pop().ok_or(BrowserDriverError::Protocol)?;
-            Ok(Some(CompletedMessageListRequest {
-                request_id,
-                continuation,
-                limit,
-                page,
-                sort_key,
-                descending,
-                anchor,
-                anchor_id,
-            }))
-        }
-        _ => Err(BrowserDriverError::MessageListResponseAmbiguous),
-    }
+    let completed = take_exactly_one_finished(
+        capture.take_finished_requests(),
+        BrowserDriverError::MessageListResponseAmbiguous,
+    )?;
+    let Some(completed) = completed else {
+        return Ok(None);
+    };
+    // jig-ignore-next-line: canonical rustfmt line.
+    let (request_id, continuation, limit, page, sort_key, descending, anchor, anchor_id) =
+        completed;
+    Ok(Some(CompletedMessageListRequest {
+        request_id,
+        continuation,
+        limit,
+        page,
+        sort_key,
+        descending,
+        anchor,
+        anchor_id,
+    }))
 }
 
 const fn pagination_changed() -> BrowserDriverError {

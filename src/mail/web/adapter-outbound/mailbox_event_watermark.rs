@@ -434,7 +434,12 @@ impl MailboxEventNetworkCapture {
     pub fn take_finished_request_ids(&mut self) -> Vec<String> {
         self.take_finished_requests()
             .into_iter()
-            .map(|(request_id, _event_id)| request_id)
+            .map(|(request_id, event_id)| {
+                // The caller only needs the request ID. Do not discard a
+                // copied private event selector through ordinary String drop.
+                let _guarded_event = Zeroizing::new(event_id);
+                request_id
+            })
             .collect()
     }
 
