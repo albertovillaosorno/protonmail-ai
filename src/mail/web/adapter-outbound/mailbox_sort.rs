@@ -55,6 +55,8 @@ const SORT_MENU_OPEN_EXPRESSION: &str = concat!(
     "style.contentVisibility==='hidden'||",
     // Rectangles remain positive for fully clipped or filtered-out trees.
     "(style.clipPath&&style.clipPath!=='none')||",
+    // Legacy positioned-element clip can remove all painted pixels.
+    "(style.clip&&style.clip!=='auto')||",
     "(style.filter&&style.filter!=='none')||",
     // CSS masks can hide all painted pixels without altering box geometry.
     "(style.maskImage&&style.maskImage!=='none')||",
@@ -128,6 +130,8 @@ const SORT_EVIDENCE_EXPRESSION: &str = concat!(
     "style.contentVisibility==='hidden'||",
     // Rectangles remain positive for fully clipped or filtered-out trees.
     "(style.clipPath&&style.clipPath!=='none')||",
+    // Legacy positioned-element clip can remove all painted pixels.
+    "(style.clip&&style.clip!=='auto')||",
     "(style.filter&&style.filter!=='none')||",
     // CSS masks can hide all painted pixels without altering box geometry.
     "(style.maskImage&&style.maskImage!=='none')||",
@@ -190,6 +194,8 @@ const SORT_MENU_CLOSE_EXPRESSION: &str = concat!(
     "style.contentVisibility==='hidden'||",
     // Rectangles remain positive for fully clipped or filtered-out trees.
     "(style.clipPath&&style.clipPath!=='none')||",
+    // Legacy positioned-element clip can remove all painted pixels.
+    "(style.clip&&style.clip!=='auto')||",
     "(style.filter&&style.filter!=='none')||",
     // CSS masks can hide all painted pixels without altering box geometry.
     "(style.maskImage&&style.maskImage!=='none')||",

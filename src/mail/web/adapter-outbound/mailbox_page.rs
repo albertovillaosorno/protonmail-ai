@@ -79,6 +79,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "style.contentVisibility==='hidden'||",
     // Rectangles remain positive for fully clipped or filtered-out trees.
     "(style.clipPath&&style.clipPath!=='none')||",
+    // Legacy positioned-element clip can remove all painted pixels.
+    "(style.clip&&style.clip!=='auto')||",
     "(style.filter&&style.filter!=='none')||",
     // CSS masks can hide all painted pixels without altering box geometry.
     "(style.maskImage&&style.maskImage!=='none')||",

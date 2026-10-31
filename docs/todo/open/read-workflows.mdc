@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Legacy CSS clipping must not prove visible read authority
+
+- Red-first synthetic Node tests exposed the legacy positioned-element
+  `clip: rect(0px,0px,0px,0px)` blind spot: Mail rows, private title nodes,
+  pagination controls and sort toggles retained positive client rectangles,
+  yet their painted pixels were fully clipped. The bounded ancestor gates now
+  reject non-default legacy `clip` as well as the modern `clip-path`; ordinary
+  un-clipped fixtures remain valid. No live provider browser was used.
+
 ## Occluded visible list and title evidence
 
 - Red-first synthetic browser fixtures exposed a mismatch between layout-visible

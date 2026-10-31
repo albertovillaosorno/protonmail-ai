@@ -1297,6 +1297,7 @@ globalThis.location={origin:'https://mail.proton.me'};
 let subjectOpacity='1', senderOpacity='1', ancestorOpacity='1';
 let ancestorContentHidden=false;
 let ancestorClip=false,ancestorFilter=false,ancestorMasked=false;
+let ancestorLegacyClip=false;
 let ancestorWebkitMasked=false;
 let headingZeroArea=false,senderZeroArea=false;
 let headingCovered=false,senderCovered=false,offscreenTitles=false;
@@ -1308,6 +1309,8 @@ let loadingOverlay=false;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
+ clip:node===ancestor&&ancestorLegacyClip?
+ 'rect(0px,0px,0px,0px)':'auto',
  filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
  maskImage:node===ancestor&&ancestorMasked?
  'linear-gradient(transparent,transparent)':'none',
@@ -1437,7 +1440,11 @@ ancestorContentHidden=false;ancestorClip=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('clipped parent exposed private row titles');
 }
-ancestorClip=false;ancestorFilter=true;titleReads=0;
+ancestorClip=false;ancestorLegacyClip=true;titleReads=0;
+if(eval(script)!==null||titleReads!==0){
+ throw Error('legacy-clipped parent exposed private titles');
+}
+ancestorLegacyClip=false;ancestorFilter=true;titleReads=0;
 if(eval(script)!==null||titleReads!==0){
  throw Error('filtered-out parent exposed private row titles');
 }
@@ -1528,6 +1535,8 @@ globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
  clipPath:node===ancestor&&ancestorClip?'inset(100%)':'none',
+ clip:node===ancestor&&ancestorLegacyClip?
+ 'rect(0px,0px,0px,0px)':'auto',
  filter:node===ancestor&&ancestorFilter?'opacity(0)':'none',
  maskImage:node===ancestor&&ancestorMasked?
  'linear-gradient(transparent,transparent)':'none',
@@ -1545,6 +1554,7 @@ let rowCovered=false,emptyCovered=false,currentCovered=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false,ancestorClip=false,ancestorFilter=false;
+let ancestorLegacyClip=false;
 let ancestorMasked=false;
 let rowZeroArea=false,currentZeroArea=false,emptyZeroArea=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
@@ -1650,7 +1660,11 @@ ancestorContentHidden=false;ancestorClip=true;
 if(eval(expression)!==null){
  throw Error('clipped loaded list reported visible rows');
 }
-ancestorClip=false;ancestorFilter=true;
+ancestorClip=false;ancestorLegacyClip=true;
+if(eval(expression)!==null){
+ throw Error('legacy-clipped root exposed loaded rows');
+}
+ancestorLegacyClip=false;ancestorFilter=true;
 if(eval(expression)!==null){
  throw Error('filtered-out loaded list reported visible rows');
 }
@@ -1798,6 +1812,7 @@ let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let optionParentContentHidden=false,toggleParentContentHidden=false;
 let optionParentClip=false,toggleParentFilter=false;
+let optionLegacyClip=false,toggleLegacyClip=false;
 let optionParentMasked=false,toggleParentMasked=false;
 let zeroOptionArea=false,zeroToggleArea=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
@@ -1830,6 +1845,9 @@ globalThis.getComputedStyle=(node)=>({
  contentVisibility:(node===optionParent&&optionParentContentHidden)||
  (node===toggleParent&&toggleParentContentHidden)?'hidden':'visible',
  clipPath:node===optionParent&&optionParentClip?'inset(100%)':'none',
+ clip:node===optionParent&&optionLegacyClip||
+ node===toggleParent&&toggleLegacyClip?
+ 'rect(0px,0px,0px,0px)':'auto',
  filter:node===toggleParent&&toggleParentFilter?'opacity(0)':'none',
  maskImage:node===optionParent&&optionParentMasked||
  node===toggleParent&&toggleParentMasked?
@@ -1884,7 +1902,11 @@ optionParentContentHidden=false;optionParentClip=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('clipped sort options authorized an action');
 }
-optionParentClip=false;optionCovered=true;
+optionParentClip=false;optionLegacyClip=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('legacy-clipped sort options authorized action');
+}
+optionLegacyClip=false;optionCovered=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('covered sort options authorized programmatic click');
 }
@@ -1927,7 +1949,11 @@ toggleParentContentHidden=false;toggleParentFilter=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('filtered-out sort toggle received a click');
 }
-toggleParentFilter=false;toggleCovered=true;
+toggleParentFilter=false;toggleLegacyClip=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('legacy-clipped sort toggle received click');
+}
+toggleLegacyClip=false;toggleCovered=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('covered sort toggle was programmatically opened');
 }
@@ -2037,6 +2063,7 @@ let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 let parentPointerBlocked=false,parentContentHidden=false;
 let parentClip=false,parentFilter=false,parentMasked=false;
+let parentLegacyClip=false;
 let parentWebkitMasked=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
@@ -2058,6 +2085,8 @@ next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===parent&&parentContentHidden?'hidden':'visible',
  clipPath:node===parent&&parentClip?'inset(100%)':'none',
+ clip:node===parent&&parentLegacyClip?
+ 'rect(0px,0px,0px,0px)':'auto',
  filter:node===parent&&parentFilter?'opacity(0)':'none',
  maskImage:node===parent&&parentMasked?
  'linear-gradient(transparent,transparent)':'none',
@@ -2101,7 +2130,11 @@ parentContentHidden=false;parentClip=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('clipped Next parent permitted programmatic click');
 }
-parentClip=false;parentFilter=true;
+parentClip=false;parentLegacyClip=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('legacy-clipped Next parent permitted click');
+}
+parentLegacyClip=false;parentFilter=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('filtered-out Next parent permitted programmatic click');
 }
