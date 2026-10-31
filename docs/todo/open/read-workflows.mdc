@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Authenticated event and catalog cursor decoders now decrypt directly into
+  zeroizing buffers, rather than receiving a plain plaintext `Vec` on AEAD
+  success. The decoded token bytes also scrub on drop; a failed authentication
+  drops its in-place buffer under the same guard. Red-first synthetic tests
+  for both codecs prove guarded return types, valid decryption, and tamper
+  refusal; browser/application memory remains outside this custody boundary.
+
 - All ten CDP `Network.getResponseBody` commands now route through a single
   helper holding temporary request-ID JSON in the strict scrub-on-drop guard,
   not an ordinary `json!` temporary. The helper keeps the exact Network
@@ -640,7 +647,7 @@ Ship useful read access before any mailbox mutation is enabled.
   rejection and ordering without fetching any provider data.
 
 - The managed CDP driver now guards temporary completed network-request
-  batches before selecting a single response. Ambiguous replies scrub all
+  batches before selecting a single response; ambiguous replies scrub all
   copied request IDs, optional anchor IDs, and other metadata on failure;
   a single accepted row transfers into its existing scrub-on-drop model.
   Catalog batches also wrap each copied request ID before parsing or rejecting

@@ -34,7 +34,7 @@ use crate::strict_json;
 use std::fmt;
 
 use aes_gcm::aead::consts::U12;
-use aes_gcm::aead::{Aead as _, KeyInit as _, Payload};
+use aes_gcm::aead::{Aead as _, AeadInOut as _, KeyInit as _, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -170,6 +170,7 @@ impl WebCatalogCursorCodec {
         }
         let decoded = URL_SAFE_NO_PAD
             .decode(encoded.unwrap_or_default())
+            .map(Zeroizing::new)
             .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
         if decoded.len() <= CURSOR_NONCE_BYTES {
             return Err(WebCatalogCursorCodecError::InvalidCursor);
@@ -180,15 +181,7 @@ impl WebCatalogCursorCodec {
         let cipher = Aes256Gcm::new_from_slice(self.key.as_ref())
             .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
         let aad = cursor_aad(generation)?;
-        let plaintext = cipher
-            .decrypt(
-                &nonce,
-                Payload {
-                    msg: ciphertext,
-                    aad: &aad,
-                },
-            )
-            .map(Zeroizing::new)
+        let plaintext = decrypt_into_guarded(&cipher, &nonce, &aad, ciphertext)
             .map_err(|_error| WebCatalogCursorCodecError::InvalidCursor)?;
         // Keep validated decoded strings zeroizing, including early-return
         // error paths after authenticated decryption.
@@ -271,6 +264,19 @@ fn valid_hex_tag(value: &str, expected_chars: usize) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+// AEAD must never own decrypted cursor bytes in an ordinary Vec, including
+// on authentication failure. Decrypt directly into scrub-on-drop storage.
+fn decrypt_into_guarded(
+    cipher: &Aes256Gcm,
+    nonce: &Nonce<U12>,
+    aad: &[u8],
+    ciphertext: &[u8],
+) -> Result<Zeroizing<Vec<u8>>, aes_gcm::Error> {
+    let mut plaintext = Zeroizing::new(ciphertext.to_vec());
+    cipher.decrypt_in_place(nonce, aad, &mut *plaintext)?;
+    Ok(plaintext)
+}
+
 fn cursor_aad(generation: &str) -> Result<Vec<u8>, WebCatalogCursorCodecError> {
     let capacity = CURSOR_AAD_PREFIX
         .len()
@@ -301,3 +307,7 @@ fn object_u64(
         .and_then(Value::as_u64)
         .ok_or(WebCatalogCursorCodecError::InvalidCursor)
 }
+
+#[cfg(test)]
+#[path = "../../../../tests/mail/web/adapter-outbound/catalog_cursor_codec.rs"]
+mod authenticated_decryption_tests;
