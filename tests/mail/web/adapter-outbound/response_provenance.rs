@@ -287,6 +287,33 @@ fn unreviewed_request_speculation_markers_cannot_prove_active_mail_get() {
 }
 
 #[test]
+fn navigation_fetch_metadata_cannot_prove_active_mail_ajax() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Dest": "empty", "Sec-Fetch-Site": "same-origin"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    for (name, value) in [
+        ("Sec-Fetch-Mode", "navigate"),
+        ("sec-fetch-mode", "websocket"),
+        ("Sec-Fetch-Dest", "document"),
+        ("Sec-Fetch-Dest", "image"),
+        ("sec-fetch-site", "cross-site"),
+        ("Sec-Fetch-Site", "none"),
+        ("Sec-Fetch-User", "?1"),
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"][name] = json!(value);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "navigation metadata {name}={value} cannot prove an AJAX read"
+        );
+    }
+}
+
+#[test]
 fn explicitly_speculative_header_hints_cannot_prove_active_mail_fetches() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",

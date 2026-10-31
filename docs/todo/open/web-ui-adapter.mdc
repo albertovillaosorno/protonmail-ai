@@ -2460,3 +2460,12 @@ web application without requiring Bridge or a third-party direct API identity.
   let a nominal JSON 200 complete as a fresh Mail list response. The shared
   response guard now rejects those markers across passive collectors without
   reading or retaining private headers or contacting a provider.
+
+- Passive Mail API GET provenance now cross-checks optional browser
+  `Sec-Fetch-*` headers against the observed XHR/Fetch resource type. A
+  red-first
+  synthetic GET marked `Sec-Fetch-Mode: navigate` or `Sec-Fetch-Dest: document`
+  previously entered active list capture. Explicit navigation, embedded
+  destinations, cross-site source and user-navigation headers now disqualify
+  reads; omitted metadata and ordinary first-party AJAX hints remain valid.
+  No request headers or mailbox content are retained.

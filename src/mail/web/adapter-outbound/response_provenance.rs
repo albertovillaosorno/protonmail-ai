@@ -30,6 +30,7 @@
 
 //! Shared cached-response provenance gate for passive provider evidence.
 
+use serde_json::Map;
 use serde_json::Value;
 
 // Validate the HTTP field shape, not its private content. A malformed CDP
@@ -134,6 +135,29 @@ const fn speculative_purpose_header(name: &str) -> bool {
     legacy || current
 }
 
+// Fetch Metadata headers describe the actual browser request destination.
+// Navigation, embedded resources, or cross-site requests cannot corroborate
+// an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
+fn active_mail_fetch_metadata(request: &Map<String, Value>) -> bool {
+    match request.get("headers") {
+        None => true,
+        Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
+            if name.eq_ignore_ascii_case("Sec-Fetch-Mode") {
+                let mode = value.as_str();
+                return matches!(mode, Some("cors" | "same-origin" | "no-cors"));
+            }
+            if name.eq_ignore_ascii_case("Sec-Fetch-Dest") {
+                return value.as_str() == Some("empty");
+            }
+            if name.eq_ignore_ascii_case("Sec-Fetch-Site") {
+                return value.as_str() == Some("same-origin");
+            }
+            !name.eq_ignore_ascii_case("Sec-Fetch-User")
+        }),
+        Some(_) => false,
+    }
+}
+
 // Unknown CDP Request fields that advertise speculative scheduling are
 // ambiguous even when the documented isLinkPreload boolean is false.
 // Compare ASCII protocol names without allocating private request metadata.
@@ -183,6 +207,7 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     let normal_hints = !request
         .keys()
         .any(|field| unreviewed_speculation_field(field));
+    let normal_fetch_metadata = active_mail_fetch_metadata(request);
     // The enclosing event and initiator can also carry speculative metadata.
     // Only the Request object owns the documented isLinkPreload marker.
     let normal_event_hints = !params
@@ -243,6 +268,7 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
         Some(_) => false,
     };
     let request_active = normal_link && normal_hints && normal_purpose;
+    let request_active = request_active && normal_fetch_metadata;
     let event_active = normal_event_hints && normal_resource;
     request_active && event_active && normal_initiator && normal_document
 }
@@ -261,7 +287,7 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
 // Interpret source/security markers consistently in the response metadata
 // and in the enclosing CDP event. Otherwise contradictory explicit origin
 // flags at the event level could silently authorize a passive read.
-fn uncached_source_fields(fields: &serde_json::Map<String, Value>) -> bool {
+fn uncached_source_fields(fields: &Map<String, Value>) -> bool {
     let source_flags = [
         "fromDiskCache",
         "fromServiceWorker",

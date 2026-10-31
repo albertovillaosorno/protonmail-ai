@@ -175,6 +175,34 @@ fn unreviewed_request_speculation_cannot_authorize_message_list_capture() {
 }
 
 #[test]
+fn navigation_fetch_headers_cannot_authorize_message_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (name, value) in [
+        ("Sec-Fetch-Mode", "navigate"),
+        ("Sec-Fetch-Dest", "document"),
+        ("Sec-Fetch-Site", "cross-site"),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let mut request = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "synthetic-list", "type": "Fetch",
+                "initiator": {"type": "script"}, "request": {
+                    "method": "GET", "url": URL,
+                    "headers": {"Sec-Fetch-Mode": "cors"}
+                }}
+        });
+        request["params"]["request"]["headers"][name] = json!(value);
+        assert_eq!(
+            capture.observe(&request),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}
+
+#[test]
 fn speculative_purpose_header_cannot_authorize_message_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
