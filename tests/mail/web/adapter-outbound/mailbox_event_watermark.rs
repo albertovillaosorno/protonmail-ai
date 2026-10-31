@@ -2579,6 +2579,33 @@ fn event_url_backslash_cannot_be_promoted_to_cursor_watermark() {
 }
 
 #[test]
+fn raw_unicode_event_poll_url_cannot_prove_mailbox_watermark() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+
+    let endpoint = "https://mail.proton.me/api/core/v5/events/";
+    let method = "Network.requestWillBeSent";
+    let body = r#"{"EventID":"event-8","More":0}"#;
+    for raw_id in ["event-\u{e9}", "event-\u{1f680}"] {
+        let url = format!("{endpoint}{raw_id}?ConversationCounts=1");
+        let got = ObservedMailboxEventWatermark::parse("GET", &url, body);
+        assert_eq!(got, Err(MailboxEventWatermarkError::UnexpectedEndpoint));
+        let mut capture = MailboxEventNetworkCapture::new("session-1");
+        let request = cdp_lifecycle_event(method, "unicode", &url);
+        assert_eq!(
+            capture.observe(&request),
+            Err(MailboxEventNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+    let mut capture = MailboxEventNetworkCapture::new("session-1");
+    let canonical = cdp_lifecycle_event(method, "ascii", URL);
+    capture
+        .observe(&canonical)
+        .expect("ASCII event poll remains accepted");
+}
+
+#[test]
 fn bootstrap_and_event_poll_urls_are_bounded_to_16_kib() {
     // jig-ignore-next-line: canonical rustfmt line.
     use mail_web_adapter::{MailboxEventNetworkCapture, MailboxEventNetworkError};

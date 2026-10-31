@@ -1476,8 +1476,14 @@ fn is_latest_event_url(url: &str) -> bool {
 }
 
 fn event_id_from_url(url: &str) -> Result<&str, MailboxEventWatermarkError> {
-    // jig-ignore-next-line: canonical rustfmt event endpoint guard.
-    if url.len() > MAX_EVENT_URL_BYTES || url.contains('#') || !audited_event_query(url) {
+    // CDP serializes event poll URLs as ASCII, percent-encoding Unicode.
+    // A raw Unicode selector does not prove a browser-owned event cursor.
+    let canonical = url.bytes().all(|byte| byte.is_ascii_graphic());
+    if url.len() > MAX_EVENT_URL_BYTES
+        || url.contains('#')
+        || !audited_event_query(url)
+        || !canonical
+    {
         return Err(MailboxEventWatermarkError::UnexpectedEndpoint);
     }
     let path = url.split_once('?').map_or(url, |(path, _query)| path);

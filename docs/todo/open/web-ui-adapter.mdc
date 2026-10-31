@@ -2303,3 +2303,8 @@ web application without requiring Bridge or a third-party direct API identity.
   raw Unicode URL path identities. A synthetic response using matching
   Unicode metadata IDs previously authorized a noncanonical URL; ordinary
   ASCII attachment GETs continue working with no attachment bytes retained.
+
+- Mail core-event continuation GETs now require browser-serialized ASCII
+  URLs before a requested event ID can establish polling provenance. Red-first
+  raw Unicode selectors previously created apparently valid event cursors;
+  canonical event URLs and bounded audited query flags remain supported.
