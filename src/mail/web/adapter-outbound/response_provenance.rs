@@ -519,7 +519,20 @@ impl RequestExtraInfoEvidence {
                 }
             }
         };
-        if (!safe_headers || !same_path) && !self.mark_unsafe(request_id) {
+        // The actual request's client state may disprove a Mail HTTPS-page
+        // initiator even when provisional and wire headers look first-party.
+        // No client state is required on older CDP versions, but an explicit
+        // insecure or malformed state cannot authorize passive Mail reads.
+        let secure_client = match params.get("clientSecurityState") {
+            None => true,
+            Some(Value::Object(client)) => matches!(
+                client.get("initiatorIsSecureContext"),
+                Some(Value::Bool(true))
+            ),
+            Some(_) => false,
+        };
+        let unsafe_provenance = !safe_headers || !same_path || !secure_client;
+        if unsafe_provenance && !self.mark_unsafe(request_id) {
             return None;
         }
         Some(request_id)

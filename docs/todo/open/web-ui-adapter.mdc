@@ -2646,3 +2646,12 @@ web application without requiring Bridge or a third-party direct API identity.
   Unknown and malformed charset hints now fail closed across all passive
   collectors; missing hints, empty browser charset and UTF-8 remain valid.
   No account, response payload, or live browser was accessed.
+
+- The actual CDP `Network.requestWillBeSentExtraInfo.clientSecurityState`
+  now corroborates a secure initiating document when Chromium includes it.
+  Red-first synthetic shared and message-list tests previously accepted
+  `initiatorIsSecureContext: false` on a supposedly Mail-owned HTTPS JSON
+  GET with canonical wire Host headers. Missing optional metadata and an
+  explicit secure client remain valid. Malformed or insecure client evidence
+  is remembered by request ID across either CDP event order, without storing
+  cookies or other request payloads; no live account was used.

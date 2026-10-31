@@ -104,6 +104,31 @@ fn http2_pseudo_headers_must_prove_the_same_mail_get() {
 }
 
 #[test]
+fn insecure_request_extra_client_cannot_prove_mail_page_ownership() {
+    let valid = json!({"params":{"requestId":"secure-page",
+        "headers":{"Host":"mail.proton.me"},
+        "clientSecurityState":{"initiatorIsSecureContext":true,
+            "initiatorIPAddressSpace":"Public"}}});
+    let mut evidence = RequestExtraInfoEvidence::default();
+    assert_eq!(evidence.note_event(&valid), Some("secure-page"));
+    assert!(!evidence.rejects("secure-page"));
+    for invalid in [json!(false), json!(null), json!("true"), json!(1i32)] {
+        let mut extra = valid.clone();
+        extra["params"]["requestId"] = json!("insecure-page");
+        let client_state = &mut extra["params"]["clientSecurityState"];
+        client_state["initiatorIsSecureContext"] = invalid;
+        let mut probe = RequestExtraInfoEvidence::default();
+        assert_eq!(probe.note_event(&extra), Some("insecure-page"));
+        assert!(probe.rejects("insecure-page"));
+    }
+    let mut malformed = valid;
+    malformed["params"]["clientSecurityState"] = json!(null);
+    let mut probe = RequestExtraInfoEvidence::default();
+    assert_eq!(probe.note_event(&malformed), Some("secure-page"));
+    assert!(probe.rejects("secure-page"));
+}
+
+#[test]
 fn wire_request_extra_info_custody_is_bounded_and_header_only() {
     let mut evidence = RequestExtraInfoEvidence::default();
     let safe = json!({"params":{"requestId":"safe",
