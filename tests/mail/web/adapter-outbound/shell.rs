@@ -237,6 +237,68 @@ fn unreviewed_ax_node_fields_cannot_prove_mail_shell() {
 }
 
 #[test]
+fn malformed_ax_node_property_collections_cannot_prove_mail_shell() {
+    use serde_json::json;
+
+    for (label, properties) in [
+        ("properties-object", json!({"private":"message"})),
+        ("properties-null", json!(null)),
+        ("properties-raw-number", json!([42i32])),
+        ("properties-missing-name", json!([{"value":{}}])),
+        (
+            "properties-unknown-name",
+            json!([{
+                "name":"futurePrivate", "value":{"type":"boolean", "value":true}
+            }]),
+        ),
+        ("properties-missing-value", json!([{"name":"busy"}])),
+        (
+            "properties-unknown-field",
+            json!([{
+                "name":"busy", "value":{"type":"boolean", "value":false},
+                "private":"injected"
+            }]),
+        ),
+        (
+            "properties-wrong-value",
+            json!([{
+                "name":"busy", "value":{"type":"boolean", "value":[]}
+            }]),
+        ),
+        (
+            "properties-oversized",
+            json!(vec![
+                json!({
+                    "name":"busy", "value":{"type":"boolean", "value":false}
+                });
+                257
+            ]),
+        ),
+    ] {
+        let navigation = json!([{
+            "ignored":false, "nodeId":"ax-navigation",
+            "role":{"type":"role", "value":"navigation"},
+            "properties":properties
+        }])
+        .to_string();
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "malformed AXNode.properties {label} cannot prove shell"
+        );
+    }
+}
+
+#[test]
 fn documented_optional_ax_node_metadata_preserves_mail_shell_readiness() {
     use serde_json::json;
 

@@ -181,6 +181,9 @@ fn ax_visible<'role_nodes>(
                 }
             }
         }
+        if !valid_ax_properties(node.get("properties")) {
+            return Err(());
+        }
         // CDP AXNode.backendDOMNodeId is an optional signed protocol
         // integer, not an arbitrary JSON value or unbounded unsigned ID.
         // A contradictory browser node identity cannot prove readiness.
@@ -223,6 +226,43 @@ fn ax_visible<'role_nodes>(
         any_visible |= !ignored;
     }
     Ok(any_visible)
+}
+
+// AXNode.properties holds computed AXProperty pairs, not arbitrary
+// application JSON. Bound and check every entry before letting a structural
+// role establish Mail-shell readiness. Names and values are borrowed for
+// validation only; they are never projected or retained.
+fn valid_ax_properties(value: Option<&Value>) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    let Some(properties) = value.as_array() else {
+        return false;
+    };
+    if properties.len() > MAX_AX_ROLE_MATCH_NODES {
+        return false;
+    }
+    let mut names = BTreeSet::new();
+    for property in properties {
+        let Some(fields) = property.as_object() else {
+            return false;
+        };
+        if fields.len() != 2 {
+            return false;
+        }
+        let Some(name) = fields.get("name").and_then(Value::as_str) else {
+            return false;
+        };
+        if !valid_ax_property_name(name)
+            || !names.insert(name)
+            || !fields
+                .get("value")
+                .is_some_and(|value| valid_ax_nested_value(value, 3))
+        {
+            return false;
+        }
+    }
+    true
 }
 
 // Parent IDs and child IDs can point across role-filtered query replies.
@@ -449,6 +489,56 @@ fn valid_ax_scalar(kind: &str, value: Option<&Value>) -> bool {
         (_, Some(raw)) => !raw.is_object() && !raw.is_array(),
         (_, None) => true,
     }
+}
+
+// AXNode.properties contains only the documented computed AXPropertyName
+// values. Ignored reasons are checked separately; keeping their known names
+// in this enum remains compatible with the shared CDP property schema.
+fn valid_ax_property_name(name: &str) -> bool {
+    matches!(
+        name,
+        "actions"
+            | "busy"
+            | "disabled"
+            | "editable"
+            | "focusable"
+            | "focused"
+            | "hidden"
+            | "hiddenRoot"
+            | "invalid"
+            | "keyshortcuts"
+            | "settable"
+            | "roledescription"
+            | "live"
+            | "atomic"
+            | "relevant"
+            | "root"
+            | "autocomplete"
+            | "hasPopup"
+            | "level"
+            | "multiselectable"
+            | "orientation"
+            | "multiline"
+            | "readonly"
+            | "required"
+            | "valuemin"
+            | "valuemax"
+            | "valuetext"
+            | "checked"
+            | "expanded"
+            | "modal"
+            | "pressed"
+            | "selected"
+            | "activedescendant"
+            | "controls"
+            | "describedby"
+            | "details"
+            | "errormessage"
+            | "flowto"
+            | "labelledby"
+            | "owns"
+            | "url"
+    ) || valid_ax_hidden_reason_name(name)
 }
 
 // CDP AXPropertyName reserves this enum suffix for reasons a node is hidden.

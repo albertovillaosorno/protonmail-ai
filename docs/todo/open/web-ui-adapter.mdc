@@ -125,6 +125,15 @@ web application without requiring Bridge or a third-party direct API identity.
   Unreviewed security-state spelling variants and extensions also fail closed,
   rather than bypassing a valid `securityState` with a contradictory alias.
 
+## Validate nested AXNode computed property collections
+
+- Red-first synthetic role queries accepted arbitrary objects and malformed
+  or oversized arrays in the documented `AXNode.properties` field while still
+  proving a ready shell. The classifier now requires bounded, unique, known
+  `AXPropertyName` entries with structurally valid `AXValue` metadata. It
+  rejects unknown or duplicate names, incomplete entries, nested extensions,
+  and composite scalar values without projecting private accessible text.
+
 ## Reject unknown AXNode fields before shell classification
 
 - Red-first synthetic role-query evidence showed that a node with unknown
