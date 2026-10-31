@@ -197,6 +197,36 @@ fn network_status_accepts_only_exact_integer_200() {
 }
 
 #[test]
+fn extra_status_wire_content_type_must_confirm_json_response() {
+    for valid in [
+        "application/json",
+        "application/json; charset=utf-8",
+        "Application/JSON;Charset=UTF-8",
+    ] {
+        let event = json!({"params":{"statusCode":200u16,
+            "headers":{"Content-Type":valid}}});
+        assert!(direct_extra_status_is_200(&event));
+    }
+    for invalid in [
+        json!("text/html"),
+        json!("application/javascript"),
+        json!("application/json, text/html"),
+        json!(null),
+        json!(["application/json"]),
+    ] {
+        let event = json!({"params":{"statusCode":200u16,
+            "headers":{"Content-Type":invalid}}});
+        assert!(!direct_extra_status_is_200(&event));
+    }
+    let duplicate = json!({"params":{"statusCode":200u16,
+        "headers":{"Content-Type":"application/json",
+            "content-type":"text/html"}}});
+    assert!(!direct_extra_status_is_200(&duplicate));
+    assert!(!direct_extra_status_is_200(&json!({"params":{
+        "statusCode":200u16, "headers":"not-an-object"}})));
+}
+
+#[test]
 fn contradictory_source_hints_override_false_flags() {
     let mut response = json!({
         "fromDiskCache": false,

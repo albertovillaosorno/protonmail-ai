@@ -2567,3 +2567,12 @@ web application without requiring Bridge or a third-party direct API identity.
   keyed, bounded fingerprints across either event order. Initial and refined
   CDP header maps are checked directly against their URL; only correlation
   IDs and keyed digests are retained and scrubbed, never query text.
+
+- `Network.responseReceivedExtraInfo` can report a wire `Content-Type`
+  contradicting the earlier `responseReceived.mimeType` even when both status
+  codes say 200. Red-first synthetic evidence previously accepted a
+  text/html response header as corroboration of a fresh Mail JSON read.
+  The shared extra-status gate now requires any explicit wire Content-Type
+  to be unambiguous `application/json`, allowing ordinary charset parameters,
+  absent legacy headers and consistent JSON 200. No response bodies or header
+  values are retained.

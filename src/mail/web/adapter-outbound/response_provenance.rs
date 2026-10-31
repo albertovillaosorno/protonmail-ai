@@ -746,11 +746,46 @@ impl ExtraStatusEvidence {
     reason = "private sibling observers share the extra-info status predicate"
 )]
 pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
-    event
-        .get("params")
-        .and_then(|params| params.get("statusCode"))
-        .and_then(Value::as_u64)
-        == Some(200)
+    let Some(params) = event.get("params").and_then(Value::as_object) else {
+        return false;
+    };
+    if params.get("statusCode").and_then(Value::as_u64) != Some(200) {
+        return false;
+    }
+    let headers = match params.get("headers") {
+        None => return true,
+        Some(Value::Object(headers)) => headers,
+        Some(_) => return false,
+    };
+    // Extra-info carries the actual HTTP response headers. A conflicting
+    // content type cannot corroborate a passive Mail JSON response even if
+    // responseReceived reported a compatible MIME type. Omission is allowed.
+    let mut seen_content_type = false;
+    for (name, value) in headers {
+        if !cdp_header_name_is_token(name) || !cdp_header_value_is_safe(value) {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("content-type") {
+            if seen_content_type {
+                return false;
+            }
+            seen_content_type = true;
+            let Some(content_type) = value.as_str() else {
+                return false;
+            };
+            if content_type.len() > 256 {
+                return false;
+            }
+            let media_type = content_type.split(';').next().unwrap_or_default();
+            if !media_type
+                .trim_ascii()
+                .eq_ignore_ascii_case("application/json")
+            {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 #[cfg(test)]

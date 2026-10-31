@@ -524,6 +524,40 @@ fn refined_wire_headers_cannot_contradict_passive_message_list_get() {
 }
 
 #[test]
+fn conflicting_response_extra_content_type_rejects_mail_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"synthetic-extra", "type":"Fetch",
+                "request":{"method":"GET", "url":URL}}
+        }))
+        .expect("track exact list GET");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"synthetic-extra", "type":"Fetch",
+                "hasExtraInfo":true,
+                "response":{"url":URL, "status":200u16,
+                    "mimeType":"application/json"}}
+        }))
+        .expect("preliminary JSON 200");
+    let contradictory = json!({
+        "sessionId":"session-1", "method":"Network.responseReceivedExtraInfo",
+        "params":{"requestId":"synthetic-extra", "statusCode":200u16,
+            "headers":{"Content-Type":"text/html"}}
+    });
+    assert_eq!(
+        capture.observe(&contradictory),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn wire_http2_path_must_match_the_observed_mail_endpoint() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
