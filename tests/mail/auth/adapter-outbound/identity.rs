@@ -83,6 +83,24 @@ fn versioned_unreserved_candidate_is_only_a_candidate() {
 }
 
 #[test]
+fn identity_candidates_refuse_oversized_unbounded_header_metadata() {
+    let at_limit = format!("{}@1", "a".repeat(510));
+    let bounded_child = "c".repeat(512);
+    assert!(Candidate::try_new(at_limit, bounded_child).is_ok());
+
+    let oversized_app = format!("{}@1", "a".repeat(511));
+    assert_eq!(
+        Candidate::try_new(&oversized_app, CANDIDATE_CHILD),
+        Err(ClientIdentityError::InvalidSyntax)
+    );
+    let oversized_child = "c".repeat(513);
+    assert_eq!(
+        Candidate::try_new(CANDIDATE_APP, oversized_child),
+        Err(ClientIdentityError::InvalidSyntax)
+    );
+}
+
+#[test]
 fn sdk_default_is_never_a_live_candidate() {
     for (app_version, child_id) in [
         ("Other@1.0.0", "thirdparty-example"),

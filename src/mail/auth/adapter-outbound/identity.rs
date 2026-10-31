@@ -32,6 +32,8 @@
 //! Fail-closed candidate validation for Proton Mail client identity.
 
 const SDK_DEFAULT_ID: &str = "Other";
+// Bound future HTTP app-version and fork-child identity framing metadata.
+const MAX_CLIENT_IDENTITY_FIELD_BYTES: usize = 512;
 // Authorize no other host until Proton explicitly approves a different API.
 const TRUSTED_MAIL_API_BASE: &str = "https://mail.proton.me/api";
 // Pinned WebClients evidence: packages/shared/lib/constants.ts and the fork
@@ -365,6 +367,7 @@ type IdentityResult<T> = Result<T, ClientIdentityError>;
 
 fn validate_field(value: &str) -> IdentityResult<()> {
     let invalid = value.is_empty()
+        || value.len() > MAX_CLIENT_IDENTITY_FIELD_BYTES
         || !value.is_ascii()
         || value.trim() != value
         || value

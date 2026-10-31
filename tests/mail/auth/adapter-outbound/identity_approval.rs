@@ -69,6 +69,32 @@ fn canonical_synthetic_approval_validates_without_enabling_live_auth() {
 }
 
 #[test]
+fn approval_policy_rejects_oversized_future_header_identity() {
+    // This synthetic test-only leaked fixture has process lifetime, like
+    // the statically documented real approval policy metadata.
+    let app = format!("{}@1", "a".repeat(511));
+    let child = "c".repeat(513);
+    let oversized_app: &'static str = Box::leak(app.into_boxed_str());
+    let oversized_child: &'static str = Box::leak(child.into_boxed_str());
+    for policy in [
+        AuthorizationPolicy {
+            app_version: Some(oversized_app),
+            ..synthetic_approved_policy()
+        },
+        AuthorizationPolicy {
+            child_client_id: Some(oversized_child),
+            ..synthetic_approved_policy()
+        },
+    ] {
+        assert!(policy.approved_identity().is_none());
+        assert_eq!(
+            policy.snapshot().status(),
+            ProviderAuthorizationStatus::Blocked
+        );
+    }
+}
+
+#[test]
 fn approval_policy_requires_real_gregorian_evidence_dates() {
     for impossible in [
         "2026-00-01",

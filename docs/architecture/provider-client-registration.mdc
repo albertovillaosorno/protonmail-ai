@@ -200,6 +200,13 @@ previous independent date checks accepted later approvals; same-day and
 previous-day legitimate review records remain valid. This does not approve any
 current Proton Mail client identity.
 
+The same candidate and approved-identity validators now cap both client
+identity fields at 512 ASCII bytes before they can become typed future
+`x-pm-appversion` or fork-child metadata. An offline red-first fixture proved
+that the previous policy accepted longer identifiers; 512-byte synthetic
+candidate names remain valid. Provider-issued alternate syntax must undergo a
+fresh review before relaxing this fail-closed limit.
+
 ## Approval evidence required by this repository
 
 The P0 blocker may close only with provider evidence that identifies the allowed
