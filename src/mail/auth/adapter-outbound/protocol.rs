@@ -493,11 +493,17 @@ impl ForkChallenge {
     /// when dropped. Callers must not convert it into a plain owned string.
     #[must_use]
     pub fn poll_path(&self) -> Zeroizing<String> {
-        Zeroizing::new(format!(
-            "{}/{selector}",
-            ProviderProfile::FORK_START_PATH,
-            selector = self.selector.as_str()
-        ))
+        // Never construct a plain intermediate String with a private fork
+        // selector. Reserve the complete route before appending it.
+        let capacity = ProviderProfile::FORK_START_PATH
+            .len()
+            .saturating_add(self.selector.len())
+            .saturating_add(1);
+        let mut path = Zeroizing::new(String::with_capacity(capacity));
+        path.push_str(ProviderProfile::FORK_START_PATH);
+        path.push('/');
+        path.push_str(&self.selector);
+        path
     }
 }
 

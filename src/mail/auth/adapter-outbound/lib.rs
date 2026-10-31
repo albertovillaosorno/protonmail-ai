@@ -47,6 +47,7 @@ pub use protocol::{ProviderProfile, ProviderRequestIdentity};
 pub use protocol::{ProviderRequestIdentityKind, RequestMethod, RequestSpec};
 
 use std::fmt;
+use std::str::from_utf8;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -134,17 +135,40 @@ impl TargetHandoff {
     }
 
     /// Returns a redaction-aware QR/manual-code payload.
+    ///
+    /// # Panics
+    ///
+    /// Only if the invariant that 32 bytes encode to 44 ASCII base64 bytes
+    /// is broken by the cryptographic encoder.
     #[must_use]
     pub fn payload(&self) -> HandoffPayload {
         // Both the encoded key and returned QR text must be scrubbed on drop;
         // the original binary handoff key already uses Zeroizing storage.
-        let encoded_key = STANDARD.encode(self.secret.as_ref());
-        let encoded_secret = Zeroizing::new(encoded_key);
-        HandoffPayload(Zeroizing::new(format!(
-            "{QR_VERSION}:{}:{}:{SDK_DEFAULT_CLIENT_ID}",
-            self.user_code.as_str(),
-            encoded_secret.as_str()
-        )))
+        // RFC 4648 encoding of a 32-byte key is exactly 44 ASCII bytes.
+        // Avoid the convenience encode() String, which temporarily owns a
+        // complete unguarded copy of the bearer-equivalent fork key.
+        let mut key_b64 = Zeroizing::new([0u8; 44]);
+        let written = STANDARD
+            .encode_slice(self.secret.as_ref(), key_b64.as_mut())
+            .expect("fixed output buffer holds 32-byte base64 key");
+        // jig-ignore-next-line: canonical checked ASCII base64 conversion.
+        let encoded_key = from_utf8(&key_b64[..written]).expect("base64 output is always ASCII");
+        let version = QR_VERSION.to_string();
+        let capacity = version
+            .len()
+            .saturating_add(self.user_code.len())
+            .saturating_add(encoded_key.len())
+            .saturating_add(SDK_DEFAULT_CLIENT_ID.len())
+            .saturating_add(3);
+        let mut payload = Zeroizing::new(String::with_capacity(capacity));
+        payload.push_str(&version);
+        payload.push(':');
+        payload.push_str(&self.user_code);
+        payload.push(':');
+        payload.push_str(encoded_key);
+        payload.push(':');
+        payload.push_str(SDK_DEFAULT_CLIENT_ID);
+        HandoffPayload(payload)
     }
 
     /// Consumes the handoff and transfers exclusive key ownership to the

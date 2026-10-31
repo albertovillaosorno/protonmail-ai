@@ -51,6 +51,19 @@ fn target_payload_matches_proton_qr_shape() {
 }
 
 #[test]
+fn qr_payload_repeated_construction_retains_exact_key_framing() {
+    let handoff = sdk_handoff();
+    let first = handoff.payload();
+    let second = handoff.payload();
+    assert_eq!(format!("{first:?}"), "HandoffPayload([REDACTED])");
+    assert_eq!(first.expose(), second.expose());
+    let segments: Vec<_> = first.expose().split(':').collect();
+    assert_eq!(segments.len(), 4);
+    assert_eq!(segments[2].len(), 44);
+    assert!(segments[2].ends_with('='));
+}
+
+#[test]
 fn sdk_default_identity_never_claims_a_first_party_client() {
     assert_eq!(SDK_DEFAULT_CLIENT_ID, "Other");
     assert!(!SDK_DEFAULT_CLIENT_ID.contains("mail"));
