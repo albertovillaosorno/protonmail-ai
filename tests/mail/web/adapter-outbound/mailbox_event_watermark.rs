@@ -2124,6 +2124,94 @@ fn latest_and_v5_event_request_ids_are_bounded_after_consumption() {
 }
 
 #[test]
+fn browser_latest_bootstrap_rejects_late_304_and_accepts_late_200() {
+    use mail_web_adapter::MailboxEventNetworkError;
+    // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+    use mail_web_adapter::{BrowserDriverError, ManagedBrowser, ManagedBrowserPlan};
+    use serde_json::json;
+    use std::fs;
+
+    let _guard = EVENT_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic latest-event browser fixtures");
+    // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+    for (status, label) in [(304u16, "latest-late-304"), (200u16, "latest-late-200")] {
+        let root = event_browser_root(label);
+        fs::create_dir_all(&root).expect("create synthetic browser root");
+        let executable = fake_event_browser(&root, false, false);
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let mut script = fs::read_to_string(&executable).expect("read fake browser");
+        let nominal = "\"requestId\":\"latest-1\",\"response\":";
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let declared = "\"requestId\":\"latest-1\",\"hasExtraInfo\":true,\"response\":";
+        assert!(script.contains(nominal));
+        script = script.replacen(nominal, declared, 1);
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let emitted = "printf '%s\\0%s\\0%s\\0' \"$request\" \"$response\" \"$finished\" >&4";
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let response_start = script.find(declared).expect("find latest response");
+        let after_response = script
+            .get(response_start..)
+            .and_then(|rest| rest.find(emitted))
+            .expect("find latest completed request stream");
+        let insert_at = response_start + after_response + emitted.len();
+        let extra = json!({
+            "sessionId":"session-1",
+            "method":"Network.responseReceivedExtraInfo",
+            "params":{"requestId":"latest-1","statusCode":status}
+        });
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let injection = format!("\n        extra='{extra}'\n        printf '%s\\0' \"$extra\" >&4");
+        script.insert_str(insert_at, &injection);
+        let log = root.join("body-read-log.txt");
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let body_marker = "    *'Network.getResponseBody'*'\"requestId\":\"latest-1\"'*)";
+        assert!(script.contains(body_marker));
+        let audit = format!(
+            "{body_marker}\n      printf 'body\\n' >> '{}'",
+            log.display()
+        );
+        script = script.replacen(body_marker, &audit, 1);
+        fs::write(&executable, script).expect("write audited browser script");
+        let plan = ManagedBrowserPlan::under_data_home(
+            executable.to_str().expect("fake browser path UTF-8"),
+            &root.join("data"),
+        )
+        .expect("create synthetic browser plan");
+        // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+        let mut browser = ManagedBrowser::launch(&plan).expect("launch fake browser");
+        let page = browser.provider_page().expect("find Mail page");
+        let result = browser.observe_mailbox_event_bootstrap(&page);
+        if status == 200 {
+            assert_eq!(
+                result
+                    .expect("late valid status authorizes bootstrap")
+                    .event_id(),
+                "event-bootstrap"
+            );
+            // jig-ignore-next-line: synthetic CDP lifecycle fixture.
+            assert_eq!(fs::read_to_string(&log).expect("read body audit"), "body\n");
+        } else {
+            assert_eq!(
+                result.map(|_watermark| ()),
+                Err(BrowserDriverError::MailboxEventNetwork(
+                    MailboxEventNetworkError::ResponseRejected
+                ))
+            );
+            assert!(
+                !log.exists(),
+                "actual HTTP 304 cannot authorize body access"
+            );
+        }
+        browser
+            .require_mail_shell(&page)
+            .expect("browser remains usable");
+        drop(browser);
+        fs::remove_dir_all(root).expect("clean synthetic browser root");
+    }
+}
+
+#[test]
 fn browser_event_poll_waits_for_promised_http_status_before_body_read() {
     use mail_web_adapter::MailboxEventNetworkError;
     // jig-ignore-next-line: synthetic CDP lifecycle fixture.

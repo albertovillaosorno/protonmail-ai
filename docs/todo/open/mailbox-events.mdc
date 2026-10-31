@@ -347,3 +347,8 @@ bounded resource use.
   delivered after `loadingFinished` also rejects the body read. Only the
   delayed actual HTTP 200 permits cursor projection, with the browser shell
   remaining usable after each attempt.
+
+- A second synthetic CDP browser regression covers latest-event bootstrap.
+  It injects a declared extra HTTP status after `loadingFinished` and proves
+  that only actual 200 permits the latest watermark body read. A late 304
+  must fail before body retrieval; both outcomes preserve the Mail shell.
