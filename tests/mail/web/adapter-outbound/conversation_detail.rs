@@ -978,3 +978,18 @@ fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
     let captured = from_cdp("conversation-1", &envelope);
     assert_eq!(captured, exact);
 }
+
+#[test]
+fn borrowed_member_ids_survive_late_rejection_without_error_diagnostics() {
+    let mut body = conversation_body();
+    let other_parent = "synthetic-secret-other-parent";
+    body["Messages"][1]["ConversationID"] = json!(other_parent);
+    let from_url = ObservedConversationDetailResponse::parse;
+    let observed = from_url("GET", URL, &body.to_string());
+    assert_eq!(
+        observed,
+        Err(ConversationDetailResponseError::ParentMismatch)
+    );
+    let diagnostic = format!("{observed:?}");
+    assert!(!diagnostic.contains(other_parent));
+}

@@ -434,10 +434,12 @@ impl ObservedAttachmentMetadataResponse {
             .get("Attachment")
             .and_then(Value::as_object)
             .ok_or(AttachmentMetadataResponseError::Malformed)?;
+        // Copy identity only into the final scrub-on-drop metadata after
+        // every body and parent validation has succeeded.
         let attachment_id =
             // jig-ignore-next-line: canonical rustfmt line.
-            bounded_required_string(attachment, "ID", MAX_ATTACHMENT_ID_BYTES, false)?;
-        if !safe_read_id(&attachment_id, MAX_ATTACHMENT_ID_BYTES) {
+            bounded_required_str(attachment, "ID", MAX_ATTACHMENT_ID_BYTES, false)?;
+        if !safe_read_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         if attachment_id != requested_attachment_id {
@@ -446,34 +448,33 @@ impl ObservedAttachmentMetadataResponse {
         }
         let message_id =
             // jig-ignore-next-line: canonical rustfmt line.
-            bounded_required_string(attachment, "MessageID", MAX_MESSAGE_ID_BYTES, false)?;
-        if !safe_read_id(&message_id, MAX_MESSAGE_ID_BYTES) {
+            bounded_required_str(attachment, "MessageID", MAX_MESSAGE_ID_BYTES, false)?;
+        if !safe_read_id(message_id, MAX_MESSAGE_ID_BYTES) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         if message_id != expected_message_id {
             return Err(AttachmentMetadataResponseError::ParentMessageMismatch);
         }
-        // jig-ignore-next-line: canonical rustfmt line.
-        let name = bounded_optional_string(attachment, "Name", MAX_ATTACHMENT_NAME_BYTES)?;
-        // jig-ignore-next-line: canonical rustfmt line.
-        let sanitized_name = name.as_deref().map(SanitizedAttachmentFilename::new);
+        // jig-ignore-next-line: rustfmt keeps the bounded filename read flat.
+        let name = bounded_optional_str(attachment, "Name", MAX_ATTACHMENT_NAME_BYTES)?;
+        let sanitized_name = name.map(SanitizedAttachmentFilename::new);
         let declared_size = attachment
             .get("Size")
             .and_then(Value::as_u64)
             .ok_or(AttachmentMetadataResponseError::Malformed)?;
         let mime_type =
             // jig-ignore-next-line: canonical rustfmt line.
-            bounded_required_string(attachment, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
-        if !safe_metadata_mime_type(&mime_type) {
+            bounded_required_str(attachment, "MIMEType", MAX_MIME_TYPE_BYTES, false)?;
+        if !safe_metadata_mime_type(mime_type) {
             return Err(AttachmentMetadataResponseError::Malformed);
         }
         Ok(Self {
             metadata: ObservedAttachmentMetadata {
-                attachment_id,
-                message_id,
+                attachment_id: String::from(attachment_id),
+                message_id: String::from(message_id),
                 sanitized_name,
                 declared_size,
-                mime_type,
+                mime_type: String::from(mime_type),
             },
         })
     }
@@ -675,12 +676,12 @@ fn network_request_id(event: &Value) -> Result<&str, AttachmentMetadataNetworkEr
         .ok_or(AttachmentMetadataNetworkError::MalformedEvent)
 }
 
-fn bounded_required_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_required_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
     allow_empty: bool,
-) -> Result<String, AttachmentMetadataResponseError> {
+) -> Result<&'source str, AttachmentMetadataResponseError> {
     let value = object
         .get(key)
         .and_then(Value::as_str)
@@ -688,14 +689,14 @@ fn bounded_required_string(
     if value.len() > max_bytes || (!allow_empty && value.is_empty()) {
         return Err(AttachmentMetadataResponseError::Malformed);
     }
-    Ok(String::from(value))
+    Ok(value)
 }
 
-fn bounded_optional_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_optional_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
-) -> Result<Option<String>, AttachmentMetadataResponseError> {
+) -> Result<Option<&'source str>, AttachmentMetadataResponseError> {
     match object.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => {
@@ -705,7 +706,7 @@ fn bounded_optional_string(
             if value.len() > max_bytes {
                 return Err(AttachmentMetadataResponseError::Malformed);
             }
-            Ok(Some(String::from(value)))
+            Ok(Some(value))
         }
     }
 }

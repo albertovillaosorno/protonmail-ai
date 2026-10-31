@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Complete conversation membership and attachment metadata projectors now
+  validate provider IDs, parent IDs, filename and media text by borrowing
+  fields from guarded strict JSON. They only allocate identifier copies into
+  the final scrub-on-drop metadata after their respective checks succeed,
+  including duplicate, message-parent, filename, and MIME bounds. Rejected
+  responses no longer drop unguarded intermediate private Strings.
+
 - Passive message, conversation, and attachment detail CDP envelope projectors
   now reuse their exact body validators with already validated entity selectors.
   They no longer allocate and drop reconstructed full GET URLs containing

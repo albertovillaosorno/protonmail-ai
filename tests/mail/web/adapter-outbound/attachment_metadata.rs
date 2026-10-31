@@ -1141,3 +1141,15 @@ fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
     let captured = from_cdp("attachment-1", MESSAGE_ID, &envelope);
     assert_eq!(captured, exact);
 }
+
+#[test]
+fn borrowed_attachment_fields_refuse_late_mime_injection_without_leakage() {
+    let mut body = metadata_body();
+    body["Attachment"]["MIMEType"] = json!("text/plain\r\nX-Secret: unsafe");
+    let from_url = ObservedAttachmentMetadataResponse::parse;
+    let observed = from_url("GET", URL, MESSAGE_ID, &body.to_string());
+    assert_eq!(observed, Err(AttachmentMetadataResponseError::Malformed));
+    let diagnostic = format!("{observed:?}");
+    assert!(!diagnostic.contains("attachment-1"));
+    assert!(!diagnostic.contains("X-Secret"));
+}

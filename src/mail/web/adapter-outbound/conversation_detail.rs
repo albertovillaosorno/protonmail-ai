@@ -441,9 +441,10 @@ impl ObservedConversationDetailResponse {
             .get("Conversation")
             .and_then(Value::as_object)
             .ok_or(ConversationDetailResponseError::Malformed)?;
+        // Borrow the ID from guarded provider JSON until all validation ends.
         let conversation_id =
             // jig-ignore-next-line: canonical rustfmt line.
-            bounded_required_string(conversation, "ID", MAX_CONVERSATION_ID_BYTES)?;
+            bounded_required_str(conversation, "ID", MAX_CONVERSATION_ID_BYTES)?;
         if conversation_id != expected_id {
             return Err(ConversationDetailResponseError::IdentityMismatch);
         }
@@ -470,20 +471,16 @@ impl ObservedConversationDetailResponse {
             let object = message
                 .as_object()
                 .ok_or(ConversationDetailResponseError::Malformed)?;
-            // jig-ignore-next-line: canonical rustfmt line.
-            let message_id = bounded_required_string(object, "ID", MAX_MESSAGE_ID_BYTES)?;
-            // The validated source lives in the guarded provider JSON.
-            // Avoid an unsanitized second owned copy in the temporary set.
-            let id = object
-                .get("ID")
-                .and_then(Value::as_str)
-                .ok_or(ConversationDetailResponseError::Malformed)?;
-            if !seen.insert(id) {
+            // The guarded source ID is also the duplicate-detection key;
+            // allocate owned metadata only after parent and time validation.
+            // jig-ignore-next-line: rustfmt keeps the borrowed ID check flat.
+            let message_id = bounded_required_str(object, "ID", MAX_MESSAGE_ID_BYTES)?;
+            if !seen.insert(message_id) {
                 return Err(ConversationDetailResponseError::DuplicateMessageId);
             }
             let parent =
                 // jig-ignore-next-line: canonical rustfmt line.
-                bounded_required_string(object, "ConversationID", MAX_CONVERSATION_ID_BYTES)?;
+                bounded_required_str(object, "ConversationID", MAX_CONVERSATION_ID_BYTES)?;
             if parent != conversation_id {
                 return Err(ConversationDetailResponseError::ParentMismatch);
             }
@@ -491,11 +488,14 @@ impl ObservedConversationDetailResponse {
                 .get("Time")
                 .and_then(Value::as_u64)
                 .ok_or(ConversationDetailResponseError::Malformed)?;
-            members.push(ObservedConversationMember { message_id, time });
+            members.push(ObservedConversationMember {
+                message_id: String::from(message_id),
+                time,
+            });
         }
         Ok(Self {
             conversation: ObservedConversationDetail {
-                conversation_id,
+                conversation_id: String::from(conversation_id),
                 reported_message_count,
                 members,
             },
@@ -594,11 +594,11 @@ fn network_request_id(event: &Value) -> Result<&str, ConversationDetailNetworkEr
         .ok_or(ConversationDetailNetworkError::MalformedEvent)
 }
 
-fn bounded_required_string(
-    object: &serde_json::Map<String, Value>,
+fn bounded_required_str<'source>(
+    object: &'source serde_json::Map<String, Value>,
     key: &str,
     max_bytes: usize,
-) -> Result<String, ConversationDetailResponseError> {
+) -> Result<&'source str, ConversationDetailResponseError> {
     let value = object
         .get(key)
         .and_then(Value::as_str)
@@ -606,5 +606,5 @@ fn bounded_required_string(
     if !safe_read_id(value, max_bytes) {
         return Err(ConversationDetailResponseError::Malformed);
     }
-    Ok(String::from(value))
+    Ok(value)
 }
