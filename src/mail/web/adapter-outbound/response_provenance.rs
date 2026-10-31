@@ -62,9 +62,27 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
                         })
                     })
         });
+        // An explicit HTTP body framing header contradicts a CDP GET with
+        // no postData. A zero Content-Length is benign; any transfer coding
+        // or malformed length fails closed without inspecting header values
+        // beyond the relevant key or retaining private request headers.
+        let bodyless_headers = match fields.get("headers") {
+            None => true,
+            Some(Value::Object(headers)) => headers.iter().all(|(name, value)| {
+                if !name.is_ascii() {
+                    return false;
+                }
+                if name.eq_ignore_ascii_case("content-length") {
+                    return value.as_str() == Some("0");
+                }
+                !name.eq_ignore_ascii_case("transfer-encoding")
+            }),
+            Some(_) => false,
+        };
         let body_flag = fields.get("hasPostData");
         let bodyless = matches!(body_flag, None | Some(Value::Bool(false)));
         !unreviewed_body_marker
+            && bodyless_headers
             && bodyless
             && !fields.contains_key("postData")
             && !fields.contains_key("postDataEntries")

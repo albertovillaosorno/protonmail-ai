@@ -527,6 +527,18 @@ web application without requiring Bridge or a third-party direct API identity.
   exact `hasPostData:false`, and omitted optional body flags. The guard does
   not inspect, retain, or log any real request payload or credentials.
 
+## Validate GET body framing metadata in CDP request headers
+
+- Red-first synthetic Mail GETs with `Content-Length:6` or
+  `Transfer-Encoding:chunked` previously passed when CDP reported
+  `hasPostData:false`. The shared passive read gate now rejects explicit
+  request-body framing contradictions, malformed header maps, and invalid
+  content lengths while accepting the ordinary zero-length case.
+
+- Header checks are case-insensitive and do not log or retain private
+  header values. Shared and message-list tests cover the red-first failure;
+  the rule applies to all passive read observers without new network calls.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

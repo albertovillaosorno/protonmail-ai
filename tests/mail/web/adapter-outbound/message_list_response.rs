@@ -2065,3 +2065,30 @@ fn unknown_payload_get_cannot_be_promoted_to_message_list_read() {
         assert!(capture.take_finished_request_ids().is_empty());
     }
 }
+
+#[test]
+fn body_bearing_request_headers_cannot_prove_mail_list_get() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (header, value) in [
+        ("Content-Length", "6"),
+        ("content-length", "untrusted"),
+        ("Transfer-Encoding", "chunked"),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let mut event = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "body-header", "type": "Fetch",
+                "request": {"method": "GET", "url": URL,
+                    "hasPostData": false,
+                    "headers": {"Accept": "application/json"}}}
+        });
+        event["params"]["request"]["headers"][header] = json!(value);
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "body-indicating HTTP header {header} must not prove Mail GET"
+        );
+    }
+}

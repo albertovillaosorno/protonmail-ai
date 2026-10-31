@@ -459,3 +459,32 @@ fn unknown_request_payload_markers_cannot_prove_bodyless_get() {
         );
     }
 }
+
+#[test]
+fn request_headers_cannot_contradict_bodyless_get_provenance() {
+    let clean = json!({
+        "method": "GET", "url": "https://mail.proton.me/api/mail/v4/messages",
+        "hasPostData": false,
+        "headers": {"Content-Length": "0", "Accept": "application/json"}
+    });
+    assert!(bodyless_cdp_get(&clean));
+    for (header, value) in [
+        ("Content-Length", json!("1")),
+        ("content-length", json!("123456")),
+        ("CONTENT-LENGTH", json!(null)),
+        ("Content-Length", json!(7u64)),
+        ("content-length", json!("invalid")),
+        ("Transfer-Encoding", json!("chunked")),
+        ("transfer-encoding", json!("identity")),
+    ] {
+        let mut request = clean.clone();
+        request["headers"][header] = value;
+        assert!(
+            !bodyless_cdp_get(&request),
+            "header {header} must not contradict a body-free GET"
+        );
+    }
+    let mut invalid = clean;
+    invalid["headers"] = json!("not-an-object");
+    assert!(!bodyless_cdp_get(&invalid));
+}
