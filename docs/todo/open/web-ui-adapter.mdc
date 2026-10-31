@@ -176,6 +176,16 @@ web application without requiring Bridge or a third-party direct API identity.
   parser now rejects them even when the top-level document identity is valid;
   canonical depth-zero roots continue to work.
 
+## Refuse unreviewed document-root properties
+
+- Red-first private CDP and fake-browser tests showed depth-zero document
+  results could include an arbitrary unknown property carrying nested private
+  data while still proving a ready Mail shell. The parser now admits only the
+  required document identity and the already audited optional child count,
+  URL, base URL, compatibility mode and frame ID. Other properties, including
+  null-valued extensions and element-only SVG flags, fail closed before AX
+  queries. Ordinary optional document metadata remains supported.
+
 ## Reject contradictory document-root kinds
 
 - Red-first protocol and fake-browser tests showed a top-level CDP document

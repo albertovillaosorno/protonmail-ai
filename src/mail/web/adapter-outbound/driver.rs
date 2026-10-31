@@ -4852,6 +4852,28 @@ fn valid_cdp_document_root(root: &Value) -> bool {
     let Some(fields) = root.as_object() else {
         return false;
     };
+    // Depth-zero shell inspection only needs the audited document fields.
+    // Unknown CDP properties can carry private nested data or change root
+    // semantics; refuse them rather than silently widening this proof.
+    let allowed = [
+        "nodeId",
+        "backendNodeId",
+        "nodeType",
+        "nodeName",
+        "localName",
+        "nodeValue",
+        "childNodeCount",
+        "documentURL",
+        "baseURL",
+        "compatibilityMode",
+        "frameId",
+    ];
+    if fields
+        .keys()
+        .any(|field| !allowed.contains(&field.as_str()))
+    {
+        return false;
+    }
     // CDP permits documentURL to be absent. When present, it cannot assert
     // another origin or carry unbounded URL data into a trusted shell proof.
     let document_url_matches = match fields.get("documentURL") {

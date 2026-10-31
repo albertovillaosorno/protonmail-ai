@@ -127,6 +127,30 @@ fn sparse_dom_root_cannot_establish_document_identity() {
 }
 
 #[test]
+fn unreviewed_document_root_properties_cannot_establish_mail_shell() {
+    use super::valid_cdp_document_root;
+
+    let root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    assert!(valid_cdp_document_root(&root));
+    for (field, extra) in [
+        ("futurePrivateProjection", json!({"nodeValue":"private"})),
+        ("futureFlag", json!(null)),
+        ("isSVG", json!(false)),
+        ("xmlVersion", json!("1.0")),
+    ] {
+        let mut extended = root.clone();
+        extended[field] = extra;
+        assert!(
+            !valid_cdp_document_root(&extended),
+            "unreviewed document property {field} must not authorize AX"
+        );
+    }
+}
+
+#[test]
 fn documented_root_url_cannot_contradict_the_mail_page_origin() {
     use super::valid_cdp_document_root;
     use serde_json::json;

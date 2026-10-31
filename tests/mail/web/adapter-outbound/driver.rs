@@ -2828,6 +2828,28 @@ fn non_document_node_metadata_cannot_prove_mail_document_root() {
     assert_rejects_document_root(&refs);
 }
 
+#[test]
+fn unreviewed_document_root_properties_cannot_prove_mail_shell() {
+    let cases = [
+        (
+            "unreviewed-private-payload",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","futurePrivateProjection":{"value":"private"}"#,
+        ),
+        (
+            "unreviewed-null-flag",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","futureFlag":null"#,
+        ),
+        (
+            "element-svg-on-document",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","isSVG":false"#,
+        ),
+    ];
+    assert_rejects_document_root(&cases);
+}
+
 fn assert_rejects_document_root(cases: &[(&str, &str, &str)]) {
     for &(label, original_field, contradiction) in cases {
         let root = test_root(&format!("dom-root-{label}"));
