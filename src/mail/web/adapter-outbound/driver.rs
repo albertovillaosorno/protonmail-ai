@@ -4863,7 +4863,26 @@ fn valid_cdp_document_root(root: &Value) -> bool {
         }
         Some(_) => false,
     };
+    // HTML base URL is resolution metadata, not a trusted origin proof:
+    // foreign base URLs are possible but must still be bounded strings.
+    let valid_base_url = fields.get("baseURL").is_none_or(|value| {
+        value
+            .as_str()
+            .is_some_and(|url| url.len() <= MAX_TARGET_URL_BYTES)
+    });
+    let valid_mode = fields.get("compatibilityMode").is_none_or(|value| {
+        matches!(
+            value.as_str(),
+            Some("QuirksMode" | "LimitedQuirksMode" | "NoQuirksMode")
+        )
+    });
+    let valid_frame_id = fields
+        .get("frameId")
+        .is_none_or(|value| value.as_str().is_some_and(safe_cdp_endpoint_id));
     document_url_matches
+        && valid_base_url
+        && valid_mode
+        && valid_frame_id
         // Requested depth=0 cannot return private descendant subtrees.
         // Pseudo elements and shadow roots also cannot belong to #document.
         && [

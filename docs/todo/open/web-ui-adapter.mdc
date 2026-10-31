@@ -132,6 +132,15 @@ web application without requiring Bridge or a third-party direct API identity.
   a nonnegative signed 32-bit CDP integer; missing and valid counts remain
   compatible. This does not read DOM descendants or private mailbox text.
 
+## Validate optional CDP document metadata shapes
+
+- Red-first protocol and fake-browser tests showed arbitrary values for
+  optional `DOM.Node.compatibilityMode`, `baseURL`, and `frameId` could
+  establish Mail-shell readiness. These fields now require respectively an
+  audited CDP enum, a bounded string, and a bounded browser-opaque ID. The
+  base URL may legitimately point off origin, so it is never used as an
+  origin proof; missing fields remain compatible.
+
 ## Reject element-only metadata on document roots
 
 - Red-first CDP schema and fake-browser fixtures showed that a top-level

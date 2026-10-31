@@ -2773,6 +2773,33 @@ fn element_only_metadata_cannot_prove_mail_document_root() {
     assert_rejects_document_root(&cases);
 }
 
+#[test]
+fn malformed_optional_document_metadata_cannot_prove_mail_shell() {
+    let cases = [
+        (
+            "invalid-compatibility-mode",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","compatibilityMode":"FutureMode""#,
+        ),
+        (
+            "null-compatibility-mode",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","compatibilityMode":null"#,
+        ),
+        (
+            "invalid-base-url",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","baseURL":9"#,
+        ),
+        (
+            "invalid-frame-id",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","frameId":"frame/bad""#,
+        ),
+    ];
+    assert_rejects_document_root(&cases);
+}
+
 fn assert_rejects_document_root(cases: &[(&str, &str, &str)]) {
     for &(label, original_field, contradiction) in cases {
         let root = test_root(&format!("dom-root-{label}"));

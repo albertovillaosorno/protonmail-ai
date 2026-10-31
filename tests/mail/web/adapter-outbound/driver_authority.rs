@@ -148,6 +148,44 @@ fn documented_root_url_cannot_contradict_the_mail_page_origin() {
 }
 
 #[test]
+fn optional_document_metadata_must_match_cdp_shapes() {
+    use super::valid_cdp_document_root;
+    use serde_json::json;
+
+    let mut root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    for (field, valid) in [
+        ("compatibilityMode", json!("QuirksMode")),
+        ("compatibilityMode", json!("LimitedQuirksMode")),
+        ("compatibilityMode", json!("NoQuirksMode")),
+        ("baseURL", json!("https://assets.example.test/")),
+        ("frameId", json!("frame-A_1")),
+    ] {
+        root[field] = valid;
+        assert!(valid_cdp_document_root(&root));
+        root.as_object_mut().expect("document root").remove(field);
+    }
+    for (field, invalid) in [
+        ("compatibilityMode", json!("FutureMode")),
+        ("compatibilityMode", json!(null)),
+        ("compatibilityMode", json!(3u32)),
+        ("baseURL", json!(null)),
+        ("baseURL", json!(9u32)),
+        ("baseURL", json!("B".repeat(16_385))),
+        ("frameId", json!(null)),
+        ("frameId", json!(42u32)),
+        ("frameId", json!("frame/bad")),
+        ("frameId", json!("f".repeat(513))),
+    ] {
+        root[field] = invalid;
+        assert!(!valid_cdp_document_root(&root), "malformed {field}");
+        root.as_object_mut().expect("document root").remove(field);
+    }
+}
+
+#[test]
 fn document_child_node_count_must_be_a_nonnegative_protocol_integer() {
     use super::valid_cdp_document_root;
     use serde_json::json;
