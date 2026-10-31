@@ -2796,6 +2796,53 @@ fn ordinary_document_root_metadata_still_proves_mail_shell() {
 }
 
 #[test]
+fn contradictory_document_child_counts_cannot_authorize_ax_inspection() {
+    for (label, count) in [
+        ("negative-child-count", "-1"),
+        ("huge-child-count", "2147483648"),
+        ("text-child-count", r#""2""#),
+        ("null-child-count", "null"),
+        ("fractional-child-count", "1.5"),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create isolated synthetic root");
+        let browser = fake_network_browser(
+            &root,
+            false,
+            "m-1",
+            false,
+            false,
+            false,
+            "m-1",
+            "0",
+            "1",
+            "1790847999",
+        );
+        let script = fs::read_to_string(&browser).expect("read fake browser");
+        // jig-ignore-next-line: indivisible synthetic CDP document root.
+        let original = r#""root":{"nodeId":1,"backendNodeId":2,"nodeType":9,"nodeName":"\u0023document","localName":"","nodeValue":""}"#;
+        assert!(script.contains(original));
+        let updated = original.replace(
+            r#""nodeValue":""}"#,
+            &format!(r#""nodeValue":"","childNodeCount":{count}}}"#),
+        );
+        install_script(&browser, script.replace(original, &updated))
+            .expect("inject malformed document child count");
+        let mut managed =
+            // jig-ignore-next-line: canonical rustfmt line.
+            ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+        let page = managed.provider_page().expect("discover Mail tab");
+        assert_eq!(
+            managed.require_mail_shell(&page),
+            Err(BrowserDriverError::Protocol),
+            "invalid document child count {label} cannot prove Mail"
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn malformed_chromium_handshake_releases_owned_profile_for_retry() {
     use serde_json::json;
     for (case, invalid) in [

@@ -139,6 +139,34 @@ fn documented_root_url_cannot_contradict_the_mail_page_origin() {
 }
 
 #[test]
+fn document_child_node_count_must_be_a_nonnegative_protocol_integer() {
+    use super::valid_cdp_document_root;
+    use serde_json::json;
+
+    let mut root = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    for valid in [json!(0i32), json!(12i32), json!(i32::MAX)] {
+        root["childNodeCount"] = valid;
+        assert!(valid_cdp_document_root(&root));
+    }
+    for invalid in [
+        json!(-1i32),
+        json!(2_147_483_648u64),
+        json!("2"),
+        json!(null),
+        json!(1.5f64),
+    ] {
+        root["childNodeCount"] = invalid;
+        assert!(
+            !valid_cdp_document_root(&root),
+            "malformed optional document child count must not prove a root"
+        );
+    }
+}
+
+#[test]
 fn cdp_node_identifiers_are_bounded_to_protocol_integers() {
     use super::{allowed_mail_cdp_request, valid_cdp_document_root};
     use serde_json::json;

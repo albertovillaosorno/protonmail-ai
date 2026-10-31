@@ -4870,6 +4870,13 @@ fn valid_cdp_document_root(root: &Value) -> bool {
         && ["nodeId", "backendNodeId"]
             .iter()
             .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))
+        // A document may have zero children. Its optional count still must
+        // fit the signed CDP integer range, unlike positive node IDs.
+        && fields.get("childNodeCount").is_none_or(|value| {
+            value
+                .as_u64()
+                .is_some_and(|count| count <= MAX_CDP_NODE_ID)
+        })
         && fields.get("nodeType").and_then(Value::as_u64) == Some(9)
         && fields.get("nodeName").and_then(Value::as_str) == Some("#document")
         && ["localName", "nodeValue"]

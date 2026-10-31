@@ -124,6 +124,14 @@ web application without requiring Bridge or a third-party direct API identity.
   Missing or contradictory evidence fails closed; optional metadata remains
   compatible without reading private mailbox information.
 
+## Bound optional CDP document-root child counts
+
+- Red-first protocol and fake-browser responses showed a `DOM.getDocument`
+  root with a negative, fractional, string, null, or oversized `childNodeCount`
+  still established Mail-shell readiness. The optional child count now must be
+  a nonnegative signed 32-bit CDP integer; missing and valid counts remain
+  compatible. This does not read DOM descendants or private mailbox text.
+
 ## Reject contradictory document-root kinds
 
 - Red-first protocol and fake-browser tests showed a top-level CDP document
