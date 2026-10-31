@@ -51,12 +51,32 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
         "cacheStorageCacheName",
         "serviceWorkerRouterInfo",
     ];
-    source_flags.iter().all(|field| {
-        let value = response.get(*field);
-        matches!(value, None | Some(Value::Bool(false)))
-    }) && source_hints
-        .iter()
-        .all(|field| response.get(*field).is_none())
+    let Some(fields) = response.as_object() else {
+        return false;
+    };
+    // Future CDP releases may introduce a new cache/SW provenance marker.
+    // Do not silently treat an unknown source-like key as direct HTTP, even
+    // when its current value appears false or spells a known key differently.
+    let unknown_source_marker = fields.keys().any(|field| {
+        let source_like = ["from", "serviceWorker", "cacheStorage"]
+            .iter()
+            .any(|prefix| {
+                field
+                    .get(..prefix.len())
+                    .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+            });
+        source_like
+            && !source_flags.contains(&field.as_str())
+            && !source_hints.contains(&field.as_str())
+    });
+    !unknown_source_marker
+        && source_flags.iter().all(|field| {
+            let value = fields.get(*field);
+            matches!(value, None | Some(Value::Bool(false)))
+        })
+        && source_hints
+            .iter()
+            .all(|field| fields.get(*field).is_none())
 }
 
 // CDP can report a nominal 200 in responseReceived before the actual HTTP

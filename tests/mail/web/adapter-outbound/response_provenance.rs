@@ -104,3 +104,30 @@ fn contradictory_source_hints_override_false_flags() {
         assert!(uncached_provider_response(&response));
     }
 }
+
+#[test]
+fn unknown_response_source_markers_cannot_prove_direct_http() {
+    let ordinary_response = json!({
+        "status": 200u16, "mimeType": "application/json",
+        "fromDiskCache": false, "fromServiceWorker": false,
+        "fromPrefetchCache": false, "fromEarlyHints": false
+    });
+    assert!(uncached_provider_response(&ordinary_response));
+    for (name, marker) in [
+        ("fromMemoryCache", json!(true)),
+        ("FromDiskCache", json!(true)),
+        ("fromUnknownProvider", json!(false)),
+        ("serviceWorkerNewSource", json!("network")),
+        ("ServiceWorkerRouterInfo", json!(null)),
+        ("cacheStorageFuture", json!({})),
+        ("CacheStorageCacheName", json!("cache")),
+    ] {
+        let mut response = ordinary_response.clone();
+        response[name] = marker;
+        assert!(
+            !uncached_provider_response(&response),
+            "unreviewed response source marker {name} must not prove direct HTTP"
+        );
+    }
+    assert!(!uncached_provider_response(&json!(null)));
+}

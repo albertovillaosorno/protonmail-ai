@@ -132,6 +132,13 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- Shared passive Network response provenance now rejects unknown or differently
+  cased `from*`, `serviceWorker*`, and `cacheStorage*` metadata fields, rather
+  than treating future cached/service-worker markers as direct provider HTTP.
+  Red-first synthetic tests cover affirmative, false, and null source hints
+  while preserving ordinary non-provenance response metadata. Every read-only
+  capture using the shared gate inherits this fail-closed behavior.
+
 - The selected Mail or Account `TargetInfo` must contain only audited CDP
   metadata fields. An unexpected future authority/lifecycle property must not
   silently classify a provider page as the dedicated user-controlled tab.
