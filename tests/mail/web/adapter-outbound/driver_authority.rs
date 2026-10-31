@@ -1520,6 +1520,7 @@ let rowHidden=false, showLoading=false, nextDisabled=false;
 let duplicateRows=false;
 let fieldsetDisabled=false;
 let pointerBlocked=false,parentPointerBlocked=false,zeroNextArea=false;
+let overlayNext=false,viewportNext=false;
 let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false,ancestorClip=false,ancestorFilter=false;
@@ -1548,8 +1549,9 @@ const next=new HTMLButtonElement();
 next.parentElement=loaded;
 next.type='button';next.form=null;
 next.disabled=false;
-next.getClientRects=()=>[{width:zeroNextArea?0:60,
+next.getClientRects=()=>[{left:10,top:10,width:zeroNextArea?0:60,
  height:zeroNextArea?0:20}];
+next.contains=()=>false;
 next.closest=(q)=>(rootInert&&q.includes('[inert]')||
  nextParentDisabled&&q.includes('[aria-disabled'))?loaded:null;
 next.getAttribute=(key)=>key==='aria-disabled'&&
@@ -1562,6 +1564,7 @@ const current={getClientRects:()=>[{width:currentZeroArea?0:45,
 globalThis.document={querySelector:(q)=>
  (modal&&q.includes('dialog')||
  nativeDialog&&q.includes('dialog[open]'))?{}:null,
+ elementFromPoint:()=>viewportNext?null:overlayNext?{}:next,
  querySelectorAll:(q)=>q.includes('message-list-loading')?
    (showLoading?[{querySelectorAll:()=>[]}]:[]):
    q.includes('message-list-loaded')?[loaded]:
@@ -1572,6 +1575,19 @@ if(ready.rowIds[0]!=='synthetic-row'||ready.currentTestId!==
  'pagination-row:go-to-page-2'||ready.nextDisabled!==false){
  throw Error('visible list projection was not complete');
 }
+overlayNext=true;
+if(eval(expression)!==null){
+ throw Error('covered enabled Next reported actionable');
+}
+nextDisabled=true;
+if(eval(expression)?.nextDisabled!==true){
+ throw Error('disabled Next may remain observable beneath overlay');
+}
+nextDisabled=false;overlayNext=false;viewportNext=true;
+if(eval(expression)!==null){
+ throw Error('off-viewport enabled Next reported actionable');
+}
+viewportNext=false;
 nextAriaUpper=true;
 if(eval(expression)?.nextDisabled!==true){
  throw Error('uppercase ARIA-disabled Next was reported enabled');

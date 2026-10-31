@@ -90,6 +90,13 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // Require real button area before calling the Next control visible.
     "const hasArea=(node)=>[...node.getClientRects()].some(",
     "(rect)=>rect.width>0&&rect.height>0);",
+    // Enabled Next must agree with the later click's viewport hit test.
+    "const hitTest=(node)=>[...node.getClientRects()].some((rect)=>{",
+    "if(!(rect.width>0&&rect.height>0)){return false;}",
+    "const x=rect.left+rect.width/2,y=rect.top+rect.height/2;",
+    "if(!Number.isFinite(x)||!Number.isFinite(y)){return false;}",
+    "const hit=document.elementFromPoint(x,y);",
+    "return !!hit&&(hit===node||node.contains(hit));});",
     "if(!visibleTree(root)){return null;}",
     // Loading is a non-authoritative state. Do not inspect or serialize
     // transient row IDs, skeleton details, or pagination while it is active.
@@ -141,7 +148,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(!next.matches(':disabled')&&!next.disabled&&",
     "next.getAttribute('aria-disabled')?.toLowerCase()!=='true'&&",
     "!inheritedDisabled&&",
-    "!pointerTree(next))||",
+    "(!pointerTree(next)||!hitTest(next)))||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",

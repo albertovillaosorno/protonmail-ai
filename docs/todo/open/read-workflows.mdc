@@ -23,6 +23,15 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Enabled Next readiness must agree with viewport hit testing
+
+- A red-first synthetic list DOM reported enabled Next while an overlay
+  intercepted its visual midpoint. The subsequent audited click now refuses
+  such controls, so readiness must not claim they are actionable. Content-free
+  list evidence now requires the same finite viewport and descendant hit for
+  enabled Next, without losing an actually disabled Next behind an overlay.
+  The fixture also rejects an off-viewport control without a hit target.
+
 ## Mask-hidden Mail content and controls
 
 - Red-first synthetic Node fixtures proved that a CSS `mask-image` rendering
