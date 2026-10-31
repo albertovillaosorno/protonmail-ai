@@ -2239,3 +2239,14 @@ web application without requiring Bridge or a third-party direct API identity.
   node listing no children could still be accepted as the parent of a search
   landmark in a different role reply. Red-first fake Chromium tests prove
   rejection; omitted optional lists and consistent lists still work.
+
+- Visible conversation-list snapshots no longer accept unknown GET query
+  selectors as proof of an initial page. Red-first synthetic responses with
+  new filter/sort keys previously reconciled against visible rows as if the
+  request were canonical. Passive diagnostics remain possible, while known
+  Keyword/LabelID filters and ordinary page/sort selectors stay compatible.
+
+- Conversation-list Keyword/LabelID filters now require canonical casing and
+  unique keys. Red-first visible-page fixtures previously accepted two
+  competing filter values (or case-variant aliases) as a normal initial page;
+  both now fail during request parsing before any response body is read.

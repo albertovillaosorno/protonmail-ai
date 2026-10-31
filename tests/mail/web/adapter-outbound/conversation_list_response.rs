@@ -1401,6 +1401,85 @@ fn managed_browser_rejects_request_page_mismatch_and_anchor() {
 }
 
 #[test]
+fn repeated_conversation_filter_keys_cannot_authorize_visible_page() {
+    use mail_web_adapter::BrowserDriverError;
+
+    for (label, selector) in [
+        ("duplicate-keyword", "Keyword=a&Keyword=b"),
+        ("duplicate-label", "LabelID=a&LabelID=b"),
+        ("aliased-keyword", "Keyword=a&keyword=b"),
+        ("aliased-label", "LabelID=a&labelid=b"),
+    ] {
+        let query = format!("?Page=0&PageSize=50&Limit=50&{selector}");
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id: "conversation-2",
+                drift: ViewDrift::None,
+                message_mode: false,
+                emits_response: true,
+                request_query: &query,
+                page_marker: None,
+            },
+        );
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::ConversationListNetwork(
+                ConversationListNetworkError::InvalidPagination
+            ))
+        );
+        assert_eq!(log, "enable\ndisable\n");
+    }
+}
+
+#[test]
+fn unknown_conversation_query_keys_cannot_prove_visible_initial_page() {
+    use mail_web_adapter::BrowserDriverError;
+
+    for (label, selector) in [
+        ("unknown-conversation-filter", "FutureFilter=threads"),
+        ("unknown-conversation-sort", "SortDirection=oldest"),
+    ] {
+        let query = format!("?Page=0&PageSize=50&Limit=50&{selector}");
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id: "conversation-2",
+                drift: ViewDrift::None,
+                message_mode: false,
+                emits_response: true,
+                request_query: &query,
+                page_marker: None,
+            },
+        );
+        assert_eq!(
+            observed,
+            Err(BrowserDriverError::ConversationListPageUnproven)
+        );
+        assert_eq!(log, "enable\ndisable\n");
+    }
+    for (label, selector) in [
+        ("known-conversation-keyword", "Keyword=synthetic"),
+        ("known-conversation-label", "LabelID=synthetic"),
+    ] {
+        let query = format!("?Page=0&PageSize=50&Limit=50&{selector}");
+        let (observed, log) = observe_visible_case(
+            label,
+            VisibleBrowserCase {
+                row_id: "conversation-2",
+                drift: ViewDrift::None,
+                message_mode: false,
+                emits_response: true,
+                request_query: &query,
+                page_marker: None,
+            },
+        );
+        assert!(observed.expect("recognized optional selector").is_some());
+        assert_eq!(log, "enable\nbody\ndisable\n");
+    }
+}
+
+#[test]
 fn managed_browser_accepts_matching_page_number_without_claiming_snapshot() {
     let (observed, log) = observe_visible_case(
         "visible-page-two-matched",

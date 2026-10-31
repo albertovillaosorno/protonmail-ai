@@ -729,6 +729,8 @@ fn parse_request_page(
     let mut has_anchor = false;
     let mut has_anchor_id = false;
     let mut has_non_visible_selector = false;
+    let mut keyword_seen = false;
+    let mut label_seen = false;
     let mut sort = None;
     let mut descending = None;
     for parameter in query.split('&') {
@@ -800,17 +802,10 @@ fn parse_request_page(
                 }
             }
             _ => {
-                // Critical selectors must use their canonical wire casing.
-                // jig-ignore-next-line: Rustfmt selector set.
-                let selectors = ["Page", "PageSize", "Limit", "Anchor", "AnchorID"];
-                let other = ["BeginID", "EndID", "ID", "Sort", "Desc"];
-                let reserved = selectors.iter().chain(&other);
-                if reserved
-                    .into_iter()
-                    .any(|name| name.eq_ignore_ascii_case(key))
-                {
-                    return Err(ConversationListNetworkError::InvalidPagination);
-                }
+                // Noncanonical filter names fail; unreviewed options cannot
+                // silently prove that a visible first-page request is safe.
+                let recognized = known_filter_key(key, &mut keyword_seen, &mut label_seen)?;
+                has_non_visible_selector |= !recognized;
             }
         }
     }
@@ -826,6 +821,43 @@ fn parse_request_page(
         && !has_anchor
         && !has_non_visible_selector;
     Ok((page, has_anchor, initial_page_shape))
+}
+
+// Permit familiar Mail filters, but disallow duplicates and alternate casing.
+// Unrecognized keys remain useful for passive diagnostics, not for proof of
+// a canonical visible first page. Critical selectors are always canonical.
+fn known_filter_key(
+    key: &str,
+    keyword_seen: &mut bool,
+    label_seen: &mut bool,
+) -> Result<bool, ConversationListNetworkError> {
+    let selectors = ["Page", "PageSize", "Limit", "Anchor", "AnchorID"];
+    let other = ["BeginID", "EndID", "ID", "Sort", "Desc"];
+    if selectors
+        .iter()
+        .chain(&other)
+        .any(|known| known.eq_ignore_ascii_case(key))
+    {
+        return Err(ConversationListNetworkError::InvalidPagination);
+    }
+    let already_seen = match key {
+        "Keyword" => keyword_seen,
+        "LabelID" => label_seen,
+        _ => {
+            if ["Keyword", "LabelID"]
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(key))
+            {
+                return Err(ConversationListNetworkError::InvalidPagination);
+            }
+            return Ok(false);
+        }
+    };
+    if *already_seen {
+        return Err(ConversationListNetworkError::InvalidPagination);
+    }
+    *already_seen = true;
+    Ok(true)
 }
 
 fn bounded_page_size(value: &str) -> Result<u16, ConversationListNetworkError> {
