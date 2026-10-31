@@ -2217,13 +2217,50 @@ fn provider_prerender_or_malformed_subtype_is_not_visible_page_authority() {
 }
 
 #[test]
+fn popup_or_child_provider_target_cannot_be_selected_as_root_page() {
+    use serde_json::json;
+    for (label, metadata) in [
+        ("opened-popup", json!({"openerId":"external-1"})),
+        ("empty-opener", json!({"openerId":""})),
+        ("child-target", json!({"parentId":"parent-1"})),
+        ("opener-frame", json!({"openerFrameId":"frame-1"})),
+        ("opener-can-access", json!({"canAccessOpener":true})),
+        ("invalid-access", json!({"canAccessOpener":null})),
+    ] {
+        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+            let root = test_root(&format!("{kind}-{label}"));
+            fs::create_dir_all(&root).expect("create synthetic root");
+            let mut target = json!({
+                "targetId":"provider-1", "type":"page",
+                "url":format!("https://{host}/u/0/inbox")
+            });
+            target
+                .as_object_mut()
+                .expect("fixture object")
+                .extend(metadata.as_object().expect("metadata object").clone());
+            let browser = fake_browser(&root, &json!([target]).to_string(), host);
+            let browser_plan = plan(&root, &browser);
+            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            assert_eq!(
+                managed.provider_page(),
+                Err(BrowserDriverError::Protocol),
+                "{kind} {label} target is not an exclusive root page"
+            );
+            drop(managed);
+            cleanup(&root);
+        }
+    }
+}
+
+#[test]
 fn ordinary_provider_page_allows_empty_optional_subtype() {
     use serde_json::json;
     let root = test_root("normal-page-empty-subtype");
     fs::create_dir_all(&root).expect("create synthetic root");
     let targets = json!([{
         "targetId":"mail-1", "type":"page",
-        "url":"https://mail.proton.me/u/0/inbox", "subtype":""
+        "url":"https://mail.proton.me/u/0/inbox", "subtype":"",
+        "canAccessOpener":false
     }]);
     let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
     let browser_plan = plan(&root, &browser);

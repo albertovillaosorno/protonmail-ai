@@ -132,6 +132,13 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- Root-page selection now refuses provider targets with CDP opener/parent/
+  opener-frame relationships or affirmative/malformed opener access. A popup
+  opened by a script is not equivalent to the dedicated visible Mail tab,
+  even if it points to the same HTTPS provider origin. Red-first fake-browser
+  regressions cover Mail and Account target metadata and retain an explicit
+  `canAccessOpener: false` ordinary target; no live account was accessed.
+
 - Selected Mail and Account targets now reject a nonempty or malformed CDP
   `TargetInfo.subtype`: a prerendered `page` with the same provider URL is not
   evidence of a visible user-controlled tab. Red-first fake-browser cases

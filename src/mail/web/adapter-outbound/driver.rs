@@ -4944,6 +4944,18 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
     {
         return Err(BrowserDriverError::Protocol);
     }
+    // The chosen page must be the dedicated root tab, not a popup opened by
+    // another script or a child target with a parent. A script-accessible
+    // opener retains authority over a popup even when its URL is Proton.
+    if ["openerId", "parentId", "openerFrameId"]
+        .iter()
+        .any(|field| info.get(*field).is_some())
+        || info
+            .get("canAccessOpener")
+            .is_some_and(|value| value.as_bool() != Some(false))
+    {
+        return Err(BrowserDriverError::Protocol);
+    }
     // A page already attached to another debugger is not exclusively ours.
     // Missing `attached` remains compatible with older CDP implementations;
     // an explicitly present value must be false, not malformed or true.
