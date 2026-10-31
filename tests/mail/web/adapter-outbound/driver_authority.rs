@@ -2104,6 +2104,46 @@ fn oversized_outbound_cdp_frame_is_rejected_before_encoding() {
 }
 
 #[test]
+fn outbound_cdp_frame_ceiling_includes_exact_json_and_one_delimiter() {
+    use super::{BrowserDriverError, MAX_FRAME_BYTES, encode_cdp_request_frame};
+    use crate::strict_json::SensitiveValue;
+
+    let template = json!({
+        "id": 18u64, "method": "Runtime.evaluate",
+        "params": {"expression": ""}
+    });
+    let overhead = serde_json::to_vec(&template)
+        .expect("synthetic empty command")
+        .len();
+    let expression_bytes = MAX_FRAME_BYTES
+        .checked_sub(overhead)
+        .expect("test command header fits");
+    let accepted = SensitiveValue::from_owned(json!({
+        "id": 18u64, "method": "Runtime.evaluate",
+        "params": {"expression": "x".repeat(expression_bytes)}
+    }));
+    let frame =
+        // jig-ignore-next-line: canonical exact-limit frame regression.
+        encode_cdp_request_frame(&accepted).expect("exact maximum synthetic outbound frame");
+    assert_eq!(frame.len(), MAX_FRAME_BYTES.saturating_add(1));
+    assert_eq!(frame.last(), Some(&0));
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&frame[..MAX_FRAME_BYTES])
+            .expect("parse maximum synthetic outbound frame"),
+        *accepted
+    );
+
+    let rejected = SensitiveValue::from_owned(json!({
+        "id": 18u64, "method": "Runtime.evaluate",
+        "params": {"expression": "x".repeat(expression_bytes.saturating_add(1))}
+    }));
+    assert!(matches!(
+        encode_cdp_request_frame(&rejected),
+        Err(BrowserDriverError::Protocol)
+    ));
+}
+
+#[test]
 fn browser_command_and_runtime_returns_keep_scrub_on_drop_ownership() {
     use super::ManagedBrowser;
     use crate::strict_json::SensitiveValue;
