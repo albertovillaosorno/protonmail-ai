@@ -2474,3 +2474,16 @@ web application without requiring Bridge or a third-party direct API identity.
   and sandboxed origins previously entered capture when CDP omitted documentURL.
   Missing `Origin` remains compatible with ordinary same-origin browser GETs;
   matching Mail origin is accepted without logging or retaining the header.
+
+- Passive Mail API GET capture now rejects an explicit HTTP `Referer` outside
+  the canonical Mail web origin, even when CDP omits `documentURL`. Red-first
+  synthetic requests previously treated a foreign document's Mail endpoint
+  GET as active message-list evidence. The same bounded ASCII URL rule now
+  validates both document and referrer hints; omitted or matching referrers
+  remain compatible, without persisting request headers or mailbox data.
+
+- Explicit `Sec-Fetch-Mode: no-cors` cannot establish an AJAX Mail JSON read:
+  its opaque response is unavailable to application code. Red-first synthetic
+  Fetch GETs previously counted as message-list evidence. The shared passive
+  gate now permits explicit `cors` and `same-origin` modes while retaining
+  compatibility with omitted Fetch Metadata and ordinary first-party reads.

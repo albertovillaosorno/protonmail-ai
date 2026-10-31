@@ -135,6 +135,23 @@ const fn speculative_purpose_header(name: &str) -> bool {
     legacy || current
 }
 
+// Optional document and Referer URLs must describe the same Mail origin.
+// Chromium supplies serialized URLs; a textual prefix without an origin
+// boundary could otherwise accept an unrelated host or userinfo authority.
+fn serialized_mail_document_url(url: &str) -> bool {
+    let bounded = url.len() <= 16 * 1024;
+    let serialized = url.bytes().all(|byte| byte.is_ascii_graphic());
+    let same_origin = url
+        .strip_prefix("https://mail.proton.me")
+        .is_some_and(|suffix| {
+            suffix.is_empty()
+                || suffix.starts_with('/')
+                || suffix.starts_with('?')
+                || suffix.starts_with('#')
+        });
+    bounded && serialized && same_origin
+}
+
 // Fetch Metadata headers describe the actual browser request destination.
 // Navigation, embedded resources, or cross-site requests cannot corroborate
 // an active first-party Mail XHR/Fetch, regardless of CDP ResourceType.
@@ -147,9 +164,14 @@ fn active_mail_fetch_metadata(request: &Map<String, Value>) -> bool {
                 // because CDP omitted documentURL and classified it Fetch.
                 return value.as_str() == Some("https://mail.proton.me");
             }
+            if name.eq_ignore_ascii_case("Referer") {
+                // A foreign embedding document cannot establish an active
+                // Mail read when optional documentURL is missing from CDP.
+                return value.as_str().is_some_and(serialized_mail_document_url);
+            }
             if name.eq_ignore_ascii_case("Sec-Fetch-Mode") {
                 let mode = value.as_str();
-                return matches!(mode, Some("cors" | "same-origin" | "no-cors"));
+                return matches!(mode, Some("cors" | "same-origin"));
             }
             if name.eq_ignore_ascii_case("Sec-Fetch-Dest") {
                 return value.as_str() == Some("empty");
@@ -257,19 +279,7 @@ pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
     // alternate ports or ambiguous host prefixes without retaining the URL.
     let normal_document = match params.get("documentURL") {
         None => true,
-        Some(Value::String(url)) => {
-            let bounded = url.len() <= 16 * 1024;
-            let serialized = url.bytes().all(|byte| byte.is_ascii_graphic());
-            let same_origin = url
-                .strip_prefix("https://mail.proton.me")
-                .is_some_and(|suffix| {
-                    suffix.is_empty()
-                        || suffix.starts_with('/')
-                        || suffix.starts_with('?')
-                        || suffix.starts_with('#')
-                });
-            bounded && serialized && same_origin
-        }
+        Some(Value::String(url)) => serialized_mail_document_url(url),
         Some(_) => false,
     };
     let request_active = normal_link && normal_hints && normal_purpose;

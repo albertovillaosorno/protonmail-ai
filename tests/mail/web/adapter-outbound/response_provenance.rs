@@ -311,6 +311,43 @@ fn explicit_foreign_origin_header_cannot_prove_mail_api_read() {
 }
 
 #[test]
+fn foreign_referer_header_cannot_prove_active_mail_read() {
+    let ordinary = json!({
+        "params": {"request": {"method": "GET",
+            "headers": {"Referer": "https://mail.proton.me/u/0/inbox"}},
+            "type": "Fetch", "initiator": {"type": "script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    let mut omitted = ordinary.clone();
+    omitted["params"]["request"]["headers"]
+        .as_object_mut()
+        .expect("synthetic header map")
+        .remove("Referer");
+    assert!(non_speculative_cdp_get(&omitted));
+    let mut lowercase = ordinary.clone();
+    let headers = json!({"referer": "https://mail.proton.me"});
+    lowercase["params"]["request"]["headers"] = headers;
+    assert!(non_speculative_cdp_get(&lowercase));
+    for referer in [
+        "https://evil.invalid/frame",
+        "https://mail.proton.me.evil.invalid/u/0/inbox",
+        "https://mail.proton.me@evil.invalid/u/0/inbox",
+        "https://mail.proton.me:8443/u/0/inbox",
+        "http://mail.proton.me/u/0/inbox",
+        "https://account.proton.me/u/0/inbox",
+        "https://mail.proton.me/invalid path",
+        "https://mail.proton.me/\u{1f6e1}\u{fe0f}",
+    ] {
+        let mut event = ordinary.clone();
+        event["params"]["request"]["headers"]["Referer"] = json!(referer);
+        assert!(
+            !non_speculative_cdp_get(&event),
+            "foreign or malformed Referer must not prove a Mail API read"
+        );
+    }
+}
+
+#[test]
 fn navigation_fetch_metadata_cannot_prove_active_mail_ajax() {
     let ordinary = json!({
         "params": {"request": {"method": "GET",
@@ -321,6 +358,7 @@ fn navigation_fetch_metadata_cannot_prove_active_mail_ajax() {
     assert!(non_speculative_cdp_get(&ordinary));
     for (name, value) in [
         ("Sec-Fetch-Mode", "navigate"),
+        ("Sec-Fetch-Mode", "no-cors"),
         ("sec-fetch-mode", "websocket"),
         ("Sec-Fetch-Dest", "document"),
         ("Sec-Fetch-Dest", "image"),
