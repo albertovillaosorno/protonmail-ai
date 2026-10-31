@@ -132,6 +132,12 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- The trusted-sticky-parent synthetic login test now observes the complete
+  detached browser argv before deleting its test profile. The CLI can return
+  before the fake browser finishes writing; premature cleanup occasionally
+  raised `DirectoryNotEmpty` and discarded an otherwise valid safety proof.
+  The test also confirms the actual private profile directory argument.
+
 - The CDP `Browser.getVersion` handshake now admits only the five audited
   optional/required string fields with individual byte ceilings, rejecting
   unexpected or malformed metadata before the browser's version marker can

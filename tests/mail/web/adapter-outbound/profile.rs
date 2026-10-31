@@ -584,6 +584,11 @@ fn trusted_sticky_parent_allows_private_data_home() {
     assert!(login(&root, &browser, Some(&data_home)).status.success());
     let expected = profile_under(&data_home);
     assert!(expected.is_dir());
+    // The CLI exits before the detached browser writes its argv file.
+    // Observe a complete argv first so cleanup cannot race that writer.
+    let args = wait_for_args(&root);
+    let selected = format!("--user-data-dir={}", expected.display());
+    assert!(args.lines().any(|line| line == selected));
     cleanup(&root);
 }
 
