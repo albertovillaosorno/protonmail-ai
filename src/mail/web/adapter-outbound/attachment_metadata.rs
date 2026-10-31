@@ -410,6 +410,17 @@ impl ObservedAttachmentMetadataResponse {
             None
         }
         .ok_or(AttachmentMetadataResponseError::UnexpectedEndpoint)?;
+        // jig-ignore-next-line: rustfmt keeps this private parser call flat.
+        Self::parse_expected_id(requested_attachment_id, expected_message_id, body)
+    }
+
+    // Both selectors are already validated at the CDP projection boundary.
+    // Avoid a second copied private attachment ID inside a formatted URL.
+    fn parse_expected_id(
+        requested_attachment_id: &str,
+        expected_message_id: &str,
+        body: &str,
+    ) -> Result<Self, AttachmentMetadataResponseError> {
         validate_expected_message_id(expected_message_id)?;
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(AttachmentMetadataResponseError::BodyTooLarge);
@@ -495,8 +506,7 @@ impl ObservedAttachmentMetadataResponse {
             .get("body")
             .and_then(Value::as_str)
             .ok_or(AttachmentMetadataResponseError::Malformed)?;
-        let url = format!("{ATTACHMENT_URL_PREFIX}{attachment_id}/metadata");
-        Self::parse("GET", &url, expected_message_id, body)
+        Self::parse_expected_id(attachment_id, expected_message_id, body)
     }
 
     /// Returns the content-minimized bound metadata.

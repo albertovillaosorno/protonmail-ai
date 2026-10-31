@@ -964,3 +964,17 @@ fn cdp_detail_envelope_refuses_unexpected_fields() {
     let changed = ObservedConversationDetailResponse::parse_cdp_body("conversation-1", &envelope);
     assert_eq!(changed, Err(ConversationDetailResponseError::Malformed));
 }
+
+#[test]
+fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
+    let body = conversation_body().to_string();
+    let envelope = json!({"body": body, "base64Encoded": false});
+    let exact = ObservedConversationDetailResponse::parse(
+        "GET",
+        URL,
+        envelope["body"].as_str().expect("synthetic body"),
+    );
+    let from_cdp = ObservedConversationDetailResponse::parse_cdp_body;
+    let captured = from_cdp("conversation-1", &envelope);
+    assert_eq!(captured, exact);
+}

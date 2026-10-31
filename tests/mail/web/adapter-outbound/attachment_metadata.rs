@@ -1126,3 +1126,18 @@ fn mime_parameters_accept_valid_quoted_and_token_values() {
         );
     }
 }
+
+#[test]
+fn cdp_body_projection_matches_exact_get_without_rebuilding_private_url() {
+    let body = metadata_body().to_string();
+    let envelope = json!({"body": body, "base64Encoded": false});
+    let exact = ObservedAttachmentMetadataResponse::parse(
+        "GET",
+        URL,
+        MESSAGE_ID,
+        envelope["body"].as_str().expect("synthetic body"),
+    );
+    let from_cdp = ObservedAttachmentMetadataResponse::parse_cdp_body;
+    let captured = from_cdp("attachment-1", MESSAGE_ID, &envelope);
+    assert_eq!(captured, exact);
+}

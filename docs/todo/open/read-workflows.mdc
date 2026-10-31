@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Passive message, conversation, and attachment detail CDP envelope projectors
+  now reuse their exact body validators with already validated entity selectors.
+  They no longer allocate and drop reconstructed full GET URLs containing
+  private entity IDs. Standalone exact-URL parsers retain endpoint validation;
+  synthetic parity tests cover all three normalized projections and preserve
+  their existing content-minimization and ID-binding rules.
+
 - Event/catalog cursor decoding now uses the bounded Base64 slice API on an
   already zeroizing output buffer, including partially written prefixes on
   malformed-token errors. Successful decoding erases unused capacity before

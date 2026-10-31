@@ -584,6 +584,15 @@ impl ObservedMessageDetailResponse {
             None
         }
         .ok_or(MessageDetailResponseError::UnexpectedEndpoint)?;
+        Self::parse_expected_id(expected_id, body)
+    }
+
+    // The CDP envelope already carries an exact validated entity selector.
+    // Reusing this projector avoids allocating a second secret-bearing URL.
+    fn parse_expected_id(
+        expected_id: &str,
+        body: &str,
+    ) -> Result<Self, MessageDetailResponseError> {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(MessageDetailResponseError::BodyTooLarge);
         }
@@ -684,8 +693,7 @@ impl ObservedMessageDetailResponse {
             .get("body")
             .and_then(Value::as_str)
             .ok_or(MessageDetailResponseError::Malformed)?;
-        let url = format!("{MESSAGE_DETAIL_URL_PREFIX}{message_id}");
-        Self::parse("GET", &url, body)
+        Self::parse_expected_id(message_id, body)
     }
 
     /// Returns the content-minimized provider metadata.

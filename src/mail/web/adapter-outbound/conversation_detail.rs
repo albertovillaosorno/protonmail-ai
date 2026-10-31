@@ -420,6 +420,15 @@ impl ObservedConversationDetailResponse {
             None
         }
         .ok_or(ConversationDetailResponseError::UnexpectedEndpoint)?;
+        Self::parse_expected_id(expected_id, body)
+    }
+
+    // The CDP envelope already binds the validated exact conversation ID.
+    // Project its body without a temporary unguarded URL string.
+    fn parse_expected_id(
+        expected_id: &str,
+        body: &str,
+    ) -> Result<Self, ConversationDetailResponseError> {
         if body.len() > Self::MAX_BODY_BYTES {
             return Err(ConversationDetailResponseError::BodyTooLarge);
         }
@@ -520,8 +529,7 @@ impl ObservedConversationDetailResponse {
             .get("body")
             .and_then(Value::as_str)
             .ok_or(ConversationDetailResponseError::Malformed)?;
-        let url = format!("{CONVERSATION_DETAIL_URL_PREFIX}{conversation_id}");
-        Self::parse("GET", &url, body)
+        Self::parse_expected_id(conversation_id, body)
     }
 
     /// Returns the content-minimized complete membership.
