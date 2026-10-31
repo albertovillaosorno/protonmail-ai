@@ -2600,6 +2600,58 @@ fn oversized_or_disguised_cdp_notification_identity_drains_real_reply() {
 }
 
 #[test]
+fn browser_version_rejects_unreviewed_or_malformed_handshake_fields() {
+    use serde_json::json;
+    let cases = [
+        ("unknown", String::from(r#""futureOwnerContext":true"#)),
+        ("numeric-protocol", String::from(r#""protocolVersion":3"#)),
+        ("null-revision", String::from(r#""revision":null"#)),
+        ("invalid-js", String::from(r#""jsVersion":false"#)),
+        (
+            "long-agent",
+            format!("\"userAgent\":{}", json!("X".repeat(2049))),
+        ),
+    ];
+    for (label, metadata) in cases {
+        let root = test_root(&format!("handshake-{label}"));
+        fs::create_dir_all(&root).expect("create synthetic profile");
+        let browser = fake_browser(&root, "[]", "mail.proton.me");
+        let plan = plan(&root, &browser);
+        let script = fs::read_to_string(&browser).expect("read script");
+        let product = r#""product":"FakeChrome/1""#;
+        assert!(script.contains(product));
+        let expanded = format!("{product},{metadata}");
+        install_script(&browser, script.replace(product, &expanded))
+            .expect("inject browser handshake field");
+        assert!(matches!(
+            ManagedBrowser::launch(&plan),
+            Err(BrowserDriverError::Protocol)
+        ));
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn browser_version_allows_standard_optional_string_fields() {
+    let root = test_root("handshake-standard-fields");
+    fs::create_dir_all(&root).expect("create synthetic profile");
+    let browser = fake_browser(&root, "[]", "mail.proton.me");
+    let script = fs::read_to_string(&browser).expect("read script");
+    let product = r#""product":"FakeChrome/1""#;
+    let version = concat!(
+        r#""product":"FakeChrome/1","protocolVersion":"1.3","#,
+        r#""revision":"r1","userAgent":"Chrome","jsVersion":"V8""#,
+    );
+    assert!(script.contains(product));
+    install_script(&browser, script.replace(product, version))
+        .expect("install standard handshake fields");
+    let managed = ManagedBrowser::launch(&plan(&root, &browser))
+        .expect("standard version fields are compatible");
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
 fn malformed_chromium_handshake_releases_owned_profile_for_retry() {
     use serde_json::json;
     for (case, invalid) in [

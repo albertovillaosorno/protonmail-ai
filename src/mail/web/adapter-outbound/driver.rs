@@ -4768,6 +4768,21 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
         return false;
     };
     match method {
+        "Browser.getVersion" => {
+            // Browser identity is a protocol handshake, not an untyped data
+            // bag. Unexpected future fields may change its trust semantics.
+            // Validate their type and bound before consuming the product.
+            fields.iter().all(|(name, value)| {
+                let maximum = match name.as_str() {
+                    "product" => 256,
+                    "protocolVersion" | "jsVersion" => 128,
+                    "revision" => 512,
+                    "userAgent" => 2048,
+                    _ => return false,
+                };
+                value.as_str().is_some_and(|text| text.len() <= maximum)
+            })
+        }
         // The discovery and by-value evaluation commands own specific
         // results; an unknown sibling cannot silently change what they prove.
         "Target.getTargets" => {
