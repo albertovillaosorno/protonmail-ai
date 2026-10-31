@@ -2039,3 +2039,29 @@ fn non_ajax_resource_cannot_prove_message_list_api_read() {
         Err(MessageListNetworkError::ResponseRejected)
     );
 }
+
+#[test]
+fn unknown_payload_get_cannot_be_promoted_to_message_list_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (field, value) in [
+        ("postDataLength", json!(42u64)),
+        ("requestBody", json!("private")),
+        ("HasPostData", json!(false)),
+    ] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let mut request = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "unreviewed-payload", "type": "Fetch",
+                "request": {"method": "GET", "url": URL}}
+        });
+        request["params"]["request"][field] = value;
+        assert_eq!(
+            capture.observe(&request),
+            Err(MessageListNetworkError::MalformedEvent),
+            "unreviewed payload hint {field} must fail closed"
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
+}

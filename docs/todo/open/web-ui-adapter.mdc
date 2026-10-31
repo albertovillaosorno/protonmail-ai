@@ -515,6 +515,18 @@ web application without requiring Bridge or a third-party direct API identity.
   hints stay compatible with legacy Chromium events. This narrows accepted
   evidence; it does not create new browser traffic or access a live account.
 
+## Refuse unreviewed request-body hints on passive GETs
+
+- A red-first synthetic `GET` carrying unreviewed `postDataLength`, `body`,
+  or differently cased `HasPostData` fields was previously treated as
+  body-free and tracked as a Mail API read. Shared request provenance now
+  refuses future or alias payload/body/upload/length markers and non-ASCII
+  protocol field names, regardless of claimed payload size or boolean value.
+
+- Synthetic unit and message-list tests preserve ordinary request headers,
+  exact `hasPostData:false`, and omitted optional body flags. The guard does
+  not inspect, retain, or log any real request payload or credentials.
+
 ## Current implementation
 
 - The Mail shell's `DOM.getDocument` root now refuses contradictory CDP

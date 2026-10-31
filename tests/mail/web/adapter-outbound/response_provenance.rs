@@ -432,3 +432,30 @@ fn passive_mail_reads_require_ajax_resource_type_when_reported() {
         );
     }
 }
+
+#[test]
+fn unknown_request_payload_markers_cannot_prove_bodyless_get() {
+    let clean = json!({
+        "method": "GET", "url": "https://mail.proton.me/api/mail/v4/messages",
+        "hasPostData": false, "headers": {"Accept": "application/json"}
+    });
+    assert!(bodyless_cdp_get(&clean));
+    for (marker, value) in [
+        ("HasPostData", json!(false)),
+        ("postDataLength", json!(1u64)),
+        ("requestBody", json!("synthetic")),
+        ("payloadBytes", json!(0u64)),
+        ("uploadData", json!(null)),
+        ("body", json!([])),
+        ("contentLength", json!(3u64)),
+        ("postD\u{0430}ta", json!("synthetic")),
+        ("\u{5b89}\u{5168}", json!(null)),
+    ] {
+        let mut request = clean.clone();
+        request[marker] = value;
+        assert!(
+            !bodyless_cdp_get(&request),
+            "noncanonical payload hint {marker} must disqualify GET"
+        );
+    }
+}

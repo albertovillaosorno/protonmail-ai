@@ -42,7 +42,30 @@ use serde_json::Value;
 )]
 pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
     request.as_object().is_some_and(|fields| {
-        matches!(fields.get("hasPostData"), None | Some(Value::Bool(false)))
+        // Request protocol names are ASCII. Future payload metadata, alias
+        // spellings, or Unicode lookalikes cannot silently establish the
+        // absence of a GET body, regardless of their reported value.
+        let unreviewed_body_marker = fields.keys().any(|field| {
+            if !field.is_ascii() {
+                return true;
+            }
+            let body_markers = ["postdata", "body", "payload"];
+            let length_markers = ["upload", "contentlength"];
+            field != "hasPostData"
+                && body_markers
+                    .iter()
+                    .chain(length_markers.iter())
+                    .any(|marker| {
+                        field.as_bytes().windows(marker.len()).any(|part| {
+                            let needle = marker.as_bytes();
+                            part.eq_ignore_ascii_case(needle)
+                        })
+                    })
+        });
+        let body_flag = fields.get("hasPostData");
+        let bodyless = matches!(body_flag, None | Some(Value::Bool(false)));
+        !unreviewed_body_marker
+            && bodyless
             && !fields.contains_key("postData")
             && !fields.contains_key("postDataEntries")
     })
