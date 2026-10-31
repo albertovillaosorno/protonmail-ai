@@ -306,6 +306,11 @@ fn completed_fork_rejects_ambiguous_account_binding_user_ids() {
         "synthetic\nuser",
         "synthetic\0user",
         "synthetic\u{202e}user",
+        "synthetic\u{034f}user",
+        "synthetic\u{2800}user",
+        "synthetic\u{3164}user",
+        "synthetic\u{fe0f}user",
+        "synthetic\u{e0020}user",
         oversized.as_str(),
     ];
     for user_id in invalid {
@@ -328,7 +333,12 @@ fn completed_fork_rejects_ambiguous_account_binding_user_ids() {
 fn completed_fork_accepts_bounded_printable_account_identity() {
     type JsonValue = serde_json::Value;
     let at_limit = "a".repeat(8_192);
-    for user_id in ["synthetic-user-id", "ma\u{00f1}ana", at_limit.as_str()] {
+    for user_id in [
+        "synthetic-user-id",
+        "ma\u{00f1}ana",
+        "user\u{1f600}",
+        at_limit.as_str(),
+    ] {
         let fixture = complete_response(None);
         let parsed: Result<JsonValue, _> = serde_json::from_slice(&fixture);
         let mut response = parsed.expect("synthetic complete response");

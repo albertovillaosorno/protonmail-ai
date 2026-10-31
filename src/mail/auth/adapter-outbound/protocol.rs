@@ -996,16 +996,30 @@ fn safe_header_authority(value: &str) -> bool {
 fn safe_account_binding_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= MAX_ACCOUNT_BINDING_ID_BYTES
-        && !id.chars().any(|character| {
-            character.is_control()
-                || character.is_whitespace()
-                || matches!(
-                    character,
-                    '\u{00ad}' | '\u{061c}' | '\u{200b}'..='\u{200f}'
-                        | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
-                        | '\u{feff}'
-                )
-        })
+        && !id.chars().any(unsafe_account_binding_character)
+}
+
+// Account identifiers are not display names. Exclude default-ignorable and
+// invisible formatting aliases that can impersonate a different account even
+// when ordinary whitespace/control checks pass. Keep normal Unicode letters.
+const fn unsafe_account_binding_character(character: char) -> bool {
+    character.is_control()
+        || character.is_whitespace()
+        || matches!(
+            character,
+            '\u{00ad}' | '\u{034f}' | '\u{0600}'..='\u{0605}'
+                | '\u{061c}' | '\u{06dd}' | '\u{070f}'
+                | '\u{0890}'..='\u{0891}' | '\u{08e2}'
+                | '\u{115f}'..='\u{1160}' | '\u{17b4}'..='\u{17b5}'
+                | '\u{180b}'..='\u{180f}' | '\u{1bca0}'..='\u{1bca3}'
+                | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}'
+                | '\u{2060}'..='\u{206f}' | '\u{2800}' | '\u{3164}'
+                | '\u{fe00}'..='\u{fe0f}' | '\u{feff}' | '\u{ffa0}'
+                | '\u{fff9}'..='\u{fffb}' | '\u{110bd}' | '\u{110cd}'
+                | '\u{13430}'..='\u{1343f}' | '\u{1d173}'..='\u{1d17a}'
+                | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}' | '\u{fffd}'
+        )
 }
 
 // Sensitive fields are wrapped *while* the JSON model is constructed, so

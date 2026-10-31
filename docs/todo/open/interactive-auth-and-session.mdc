@@ -179,6 +179,15 @@ account credentials. The primary web UI login remains a separate P1 path.
   retaining provider authority. Positive synthetic fixtures preserve normal
   printable Unicode and the exact byte ceiling; this does not permit live auth.
 
+## Additional invisible account-alias rejection
+
+- A second red-first account-binding check found `UserID` still accepted
+  combining grapheme joiners, Unicode braille/hangul blanks, variation
+  selectors, and invisible tags despite rejecting whitespace and bidi marks.
+  The completed fork gate now rejects these remaining non-rendering aliases
+  before issuing typed authority; ordinary accented text, emoji and the
+  existing size bound remain compatible. All evidence stays offline.
+
 ## Ephemeral handoff text custody
 
 - The offline QR/manual-code model previously held its base64 handoff key in
