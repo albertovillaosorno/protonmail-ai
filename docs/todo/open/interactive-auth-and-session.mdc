@@ -123,6 +123,12 @@ account credentials. The primary web UI login remains a separate P1 path.
 
 ## Bounded auth response parsing
 
+- HTTP 422 fork polls remain pending without interpreting the provider body,
+  but now enforce the same 256 KiB input ceiling as successful polls. An
+  oversized pending body fails closed with `ResponseTooLarge`, while the exact
+  limit and ordinary pending bodies remain compatible. Synthetic red-first
+  regressions cover both boundary lengths and non-pending status precedence.
+
 - Red-first synthetic inputs demonstrated that anonymous bootstrap, fork
   challenge, and completed-fork parsers previously accepted arbitrarily large
   valid JSON bodies. Those protocol boundaries now reject decoded response

@@ -302,8 +302,30 @@ fn provider_auth_response_body_size_is_bounded() {
     ));
     assert!(matches!(
         ForkPoll::parse(422, oversized_fork.as_bytes()),
+        Err(ProtocolError::ResponseTooLarge)
+    ));
+}
+
+#[test]
+fn pending_fork_poll_has_same_raw_body_ceiling_as_completed_polls() {
+    // Keep the provider's ordinary pending status independent of response
+    // JSON, but never let it bypass the protocol's input byte ceiling.
+    let at_limit = vec![b'x'; 262_144];
+    assert!(matches!(
+        ForkPoll::parse(422, &at_limit),
         Ok(ForkPoll::Pending)
     ));
+    let mut too_large = at_limit;
+    too_large.push(b'x');
+    assert_eq!(
+        ForkPoll::parse(422, &too_large).err(),
+        Some(ProtocolError::ResponseTooLarge)
+    );
+    // Unsuccessful non-pending statuses remain failures, not pending polls.
+    assert_eq!(
+        ForkPoll::parse(401, &too_large).err(),
+        Some(ProtocolError::UnexpectedStatus(401))
+    );
 }
 
 #[test]

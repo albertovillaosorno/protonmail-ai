@@ -571,15 +571,16 @@ impl ForkPoll {
     /// Returns a protocol error for other non-200 status codes, malformed JSON,
     /// missing identity, invalid payload encoding, or empty authority fields.
     pub fn parse(status: u16, body: &[u8]) -> ForkResult<Self> {
-        if status == HTTP_UNPROCESSABLE_ENTITY {
-            return Ok(Self::Pending);
-        }
-        if status != HTTP_OK {
+        if status != HTTP_OK && status != HTTP_UNPROCESSABLE_ENTITY {
             return Err(ProtocolError::UnexpectedStatus(status));
         }
-
+        // Pending polls must not silently bypass the same bounded input
+        // contract as completed responses. Their content is still ignored.
         if body.len() > MAX_AUTH_RESPONSE_BYTES {
             return Err(ProtocolError::ResponseTooLarge);
+        }
+        if status == HTTP_UNPROCESSABLE_ENTITY {
+            return Ok(Self::Pending);
         }
         let parsed = serde_json::from_slice::<RawForkSession>(body);
         let raw = parsed.map_err(|_json| ProtocolError::MalformedJson)?;
