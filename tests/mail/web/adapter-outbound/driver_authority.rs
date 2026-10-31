@@ -81,6 +81,18 @@ fn sparse_dom_root_cannot_establish_document_identity() {
             "missing {required} cannot prove a document root"
         );
     }
+    for (field, value) in [
+        ("parentId", json!(3u64)),
+        ("pseudoType", json!("before")),
+        ("shadowRootType", json!("open")),
+    ] {
+        let mut contradictory = root.clone();
+        contradictory[field] = value;
+        assert!(
+            !valid_cdp_document_root(&contradictory),
+            "{field} cannot describe a top-level document"
+        );
+    }
     for (field, invalid) in [
         ("nodeId", json!(0u64)),
         ("backendNodeId", json!(0u64)),

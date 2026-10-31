@@ -4837,14 +4837,18 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
 
 // DOM.Node has required identity, type, name and value fields even at
 // depth zero. A sparse result must not authorize subsequent AX queries as if
-// it had proven a real document root; optional metadata remains irrelevant.
+// it had proven a real document root. Parent, pseudo-element and shadow-root
+// identities contradict a top-level document; other metadata is optional.
 fn valid_cdp_document_root(root: &Value) -> bool {
     let Some(fields) = root.as_object() else {
         return false;
     };
-    ["nodeId", "backendNodeId"]
+    ["parentId", "pseudoType", "shadowRootType"]
         .iter()
-        .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))
+        .all(|field| !fields.contains_key(*field))
+        && ["nodeId", "backendNodeId"]
+            .iter()
+            .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))
         && fields.get("nodeType").and_then(Value::as_u64) == Some(9)
         && fields.get("nodeName").and_then(Value::as_str) == Some("#document")
         && ["localName", "nodeValue"]

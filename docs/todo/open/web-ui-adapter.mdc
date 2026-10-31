@@ -89,6 +89,15 @@ web application without requiring Bridge or a third-party direct API identity.
   Missing or contradictory evidence fails closed; optional metadata remains
   compatible without reading private mailbox information.
 
+## Reject contradictory document-root kinds
+
+- Red-first protocol and fake-browser tests showed a top-level CDP document
+  could carry a parent, pseudo-element classification, or shadow-root type
+  yet still authorize the subsequent Mail-shell accessibility queries.
+  `DOM.getDocument` root validation now rejects these contradictory node
+  identities while retaining ordinary optional document metadata. This
+  requires no private DOM text or live provider interaction.
+
 ## Exact shape for browser-origin evidence
 
 - A red-first fake-Chromium CDP reply proved that an extended location

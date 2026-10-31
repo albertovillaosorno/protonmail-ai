@@ -2678,6 +2678,21 @@ fn contradictory_dom_root_metadata_cannot_prove_mail_shell() {
             r#""nodeValue":"""#,
             r#""nodeValue":"not-document""#,
         ),
+        (
+            "document-with-parent",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","parentId":3"#,
+        ),
+        (
+            "document-as-pseudo",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","pseudoType":"before""#,
+        ),
+        (
+            "document-as-shadow-root",
+            r#""nodeValue":"""#,
+            r#""nodeValue":"","shadowRootType":"open""#,
+        ),
     ] {
         let root = test_root(&format!("dom-root-{label}"));
         fs::create_dir_all(&root).expect("create synthetic root");
