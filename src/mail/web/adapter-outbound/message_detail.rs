@@ -145,6 +145,8 @@ impl MessageDetailNetworkCapture {
         match event.get("method").and_then(Value::as_str) {
             Some("Network.requestWillBeSent") => self.observe_request(event),
             Some("Network.responseReceived") => self.observe_response(event),
+            // jig-ignore-next-line: canonical rustfmt line.
+            Some("Network.requestServedFromCache") => self.observe_cache_hit(event),
             Some("Network.loadingFinished") => self.observe_finished(event),
             Some("Network.loadingFailed") => self.observe_failed(event),
             _ => Ok(()),
@@ -276,6 +278,20 @@ impl MessageDetailNetworkCapture {
             return Err(MessageDetailNetworkError::ResponseRejected);
         }
         request.state = MessageDetailRequestState::Responded;
+        Ok(())
+    }
+
+    // A cache hit can arrive before or after responseReceived. Either order
+    // disqualifies this exact request from establishing fresh provider state.
+    // jig-ignore-next-line: canonical rustfmt line.
+    fn observe_cache_hit(&self, event: &Value) -> Result<(), MessageDetailNetworkError> {
+        let request_id = network_request_id(event)?;
+        if self.completed_ids.contains(request_id) {
+            return Err(MessageDetailNetworkError::InvalidSequence);
+        }
+        if self.requests.contains_key(request_id) {
+            return Err(MessageDetailNetworkError::ResponseRejected);
+        }
         Ok(())
     }
 

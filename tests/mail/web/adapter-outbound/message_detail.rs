@@ -367,6 +367,46 @@ fn detail_network_capture_tracks_only_exact_get_lifecycle() {
 }
 
 #[test]
+fn memory_cache_notification_cannot_authorize_message_get() {
+    for after_response in [false, true] {
+        let mut capture = MessageDetailNetworkCapture::new("session-a");
+        capture
+            .observe(&request_event("session-a", "detail", "GET", MESSAGE_URL))
+            .expect("track exact GET");
+        let cache = json!({
+            "sessionId": "session-a",
+            "method": "Network.requestServedFromCache",
+            "params": {"requestId": "detail"}
+        });
+        let unrelated = json!({
+            "sessionId": "session-a",
+            "method": "Network.requestServedFromCache",
+            "params": {"requestId": "unrelated"}
+        });
+        capture
+            .observe(&unrelated)
+            .expect("ignore unrelated cache event");
+        if after_response {
+            capture
+                .observe(&response_event(
+                    "session-a",
+                    "detail",
+                    MESSAGE_URL,
+                    200,
+                    "application/json",
+                ))
+                .expect("response before cache notice");
+        }
+        assert_eq!(
+            capture.observe(&cache),
+            Err(MessageDetailNetworkError::ResponseRejected),
+            "reject cache notice before or after responseReceived",
+        );
+        assert!(capture.take_finished_requests().is_empty());
+    }
+}
+
+#[test]
 fn cached_message_responses_cannot_authorize_provider_metadata() {
     for (source, value) in [
         ("fromDiskCache", json!(true)),

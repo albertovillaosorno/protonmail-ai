@@ -838,3 +838,10 @@ Ship useful read access before any mailbox mutation is enabled.
   requests proved these three endpoints previously accepted cached metadata;
   normal exact GETs with omitted or explicitly false flags remain valid.
   This is transport-source checking, not proof of server freshness.
+
+- Exact detail and attachment observers now also reject CDP's standalone
+  `Network.requestServedFromCache` event for the matching request ID, whether
+  it arrives before or after responseReceived. This covers memory-cache
+  provenance that cannot be excluded by response source flags alone. Red-first
+  synthetic events prove the prior acceptance; unrelated cache traffic stays
+  ignored and no extra provider data is retained.
