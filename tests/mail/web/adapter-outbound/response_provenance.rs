@@ -33,6 +33,7 @@
 use super::ExtraStatusEvidence;
 use super::bodyless_cdp_get;
 use super::direct_extra_status_is_200;
+use super::non_speculative_cdp_get;
 use super::uncached_provider_response;
 use serde_json::json;
 
@@ -227,5 +228,48 @@ fn only_explicitly_bodyless_cdp_requests_can_prove_read_only_get() {
         json!({"method":"GET","postDataEntries":[]}),
     ] {
         assert!(!bodyless_cdp_get(&request));
+    }
+}
+
+#[test]
+fn speculative_browser_gets_cannot_establish_active_read_provenance() {
+    let ordinary = json!({
+        "params":{"request":{"method":"GET","isLinkPreload":false},
+            "type":"Fetch","initiator":{"type":"script"}}
+    });
+    assert!(non_speculative_cdp_get(&ordinary));
+    let mut legacy = ordinary.clone();
+    legacy["params"]
+        .as_object_mut()
+        .expect("object")
+        .remove("type");
+    legacy["params"]
+        .as_object_mut()
+        .expect("object")
+        .remove("initiator");
+    legacy["params"]["request"]
+        .as_object_mut()
+        .expect("object")
+        .remove("isLinkPreload");
+    assert!(non_speculative_cdp_get(&legacy));
+    for (field, value) in [
+        ("link", json!(true)),
+        ("link", json!(null)),
+        ("resource", json!("Prefetch")),
+        ("resource", json!("Preflight")),
+        ("resource", json!(null)),
+        ("initiator", json!({"type":"preload"})),
+        ("initiator", json!({"type":"preflight"})),
+        ("initiator", json!({"type":null})),
+    ] {
+        let mut event = ordinary.clone();
+        if field == "link" {
+            event["params"]["request"]["isLinkPreload"] = value;
+        } else if field == "resource" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"]["initiator"] = value;
+        }
+        assert!(!non_speculative_cdp_get(&event), "unsafe {field}");
     }
 }

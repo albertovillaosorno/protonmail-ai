@@ -1908,3 +1908,38 @@ fn body_bearing_get_cannot_prove_message_detail_evidence() {
         Ok(())
     );
 }
+
+#[test]
+fn speculative_get_cannot_prove_message_detail_evidence() {
+    let session_id = "session-1";
+    for (field, value) in [
+        ("link", json!(true)),
+        ("resource", json!("Prefetch")),
+        ("initiator", json!({"type":"preload"})),
+    ] {
+        // jig-ignore-next-line: canonical rustfmt preserves the fixture call.
+        let mut event = request_event(session_id, "preload-get", "GET", MESSAGE_URL);
+        if field == "link" {
+            event["params"]["request"]["isLinkPreload"] = value;
+        } else if field == "resource" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"]["initiator"] = value;
+        }
+        let mut capture = MessageDetailNetworkCapture::new(session_id);
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageDetailNetworkError::MalformedEvent),
+            "speculative CDP GET marker {field} must be rejected"
+        );
+    }
+    // jig-ignore-next-line: canonical rustfmt preserves the fixture call.
+    let mut ordinary = request_event(session_id, "read-get", "GET", MESSAGE_URL);
+    ordinary["params"]["request"]["isLinkPreload"] = json!(false);
+    ordinary["params"]["type"] = json!("Fetch");
+    ordinary["params"]["initiator"] = json!({"type":"script"});
+    assert_eq!(
+        MessageDetailNetworkCapture::new(session_id).observe(&ordinary),
+        Ok(())
+    );
+}

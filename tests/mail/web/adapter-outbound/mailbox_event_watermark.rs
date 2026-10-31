@@ -3635,3 +3635,32 @@ fn event_gets_with_body_metadata_cannot_establish_mailbox_watermarks() {
         );
     }
 }
+
+#[test]
+fn speculative_event_get_cannot_prove_mailbox_poll() {
+    use mail_web_adapter::MailboxEventNetworkCapture;
+    use mail_web_adapter::MailboxEventNetworkError;
+    use serde_json::json;
+
+    let request_method = "Network.requestWillBeSent";
+    for (field, value) in [
+        ("isLinkPreload", json!(true)),
+        ("resourceType", json!("Prefetch")),
+        ("initiator", json!({"type":"preload"})),
+    ] {
+        let mut poll = MailboxEventNetworkCapture::new("session-1");
+        let mut event = cdp_lifecycle_event(request_method, "poll", URL);
+        if field == "isLinkPreload" {
+            event["params"]["request"][field] = value;
+        } else if field == "resourceType" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"][field] = value;
+        }
+        assert_eq!(
+            poll.observe(&event),
+            Err(MailboxEventNetworkError::MalformedEvent),
+            "speculative core-event GET {field} is not a direct app poll"
+        );
+    }
+}

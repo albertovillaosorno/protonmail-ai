@@ -1847,3 +1847,48 @@ fn apparent_message_list_get_with_body_cannot_prove_read_only_request() {
     });
     assert_eq!(clean.observe(&event), Ok(()));
 }
+
+#[test]
+fn speculative_get_cannot_prove_message_list_read() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (field, value) in [
+        ("request.isLinkPreload", json!(true)),
+        ("request.isLinkPreload", json!(null)),
+        ("params.type", json!("Prefetch")),
+        ("params.type", json!("Preflight")),
+        ("params.initiator", json!({"type":"preload"})),
+        ("params.initiator", json!({"type":"preflight"})),
+    ] {
+        let mut event = json!({
+            "sessionId":"session-1","method":"Network.requestWillBeSent",
+            "params":{"requestId":"speculative-get","request":{
+                "method":"GET","url":URL
+            }}
+        });
+        if field == "request.isLinkPreload" {
+            event["params"]["request"]["isLinkPreload"] = value;
+        } else if field == "params.type" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"]["initiator"] = value;
+        }
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "speculative CDP GET {field} must not prove mailbox data"
+        );
+    }
+    let mut clean = MessageListNetworkCapture::new("session-1");
+    let event = json!({
+        "sessionId":"session-1","method":"Network.requestWillBeSent",
+        "params":{"requestId":"normal-get","type":"Fetch",
+            "initiator":{"type":"script"},"request":{
+                "method":"GET","url":URL,"isLinkPreload":false
+            }
+        }
+    });
+    assert_eq!(clean.observe(&event), Ok(()));
+}

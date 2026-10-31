@@ -2322,3 +2322,11 @@ web application without requiring Bridge or a third-party direct API identity.
   metadata, mailbox catalogs, and both core-event paths. Synthetic red-first
   message-list and event tests exposed the previous acceptance; negative
   `hasPostData:false` remains compatible with ordinary browser GETs.
+
+- Passive GET provenance also now excludes speculative CDP preloads/prefetches.
+  `Request.isLinkPreload`, `requestWillBeSent.type` (Prefetch/Preflight), and
+  `initiator.type` (preload/preflight) are examined before tracking any exact
+  app endpoint; malformed explicit markers fail closed. Red-first message-list
+  and event fixtures proved a speculative GET previously looked like direct
+  mailbox evidence. All eight passive captures share the predicate while
+  ordinary Fetch/XHR/script and omitted legacy hints remain compatible.

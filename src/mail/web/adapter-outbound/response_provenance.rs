@@ -48,6 +48,48 @@ pub(super) fn bodyless_cdp_get(request: &Value) -> bool {
     })
 }
 
+// A speculative preload or prefetch can fetch an endpoint and return 200
+// without the active Mail view requesting those records. Chromium reports
+// these separately in Request, requestWillBeSent resource type and initiator.
+// Absence is compatible with older CDP versions, but explicit hints must
+// establish a normal application read rather than a speculative fetch.
+#[expect(
+    clippy::redundant_pub_crate,
+    reason = "private sibling read observers share speculative GET provenance"
+)]
+pub(super) fn non_speculative_cdp_get(event: &Value) -> bool {
+    let Some(params) = event.get("params").and_then(Value::as_object) else {
+        return false;
+    };
+    let Some(request) = params.get("request").and_then(Value::as_object) else {
+        return false;
+    };
+    let normal_link = matches!(
+        request.get("isLinkPreload"),
+        None | Some(Value::Bool(false))
+    );
+    let normal_resource = match params.get("type") {
+        None => true,
+        Some(Value::String(kind)) => {
+            let speculative = ["Prefetch", "Preflight"];
+            !speculative.contains(&kind.as_str())
+        }
+        Some(_) => false,
+    };
+    let normal_initiator = match params.get("initiator") {
+        None => true,
+        Some(Value::Object(initiator)) => match initiator.get("type") {
+            Some(Value::String(kind)) => {
+                let speculative = ["preload", "preflight"];
+                !speculative.contains(&kind.as_str())
+            }
+            _ => false,
+        },
+        Some(_) => false,
+    };
+    normal_link && normal_resource && normal_initiator
+}
+
 // Browser source flags may be absent on some CDP versions, but present values
 // must be explicitly false. Other optional cache/SW hints cannot prove a
 // direct provider response even if the booleans are absent or contradictory.

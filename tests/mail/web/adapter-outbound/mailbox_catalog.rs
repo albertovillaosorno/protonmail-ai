@@ -2218,3 +2218,36 @@ fn body_bearing_get_cannot_prove_mailbox_catalog_evidence() {
         Ok(())
     );
 }
+
+#[test]
+fn speculative_get_cannot_prove_mailbox_catalog_evidence() {
+    let session_id = "session-1";
+    for (field, value) in [
+        ("link", json!(true)),
+        ("resource", json!("Prefetch")),
+        ("initiator", json!({"type":"preload"})),
+    ] {
+        let mut event = request(session_id, "preload-get", "GET", LABEL_URL);
+        if field == "link" {
+            event["params"]["request"]["isLinkPreload"] = value;
+        } else if field == "resource" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"]["initiator"] = value;
+        }
+        let mut capture = MailboxCatalogNetworkCapture::new(session_id);
+        assert_eq!(
+            capture.observe(&event),
+            Err(MailboxCatalogNetworkError::MalformedEvent),
+            "speculative CDP GET marker {field} must be rejected"
+        );
+    }
+    let mut ordinary = request(session_id, "read-get", "GET", LABEL_URL);
+    ordinary["params"]["request"]["isLinkPreload"] = json!(false);
+    ordinary["params"]["type"] = json!("Fetch");
+    ordinary["params"]["initiator"] = json!({"type":"script"});
+    assert_eq!(
+        MailboxCatalogNetworkCapture::new(session_id).observe(&ordinary),
+        Ok(())
+    );
+}

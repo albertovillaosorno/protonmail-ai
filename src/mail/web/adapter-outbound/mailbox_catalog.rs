@@ -38,6 +38,7 @@ use crate::request_id_custody::scrub_all_request_ids;
 use crate::response_provenance::ExtraStatusEvidence;
 use crate::response_provenance::bodyless_cdp_get;
 use crate::response_provenance::direct_extra_status_is_200;
+use crate::response_provenance::non_speculative_cdp_get;
 use crate::response_provenance::uncached_provider_response;
 use crate::strict_json;
 use std::collections::{BTreeMap, BTreeSet};
@@ -230,7 +231,7 @@ impl MailboxCatalogNetworkCapture {
             return Ok(());
         };
         // A GET URL alone cannot prove body-free read semantics.
-        if !bodyless_cdp_get(request) {
+        if !bodyless_cdp_get(request) || !non_speculative_cdp_get(event) {
             return Err(MailboxCatalogNetworkError::MalformedEvent);
         }
         // A redirect from an ignored URL cannot establish fresh GET evidence.

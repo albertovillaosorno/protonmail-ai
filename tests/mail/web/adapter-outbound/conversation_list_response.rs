@@ -2226,3 +2226,36 @@ fn body_bearing_get_cannot_prove_conversation_list_evidence() {
         Ok(())
     );
 }
+
+#[test]
+fn speculative_get_cannot_prove_conversation_list_evidence() {
+    let session_id = "session-1";
+    for (field, value) in [
+        ("link", json!(true)),
+        ("resource", json!("Prefetch")),
+        ("initiator", json!({"type":"preload"})),
+    ] {
+        let mut event = request_event(session_id, "preload-get", "GET", URL);
+        if field == "link" {
+            event["params"]["request"]["isLinkPreload"] = value;
+        } else if field == "resource" {
+            event["params"]["type"] = value;
+        } else {
+            event["params"]["initiator"] = value;
+        }
+        let mut capture = ConversationListNetworkCapture::new(session_id);
+        assert_eq!(
+            capture.observe(&event),
+            Err(ConversationListNetworkError::MalformedEvent),
+            "speculative CDP GET marker {field} must be rejected"
+        );
+    }
+    let mut ordinary = request_event(session_id, "read-get", "GET", URL);
+    ordinary["params"]["request"]["isLinkPreload"] = json!(false);
+    ordinary["params"]["type"] = json!("Fetch");
+    ordinary["params"]["initiator"] = json!({"type":"script"});
+    assert_eq!(
+        ConversationListNetworkCapture::new(session_id).observe(&ordinary),
+        Ok(())
+    );
+}
