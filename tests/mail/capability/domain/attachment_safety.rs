@@ -385,6 +385,12 @@ fn relative_destination_rejects_traversal_absolute_and_portability_hazards() {
             AttachmentPathError::UnsupportedSyntax,
         ),
         (
+            "exports/report.pdf/.",
+            AttachmentPathError::UnsupportedSyntax,
+        ),
+        ("exports/./.", AttachmentPathError::UnsupportedSyntax),
+        ("./exports/.", AttachmentPathError::UnsupportedSyntax),
+        (
             "exports//report.pdf",
             AttachmentPathError::UnsupportedSyntax,
         ),

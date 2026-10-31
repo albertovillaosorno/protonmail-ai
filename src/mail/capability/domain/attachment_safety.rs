@@ -158,7 +158,11 @@ impl AttachmentRelativePath {
         if path.is_absolute() {
             return Err(AttachmentPathError::Absolute);
         }
-        if untrusted.ends_with('/') || untrusted.contains("//") {
+        // A terminal `/.` refers to a directory but would normalize into a
+        // different file leaf. Intermediate `./` components remain allowed.
+        let terminal_slash = untrusted.ends_with('/');
+        let terminal_dot = untrusted.ends_with("/.");
+        if terminal_slash || terminal_dot || untrusted.contains("//") {
             return Err(AttachmentPathError::UnsupportedSyntax);
         }
 

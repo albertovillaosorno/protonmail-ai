@@ -604,6 +604,11 @@ Ship useful read access before any mailbox mutation is enabled.
   Red-first synthetic tests cover these directory/file aliases while keeping
   explicit current-directory (`./`) component normalization intact.
 
+- Caller attachment paths now reject trailing current-directory selectors
+  (`exports/file/.`) before normalization. They previously collapsed into a
+  different file leaf, despite looking like directory references. Red-first
+  synthetic cases preserve accepted interior `./` path components.
+
 - Caller-supplied output paths now refuse Windows-forbidden punctuation
   (`?`, `*`, quotes, angle brackets, `|`) in every component, aligning their
   portable syntax with provider filename sanitization. Synthetic regression
