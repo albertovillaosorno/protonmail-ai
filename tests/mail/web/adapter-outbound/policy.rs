@@ -220,25 +220,25 @@ fn every_non_destructive_capability_has_a_semantic_target() {
 
 #[test]
 fn provider_origin_classification_rejects_spoofed_hosts() {
-    assert_eq!(
-        Origin::from_location("https:", "mail.proton.me"),
-        Origin::ProtonMail
-    );
-    assert_eq!(
-        Origin::from_location("https:", "account.proton.me"),
-        Origin::ProtonAccount
-    );
-    assert_eq!(
-        Origin::from_location("https:", "MAIL.PROTON.ME"),
-        Origin::ProtonMail
-    );
-    for (protocol, hostname) in [
-        ("http:", "mail.proton.me"),
-        ("https:", "mail.proton.me.evil.example"),
-        ("https:", "proton.me"),
-        ("file:", ""),
+    for (protocol, hostname, port, expected) in [
+        ("https:", "mail.proton.me", "", Origin::ProtonMail),
+        ("https:", "mail.proton.me", "443", Origin::ProtonMail),
+        ("https:", "account.proton.me", "", Origin::ProtonAccount),
+        ("https:", "MAIL.PROTON.ME", "", Origin::ProtonMail),
+        ("http:", "mail.proton.me", "", Origin::Other),
+        ("https:", "mail.proton.me.evil.example", "", Origin::Other),
+        ("https:", "proton.me", "", Origin::Other),
+        ("file:", "", "", Origin::Other),
+        ("https:", "mail.proton.me", "8443", Origin::Other),
+        ("https:", "account.proton.me", "444", Origin::Other),
+        ("https:", "mail.proton.me", "0443", Origin::Other),
+        ("https:", "mail.proton.me", "invalid", Origin::Other),
     ] {
-        assert_eq!(Origin::from_location(protocol, hostname), Origin::Other);
+        assert_eq!(
+            Origin::from_location(protocol, hostname, port),
+            expected,
+            "wrong origin for normalized browser location"
+        );
     }
 }
 

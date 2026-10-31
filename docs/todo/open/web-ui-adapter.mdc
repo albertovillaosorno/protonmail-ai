@@ -58,6 +58,16 @@ web application without requiring Bridge or a third-party direct API identity.
 - Read-vs-mutation control boundary tests
 - Draft/send side-effect tests
 - Redacted opt-in Free-account transcript
+## Trusting the complete browser origin
+
+- The public `PageOrigin` policy now requires the normalized `location.port`
+  as well as scheme and hostname. Previously the managed CDP driver did check
+  the port privately, but another policy caller could classify a non-default
+  HTTPS port as trusted by passing only scheme and hostname. The single shared
+  policy rejects alternate ports and malformed spellings while retaining the
+  default HTTPS origin and the exact `443` spelling. Offline synthetic tests
+  cover both Mail and Account hostnames; no browser login is automated.
+
 ## Current implementation
 
 - Outbound CDP commands now enforce the inbound one-MiB JSON ceiling

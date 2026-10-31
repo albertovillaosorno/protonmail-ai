@@ -51,15 +51,19 @@ pub enum PageOrigin {
     ProtonAccount,
     /// Proton Mail application origin.
     ProtonMail,
-    /// Any other scheme/host combination.
+    /// Any other scheme, host, or port combination.
     Other,
 }
 
 impl PageOrigin {
-    /// Classifies normalized `location.protocol` and `location.hostname`.
+    /// Classifies normalized browser protocol, hostname, and port together.
+    ///
+    /// A scheme and hostname alone do not prove an origin. Always supply
+    /// `location.port` so a non-default HTTPS service cannot acquire Mail
+    /// or Account authority by sharing its hostname.
     #[must_use]
-    pub fn from_location(protocol: &str, hostname: &str) -> Self {
-        if protocol != "https:" {
+    pub fn from_location(protocol: &str, hostname: &str, port: &str) -> Self {
+        if protocol != "https:" || !(port.is_empty() || port == "443") {
             return Self::Other;
         }
         if hostname.eq_ignore_ascii_case("mail.proton.me") {

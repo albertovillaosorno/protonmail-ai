@@ -817,7 +817,7 @@ impl ManagedBrowser {
             .get("port")
             .and_then(Value::as_str)
             .ok_or(BrowserDriverError::Protocol)?;
-        Ok(location_origin(protocol, hostname, port))
+        Ok(PageOrigin::from_location(protocol, hostname, port))
     }
 
     fn runtime_value(
@@ -4852,13 +4852,6 @@ fn trusted_url(raw_url: &str, origin: &str) -> bool {
     };
     // jig-ignore-next-line: canonical rustfmt line.
     rest.is_empty() || rest.starts_with('/') || rest.starts_with('?') || rest.starts_with('#')
-}
-
-fn location_origin(protocol: &str, hostname: &str, port: &str) -> PageOrigin {
-    if !port.is_empty() && port != "443" {
-        return PageOrigin::Other;
-    }
-    PageOrigin::from_location(protocol, hostname)
 }
 
 #[cfg(test)]
