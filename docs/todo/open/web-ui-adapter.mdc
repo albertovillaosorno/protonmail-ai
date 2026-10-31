@@ -2655,3 +2655,11 @@ web application without requiring Bridge or a third-party direct API identity.
   explicit secure client remain valid. Malformed or insecure client evidence
   is remembered by request ID across either CDP event order, without storing
   cookies or other request payloads; no live account was used.
+
+- The shared passive Mail GET header gate now refuses `X-Forwarded-Prefix`
+  alongside other reverse-proxy path and authority rewrites. Red-first
+  synthetic GET and refined HTTP-header fixtures previously accepted this
+  explicit path-rewrite hint as first-party Mail evidence. The common check
+  now rejects it in provisional headers, transmitted header maps, and raw
+  HTTP/1 text without reading or preserving any private header value.
+  Canonical Mail HTTP GETs remain supported; no live browser was accessed.

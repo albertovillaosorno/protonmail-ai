@@ -301,6 +301,26 @@ fn forwarded_authority_cannot_authorize_mail_message_list_capture() {
 }
 
 #[test]
+fn forwarded_prefix_cannot_authorize_mail_message_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let request = json!({
+        "sessionId":"session-1", "method":"Network.requestWillBeSent",
+        "params":{"requestId":"forwarded-prefix", "type":"Fetch",
+            "request":{"method":"GET", "url":URL,
+                "headers":{"Host":"mail.proton.me",
+                    "X-Forwarded-Prefix":"/rewritten"}}}
+    });
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    assert_eq!(
+        capture.observe(&request),
+        Err(MessageListNetworkError::MalformedEvent)
+    );
+    assert!(capture.take_finished_request_ids().is_empty());
+}
+
+#[test]
 fn foreign_host_header_cannot_authorize_mail_message_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

@@ -665,6 +665,7 @@ fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
         "forwarded",
         "X-Forwarded-Host",
         "X-Forwarded-Proto",
+        "X-Forwarded-Prefix",
         "X-Forwarded-Port",
         "X-Original-Host",
         "X-Original-URL",
@@ -687,8 +688,15 @@ fn proxy_routing_headers_cannot_prove_direct_mail_api_read() {
         }}
     });
     assert!(direct_cdp_read_response(&response));
-    let refined = &mut response["params"]["response"]["requestHeaders"];
-    refined["X-Forwarded-Host"] = json!("foreign.invalid");
+    let headers = &mut response["params"]["response"]["requestHeaders"];
+    headers["X-Forwarded-Host"] = json!("foreign.invalid");
+    assert!(!direct_cdp_read_response(&response));
+    response["params"]["response"]["requestHeaders"]
+        .as_object_mut()
+        .expect("header map")
+        .remove("X-Forwarded-Host");
+    let headers = &mut response["params"]["response"]["requestHeaders"];
+    headers["X-Forwarded-Prefix"] = json!("/rewritten");
     assert!(!direct_cdp_read_response(&response));
     // Matching values are not enough: forwarding hints can alter routing.
     let mut same_host = ordinary;
@@ -1054,6 +1062,14 @@ fn raw_http_request_headers_must_confirm_bodyless_mail_get() {
         format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nSec-Fetch-Mode: navigate\r\n\r\n"),
         // jig-ignore-next-line: synthetic HTTP/1 header fixture.
         format!("GET {path} HTTP/1.1\r\nHost: mail.proton.me\r\nHost: mail.proton.me\r\n\r\n"),
+        format!(
+            concat!(
+                "GET {path} HTTP/1.1\r\n",
+                "Host: mail.proton.me\r\n",
+                "X-Forwarded-Prefix: /rewritten\r\n\r\n"
+            ),
+            path = path
+        ),
         format!("GET {path} HTTP/1.1\nHost: mail.proton.me\n\n"),
     ] {
         let mut swapped = original.clone();

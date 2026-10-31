@@ -243,6 +243,7 @@ fn proxy_routing_header(name: &str) -> bool {
         "Forwarded",
         "X-Forwarded-Host",
         "X-Forwarded-Proto",
+        "X-Forwarded-Prefix",
         "X-Forwarded-Port",
         "X-Original-Host",
         "X-Original-URL",
