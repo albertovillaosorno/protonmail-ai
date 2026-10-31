@@ -2250,3 +2250,9 @@ web application without requiring Bridge or a third-party direct API identity.
   unique keys. Red-first visible-page fixtures previously accepted two
   competing filter values (or case-variant aliases) as a normal initial page;
   both now fail during request parsing before any response body is read.
+
+- Passive message-list GET capture now rejects noncanonical case variants of
+  recognized `LabelID`, `Keyword`, and `Unread` filters. Red-first requests
+  with an alternate case (including mixed canonical/aliased LabelID keys)
+  previously passed the batch-shape classifier; these now fail before capture
+  while canonical repeated LabelID values remain accepted and ordered.

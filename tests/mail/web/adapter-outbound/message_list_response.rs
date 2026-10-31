@@ -1474,6 +1474,43 @@ fn message_list_body_envelope_rejects_unexpected_cdp_fields() {
 }
 
 #[test]
+fn case_aliased_message_filter_keys_cannot_enter_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for (label, filter) in [
+        ("alias-label", "labelid=synthetic"),
+        ("mixed-label", "LabelID=first&labelid=second"),
+        ("alias-keyword", "keyword=synthetic"),
+        ("alias-unread", "unread=1"),
+    ] {
+        let url = format!("{URL}&{filter}");
+        let mut capture = MessageListNetworkCapture::new("synthetic-session");
+        let event = json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":label,"request":{"method":"GET","url":url}}
+        });
+        assert_eq!(
+            capture.observe(&event),
+            Err(MessageListNetworkError::MalformedEvent),
+            "noncanonical {label} must never authorize a list request"
+        );
+    }
+    // Deliberate multi-label filtering is valid with canonical key names.
+    let url = format!("{URL}&LabelID=first&LabelID=second&Unread=1");
+    let mut capture = MessageListNetworkCapture::new("synthetic-session");
+    capture
+        .observe(&json!({
+            "sessionId":"synthetic-session",
+            "method":"Network.requestWillBeSent",
+            "params":{"requestId":"canonical-filters",
+                "request":{"method":"GET","url":url}}
+        }))
+        .expect("canonical repeated LabelID filters remain compatible");
+}
+
+#[test]
 fn case_aliases_of_message_list_query_selectors_fail_closed() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

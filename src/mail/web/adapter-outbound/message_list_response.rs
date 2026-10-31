@@ -620,6 +620,20 @@ fn query_context_fingerprint(
 
 // jig-ignore-next-line: canonical rustfmt line.
 fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkError> {
+    // Recognized provider filters are allowed to repeat (notably LabelID),
+    // but their wire spelling cannot change. Case-aliased names may collapse
+    // into an ambiguous effective filter after provider query parsing.
+    if let Some((_path, query)) = url.split_once('?') {
+        for pair in query.split('&') {
+            let key = pair.split_once('=').map_or(pair, |(key, _value)| key);
+            if ["LabelID", "Keyword", "Unread"]
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(key) && *known != key)
+            {
+                return Err(MessageListNetworkError::MalformedEvent);
+            }
+        }
+    }
     for name in ["BeginID", "EndID", "ID"] {
         if raw_query_parameter(url, name)?.is_some() {
             return Ok(true);

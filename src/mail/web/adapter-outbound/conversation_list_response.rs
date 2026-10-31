@@ -804,6 +804,7 @@ fn parse_request_page(
             _ => {
                 // Noncanonical filter names fail; unreviewed options cannot
                 // silently prove that a visible first-page request is safe.
+                // jig-ignore-next-line: Rustfmt keeps checked arguments inline.
                 let recognized = known_filter_key(key, &mut keyword_seen, &mut label_seen)?;
                 has_non_visible_selector |= !recognized;
             }
