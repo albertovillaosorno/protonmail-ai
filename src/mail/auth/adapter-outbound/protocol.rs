@@ -63,6 +63,8 @@ const MAX_AUTH_RESPONSE_BYTES: usize = 262_144;
 // The UID and access bearer are forwarded as HTTP header values. Reject
 // provider-controlled whitespace, non-ASCII, and oversized header material.
 const MAX_HEADER_AUTHORITY_BYTES: usize = 8_192;
+// Bound account-binding metadata independently from the total JSON response.
+const MAX_ACCOUNT_BINDING_ID_BYTES: usize = 8_192;
 // Bound the number of individually allocated provider scope strings even
 // when a hostile array still fits the overall response byte ceiling.
 const MAX_AUTH_SCOPE_COUNT: usize = 128;
@@ -598,6 +600,9 @@ impl ForkPoll {
         if !safe_header_authority_pair(&raw.uid, &raw.access_token) {
             return Err(ProtocolError::UnsafeHeaderAuthority);
         }
+        if !safe_account_binding_id(&user_id) {
+            return Err(ProtocolError::InvalidUserId);
+        }
 
         let payload = raw
             .payload
@@ -883,6 +888,8 @@ pub enum ProtocolError {
     UnexpectedBoundUser,
     /// A provider UID or access bearer cannot safely enter HTTP headers.
     UnsafeHeaderAuthority,
+    /// The child user ID is ambiguous or too large for account binding.
+    InvalidUserId,
     /// A completed fork omitted the provider user ID.
     MissingUserId,
     /// A completed fork omitted required session authority.
@@ -981,6 +988,24 @@ fn safe_header_authority(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_HEADER_AUTHORITY_BYTES
         && value.bytes().all(|byte| byte.is_ascii_graphic())
+}
+
+// User IDs bind stored authority to an account. Do not allow text that can be
+// rendered ambiguously, interpreted as a blank identity, or expand without a
+// dedicated bound. Printable Unicode letters remain valid opaque IDs.
+fn safe_account_binding_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= MAX_ACCOUNT_BINDING_ID_BYTES
+        && !id.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(
+                    character,
+                    '\u{00ad}' | '\u{061c}' | '\u{200b}'..='\u{200f}'
+                        | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}'
+                        | '\u{feff}'
+                )
+        })
 }
 
 // Sensitive fields are wrapped *while* the JSON model is constructed, so

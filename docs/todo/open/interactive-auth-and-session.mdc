@@ -160,6 +160,15 @@ account credentials. The primary web UI login remains a separate P1 path.
   without parsing a provider body; live auth still requires provider approval
   and transport/store integration.
 
+## Completed fork account identity safety
+
+- A red-first offline completed-fork fixture proved that a child `UserID` made
+  only of whitespace, containing control/invisible direction characters, or
+  exceeding 8,192 bytes could still issue a typed `Complete` session. Account
+  binding now refuses ambiguous or unbounded user IDs as `InvalidUserId` before
+  retaining provider authority. Positive synthetic fixtures preserve normal
+  printable Unicode and the exact byte ceiling; this does not permit live auth.
+
 ## Ephemeral handoff text custody
 
 - The offline QR/manual-code model previously held its base64 handoff key in

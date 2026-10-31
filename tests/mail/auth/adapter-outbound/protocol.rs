@@ -226,6 +226,53 @@ fn header_bound_authority_refuses_unsafe_or_oversized_provider_values() {
 }
 
 #[test]
+fn completed_fork_rejects_ambiguous_account_binding_user_ids() {
+    type JsonValue = serde_json::Value;
+    let oversized = "a".repeat(8_193);
+    let invalid = [
+        " ",
+        "synthetic user",
+        "synthetic\nuser",
+        "synthetic\0user",
+        "synthetic\u{202e}user",
+        oversized.as_str(),
+    ];
+    for user_id in invalid {
+        let fixture = complete_response(None);
+        let parsed: Result<JsonValue, _> = serde_json::from_slice(&fixture);
+        let mut response = parsed.expect("synthetic complete response");
+        response["UserID"] = json!(user_id);
+        let serialized = response.to_string();
+        assert!(
+            matches!(
+                ForkPoll::parse(200, serialized.as_bytes()),
+                Err(ProtocolError::InvalidUserId)
+            ),
+            "malformed account-binding identity must not complete a fork"
+        );
+    }
+}
+
+#[test]
+fn completed_fork_accepts_bounded_printable_account_identity() {
+    type JsonValue = serde_json::Value;
+    let at_limit = "a".repeat(8_192);
+    for user_id in ["synthetic-user-id", "ma\u{00f1}ana", at_limit.as_str()] {
+        let fixture = complete_response(None);
+        let parsed: Result<JsonValue, _> = serde_json::from_slice(&fixture);
+        let mut response = parsed.expect("synthetic complete response");
+        response["UserID"] = json!(user_id);
+        let serialized = response.to_string();
+        let parsed = ForkPoll::parse(200, serialized.as_bytes());
+        let parsed = parsed.expect("valid account identity");
+        let ForkPoll::Complete(session) = parsed else {
+            panic!("expected completed fork");
+        };
+        assert_eq!(session.user_id(), user_id);
+    }
+}
+
+#[test]
 fn printable_header_authority_preserves_wire_values() {
     let uid = "UID.+/=~!-_";
     let bearer = "Bearer.+/=~!-_";
