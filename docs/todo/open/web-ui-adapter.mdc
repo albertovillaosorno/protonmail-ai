@@ -96,6 +96,14 @@ web application without requiring Bridge or a third-party direct API identity.
   metadata fail closed, while ordinary external relationships remain valid.
   The driver does not traverse private accessibility subtrees.
 
+## Refuse reversed accessibility parent-child relationships
+
+- A red-first fake-browser navigation role claimed one external node ID as
+  both its parent and a child. Although neither referred to the node itself,
+  this is an impossible tree relationship and previously established a ready
+  Mail shell. Parent IDs now cannot also appear among their node's children;
+  a valid distinct parent and children remain compatible.
+
 ## Bound optional accessibility backend-node IDs
 
 - Red-first fake-browser role responses showed a valid-looking navigation

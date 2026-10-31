@@ -112,12 +112,15 @@ fn visible_match<'role_nodes>(
         }
         // Node relationships do not establish a landmark by themselves,
         // but they cannot claim an impossible self-parent or self-child.
-        if let Some(parent) = node.get("parentId") {
+        let parent_id = if let Some(parent) = node.get("parentId") {
             let parent = parent.as_str().ok_or(())?;
             if !valid_ax_node_id(parent) || parent == id {
                 return Err(());
             }
-        }
+            Some(parent)
+        } else {
+            None
+        };
         if let Some(children) = node.get("childIds") {
             let children = children.as_array().ok_or(())?;
             if children.len() > 4096 {
@@ -126,7 +129,10 @@ fn visible_match<'role_nodes>(
             let mut child_ids = HashSet::with_capacity(children.len());
             for child in children {
                 let child = child.as_str().ok_or(())?;
-                if !valid_ax_node_id(child) || child == id {
+                // The same node cannot be both parent and child of this AX
+                // node, even if that external ID was not in a role query.
+                let contradictory_edge = child == id || parent_id == Some(child);
+                if !valid_ax_node_id(child) || contradictory_edge {
                     return Err(());
                 }
                 if !child_ids.insert(child) {

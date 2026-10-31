@@ -333,6 +333,28 @@ fn accessibility_node_cannot_be_its_own_parent_or_child() {
 }
 
 #[test]
+fn accessibility_parent_cannot_also_be_a_child() {
+    let navigation = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"},"#,
+        r#""parentId":"ax-root","childIds":["ax-one","ax-root"]}]"#
+    );
+    let roles = RoleFixture {
+        navigation,
+        ..RoleFixture::ready()
+    };
+    assert_eq!(
+        inspect(
+            "parent-listed-as-child",
+            "https://mail.proton.me/u/0/inbox",
+            "mail.proton.me",
+            &roles
+        ),
+        Err(BrowserDriverError::Protocol)
+    );
+}
+
+#[test]
 fn ordinary_ax_node_parent_and_child_metadata_remains_compatible() {
     let navigation = concat!(
         r#"[{"ignored":false,"nodeId":"ax-navigation","#,
