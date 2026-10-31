@@ -4935,6 +4935,15 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
     if origin == PageOrigin::Other {
         return Ok(None);
     }
+    // CDP can classify a `page` as a prerendered or otherwise special
+    // target through its optional subtype. Such a target is not proof of
+    // the visible user-controlled tab, even when its origin matches.
+    if info
+        .get("subtype")
+        .is_some_and(|subtype| subtype.as_str() != Some(""))
+    {
+        return Err(BrowserDriverError::Protocol);
+    }
     // A page already attached to another debugger is not exclusively ours.
     // Missing `attached` remains compatible with older CDP implementations;
     // an explicitly present value must be false, not malformed or true.

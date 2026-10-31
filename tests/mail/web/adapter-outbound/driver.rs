@@ -2186,6 +2186,57 @@ fn invalid_provider_target_attachment_metadata_is_not_authority() {
 }
 
 #[test]
+fn provider_prerender_or_malformed_subtype_is_not_visible_page_authority() {
+    use serde_json::json;
+    for (label, subtype) in [
+        ("prerender", json!("prerender")),
+        ("portal", json!("portal")),
+        ("null", json!(null)),
+        ("number", json!(1u8)),
+        ("object", json!({"kind":"prerender"})),
+    ] {
+        for (kind, host) in [("mail", "mail.proton.me"), ("account", "account.proton.me")] {
+            let root = test_root(&format!("{kind}-subtype-{label}"));
+            fs::create_dir_all(&root).expect("create synthetic root");
+            let targets = json!([{
+                "targetId":"provider-1", "type":"page",
+                "url":format!("https://{host}/u/0/inbox"), "subtype":subtype
+            }]);
+            let browser = fake_browser(&root, &targets.to_string(), host);
+            let browser_plan = plan(&root, &browser);
+            let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+            assert_eq!(
+                managed.provider_page(),
+                Err(BrowserDriverError::Protocol),
+                "{kind} target with {label} subtype is not a visible page"
+            );
+            drop(managed);
+            cleanup(&root);
+        }
+    }
+}
+
+#[test]
+fn ordinary_provider_page_allows_empty_optional_subtype() {
+    use serde_json::json;
+    let root = test_root("normal-page-empty-subtype");
+    fs::create_dir_all(&root).expect("create synthetic root");
+    let targets = json!([{
+        "targetId":"mail-1", "type":"page",
+        "url":"https://mail.proton.me/u/0/inbox", "subtype":""
+    }]);
+    let browser = fake_browser(&root, &targets.to_string(), "mail.proton.me");
+    let browser_plan = plan(&root, &browser);
+    let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+    assert_eq!(
+        managed.provider_page().map(|page| page.origin()),
+        Ok(PageOrigin::ProtonMail)
+    );
+    drop(managed);
+    cleanup(&root);
+}
+
+#[test]
 fn unattached_provider_target_accepts_optional_default_context_metadata() {
     use serde_json::json;
     for (label, context) in [

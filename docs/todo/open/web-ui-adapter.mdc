@@ -132,6 +132,12 @@ web application without requiring Bridge or a third-party direct API identity.
 
 ## Current implementation
 
+- Selected Mail and Account targets now reject a nonempty or malformed CDP
+  `TargetInfo.subtype`: a prerendered `page` with the same provider URL is not
+  evidence of a visible user-controlled tab. Red-first fake-browser cases
+  cover both origins, prefetched/special target markers, bad types, and a
+  normal page with an empty optional subtype. No real browser was accessed.
+
 - The bounded `Target.getTargets` catalog now requires a valid unique target ID
   on every entry, including unrelated workers and non-provider pages. Missing
   IDs could previously pass alongside a valid Mail tab, weakening the complete
