@@ -2138,6 +2138,73 @@ fn malformed_non_page_target_entries_cannot_hide_in_valid_target_catalog() {
 }
 
 #[test]
+fn invalid_provider_target_attachment_metadata_is_not_authority() {
+    use serde_json::json;
+    for (label, extra) in [
+        ("attached-provider-target", json!({"attached":true})),
+        ("malformed-attached-target", json!({"attached":"false"})),
+        ("null-attached-target", json!({"attached":null})),
+        ("malformed-context-type", json!({"browserContextId":null})),
+        ("malformed-context-empty", json!({"browserContextId":""})),
+        (
+            "malformed-context-separator",
+            json!({"browserContextId":"bad/id"}),
+        ),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let mut info = json!({
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox"
+        });
+        info.as_object_mut()
+            .expect("fixture object")
+            .extend(extra.as_object().expect("metadata object").clone());
+        let target_catalog = json!([info]).to_string();
+        let browser = fake_browser(&root, &target_catalog, "mail.proton.me");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        assert_eq!(
+            managed.provider_page(),
+            Err(BrowserDriverError::Protocol),
+            "{label} must not authorize an unowned target"
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
+fn unattached_provider_target_accepts_optional_default_context_metadata() {
+    use serde_json::json;
+    for (label, context) in [
+        ("no-context", None),
+        ("default-context", Some("default-profile-123")),
+    ] {
+        let root = test_root(label);
+        fs::create_dir_all(&root).expect("create synthetic root");
+        let mut target = json!({
+            "targetId":"mail-1", "type":"page",
+            "url":"https://mail.proton.me/u/0/inbox", "attached":false
+        });
+        if let Some(context) = context {
+            target["browserContextId"] = json!(context);
+        }
+        let targets = json!([target]);
+        let catalog = targets.to_string();
+        let browser = fake_browser(&root, &catalog, "mail.proton.me");
+        let browser_plan = plan(&root, &browser);
+        let mut managed = ManagedBrowser::launch(&browser_plan).expect("CDP");
+        assert_eq!(
+            managed.provider_page().map(|page| page.origin()),
+            Ok(PageOrigin::ProtonMail)
+        );
+        drop(managed);
+        cleanup(&root);
+    }
+}
+
+#[test]
 fn unrelated_well_typed_browser_targets_remain_ignorable() {
     use serde_json::json;
     let root = test_root("well-typed-other-targets");

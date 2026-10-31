@@ -1787,3 +1787,12 @@ web application without requiring Bridge or a third-party direct API identity.
   or role-filtered landmarks. Red-first fake Chromium replies with extra
   sibling properties previously proved a ready shell; both now fail closed
   before reading message metadata. Exact canonical results remain supported.
+
+- Provider target discovery now refuses Mail/Account tabs that declare
+  another debugger already attached (`TargetInfo.attached: true`), malformed
+  attachment-state types, or malformed browser context IDs. Red-first synthetic
+  browser catalogs previously selected attached targets. Chromium can include
+  `browserContextId` even for ordinary profile tabs; validating its shape does
+  not prove the page belongs to the default profile. A future context-binding
+  check must compare target metadata against `Target.getBrowserContexts` before
+  making any stronger profile-isolation claim.

@@ -4866,6 +4866,25 @@ fn provider_page_from_target(info: &Value) -> Result<Option<ProviderPage>, Brows
     if origin == PageOrigin::Other {
         return Ok(None);
     }
+    // A page already attached to another debugger is not exclusively ours.
+    // Missing `attached` remains compatible with older CDP implementations;
+    // an explicitly present value must be false, not malformed or true.
+    if info
+        .get("attached")
+        .is_some_and(|attached| attached.as_bool() != Some(false))
+    {
+        return Err(BrowserDriverError::Protocol);
+    }
+    // BrowserContextId is optional even for ordinary persistent profile tabs;
+    // its presence alone cannot distinguish a private context. Do not infer
+    // profile ownership from this field without getBrowserContexts evidence.
+    if info.get("browserContextId").is_some_and(|value| {
+        value
+            .as_str()
+            .is_none_or(|context| !safe_cdp_endpoint_id(context))
+    }) {
+        return Err(BrowserDriverError::Protocol);
+    }
     Ok(Some(ProviderPage {
         origin,
         target_id: String::from(target_id),
