@@ -54,6 +54,33 @@ fn response_body_capture_returns_guarded_json() {
 }
 
 #[test]
+fn cdp_body_result_must_have_only_typed_body_and_encoding() {
+    use super::valid_cdp_command_result;
+
+    let method = "Network.getResponseBody";
+    assert!(valid_cdp_command_result(
+        method,
+        &json!({
+            "body":"{\"Code\":1000}", "base64Encoded":false
+        })
+    ));
+    for malformed in [
+        json!({"body":"{}", "base64Encoded":false, "extra":"private"}),
+        json!({"body":"{}", "base64Encoded":"false"}),
+        json!({"body":"{}", "base64Encoded":null}),
+        json!({"body":null, "base64Encoded":false}),
+        json!({"body":"{}"}),
+        json!({"base64Encoded":false}),
+        json!({}),
+    ] {
+        assert!(
+            !valid_cdp_command_result(method, &malformed),
+            "unreviewed body result cannot prove provider data"
+        );
+    }
+}
+
+#[test]
 fn sparse_dom_root_cannot_establish_document_identity() {
     use super::valid_cdp_document_root;
     use serde_json::json;

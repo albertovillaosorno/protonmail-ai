@@ -3282,6 +3282,47 @@ fn permanently_text_busy_browser_fails_closed_and_releases_lease() {
 }
 
 #[test]
+fn unreviewed_cdp_body_result_cannot_authorize_a_mail_read() {
+    let root = test_root("unreviewed-cdp-body-result");
+    fs::create_dir_all(&root).expect("create isolated synthetic profile");
+    let browser = fake_network_browser(
+        &root,
+        false,
+        "m-1",
+        false,
+        false,
+        false,
+        "m-1",
+        "0",
+        "1",
+        "1790847999",
+    );
+    let script = fs::read_to_string(&browser).expect("read browser fixture");
+    let original = r#"suffix='","base64Encoded":false}}'"#;
+    let extended = r#"suffix='","base64Encoded":false,"unknown":"private"}}'"#;
+    assert!(script.contains(original));
+    install_script(&browser, script.replacen(original, extended, 1))
+        .expect("inject unreviewed CDP body result property");
+    let mut managed =
+        // jig-ignore-next-line: canonical rustfmt line.
+        ManagedBrowser::launch(&plan(&root, &browser)).expect("launch synthetic browser");
+    let page = managed.provider_page().expect("select Mail page");
+    assert_eq!(
+        managed.observe_visible_message_metadata(&page),
+        Err(BrowserDriverError::Protocol)
+    );
+    managed
+        .require_mail_shell(&page)
+        .expect("cleanup keeps CDP usable");
+    drop(managed);
+    let log =
+        // jig-ignore-next-line: canonical rustfmt line.
+        fs::read_to_string(root.join("network-log.txt")).expect("read Network lifecycle audit");
+    assert_eq!(log, "enable\nreload\nbody\ndisable\n");
+    cleanup(&root);
+}
+
+#[test]
 fn exact_full_final_message_page_requires_no_empty_continuation() {
     let root = test_root("exact-full-final-page");
     fs::create_dir_all(&root).expect("create isolated synthetic browser root");

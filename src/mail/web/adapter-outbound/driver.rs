@@ -4855,6 +4855,14 @@ fn valid_cdp_command_result(method: &str, result: &Value) -> bool {
                     .and_then(Value::as_str)
                     .is_some_and(safe_cdp_endpoint_id)
         }
+        // Require CDP's exact body envelope before dispatching to any of
+        // the passive provider projectors, not only at the final parser.
+        // Unknown result siblings can carry unreviewed private metadata.
+        "Network.getResponseBody" => {
+            fields.len() == 2
+                && fields.get("body").is_some_and(Value::is_string)
+                && fields.get("base64Encoded").is_some_and(Value::is_boolean)
+        }
         "Browser.close"
         | "Target.detachFromTarget"
         | "Network.enable"

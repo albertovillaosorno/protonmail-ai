@@ -2213,3 +2213,10 @@ web application without requiring Bridge or a third-party direct API identity.
   readiness; both roles now require the same frame when their optional frame
   IDs are present. Same-frame landmarks and older replies without frame IDs
   remain compatible; no new browser queries or accessible names are needed.
+
+- All passive `Network.getResponseBody` replies now require the exact CDP
+  `{body:string, base64Encoded:boolean}` result shape at the shared command
+  boundary. A red-first fake browser previously passed unreviewed siblings to
+  the downstream list projector, which rejected them as malformed; the driver
+  now rejects such metadata immediately as a protocol violation and still
+  disables Network cleanly. Other body projectors retain their own checks.
