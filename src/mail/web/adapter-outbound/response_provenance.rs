@@ -9,23 +9,23 @@
 //
 // Boundary-Contract:
 // - Owns:
-//   - Shared passive CDP response-source gate for read-only provider GETs.
+//   - Shared passive CDP request and response-source gates for read-only GETs.
 // - Must-Not:
 //   - Retain HTTP headers, request URLs, bodies, or browser session secrets.
 // - Allows:
-//   - Reject cached, prefetched, or service-worker-produced response evidence.
+//   - Reject body-bearing, speculative, cached, or worker-served read evidence.
 // - Split-When:
 //   - Response provenance becomes provider-specific or authenticated.
 // - Merge-When:
 //   - One read adapter owns all CDP lifecycle and provenance validation.
 // - Summary:
-//   - Requires no affirmative or ambiguous browser cache-source markers.
+//   - Requires body-free, non-speculative GETs and direct HTTP responses.
 // - Description:
-//   - Reads only optional CDP response metadata without allocation or logging.
+//   - Inspects CDP request and response metadata without allocation or logging.
 // - Usage:
-//   - Call while accepting exact browser-owned responseReceived notifications.
+//   - Call on exact requestWillBeSent and responseReceived read notifications.
 // - Defaults:
-//   - Omitted optional markers pass; present contradictory markers fail closed.
+//   - Omitted optional hints pass; explicit contradictory hints fail closed.
 //
 
 //! Shared cached-response provenance gate for passive provider evidence.
