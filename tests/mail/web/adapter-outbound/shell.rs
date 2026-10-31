@@ -385,6 +385,57 @@ fn malformed_ax_node_relationships_cannot_prove_landmarks() {
 }
 
 #[test]
+fn malformed_ax_backend_dom_node_id_cannot_prove_landmarks() {
+    // AXNode.backendDOMNodeId is an optional CDP BackendNodeId integer.
+    // A malformed node identity must not still authorize the Mail shell.
+    let base = concat!(
+        r#"[{"ignored":false,"nodeId":"ax-navigation","#,
+        r#""role":{"type":"role","value":"__AX_ROLE__"}"#
+    );
+    for (label, id) in [
+        ("zero-backend-id", "0"),
+        ("negative-backend-id", "-1"),
+        ("large-backend-id", "2147483648"),
+        ("string-backend-id", "\"123\""),
+        ("null-backend-id", "null"),
+        ("fractional-backend-id", "1.5"),
+    ] {
+        let navigation = format!(r#"{base},"backendDOMNodeId":{id}}}]"#);
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert_eq!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            ),
+            Err(BrowserDriverError::Protocol),
+            "invalid optional backend identity {label} must fail closed"
+        );
+    }
+    for (label, id) in [("small-backend-id", 1i32), ("max-backend-id", i32::MAX)] {
+        let navigation = format!(r#"{base},"backendDOMNodeId":{id}}}]"#);
+        let roles = RoleFixture {
+            navigation: &navigation,
+            ..RoleFixture::ready()
+        };
+        assert!(
+            inspect(
+                label,
+                "https://mail.proton.me/u/0/inbox",
+                "mail.proton.me",
+                &roles
+            )
+            .expect("valid optional backend identity")
+            .ready()
+        );
+    }
+}
+
+#[test]
 fn oversized_ax_child_list_cannot_prove_navigation_landmark() {
     let children = (0..4097u32)
         .map(|index| format!(r#""ax-child-{index}""#))

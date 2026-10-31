@@ -96,6 +96,15 @@ web application without requiring Bridge or a third-party direct API identity.
   metadata fail closed, while ordinary external relationships remain valid.
   The driver does not traverse private accessibility subtrees.
 
+## Bound optional accessibility backend-node IDs
+
+- Red-first fake-browser role responses showed a valid-looking navigation
+  landmark with a zero, negative, string, fractional, or oversized optional
+  CDP `backendDOMNodeId` still established a ready Mail shell. The classifier
+  now requires any reported backend DOM identity to be a positive signed
+  32-bit protocol integer. Omitted identities and in-range IDs remain valid;
+  no accessible names, DOM text, or live account data are inspected.
+
 ## Require full document-root evidence before AX inspection
 
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`

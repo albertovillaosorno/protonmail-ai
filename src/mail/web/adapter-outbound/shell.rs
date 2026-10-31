@@ -34,6 +34,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 
 const MAX_AX_ROLE_MATCH_NODES: usize = 256;
+const MAX_AX_BACKEND_NODE_ID: u64 = 2_147_483_647;
 
 /// Structural Mail-shell evidence that contains no accessible names or text.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -132,6 +133,16 @@ fn visible_match<'role_nodes>(
                     return Err(());
                 }
             }
+        }
+        // CDP AXNode.backendDOMNodeId is an optional signed protocol
+        // integer, not an arbitrary JSON value or unbounded unsigned ID.
+        // A contradictory browser node identity cannot prove readiness.
+        if node.get("backendDOMNodeId").is_some_and(|backend| {
+            backend
+                .as_u64()
+                .is_none_or(|id| !(1..=MAX_AX_BACKEND_NODE_ID).contains(&id))
+        }) {
+            return Err(());
         }
         let role = node.get("role").ok_or(())?;
         let kind = role.get("type").and_then(Value::as_str);
