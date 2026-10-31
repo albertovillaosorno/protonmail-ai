@@ -139,6 +139,33 @@ fn filename_sanitization_handles_empty_hidden_and_reserved_names() {
 }
 
 #[test]
+fn mixed_case_device_detection_preserves_ascii_only_folding() {
+    for (input, expected) in [
+        ("cOn", "_cOn"),
+        ("PrN.txt", "_PrN.txt"),
+        ("aUx", "_aUx"),
+        ("nUl.log", "_nUl.log"),
+        ("CoNiN$", "_CoNiN$"),
+        ("cOnOuT$.pdf", "_cOnOuT$.pdf"),
+        ("cOm1", "_cOm1"),
+        ("LpT9.txt", "_LpT9.txt"),
+        ("cOm\u{b9}.txt", "_cOm\u{b9}.txt"),
+        ("LpT\u{b2}", "_LpT\u{b2}"),
+        ("cOm0", "cOm0"),
+        ("pRivate-COM1.txt", "pRivate-COM1.txt"),
+        ("C\u{00d6}M1", "C\u{00d6}M1"),
+        ("\u{1f680}COM1", "\u{1f680}COM1"),
+    ] {
+        assert_eq!(SanitizedAttachmentFilename::new(input).as_str(), expected);
+        assert_eq!(
+            AttachmentRelativePath::new(input).is_err(),
+            input != expected,
+            "relative destination policy must agree on reserved device names"
+        );
+    }
+}
+
+#[test]
 fn reserved_filename_prefixing_preserves_the_byte_ceiling() {
     let long_reserved = format!("CON.{}", "x".repeat(300));
     let safe = SanitizedAttachmentFilename::new(&long_reserved);

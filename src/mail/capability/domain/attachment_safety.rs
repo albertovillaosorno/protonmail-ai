@@ -68,8 +68,14 @@ impl SanitizedAttachmentFilename {
     /// truncated on UTF-8 boundaries to [`MAX_ATTACHMENT_FILENAME_BYTES`].
     #[must_use]
     pub fn new(untrusted: &str) -> Self {
-        // jig-ignore-next-line: canonical rustfmt line.
-        let mut safe = String::with_capacity(untrusted.len().min(MAX_ATTACHMENT_FILENAME_BYTES));
+        // The reserved-device prefix may insert one extra byte after a short
+        // provider filename. Reserve it now: even a scrub-on-drop String
+        // would otherwise release its old private filename on reallocation.
+        let capacity = untrusted
+            .len()
+            .min(MAX_ATTACHMENT_FILENAME_BYTES)
+            .saturating_add(1);
+        let mut safe = String::with_capacity(capacity);
         for character in untrusted.chars() {
             let mapped = if unsafe_filename_character(character) {
                 '_'
@@ -260,22 +266,36 @@ fn windows_reserved_filename(filename: &str) -> bool {
         .split_once('.')
         .map_or(filename, |(before_extension, _extension)| before_extension)
         .trim_end_matches([' ', '.']);
-    let uppercase = stem.to_ascii_uppercase();
-    matches!(
-        uppercase.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
-    ) || reserved_numbered_device(&uppercase, "COM")
-        || reserved_numbered_device(&uppercase, "LPT")
+    // A case-folded String would make an ordinary, unguarded copy of the
+    // provider filename stem even when the name is not reserved.
+    ["CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"]
+        .iter()
+        .any(|reserved| stem.eq_ignore_ascii_case(reserved))
+        || reserved_numbered_device(stem, "COM")
+        || reserved_numbered_device(stem, "LPT")
 }
 
 fn reserved_numbered_device(stem: &str, prefix: &str) -> bool {
-    stem.strip_prefix(prefix).is_some_and(|suffix| {
-        matches!(
-            suffix,
-            // jig-ignore-next-line: rustfmt canonical device-suffix literals.
-            "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "\u{b9}" | "\u{b2}" | "\u{b3}"
-        )
-    })
+    let Some(head) = stem.get(..prefix.len()) else {
+        return false;
+    };
+    head.eq_ignore_ascii_case(prefix)
+        && stem.get(prefix.len()..).is_some_and(|suffix| {
+            matches!(
+                suffix,
+                "1" | "2"
+                    | "3"
+                    | "4"
+                    | "5"
+                    | "6"
+                    | "7"
+                    | "8"
+                    | "9"
+                    | "\u{b9}"
+                    | "\u{b2}"
+                    | "\u{b3}"
+            )
+        })
 }
 
 fn truncate_utf8(value: &mut String, maximum_bytes: usize) {
