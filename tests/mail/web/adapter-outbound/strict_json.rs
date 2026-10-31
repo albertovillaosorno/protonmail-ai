@@ -35,6 +35,30 @@ use super::{from_str, zeroize_json_strings};
 use serde_json::{Value, json};
 
 #[test]
+fn sensitive_json_writer_owns_growth_and_final_headroom() {
+    use super::SensitiveJsonWriteBuffer;
+    use std::io::Write as _;
+    use zeroize::Zeroizing;
+
+    let mut writer = SensitiveJsonWriteBuffer::new();
+    writer.write_all(b"private").expect("write synthetic bytes");
+    let initial_capacity = writer.capacity();
+    let extra = vec![b'x'; initial_capacity + 1];
+    writer.write_all(&extra).expect("grow writer buffer");
+    assert!(writer.capacity() > initial_capacity);
+    writer
+        .reserve_additional(16)
+        .expect("reserve AEAD tag space");
+    let output: Zeroizing<Vec<u8>> = writer.into_guarded();
+    assert!(output.starts_with(b"private"));
+    assert_eq!(&output[7..], extra);
+
+    let mut refused = SensitiveJsonWriteBuffer::new();
+    refused.write_all(b"p").expect("start guarded buffer");
+    assert!(refused.reserve_additional(usize::MAX).is_err());
+}
+
+#[test]
 fn full_provider_reply_json_requires_scrub_on_drop_ownership() {
     use super::SensitiveValue;
 

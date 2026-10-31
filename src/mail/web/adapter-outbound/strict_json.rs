@@ -10,6 +10,7 @@
 // Boundary-Contract:
 // - Owns:
 //   - Reject ambiguous duplicate keys in provider and browser JSON objects.
+//   - Erase sensitive serialization buffers before replacing allocations.
 // - Must-Not:
 //   - Accept first-wins/last-wins conflicts or retain provider content.
 // - Allows:
@@ -33,11 +34,82 @@
 use core::fmt;
 use core::mem::take;
 use core::ops::Deref;
+use std::io::{self, Write};
 
 use serde::de::{Error as DeError, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Number, Value};
 use zeroize::{Zeroize as _, Zeroizing};
+
+// Zeroizing<Vec<u8>> erases only the *current* allocation on drop. A
+// normal Vec growth releases its former allocation without wiping it first.
+// Serialize private JSON through this writer, which copies into fresh guarded
+// storage and destroys the previous allocation before accepting more bytes.
+#[expect(clippy::redundant_pub_crate, reason = "private serialization guard")]
+pub(crate) struct SensitiveJsonWriteBuffer {
+    bytes: Zeroizing<Vec<u8>>,
+}
+
+impl SensitiveJsonWriteBuffer {
+    pub(crate) fn new() -> Self {
+        Self {
+            bytes: Zeroizing::new(Vec::new()),
+        }
+    }
+
+    // Reserve for a trailing CDP marker or AEAD tag before either can trigger
+    // ordinary Vec growth. All capacity replacements go through this path.
+    // jig-ignore-next-line: canonical checked capacity helper signature.
+    pub(crate) fn reserve_additional(&mut self, additional: usize) -> io::Result<()> {
+        let needed = self
+            .bytes
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| io::Error::other("sensitive buffer size overflow"))?;
+        if needed > self.bytes.capacity() {
+            let capacity = needed.checked_next_power_of_two().unwrap_or(needed);
+            let mut replacement = Zeroizing::new(Vec::new());
+            replacement
+                .try_reserve_exact(capacity)
+                // jig-ignore-next-line: canonical redacted allocation error.
+                .map_err(|_error| io::Error::other("sensitive buffer allocation failed"))?;
+            replacement.extend_from_slice(&self.bytes);
+            self.bytes = replacement;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn append(&mut self, next: &[u8]) -> io::Result<()> {
+        self.reserve_additional(next.len())?;
+        // Capacity is now sufficient, so extend cannot release old bytes.
+        self.bytes.extend_from_slice(next);
+        Ok(())
+    }
+
+    pub(crate) fn into_guarded(self) -> Zeroizing<Vec<u8>> {
+        self.bytes
+    }
+
+    #[cfg(test)]
+    fn capacity(&self) -> usize {
+        self.bytes.capacity()
+    }
+}
+
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Write defaults delegate to scrub-on-grow write"
+)]
+impl Write for SensitiveJsonWriteBuffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.append(buf)?;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 // This ordinary-Value decoder is test-only. Production read projectors must
 // hold the full untrusted provider JSON in SensitiveValue until it is dropped.

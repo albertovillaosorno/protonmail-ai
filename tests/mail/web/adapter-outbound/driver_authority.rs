@@ -2066,6 +2066,23 @@ fn outbound_cdp_frame_encoder_uses_scrub_on_drop_bytes() {
     let recovered: serde_json::Value =
         serde_json::from_slice(&frame[..frame.len() - 1]).expect("parse frame");
     assert_eq!(recovered, *command);
+
+    // Force multiple serializer growths and a final NUL append. Every
+    // replaced frame allocation must pass through the guarded writer.
+    let large = "synthetic-private-cdp".repeat(128);
+    let large_command = SensitiveValue::from_owned(json!({
+        "id": 8u64, "method": "Runtime.evaluate",
+        "params": {"expression": large},
+        "sessionId": "synthetic-private-session"
+    }));
+    // jig-ignore-next-line: canonical checked synthetic frame encoder.
+    let frame = encode_cdp_request_frame(&large_command).expect("encode large synthetic CDP frame");
+    requires_guarded_bytes(&frame);
+    assert_eq!(frame.last(), Some(&0));
+    // jig-ignore-next-line: canonical synthetic JSON comparison.
+    let parsed: serde_json::Value = serde_json::from_slice(&frame[..frame.len() - 1])
+        .expect("large synthetic CDP JSON survives guarded growth");
+    assert_eq!(parsed, *large_command);
 }
 
 #[test]

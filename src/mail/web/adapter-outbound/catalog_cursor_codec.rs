@@ -105,9 +105,15 @@ impl WebCatalogCursorCodec {
             page_size: state.page_size(),
             snapshot: state.snapshot_boundary(),
         };
-        let mut payload_bytes = Zeroizing::new(Vec::new());
-        serde_json::to_writer(&mut *payload_bytes, &payload)
+        let mut writer = strict_json::SensitiveJsonWriteBuffer::new();
+        serde_json::to_writer(&mut writer, &payload)
             .map_err(|_error| WebCatalogCursorCodecError::EncodingFailed)?;
+        // AES-GCM appends a 16-byte authentication tag in place. Reserve
+        // without releasing an earlier plaintext allocation first.
+        writer
+            .reserve_additional(16)
+            .map_err(|_error| WebCatalogCursorCodecError::EncodingFailed)?;
+        let mut payload_bytes = writer.into_guarded();
         let mut nonce_bytes = [0u8; CURSOR_NONCE_BYTES];
         getrandom::fill(&mut nonce_bytes)
             .map_err(|_error| WebCatalogCursorCodecError::EntropyUnavailable)?;

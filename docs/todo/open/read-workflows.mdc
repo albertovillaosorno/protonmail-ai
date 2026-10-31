@@ -25,6 +25,13 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Event and catalog cursor JSON serialization now uses a bounded-growth
+  zeroizing writer that erases earlier plaintext allocations before replacing
+  capacity. Both codecs reserve the AES-GCM tag's 16 bytes before encrypting
+  in place, preventing a late private-buffer reallocation. Synthetic writer
+  growth, overflow refusal, and existing authenticated round trips preserve
+  exact cursor behavior without provider access.
+
 - Authenticated cursor encoding now encrypts the existing zeroizing JSON
   buffer in place for both event and catalog continuation tokens. The AEAD
   convenience API could first allocate an ordinary plaintext copy and release

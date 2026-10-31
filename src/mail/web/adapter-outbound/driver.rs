@@ -4450,13 +4450,15 @@ fn arm_frame_deadline(
 fn encode_cdp_request_frame(
     request: &strict_json::SensitiveValue,
 ) -> Result<Zeroizing<Vec<u8>>, BrowserDriverError> {
-    // Serialize directly into guarded bytes. A failed writer must never
-    // release an already-serialized private request prefix as a plain Vec.
-    let mut frame = Zeroizing::new(Vec::new());
-    serde_json::to_writer(&mut *frame, &**request)
+    // Serialize through scrub-on-grow storage. Ordinary Vec reallocation
+    // would release earlier private command prefixes without erasing them.
+    let mut frame = strict_json::SensitiveJsonWriteBuffer::new();
+    // jig-ignore-next-line: canonical scrub-on-grow writer call.
+    serde_json::to_writer(&mut frame, &**request).map_err(|_error| BrowserDriverError::Protocol)?;
+    frame
+        .append(&[0])
         .map_err(|_error| BrowserDriverError::Protocol)?;
-    frame.push(0);
-    Ok(frame)
+    Ok(frame.into_guarded())
 }
 
 // Browser CDP notifications can contain cookies and bearer headers even

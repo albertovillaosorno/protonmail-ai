@@ -60,6 +60,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- CDP outbound command serialization now routes through a scrub-on-growth
+  writer. When request JSON exceeds an initial vector allocation, each old
+  private prefix is erased before its storage is freed. The NUL frame marker
+  uses the same guarded append path. Synthetic short and long request frames
+  preserve exact JSON and framing with no browser/account access.
+
 - The private CDP frame reader now uses an 8 KiB scrub-on-drop read-ahead
   cache instead of the standard buffered stream. Consumed frame bytes are
   erased immediately, while coalesced unread replies remain available until
