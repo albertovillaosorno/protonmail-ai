@@ -1026,7 +1026,7 @@ if(!Array.isArray(valid)||valid.length!==1||
  throw Error('printable metadata must still project');
 }
 for(const point of [0x600,0x605,0x6dd,0x70f,0x890,0x891,
- 0x8e2,0x2800,0x3164,0xffa0]){
+ 0x8e2,0x2800,0x3164,0xffa0,0xfdd0,0xfffe,0x10ffff]){
  for(const field of ['currentSubject','currentAddresses']){
   globalThis[field]='invoice'+String.fromCodePoint(point)+'approved';
   if(eval(expression)!==null){
@@ -1187,7 +1187,7 @@ for(const [path,hash,expected] of [
   if(actual!==expected){throw Error('invalid mode proof for '+path+hash);}
 }
 for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
- 0x110bd,0x110cd,0x13430,0x1d173]){
+ 0x110bd,0x110cd,0x13430,0x1d173,0xfdd0,0xfffe,0x10ffff]){
   const query='visible'+String.fromCodePoint(point);
   globalThis.location={origin:'https://mail.proton.me',
     pathname:'/inbox',search:'',hash:'#keyword='+encodeURIComponent(query)};
@@ -1318,6 +1318,14 @@ for(const invalidText of ['line\\nfeed', 'carriage\\rreturn',
  if(eval(script)!==null){throw Error('unsafe address entered CDP');}
  addressValue='sender@example.test';
 }
+for(const point of [0xfdd0,0xfffe,0x10ffff]){
+ const unsafe='ordinary'+String.fromCodePoint(point);
+ subjectValue=unsafe;
+ if(eval(script)!==null){throw Error('noncharacter subject crossed CDP');}
+ subjectValue='synthetic subject';addressValue=unsafe;
+ if(eval(script)!==null){throw Error('noncharacter addresses crossed CDP');}
+ addressValue='sender@example.test';
+}
 subjectValue='heart\\u2764\\ufe0f and face\\u{1f600}';
 addressValue='Name\\u200cpart <sender@example.test>';
 const rich=eval(script);
@@ -1366,7 +1374,7 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  if(titleReads!==0){throw Error('invalid ID caused a content read');}
 }
 for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
- 0x110bd,0x110cd,0x13430,0x1d173]){
+ 0x110bd,0x110cd,0x13430,0x1d173,0xfdd0,0xfffe,0x10ffff]){
  idValue='hidden'+String.fromCodePoint(point);titleReads=0;
  if(eval(script)!==null||titleReads!==0){
   throw Error('format control exposed row content '+point.toString(16));
@@ -1531,7 +1539,7 @@ for(const invalidId of ['.', '..', 'white space', 'with/slash',
  if(eval(expression)!==null){throw Error('unsafe list ID crossed CDP');}
 }
 for(const point of [0x600,0x6dd,0x70f,0x890,0x8e2,0xfff9,
- 0x110bd,0x110cd,0x13430,0x1d173]){
+ 0x110bd,0x110cd,0x13430,0x1d173,0xfdd0,0xfffe,0x10ffff]){
  rowId='hidden'+String.fromCodePoint(point);
  if(eval(expression)!==null){
   throw Error('format control exposed list ID '+point.toString(16));

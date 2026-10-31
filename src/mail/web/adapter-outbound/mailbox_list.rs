@@ -118,6 +118,12 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",
+    // Unicode noncharacters have no interchange identity. Reject every plane
+    // before Chrome serializes the ID or projects any message text.
+    "const unsafeScalar=(text)=>[...text].some((c)=>{",
+    "const point=c.codePointAt(0);",
+    "return (point>=0xFDD0&&point<=0xFDEF)||",
+    "(point&0xFFFE)===0xFFFE;});",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\ud800-\\udfff",
@@ -132,7 +138,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     // Preflight projected IDs and page selectors before CDP serialization.
     "const ids=real.map((row)=>row.getAttribute('data-element-id'));",
     "if(ids.some((id)=>typeof id!=='string'||id.length===0||",
-    "id==='.'||id==='..'||invalidId.test(id)||",
+    "id==='.'||id==='..'||invalidId.test(id)||unsafeScalar(id)||",
     "id.length>512||new TextEncoder().encode(id).length>512)||",
     "new Set(ids).size!==ids.length){",
     "return null;}",

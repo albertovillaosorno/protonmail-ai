@@ -83,6 +83,12 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     // jig-ignore-next-line: indivisible JavaScript query fragment.
     "const rows=[...root.querySelectorAll(base+'[data-element-id][role=\"region\"]')];",
     "if(rows.length>200){return null;}",
+    // Unicode noncharacters have no interchange identity. Reject every plane
+    // before Chrome serializes the ID or projects any message text.
+    "const unsafeScalar=(text)=>[...text].some((c)=>{",
+    "const point=c.codePointAt(0);",
+    "return (point>=0xFDD0&&point<=0xFDEF)||",
+    "(point&0xFFFE)===0xFFFE;});",
     // Reject ambiguous opaque IDs before CDP, matching the Rust read guard.
     "const invalidId=/[\\s\\/?#%\\\\\\u0000-\\u001f\\u007f-\\u009f",
     "\\ud800-\\udfff",
@@ -96,7 +102,7 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "\\u{e0001}\\u{e0020}-\\u{e007f}\\u{e0100}-\\u{e01ef}]/u;",
     "const ids=rows.map((row)=>row.getAttribute('data-element-id'));",
     "if(ids.some((id)=>typeof id!=='string'||id.length===0||",
-    "id==='.'||id==='..'||invalidId.test(id)||",
+    "id==='.'||id==='..'||invalidId.test(id)||unsafeScalar(id)||",
     "id.length>512||new TextEncoder().encode(id).length>512)||",
     "new Set(ids).size!==ids.length){return null;}",
     // Never consult a subject or sender if any row has an ambiguous ID.
@@ -140,7 +146,8 @@ const MAILBOX_PAGE_EXPRESSION: &str = concat!(
     "\\u2800\\u3164\\ufeff\\uffa0",
     "\\u{e0001}\\u{e0020}-\\u{e007f}]/u;",
     "if(!bounded(subject,16384)||!bounded(addresses,16384)||",
-    "invalidText.test(subject)||invalidText.test(addresses)){return null;}",
+    "invalidText.test(subject)||invalidText.test(addresses)||",
+    "unsafeScalar(subject)||unsafeScalar(addresses)){return null;}",
     "return {id:id,subject:subject,addresses:addresses,",
     "unread:row.classList.contains('unread')};",
     "});",

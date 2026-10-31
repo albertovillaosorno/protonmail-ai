@@ -83,6 +83,16 @@ web application without requiring Bridge or a third-party direct API identity.
   and control-bearing account IDs; valid printable Unicode and the exact
   512-byte UTF-8 limit remain compatible. No live mailbox is accessed.
 
+## Reject noncharacters before browser row serialization
+
+- Red-first Node execution of both Mail list-ID and content-bearing row
+  expressions reproduced non-interchange Unicode scalars being returned as
+  page IDs, subject titles, and sender addresses before the strict Rust parse.
+  Both scripts now reject U+FDD0..U+FDEF and all Unicode plane-ending
+  noncharacters while still in the trusted-origin browser task. Row IDs are
+  checked before accessing any subject or sender; ordinary visible Unicode
+  and emoji continue to project; rejected values never cross CDP.
+
 ## Stable glyphs in displayed Mail headers and rows
 
 - Red-first display-guard, synthetic message-detail, and visible-row checks
