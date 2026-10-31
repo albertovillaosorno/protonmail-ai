@@ -83,6 +83,14 @@ web application without requiring Bridge or a third-party direct API identity.
   and control-bearing account IDs; valid printable Unicode and the exact
   512-byte UTF-8 limit remain compatible. No live mailbox is accessed.
 
+## Stable glyphs in displayed Mail headers and rows
+
+- Red-first display-guard, synthetic message-detail, and visible-row checks
+  showed Unicode noncharacters passing as subjects, sender metadata, and
+  address-row labels. The shared const text guard now refuses these across
+  all Unicode planes, while retaining language joiners, variation selectors,
+  and emoji graphemes. The same predicate guards catalog display names.
+
 ## Invisible search-mode selector refusal
 
 - A real Node evaluation of the browser-owned message-mode expression

@@ -130,6 +130,9 @@ fn rust_row_projection_refuses_hidden_formatting_in_display_text() {
         '\u{2069}',
         '\u{feff}',
         '\u{e0001}',
+        '\u{fdd0}',
+        '\u{fffe}',
+        '\u{10ffff}',
     ] {
         for (subject, addresses) in [
             (

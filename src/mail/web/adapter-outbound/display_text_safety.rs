@@ -39,6 +39,7 @@
 )]
 pub(crate) const fn unsafe_display_character(character: char) -> bool {
     character.is_control()
+        || is_noncharacter(character)
         || matches!(
             character,
             '\u{00ad}' | '\u{034f}' | '\u{061c}' | '\u{0600}'..='\u{0605}'
@@ -53,6 +54,17 @@ pub(crate) const fn unsafe_display_character(character: char) -> bool {
                 | '\u{2800}' | '\u{3164}' | '\u{feff}' | '\u{ffa0}'
                 | '\u{e0001}' | '\u{e0020}'..='\u{e007f}'
         )
+}
+
+// Unicode noncharacters have no stable display meaning. Guard all planes
+// without rejecting grapheme-joining code points used by real scripts.
+#[expect(
+    clippy::as_conversions,
+    reason = "char to u32 is lossless and required inside a stable const fn"
+)]
+const fn is_noncharacter(character: char) -> bool {
+    let codepoint = character as u32;
+    matches!(codepoint, 0xfdd0..=0xfdef) || codepoint & 0xfffe == 0xfffe
 }
 
 #[cfg(test)]

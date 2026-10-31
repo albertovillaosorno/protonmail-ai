@@ -51,6 +51,9 @@ fn hidden_display_controls_are_not_exported() {
         '\u{2069}',
         '\u{feff}',
         '\u{e0020}',
+        '\u{fdd0}',
+        '\u{fffe}',
+        '\u{10ffff}',
     ] {
         assert!(unsafe_display_character(character), "{character:?}");
     }

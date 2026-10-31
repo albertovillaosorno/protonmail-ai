@@ -1241,6 +1241,9 @@ fn message_detail_refuses_hidden_formatting_in_header_metadata() {
         '\u{2069}',
         '\u{feff}',
         '\u{e0001}',
+        '\u{fdd0}',
+        '\u{fffe}',
+        '\u{10ffff}',
     ] {
         for pointer in [
             "/Message/Subject",
