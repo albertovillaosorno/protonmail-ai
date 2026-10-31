@@ -4668,6 +4668,16 @@ fn allowed_mail_cdp_method(session: Option<&str>, method: &str) -> bool {
     }
 }
 
+// CDP DOM.NodeId and BackendNodeId extend signed protocol `integer`, not u64.
+// Refuse zero, negative, and out-of-range values before reusing node IDs in
+// any privileged browser command. These IDs are not provider content.
+const MAX_CDP_NODE_ID: u64 = 2_147_483_647;
+fn valid_cdp_node_id(value: &Value) -> bool {
+    value
+        .as_u64()
+        .is_some_and(|id| (1..=MAX_CDP_NODE_ID).contains(&id))
+}
+
 // Validate complete command shape at the final pipe-write boundary, not only
 // in the ordinary Runtime.evaluate helper. Future internal callers cannot
 // bypass script authorization by calling send_request directly.
@@ -4718,10 +4728,7 @@ fn allowed_mail_cdp_request(session: Option<&str>, method: &str, params: &Value)
         }
         "Accessibility.queryAXTree" => {
             fields.len() == 2
-                && fields
-                    .get("nodeId")
-                    .and_then(Value::as_u64)
-                    .is_some_and(|id| id > 0)
+                && fields.get("nodeId").is_some_and(valid_cdp_node_id)
                 && matches!(
                     fields.get("role").and_then(Value::as_str),
                     Some("navigation" | "search" | "dialog" | "alertdialog")
@@ -4835,12 +4842,10 @@ fn valid_cdp_document_root(root: &Value) -> bool {
     let Some(fields) = root.as_object() else {
         return false;
     };
-    ["nodeId", "backendNodeId"].iter().all(|field| {
-        fields
-            .get(*field)
-            .and_then(Value::as_u64)
-            .is_some_and(|id| id > 0)
-    }) && fields.get("nodeType").and_then(Value::as_u64) == Some(9)
+    ["nodeId", "backendNodeId"]
+        .iter()
+        .all(|field| fields.get(*field).is_some_and(valid_cdp_node_id))
+        && fields.get("nodeType").and_then(Value::as_u64) == Some(9)
         && fields.get("nodeName").and_then(Value::as_str) == Some("#document")
         && ["localName", "nodeValue"]
             .iter()

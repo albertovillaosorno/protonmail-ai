@@ -100,6 +100,48 @@ fn sparse_dom_root_cannot_establish_document_identity() {
 }
 
 #[test]
+fn cdp_node_identifiers_are_bounded_to_protocol_integers() {
+    use super::{allowed_mail_cdp_request, valid_cdp_document_root};
+    use serde_json::json;
+
+    let valid = json!({
+        "nodeId":1u64, "backendNodeId":2u64, "nodeType":9u64,
+        "nodeName":"#document", "localName":"", "nodeValue":""
+    });
+    assert!(valid_cdp_document_root(&valid));
+    for field in ["nodeId", "backendNodeId"] {
+        for invalid in [
+            json!(0u64),
+            json!(2_147_483_648u64),
+            json!(u64::from(u32::MAX)),
+            json!(u64::MAX),
+        ] {
+            let mut root = valid.clone();
+            root[field] = invalid;
+            assert!(
+                !valid_cdp_document_root(&root),
+                "{field} outside CDP integer bounds cannot authorize AX"
+            );
+        }
+    }
+    for node_id in [0u64, 2_147_483_648u64, u64::from(u32::MAX), u64::MAX] {
+        assert!(
+            !allowed_mail_cdp_request(
+                Some("session-a"),
+                "Accessibility.queryAXTree",
+                &json!({"nodeId":node_id,"role":"search"}),
+            ),
+            "unrepresentable node ID cannot enter a CDP query"
+        );
+    }
+    assert!(allowed_mail_cdp_request(
+        Some("session-a"),
+        "Accessibility.queryAXTree",
+        &json!({"nodeId":i32::MAX,"role":"search"}),
+    ));
+}
+
+#[test]
 fn scoped_browser_attachment_has_guarded_string_custody() {
     use super::{ManagedBrowser, ProviderPage};
     use zeroize::Zeroizing;

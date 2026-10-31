@@ -75,9 +75,10 @@ web application without requiring Bridge or a third-party direct API identity.
 - Red-first synthetic Chromium evidence showed a bare `DOM.getDocument`
   numeric node ID previously authorized accessibility inspection. The CDP
   document node also needs a backend identity, document type, name, local
-  name, and value. Missing or contradictory required fields now fail closed,
-  while optional document metadata remains compatible without reading page
-  content or private mailbox information.
+  name, and value. Node IDs must fit the positive signed protocol integer
+  range in both browser responses and subsequent accessibility requests.
+  Missing or contradictory evidence fails closed; optional metadata remains
+  compatible without reading private mailbox information.
 
 ## Exact shape for browser-origin evidence
 
