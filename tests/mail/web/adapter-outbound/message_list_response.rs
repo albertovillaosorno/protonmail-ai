@@ -283,20 +283,22 @@ fn only_if_cached_get_cannot_authorize_message_list_capture() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;
 
-    let mut capture = MessageListNetworkCapture::new("session-1");
-    let request = json!({
-        "sessionId": "session-1", "method": "Network.requestWillBeSent",
-        "params": {"requestId": "synthetic-list", "type": "Fetch",
-            "initiator": {"type": "script"}, "request": {
-                "method": "GET", "url": URL,
-                "headers": {"Cache-Control": "only-if-cached"}
-            }}
-    });
-    assert_eq!(
-        capture.observe(&request),
-        Err(MessageListNetworkError::MalformedEvent)
-    );
-    assert!(capture.take_finished_request_ids().is_empty());
+    for directive in ["only-if-cached", "only-if-cached=1"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        let request = json!({
+            "sessionId": "session-1", "method": "Network.requestWillBeSent",
+            "params": {"requestId": "synthetic-list", "type": "Fetch",
+                "initiator": {"type": "script"}, "request": {
+                    "method": "GET", "url": URL,
+                    "headers": {"Cache-Control": directive}
+                }}
+        });
+        assert_eq!(
+            capture.observe(&request),
+            Err(MessageListNetworkError::MalformedEvent)
+        );
+        assert!(capture.take_finished_request_ids().is_empty());
+    }
 }
 
 #[test]

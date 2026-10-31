@@ -269,7 +269,12 @@ fn proxy_routing_header(name: &str) -> bool {
 fn cache_only_directive(value: &str) -> bool {
     value.split(',').any(|part| {
         let directive = part.trim_ascii();
-        directive.eq_ignore_ascii_case("only-if-cached")
+        // An invalid value-bearing spelling is still ambiguous: an
+        // intermediary may interpret it as the cache-only directive.
+        let name = directive
+            .split_once('=')
+            .map_or(directive, |(name, _)| name.trim_ascii());
+        name.eq_ignore_ascii_case("only-if-cached")
     })
 }
 

@@ -692,6 +692,8 @@ fn only_if_cached_request_directive_cannot_prove_direct_http() {
         "only-if-cached",
         "max-age=0, only-if-cached",
         "ONLY-IF-CACHED",
+        "only-if-cached=1",
+        "max-age=0, ONLY-IF-CACHED = true",
         "no-cache, ONLY-IF-CACHED, max-age=0",
     ] {
         let mut event = ordinary.clone();

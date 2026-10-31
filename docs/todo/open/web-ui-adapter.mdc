@@ -2723,3 +2723,10 @@ web application without requiring Bridge or a third-party direct API identity.
   raw-wire, and message-list fixtures proved previously unknown method
   aliases could pass as a bodyless GET. A conservative method-tunneling
   family check preserves other ordinary Mail headers and stores no values.
+
+- The cache-only request guard now rejects `only-if-cached` even when a
+  malformed value is attached, such as `only-if-cached=1` or a whitespace
+  variant. Red-first shared provisional/refined and message-list capture
+  fixtures proved value-bearing spellings could pass as provider-network
+  HTTP evidence. The bounded directive-name check preserves ordinary
+  `no-cache` and other revalidating cache controls without storing values.
