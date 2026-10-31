@@ -800,6 +800,44 @@ fn network_capture_rejects_query_context_drift_without_retaining_terms() {
 }
 
 #[test]
+fn unpaired_message_range_selectors_cannot_prove_visible_list_batch() {
+    use serde_json::json;
+
+    let cases = [("begin-only", "Begin=123"), ("end-only", "End=456")];
+    for (label, selector) in cases {
+        let url = format!("{URL}&{selector}");
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1", "method":"Network.requestWillBeSent",
+                "params":{
+                    "requestId":label,
+                    "request":{"method":"GET","url":url}
+                }
+            }))
+            .expect("ignore range-constrained provider GET");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1", "method":"Network.responseReceived",
+                "params":{"requestId":label,"response":{
+                    "url":url,"status":200u16,"mimeType":"application/json"
+                }}
+            }))
+            .expect("ignore response from hidden range");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1", "method":"Network.loadingFinished",
+                "params":{"requestId":label}
+            }))
+            .expect("ignore range GET completion");
+        assert!(
+            capture.take_finished_request_ids().is_empty(),
+            "range selector {label} cannot prove canonical visible page"
+        );
+    }
+}
+
+#[test]
 fn network_capture_ignores_non_batch_list_queries_and_rejects_bad_limits() {
     use mail_web_adapter::{MessageListNetworkCapture, MessageListNetworkError};
     use serde_json::json;

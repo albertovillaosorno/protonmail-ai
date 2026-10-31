@@ -634,7 +634,9 @@ fn has_non_visible_list_selector(url: &str) -> Result<bool, MessageListNetworkEr
             }
         }
     }
-    for name in ["BeginID", "EndID", "ID"] {
+    // Time/range boundaries are independent selectors even when the optional
+    // companion ID is absent: neither can prove a visible list batch.
+    for name in ["Begin", "End", "BeginID", "EndID", "ID"] {
         if raw_query_parameter(url, name)?.is_some() {
             return Ok(true);
         }

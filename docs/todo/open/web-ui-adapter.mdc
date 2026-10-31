@@ -2256,3 +2256,9 @@ web application without requiring Bridge or a third-party direct API identity.
   with an alternate case (including mixed canonical/aliased LabelID keys)
   previously passed the batch-shape classifier; these now fail before capture
   while canonical repeated LabelID values remain accepted and ordered.
+
+- Standalone message-list `Begin` and `End` range selectors now disqualify
+  a request from visible batch capture even without `BeginID`/`EndID`.
+  Red-first synthetic Network GET lifecycles previously completed as a normal
+  initial batch. The observer now ignores these recovery-range responses,
+  preserving normal initial and continuation pagination without body reads.
