@@ -1469,14 +1469,16 @@ fn live_javascript_list_projection_rejects_hidden_or_ambiguous_mailbox() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
  contentVisibility:node===ancestor&&ancestorContentHidden?'hidden':'visible',
- pointerEvents:node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
+ pointerEvents:node===loaded&&parentPointerBlocked?'none':
+ node===next&&(nextDisabled||pointerBlocked)?'none':'auto',
  opacity:node===row?rowOpacity:node===current?currentOpacity:
  node===empty?emptyOpacity:node===ancestor?ancestorOpacity:'1'});
 globalThis.HTMLButtonElement=class {};
 let rowHidden=false, showLoading=false, nextDisabled=false;
 let duplicateRows=false;
 let fieldsetDisabled=false;
-let pointerBlocked=false, rowOpacity='1', currentOpacity='1';
+let pointerBlocked=false,parentPointerBlocked=false;
+let rowOpacity='1', currentOpacity='1';
 let showEmpty=false,emptyOpacity='1',ancestorOpacity='1';
 let ancestorContentHidden=false;
 let modal=false,rootInert=false,nextParentDisabled=false;
@@ -1497,6 +1499,7 @@ const loaded={parentElement:ancestor,querySelectorAll:(q)=>
  (showEmpty?[]:duplicateRows?[row,row]:[row])};
 row.parentElement=loaded;
 const next=new HTMLButtonElement();
+next.parentElement=loaded;
 next.type='button';next.form=null;
 next.disabled=false;
 next.getClientRects=()=>[{}];
@@ -1564,11 +1567,11 @@ emptyOpacity='1';showEmpty=false;nextDisabled=false;
 showLoading=true;
 if(eval(expression)!==null){throw Error('two active roots were accepted');}
 showLoading=false;
-nextDisabled=true;
+nextDisabled=true;parentPointerBlocked=true;
 if(eval(expression).nextDisabled!==true){
  throw Error('disabled Next with pointer-events none must remain observable');
 }
-nextDisabled=false;nextParentDisabled=true;
+parentPointerBlocked=false;nextDisabled=false;nextParentDisabled=true;
 if(eval(expression).nextDisabled!==true){
  throw Error('inherited disabled Next was reported enabled');
 }
@@ -1619,7 +1622,11 @@ pointerBlocked=true;
 if(eval(expression)!==null){
  throw Error('enabled Next with pointer-events none was accepted');
 }
-pointerBlocked=false;
+pointerBlocked=false;parentPointerBlocked=true;
+if(eval(expression)!==null){
+ throw Error('enabled Next beneath pointer-blocked parent was accepted');
+}
+parentPointerBlocked=false;
 next.getClientRects=()=>[];
 if(eval(expression)!==null){throw Error('invisible enabled Next was accepted');}
 next.getClientRects=()=>[{}];rootInert=true;

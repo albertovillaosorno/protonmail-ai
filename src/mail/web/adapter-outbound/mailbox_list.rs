@@ -70,6 +70,16 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "!(Number(style.opacity)>0)){return false;}",
     "current=current.parentElement;}",
     "return false;};",
+    // Disabled pagination remains observable, while an enabled control
+    // must have an actionable ancestry; child pointer styles can override
+    // a blocked parent yet do not make the programmatic click legitimate.
+    "const pointerTree=(node)=>{let current=node;",
+    "for(let depth=0;depth<64;depth++){",
+    "if(!current){return true;}",
+    "const style=getComputedStyle(current);",
+    "if(!style||style.pointerEvents==='none'){return false;}",
+    "current=current.parentElement;}",
+    "return false;};",
     "if(!visibleTree(root)){return null;}",
     // Loading is a non-authoritative state. Do not inspect or serialize
     // transient row IDs, skeleton details, or pagination while it is active.
@@ -117,7 +127,7 @@ const MAILBOX_LIST_EXPRESSION: &str = concat!(
     "(!next.matches(':disabled')&&!next.disabled&&",
     "next.getAttribute('aria-disabled')?.toLowerCase()!=='true'&&",
     "!inheritedDisabled&&",
-    "getComputedStyle(next).pointerEvents==='none')||",
+    "!pointerTree(next))||",
     "getComputedStyle(next).opacity==='0'||",
     "!visibleTree(next)||",
     "next.closest('[aria-hidden=\"true\" i],[inert]'))){return null;}",

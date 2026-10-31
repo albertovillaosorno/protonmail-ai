@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Enabled Next evidence and ancestor pointer blocking
+
+- The content-free list used to report enabled Next when the button overrode
+  a parent `pointer-events:none` with `auto`; its eventual click was correctly
+  refused by the audited script, but the readiness claim was contradictory.
+  Red-first executable DOM coverage now verifies that the list rejects that
+  parent override, while a disabled Next can remain visible and report disabled.
+  The bounded list pointer ancestry check matches the click preflight and
+  does not add any browser or provider I/O.
+
 ## Pre-CDP visible-list and row projection gates
 
 - Red-first executable synthetic DOM tests demonstrated that loaded list IDs,
