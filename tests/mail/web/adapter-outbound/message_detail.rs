@@ -1456,6 +1456,7 @@ fn detail_url_backslash_is_not_a_safe_opaque_id_separator() {
 fn detail_projection_rejects_unsafe_route_bound_metadata_ids() {
     for bad in [
         "encoded%2Fslash",
+        "matrix;param=value",
         "%2e",
         "%2E%2E",
         "direction\u{202e}flip",

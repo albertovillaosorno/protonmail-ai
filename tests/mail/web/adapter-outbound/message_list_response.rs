@@ -1183,6 +1183,7 @@ fn list_projection_rejects_unsafe_message_route_ids() {
     use serde_json::json;
     let bad_ids = [
         "encoded%2Fslash",
+        "matrix;param=value",
         "%2e",
         "%2E%2E",
         "direction\u{202e}flip",

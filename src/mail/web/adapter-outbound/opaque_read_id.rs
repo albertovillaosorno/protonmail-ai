@@ -45,7 +45,10 @@ pub(super) fn safe_read_id(id: &str, max_bytes: usize) -> bool {
         && !id.chars().any(|character| {
             character.is_control()
                 || character.is_whitespace()
-                || matches!(character, '/' | '?' | '#' | '%' | '\\')
+                // Matrix-parameter separators can change a path segment's
+                // identity in HTTP routers and intermediaries even without
+                // URL encoding. Do not treat them as exact provider IDs.
+                || matches!(character, '/' | '?' | '#' | '%' | ';' | '\\')
                 // U+FFFD cannot prove the original exact route identity.
                 || character == '\u{fffd}'
                 || is_invisible_format(character)

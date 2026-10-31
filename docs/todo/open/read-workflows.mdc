@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Exact provider path-component identity
+
+- Red-first synthetic message-list and exact-detail GET fixtures showed that
+  semicolon-delimited matrix parameters could be retained as opaque Mail IDs,
+  including labels and attachment parent references. Since HTTP routers can
+  reinterpret a semicolon as path-segment metadata, the shared read-ID guard
+  now rejects it before accepting any bound provider identifier. The existing
+  Base64-style `+`/`=` IDs and printable Unicode remain valid. No account or
+  provider network access was involved.
+
 ## Current evidence
 
 - Private CDP request bookkeeping no longer derives unsanitized `Debug`
