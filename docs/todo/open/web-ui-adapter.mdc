@@ -2298,3 +2298,8 @@ web application without requiring Bridge or a third-party direct API identity.
   reject non-ASCII raw URL path components. Red-first synthetic Unicode
   conversation identity previously authorized complete members despite a
   noncanonical browser URL; exact ASCII paths remain supported.
+
+- Attachment-metadata browser GET provenance and direct projection now reject
+  raw Unicode URL path identities. A synthetic response using matching
+  Unicode metadata IDs previously authorized a noncanonical URL; ordinary
+  ASCII attachment GETs continue working with no attachment bytes retained.

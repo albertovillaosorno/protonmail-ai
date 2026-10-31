@@ -724,7 +724,11 @@ fn attachment_id_from_metadata_url(
     let Some(attachment_id) = suffix.strip_suffix("/metadata") else {
         return Ok(None);
     };
-    if !safe_read_id(attachment_id, MAX_ATTACHMENT_ID_BYTES) {
+    // Browser-serialized attachment paths percent-encode Unicode text.
+    // A raw Unicode route cannot prove which attachment the browser fetched.
+    if !url.bytes().all(|byte| byte.is_ascii_graphic())
+        || !safe_read_id(attachment_id, MAX_ATTACHMENT_ID_BYTES)
+    {
         return Err(AttachmentMetadataResponseError::UnexpectedEndpoint);
     }
     Ok(Some(attachment_id))

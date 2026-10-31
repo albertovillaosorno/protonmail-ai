@@ -1204,6 +1204,33 @@ fn metadata_identity_rejects_unsafe_route_and_caller_ids() {
 }
 
 #[test]
+fn raw_non_ascii_attachment_metadata_urls_cannot_prove_provider_metadata() {
+    let endpoint = "https://mail.proton.me/api/mail/v4/attachments/";
+    for raw_id in ["attachment-\u{e9}", "attachment-\u{1f680}"] {
+        let url = format!("{endpoint}{raw_id}/metadata");
+        let mut body = metadata_body();
+        body["Attachment"]["ID"] = json!(raw_id);
+        let parse = ObservedAttachmentMetadataResponse::parse;
+        let got = parse("GET", &url, MESSAGE_ID, &body.to_string());
+        assert_eq!(
+            got,
+            Err(AttachmentMetadataResponseError::UnexpectedEndpoint)
+        );
+        let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+        let request = request_event("session-a", "unicode", "GET", &url);
+        assert_eq!(
+            capture.observe(&request),
+            Err(AttachmentMetadataNetworkError::MalformedEvent)
+        );
+        assert_eq!(capture.tracked_request_count(), 0);
+    }
+    let mut capture = AttachmentMetadataNetworkCapture::new("session-a");
+    capture
+        .observe(&request_event("session-a", "ascii", "GET", URL))
+        .expect("canonical ASCII route remains supported");
+}
+
+#[test]
 fn metadata_identity_preserves_printable_opaque_identifiers() {
     let mut body = metadata_body();
     body["Attachment"]["ID"] = json!("attach+_~=");
