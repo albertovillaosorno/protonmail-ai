@@ -738,14 +738,17 @@ impl ManagedBrowser {
     }
 
     // jig-ignore-next-line: canonical rustfmt line.
-    fn attach(&mut self, page: &ProviderPage) -> Result<String, BrowserDriverError> {
-        let params = json!({"targetId": page.target_id, "flatten": true});
+    fn attach(&mut self, page: &ProviderPage) -> Result<Zeroizing<String>, BrowserDriverError> {
+        // Both the source params and returned session token must scrub on drop.
+        let params = strict_json::SensitiveValue::from_owned(
+            json!({"targetId": page.target_id, "flatten": true}),
+        );
         let result = self.call("Target.attachToTarget", &params)?;
         result
             .get("sessionId")
             .and_then(Value::as_str)
             .filter(|id| safe_cdp_endpoint_id(id))
-            .map(String::from)
+            .map(|id| Zeroizing::new(String::from(id)))
             .ok_or(BrowserDriverError::Protocol)
     }
 
@@ -847,7 +850,10 @@ impl ManagedBrowser {
     }
 
     fn detach(&mut self, session: &str) -> Result<(), BrowserDriverError> {
-        self.call("Target.detachFromTarget", &json!({"sessionId": session}))?;
+        let params = strict_json::SensitiveValue::from_owned(json!({
+            "sessionId": session
+        }));
+        self.call("Target.detachFromTarget", &params)?;
         Ok(())
     }
 

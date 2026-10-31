@@ -40,6 +40,16 @@ use super::{allowed_mail_cdp_method, allowed_mail_cdp_request, allowed_mail_runt
 use serde_json::json;
 
 #[test]
+fn scoped_browser_attachment_has_guarded_string_custody() {
+    use super::{ManagedBrowser, ProviderPage};
+    use zeroize::Zeroizing;
+
+    type AttachResult = Result<Zeroizing<String>, BrowserDriverError>;
+    // jig-ignore-next-line: canonical scoped attachment type signature.
+    let _: fn(&mut ManagedBrowser, &ProviderPage) -> AttachResult = ManagedBrowser::attach;
+}
+
+#[test]
 fn passive_network_captures_require_scrub_on_drop() {
     use crate::AttachmentMetadataNetworkCapture;
     use crate::ConversationDetailNetworkCapture;

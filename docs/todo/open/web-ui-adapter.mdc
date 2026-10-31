@@ -60,6 +60,12 @@ web application without requiring Bridge or a third-party direct API identity.
 - Redacted opt-in Free-account transcript
 ## Current implementation
 
+- The managed browser's flattened CDP session token now leaves `attach()` in
+  `Zeroizing<String>`, and both attach/detach command parameter objects stay
+  in the scrub-on-drop strict JSON guard. This prevents ordinary intermediate
+  session and selected-target copies in addition to guarded frame serialization;
+  existing origin revalidation and command permission gates are unchanged.
+
 - The managed browser's selected target identity now scrubs its CDP ID on
   drop, including origin/mode rejection paths. Its public origin classifier
   and fail-closed page targeting behavior are unchanged.
