@@ -2601,3 +2601,17 @@ web application without requiring Bridge or a third-party direct API identity.
   text without retaining private Cookie or authorization values; message-list
   capture regression tests cover rejection and a valid raw request, without
   contacting Proton or any browser.
+
+- The initial `Network.Response.headers` map can report a media type or
+  HTTP/2 status incompatible with an advertised JSON HTTP 200. Red-first
+  synthetic shared and message-list tests proved contradictory Content-Type
+  and malformed response header maps were still accepted without later
+  extra-info evidence. Both initial and extra-info response maps now use one
+  typed status and JSON header gate, retaining optional omitted metadata.
+
+- The optional initial `Network.Response.headersText` may also contradict
+  parsed JSON response headers. Red-first synthetic tests proved an HTTP/1
+  304 or HTML raw response was accepted as provider JSON 200. The initial
+  passive response gate now checks borrowed bounded HTTP/1 status, header
+  structure and Content-Type against the parsed map before any read; private
+  header contents are not retained and no live mailbox was accessed.

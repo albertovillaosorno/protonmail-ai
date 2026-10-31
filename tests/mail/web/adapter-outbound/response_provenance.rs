@@ -927,6 +927,66 @@ fn refined_wire_request_headers_must_confirm_passive_get_provenance() {
 }
 
 #[test]
+fn raw_initial_response_headers_must_agree_with_json_200() {
+    let original = json!({
+        "status":200u16,
+        "mimeType":"application/json",
+        "headers":{"Content-Type":"application/json"},
+        // jig-ignore-next-line: synthetic HTTP/1 response CRLF fixture.
+        "headersText":"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n"
+    });
+    assert!(uncached_provider_response(&original));
+    for invalid in [
+        "HTTP/1.1 304 Not Modified\r\nContent-Type: application/json\r\n\r\n",
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n",
+        // jig-ignore-next-line: synthetic HTTP/1 duplicate header fixture.
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Type: text/html\r\n\r\n",
+    ] {
+        let mut response = original.clone();
+        response["headersText"] = json!(invalid);
+        assert!(!uncached_provider_response(&response));
+    }
+    let mut malformed = original;
+    malformed["headersText"] = json!(null);
+    assert!(!uncached_provider_response(&malformed));
+}
+
+#[test]
+fn response_headers_cannot_contradict_json_200_metadata() {
+    let original = json!({"url":"https://mail.proton.me/api/mail/v4/messages",
+        "status":200u16,
+        "headers":{"Content-Type":"application/json; charset=utf-8"}});
+    assert!(uncached_provider_response(&original));
+    let mut no_headers = original.clone();
+    no_headers
+        .as_object_mut()
+        .expect("response object")
+        .remove("headers");
+    assert!(uncached_provider_response(&no_headers));
+
+    for changed_headers in [
+        json!({"Content-Type":"text/html"}),
+        json!({"Content-Type":"application/json", "content-type":"text/html"}),
+        json!({"Content-Type":12i32}),
+        json!({"Content-Type":"application/json", ":status":"304"}),
+        json!({"Content-Type":"application/json", ":method":"GET"}),
+        json!({"Content-Type":"application/json", "X-Invalid\nName":"a"}),
+    ] {
+        let mut changed = original.clone();
+        changed["headers"] = changed_headers;
+        assert!(!uncached_provider_response(&changed));
+    }
+    for invalid in [json!(null), json!([]), json!("untyped")] {
+        let mut changed = original.clone();
+        changed["headers"] = invalid;
+        assert!(!uncached_provider_response(&changed));
+    }
+    let mut http2 = original;
+    http2["headers"][":status"] = json!("200");
+    assert!(uncached_provider_response(&http2));
+}
+
+#[test]
 fn raw_http_request_headers_must_confirm_bodyless_mail_get() {
     let url = "https://mail.proton.me/api/mail/v4/messages?Page=0";
     let path = "/api/mail/v4/messages?Page=0";

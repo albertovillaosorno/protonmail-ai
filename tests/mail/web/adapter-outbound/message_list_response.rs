@@ -584,6 +584,60 @@ fn raw_refined_request_headers_cannot_launder_mail_list_get() {
 }
 
 #[test]
+fn raw_initial_response_headers_cannot_launder_list_capture() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    let mut capture = MessageListNetworkCapture::new("session-1");
+    capture
+        .observe(&json!({
+            "sessionId":"session-1", "method":"Network.requestWillBeSent",
+            "params":{"requestId":"raw-response", "request":{
+                "method":"GET", "url":URL}}
+        }))
+        .expect("track exact Mail GET");
+    let response = json!({
+        "sessionId":"session-1", "method":"Network.responseReceived",
+        "params":{"requestId":"raw-response", "response":{
+            "url":URL, "status":200u16, "mimeType":"application/json",
+            "headers":{"Content-Type":"application/json"},
+            // jig-ignore-next-line: synthetic HTTP/1 response CRLF fixture.
+            "headersText":"HTTP/1.1 304 Not Modified\r\nContent-Type: application/json\r\n\r\n"}}
+    });
+    assert_eq!(
+        capture.observe(&response),
+        Err(MessageListNetworkError::ResponseRejected)
+    );
+}
+
+#[test]
+fn response_headers_cannot_disagree_with_message_list_json_mime() {
+    use mail_web_adapter::MessageListNetworkError;
+    use serde_json::json;
+
+    for content_type in ["text/html", "application/javascript"] {
+        let mut capture = MessageListNetworkCapture::new("session-1");
+        capture
+            .observe(&json!({
+                "sessionId":"session-1", "method":"Network.requestWillBeSent",
+                "params":{"requestId":"response-headers", "request":{
+                    "method":"GET", "url":URL}}
+            }))
+            .expect("track provider GET");
+        let response = json!({
+            "sessionId":"session-1", "method":"Network.responseReceived",
+            "params":{"requestId":"response-headers", "response":{
+                "url":URL, "status":200u16, "mimeType":"application/json",
+                "headers":{"Content-Type":content_type}}}
+        });
+        assert_eq!(
+            capture.observe(&response),
+            Err(MessageListNetworkError::ResponseRejected)
+        );
+    }
+}
+
+#[test]
 fn conflicting_response_extra_content_type_rejects_mail_list_get() {
     use mail_web_adapter::MessageListNetworkError;
     use serde_json::json;

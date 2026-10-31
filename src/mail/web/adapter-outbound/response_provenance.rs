@@ -580,8 +580,28 @@ impl RequestExtraInfoEvidence {
 pub(super) fn uncached_provider_response(response: &Value) -> bool {
     response.as_object().is_some_and(|fields| {
         let direct_source = uncached_source_fields(fields);
-        direct_source && refined_request_headers_are_safe(fields)
+        direct_source
+            && refined_request_headers_are_safe(fields)
+            && initial_response_headers_are_safe(fields)
     })
+}
+
+// Initial responseReceived headers must agree with the JSON 200 metadata,
+// even when a separate Network.responseReceivedExtraInfo event is absent.
+fn initial_response_headers_are_safe(response: &Map<String, Value>) -> bool {
+    let headers = match response.get("headers") {
+        None => None,
+        Some(Value::Object(headers)) => Some(headers),
+        Some(_) => return false,
+    };
+    if headers.is_some_and(|fields| !json_200_response_headers(fields)) {
+        return false;
+    }
+    match response.get("headersText") {
+        None => true,
+        Some(Value::String(text)) => raw_json_200_headers(text, headers),
+        Some(_) => false,
+    }
 }
 
 // CDP also exposes raw HTTP/1 request headers as transmitted on the wire.
@@ -914,6 +934,39 @@ fn json_content_type(value: &str) -> bool {
         .eq_ignore_ascii_case("application/json")
 }
 
+// Both initial and extra CDP response header maps describe the same HTTP
+// response. Reject incompatible JSON media types, ambiguous duplicate
+// singletons, malformed fields and contradictory HTTP/2 response statuses.
+fn json_200_response_headers(headers: &Map<String, Value>) -> bool {
+    let mut seen_content_type = false;
+    for (name, value) in headers {
+        if name.starts_with(':') {
+            // Response pseudo-headers are not request pseudo-headers. The
+            // actual HTTP/2/3 :status must agree with the reported 200.
+            if name != ":status" || value.as_str() != Some("200") {
+                return false;
+            }
+            continue;
+        }
+        if !cdp_header_name_is_token(name) || !cdp_header_value_is_safe(value) {
+            return false;
+        }
+        if name.eq_ignore_ascii_case("content-type") {
+            if seen_content_type {
+                return false;
+            }
+            seen_content_type = true;
+            let Some(content_type) = value.as_str() else {
+                return false;
+            };
+            if !json_content_type(content_type) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 // A conditional HTTP-cache revalidation can report 200 in responseReceived
 // while the network stack reports 304 here. Accept only exact 200 if the
 // optional extra-info event is provided for a tracked provider GET.
@@ -940,34 +993,8 @@ pub(super) fn direct_extra_status_is_200(event: &Value) -> bool {
             Some(_) => false,
         };
     };
-    // Extra-info carries the actual HTTP response headers. A conflicting
-    // content type cannot corroborate a passive Mail JSON response even if
-    // responseReceived reported a compatible MIME type. Omission is allowed.
-    let mut seen_content_type = false;
-    for (name, value) in headers {
-        if name.starts_with(':') {
-            // Response pseudo-headers are not request pseudo-headers. The
-            // actual HTTP/2/3 :status must agree with the reported 200.
-            if name != ":status" || value.as_str() != Some("200") {
-                return false;
-            }
-            continue;
-        }
-        if !cdp_header_name_is_token(name) || !cdp_header_value_is_safe(value) {
-            return false;
-        }
-        if name.eq_ignore_ascii_case("content-type") {
-            if seen_content_type {
-                return false;
-            }
-            seen_content_type = true;
-            let Some(content_type) = value.as_str() else {
-                return false;
-            };
-            if !json_content_type(content_type) {
-                return false;
-            }
-        }
+    if !json_200_response_headers(headers) {
+        return false;
     }
     match params.get("headersText") {
         None => true,
