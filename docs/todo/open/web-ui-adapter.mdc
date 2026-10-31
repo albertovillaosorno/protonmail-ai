@@ -114,6 +114,15 @@ web application without requiring Bridge or a third-party direct API identity.
   source types and known outer properties. Canonical optional source and
   related-node objects remain accepted without retaining their content.
 
+## Disqualify explicitly insecure network response provenance
+
+- The shared passive Network response gate accepted an otherwise valid
+  provider GET even if CDP explicitly marked its `securityState` as insecure,
+  unknown, or malformed. Red-first synthetic response fixtures now require a
+  reported resource security state to be exactly `secure`. Omission remains
+  compatible with older CDP fixtures; all eight passive read collectors share
+  this check, with no certificate, header, or mailbox content retained.
+
 ## Reject conflicting AX child ownership across role replies
 
 - Red-first synthetic role queries accepted an explicitly claimed child with a

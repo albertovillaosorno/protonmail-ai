@@ -69,7 +69,15 @@ pub(super) fn uncached_provider_response(response: &Value) -> bool {
             && !source_flags.contains(&field.as_str())
             && !source_hints.contains(&field.as_str())
     });
+    // An HTTPS endpoint cannot establish a trusted direct response if the
+    // browser explicitly reports insecure, neutral, or unknown transport.
+    // Keep omission compatible with older/synthetic CDP response shapes;
+    // a reported value must be exactly the documented secure state.
+    let security_valid = fields
+        .get("securityState")
+        .is_none_or(|state| state.as_str() == Some("secure"));
     !unknown_source_marker
+        && security_valid
         && source_flags.iter().all(|field| {
             let value = fields.get(*field);
             matches!(value, None | Some(Value::Bool(false)))

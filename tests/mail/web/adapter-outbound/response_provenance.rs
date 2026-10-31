@@ -106,6 +106,36 @@ fn contradictory_source_hints_override_false_flags() {
 }
 
 #[test]
+fn insecure_network_security_states_cannot_prove_direct_provider_http() {
+    let ordinary = json!({
+        "status":200u16, "mimeType":"application/json",
+        "fromDiskCache":false, "fromServiceWorker":false
+    });
+    assert!(uncached_provider_response(&ordinary));
+    let mut secure = ordinary.clone();
+    secure["securityState"] = json!("secure");
+    assert!(uncached_provider_response(&secure));
+    for invalid in [
+        json!("insecure"),
+        json!("insecure-broken"),
+        json!("neutral"),
+        json!("unknown"),
+        json!("info"),
+        json!("future"),
+        json!(null),
+        json!(true),
+        json!(42i32),
+    ] {
+        let mut response = ordinary.clone();
+        response["securityState"] = invalid.clone();
+        assert!(
+            !uncached_provider_response(&response),
+            "unsafe CDP security state {invalid} must not establish HTTP proof"
+        );
+    }
+}
+
+#[test]
 fn unknown_response_source_markers_cannot_prove_direct_http() {
     let ordinary_response = json!({
         "status": 200u16, "mimeType": "application/json",
