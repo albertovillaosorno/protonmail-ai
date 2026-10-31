@@ -166,6 +166,68 @@ fn mixed_case_device_detection_preserves_ascii_only_folding() {
 }
 
 #[test]
+fn sanitizer_outputs_only_portable_relative_filename_leaves() {
+    // Seeded, bounded adversarial corpus. Every sanitized provider filename
+    // must also pass the independent destination validator as one leaf.
+    let alphabet = [
+        'A',
+        'c',
+        'o',
+        'n',
+        '1',
+        '9',
+        '.',
+        ' ',
+        '/',
+        '\\',
+        ':',
+        '?',
+        '\0',
+        '\n',
+        '\t',
+        '\r',
+        '\u{202e}',
+        '\u{200b}',
+        '\u{00e9}',
+        '\u{1f680}',
+        '\u{b2}',
+        '\u{301}',
+        'p',
+        'r',
+        'N',
+        'U',
+        'L',
+        'm',
+        't',
+        '0',
+        '_',
+        '$',
+    ];
+    let mut seed = 0x6a09_e667_f3bc_c909u64;
+    for _case in 0..2_048u16 {
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        let size = usize::try_from(seed & 0x1ff).expect("bounded corpus size");
+        let mut untrusted = String::new();
+        for _ in 0..size {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            let index = usize::try_from(seed & 31);
+            let position = index.expect("bounded symbol index");
+            untrusted.push(alphabet[position]);
+        }
+        let sanitized = SanitizedAttachmentFilename::new(&untrusted);
+        let leaf = sanitized.as_str();
+        assert!(!leaf.is_empty());
+        assert!(leaf.len() <= MAX_ATTACHMENT_FILENAME_BYTES);
+        let destination = AttachmentRelativePath::new(leaf);
+        assert!(destination.is_ok(), "sanitized leaf must be portable");
+        assert_eq!(
+            destination.expect("portable leaf").as_path(),
+            Path::new(leaf)
+        );
+    }
+}
+
+#[test]
 fn reserved_filename_prefixing_preserves_the_byte_ceiling() {
     let long_reserved = format!("CON.{}", "x".repeat(300));
     let safe = SanitizedAttachmentFilename::new(&long_reserved);
