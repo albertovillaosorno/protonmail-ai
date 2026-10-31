@@ -47,6 +47,12 @@ to register as a local MCP server.
 
 ## Existing compose-url diagnostic safety
 
+- Bounded body-file reading now fills one preallocated zeroizing byte
+  buffer before UTF-8 conversion. This avoids releasing private text prefixes
+  when `read_to_string` grows its String during a multi-read input and keeps
+  invalid UTF-8 bytes scrubbed on error. Synthetic exact-16-KiB body and
+  malformed-byte CLI tests preserve length limits and redacted diagnostics.
+
 - Human compose URLs now reserve each percent-encoded field and the
   assembled mailto URI before writing sensitive message data. Previously
   escaped Unicode or reserved bytes expanded beyond the initial zeroizing

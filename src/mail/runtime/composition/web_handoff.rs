@@ -35,6 +35,7 @@
 use std::fmt;
 use std::fs::File;
 use std::io::Read as _;
+use std::mem::take;
 use std::path::{Component, Path};
 
 use nix::fcntl::{OFlag, open, openat};
@@ -306,14 +307,24 @@ fn read_body_file(path: &str) -> HResult<Zeroizing<String>> {
     if !metadata.is_file() {
         return Err(body_file_error(path));
     }
-    let mut body = Zeroizing::new(String::new());
+    // The fixed 16-KiB-plus-one read ceiling fits in one zeroizing Vec.
+    // String::read_to_string would grow the String and release older body
+    // prefixes without erasure before the final Zeroizing drop.
+    // jig-ignore-next-line: canonical bounded body buffer capacity.
+    let mut bytes = Zeroizing::new(Vec::with_capacity(MAX_BODY_BYTES.saturating_add(1)));
     file.take(MAX_BODY_READ_BYTES)
-        .read_to_string(&mut body)
+        .read_to_end(&mut bytes)
         .map_err(|_error| body_file_error(path))?;
-    if body.len() > MAX_BODY_BYTES {
+    if bytes.len() > MAX_BODY_BYTES {
         return Err(ComposeInputError::BodyTooLarge);
     }
-    Ok(body)
+    // Reuse the preallocated buffer as a guarded String. Invalid UTF-8
+    // retains zeroizing ownership of the rejected input allocation.
+    let body = String::from_utf8(take(&mut *bytes)).map_err(|error| {
+        let _rejected = Zeroizing::new(error.into_bytes());
+        body_file_error(path)
+    })?;
+    Ok(Zeroizing::new(body))
 }
 
 // Traversing by pathname would follow intermediate symlink aliases despite

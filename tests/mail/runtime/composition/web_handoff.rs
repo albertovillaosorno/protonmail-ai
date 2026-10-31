@@ -260,6 +260,51 @@ fn oversized_inline_body_is_rejected() {
 }
 
 #[test]
+fn maximum_length_body_file_roundtrips_without_truncation() {
+    let path = body_path("max-body");
+    let content = "synthetic-private-body/".repeat(700);
+    // Exactly 16,384 UTF-8 bytes, including the final filler.
+    let remaining = 16_384usize.saturating_sub(content.len());
+    let content = format!("{content}{}", "x".repeat(remaining));
+    assert_eq!(content.len(), 16_384);
+    fs::write(&path, &content).expect("write maximum synthetic body");
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "file@example.test",
+        "--body-file",
+        path.to_str().expect("temporary UTF-8 path"),
+    ]);
+    fs::remove_file(&path).expect("remove maximum synthetic body");
+    assert!(output.status.success(), "{}", stderr(&output));
+    let url = stdout(&output);
+    assert_eq!(url.matches("synthetic-private-body%252F").count(), 700);
+    assert!(url.trim_end().ends_with(&"x".repeat(remaining)));
+}
+
+#[test]
+fn invalid_utf8_body_file_fails_without_emitting_partial_mail() {
+    let path = body_path("invalid-utf8");
+    let mut content = b"synthetic-private-body-header".repeat(500);
+    content.push(0xff);
+    fs::write(&path, content).expect("write malformed synthetic body");
+    let output = run(&[
+        "mail",
+        "compose-url",
+        "--to",
+        "file@example.test",
+        "--body-file",
+        path.to_str().expect("temporary UTF-8 path"),
+    ]);
+    fs::remove_file(&path).expect("remove malformed synthetic body");
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("cannot read body file"));
+    assert!(!stderr(&output).contains("synthetic-private-body"));
+}
+
+#[test]
 fn oversized_body_file_is_rejected_before_encoding() {
     let path = body_path("oversized");
     fs::write(&path, "x".repeat(16_385)).expect("write oversized body");
