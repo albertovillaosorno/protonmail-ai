@@ -171,3 +171,26 @@ fn display_text_preserves_emoji_and_language_joiners() {
     assert_eq!(projected[0].subject(), subject);
     assert_eq!(projected[0].displayed_addresses(), sender);
 }
+
+#[test]
+fn private_row_fields_remain_borrowed_until_unread_validation_succeeds() {
+    use super::bounded_str;
+    use std::ptr::eq;
+
+    let row = json!({
+        "id":"synthetic-private-id",
+        "subject":"synthetic-private-subject",
+        "addresses":"synthetic-private-address@example.test",
+        "unread":"not-a-boolean"
+    });
+    let source = row["subject"].as_str().expect("synthetic subject");
+    let borrowed: &str = bounded_str(&row, "subject", 16_384, true)
+        .expect("valid subject metadata remains borrowed");
+    assert!(eq(borrowed.as_ptr(), source.as_ptr()));
+
+    let result = parse_rows(&json!([row]));
+    assert_eq!(result, Err(BrowserDriverError::MailboxPageIncompatible));
+    let diagnostic = format!("{result:?}");
+    assert!(!diagnostic.contains("synthetic-private-subject"));
+    assert!(!diagnostic.contains("synthetic-private-address"));
+}

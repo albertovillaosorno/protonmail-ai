@@ -404,30 +404,32 @@ fn parse_rows(value: &Value) -> Result<Vec<VisibleMailboxRow>, BrowserDriverErro
         if !safe_read_id(raw_id, MAX_ROW_ID_BYTES) || !seen.insert(raw_id) {
             return Err(BrowserDriverError::MailboxPageIncompatible);
         }
-        let id = bounded_string(row, "id", MAX_ROW_ID_BYTES, false)?;
-        let subject = bounded_string(row, "subject", MAX_SUBJECT_BYTES, true)?;
+        // Keep private row text borrowed until the complete visible-row
+        // shape has passed validation, including the final unread bit.
+        let id = bounded_str(row, "id", MAX_ROW_ID_BYTES, false)?;
+        let subject = bounded_str(row, "subject", MAX_SUBJECT_BYTES, true)?;
         // jig-ignore-next-line: canonical rustfmt line.
-        let displayed_addresses = bounded_string(row, "addresses", MAX_ADDRESSES_BYTES, true)?;
+        let displayed_addresses = bounded_str(row, "addresses", MAX_ADDRESSES_BYTES, true)?;
         let unread = row
             .get("unread")
             .and_then(Value::as_bool)
             .ok_or(BrowserDriverError::MailboxPageIncompatible)?;
         parsed.push(VisibleMailboxRow {
-            id,
-            subject,
-            displayed_addresses,
+            id: String::from(id),
+            subject: String::from(subject),
+            displayed_addresses: String::from(displayed_addresses),
             unread,
         });
     }
     Ok(parsed)
 }
 
-fn bounded_string(
-    row: &Value,
+fn bounded_str<'row>(
+    row: &'row Value,
     key: &str,
     max_bytes: usize,
     allow_empty: bool,
-) -> Result<String, BrowserDriverError> {
+) -> Result<&'row str, BrowserDriverError> {
     let value = row
         .get(key)
         .and_then(Value::as_str)
@@ -438,7 +440,7 @@ fn bounded_string(
     {
         return Err(BrowserDriverError::MailboxPageIncompatible);
     }
-    Ok(String::from(value))
+    Ok(value)
 }
 
 fn ids_match(expected: &[String], rows: &[VisibleMailboxRow]) -> bool {

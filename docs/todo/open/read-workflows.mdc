@@ -25,6 +25,12 @@ Ship useful read access before any mailbox mutation is enabled.
 
 ## Current evidence
 
+- Visible mailbox row projection now borrows ID, subject, and address text
+  until all per-row checks, including the unread bit, pass. Accepted rows
+  allocate only inside `VisibleMailboxRow`, whose explicit Drop scrubs text.
+  Malformed late fields no longer discard ordinary temporary private Strings;
+  stable page and repeat-observation checks remain unchanged.
+
 - Message-list Network continuation `AnchorID` now stays borrowed from
   guarded event JSON throughout query-shape parsing, context hashing,
   capacity checks, and response matching. Only accepted tracked requests
