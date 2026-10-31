@@ -23,6 +23,16 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Skip-rendering subtree gate
+
+- Additional red-first executable DOM fixtures exposed a separate hidden
+  control path: `content-visibility:hidden` on a parent still allowed a
+  descendant's programmatic Next-page or sort-menu click even though the
+  subtree is not rendered. The audited click-ancestry checks now reject that
+  CSS state before any activation, and the existing ordinary enabled-control
+  fixtures remain compatible. No provider account, real browser, or write
+  action was involved.
+
 ## Programmatic click ancestry checks
 
 - Red-first executable synthetic DOM fixtures exposed a mismatch between

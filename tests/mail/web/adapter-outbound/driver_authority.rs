@@ -1651,6 +1651,7 @@ globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
+let optionParentContentHidden=false,toggleParentContentHidden=false;
 let sortInert=false,parentAriaDisabled=false,fieldsetDisabled=false;
 let ariaOnlyDisabled=false,uppercaseAriaDisabled=false;
 let optionParentDisabled=false;
@@ -1675,6 +1676,8 @@ Object.defineProperty(toggle,'disabled',{get:()=>disabled});
 toggle.matches=(q)=>q===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({
  visibility:'visible',
+ contentVisibility:(node===optionParent&&optionParentContentHidden)||
+ (node===toggleParent&&toggleParentContentHidden)?'hidden':'visible',
  pointerEvents:(node===optionParent&&optionParentPointerBlocked)||
  (node===toggleParent&&toggleParentPointerBlocked)?'none':'auto',
  opacity:node===option?optionOpacity:
@@ -1715,6 +1718,11 @@ if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('pointer-blocked sort options allowed programmatic action');
 }
 optionParentPointerBlocked=false;
+optionParentContentHidden=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('content-hidden sort options allowed programmatic action');
+}
+optionParentContentHidden=false;
 toggle.type='submit';
 if(eval(close)!==false||clicks!==1){
  throw Error('submit sort toggle closed menu');
@@ -1737,6 +1745,11 @@ if(eval(open)!==null||clicks!==2){
  throw Error('pointer-blocked sort toggle was programmatically clicked');
 }
 toggleParentPointerBlocked=false;
+toggleParentContentHidden=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('content-hidden sort toggle was programmatically clicked');
+}
+toggleParentContentHidden=false;
 sortInert=true;
 if(eval(open)!==null||clicks!==2){throw Error('inert sort menu clicked');}
 sortInert=false;parentAriaDisabled=true;
@@ -1814,6 +1827,7 @@ fn loading_list_rejects_malformed_ignored_projection_fields() {
 }
 
 #[test]
+#[expect(clippy::too_many_lines, reason = "synthetic Next control matrix")]
 fn live_javascript_next_click_requires_one_actionable_control() {
     use std::process::Command;
 
@@ -1829,7 +1843,7 @@ fn live_javascript_next_click_requires_one_actionable_control() {
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
-let parentPointerBlocked=false;
+let parentPointerBlocked=false,parentContentHidden=false;
 let fieldsetDisabled=false;
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
@@ -1846,6 +1860,7 @@ next.click=()=>{clicks++;};
 Object.defineProperty(next,'disabled',{get:()=>disabled});
 next.matches=(selector)=>selector===':disabled'&&fieldsetDisabled;
 globalThis.getComputedStyle=(node)=>({visibility:'visible',
+ contentVisibility:node===parent&&parentContentHidden?'hidden':'visible',
  pointerEvents:node===parent&&parentPointerBlocked?'none':'auto',
  opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
@@ -1869,7 +1884,11 @@ parentOpacity='1';parentPointerBlocked=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('pointer-blocked Next parent permitted a programmatic click');
 }
-parentPointerBlocked=false;parentInert=true;
+parentPointerBlocked=false;parentContentHidden=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('content-hidden Next parent permitted a programmatic click');
+}
+parentContentHidden=false;parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
 parentInert=false;parentAriaDisabled=true;
 if(eval(script).clicked||clicks!==1){
