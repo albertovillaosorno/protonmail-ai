@@ -826,6 +826,64 @@ done
 }
 
 #[test]
+fn cached_detail_notifications_fail_through_driver_and_disable_network() {
+    let _guard = DETAIL_BROWSER_TEST_LOCK
+        .lock()
+        .expect("lock synthetic detail browser tests");
+    for (label, method, params_suffix) in [
+        ("cache-hit", "Network.requestServedFromCache", ""),
+        (
+            "extra-304",
+            "Network.responseReceivedExtraInfo",
+            ",\"statusCode\":304",
+        ),
+    ] {
+        let root = detail_browser_root(label);
+        fs::create_dir_all(&root).expect("create synthetic browser root");
+        let browser = fake_detail_browser(&root, true, false);
+        // jig-ignore-next-line: rustfmt browser test fixture.
+        let script = fs::read_to_string(&browser).expect("read synthetic browser");
+        // jig-ignore-next-line: synthetic CDP pipe fixture.
+        let original = r#"        printf '%s\0%s\0%s\0' "$request" "$response" "$finished" >&4"#;
+        assert!(script.contains(original));
+        let notification = format!(
+            // jig-ignore-next-line: synthetic CDP status fixture.
+            r#"{{"sessionId":"session-1","method":"{method}","params":{{"requestId":"detail-1"{params_suffix}}}}}"#
+        );
+        let replacement = format!(
+            // jig-ignore-next-line: synthetic CDP pipe fixture.
+            "        status='{notification}'\n        printf '%s\\0%s\\0%s\\0%s\\0' \"$request\" \"$response\" \"$status\" \"$finished\" >&4"
+        );
+        fs::write(&browser, script.replacen(original, &replacement, 1))
+            .expect("inject cached response notification");
+        let plan = ManagedBrowserPlan::under_data_home(
+            browser.to_str().expect("synthetic browser path UTF-8"),
+            &root.join("data"),
+        )
+        .expect("build isolated profile plan");
+        // jig-ignore-next-line: rustfmt browser test fixture.
+        let mut managed = ManagedBrowser::launch(&plan).expect("launch synthetic browser");
+        let page = managed.provider_page().expect("discover Mail page");
+        assert_eq!(
+            // jig-ignore-next-line: rustfmt browser test fixture.
+            managed.observe_passive_message_detail(&page, Duration::from_secs(1)),
+            Err(BrowserDriverError::MessageDetailNetwork(
+                MessageDetailNetworkError::ResponseRejected
+            ))
+        );
+        managed
+            .require_mail_shell(&page)
+            .expect("same session works after cache rejection");
+        drop(managed);
+        let log =
+            // jig-ignore-next-line: rustfmt browser test fixture.
+            fs::read_to_string(root.join("detail-log.txt")).expect("read Network disable audit");
+        assert_eq!(log, "enable\ndisable\n");
+        fs::remove_dir_all(&root).expect("remove synthetic browser root");
+    }
+}
+
+#[test]
 fn managed_browser_passively_observes_detail_without_navigation() {
     let _guard = DETAIL_BROWSER_TEST_LOCK
         .lock()
