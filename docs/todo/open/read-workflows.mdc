@@ -23,6 +23,17 @@ Ship useful read access before any mailbox mutation is enabled.
 - Bound body and attachment sizes and sanitize filenames.
 - Preserve stable identifiers across pagination and reconnects.
 
+## Hit-test programmatic read-only navigation controls
+
+- Red-first Node DOM fixtures showed that Next and sort menu controls
+  remained programmatically clickable beneath an unrelated overlay; bounding
+  rectangles, visibility, and pointer styles on the controls all passed.
+  The audited sort and pagination controls now require a finite viewport
+  midpoint and a same-element or descendant `elementFromPoint` hit before
+  trusting the menu state or issuing `.click()`. Covered controls cannot
+  activate navigation or a sort menu even when their own geometry is intact.
+  The fixture uses only synthetic page state and performs no provider I/O.
+
 ## Hidden CSS-composited mailbox controls and content
 
 - Red-first executable Node browser fixtures showed that a parent with

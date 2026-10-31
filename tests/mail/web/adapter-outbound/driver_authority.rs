@@ -1718,6 +1718,7 @@ fn live_javascript_sort_menu_clicks_only_safe_visible_controls() {
 globalThis.location={origin:'https://mail.proton.me'};
 globalThis.HTMLButtonElement=class {};
 let isOpen=false, hidden=false, disabled=false, modal=false, clicks=0;
+let optionCovered=false,toggleCovered=false;
 let optionOpacity='1', optionParentOpacity='1', toggleParentOpacity='1';
 let optionParentPointerBlocked=false,toggleParentPointerBlocked=false;
 let optionParentContentHidden=false,toggleParentContentHidden=false;
@@ -1730,16 +1731,17 @@ const ids=['toolbar:sort-new-to-old','toolbar:sort-old-to-new',
  'toolbar:sort-desc','toolbar:sort-asc'];
 const optionParent={parentElement:null};
 const toggleParent={parentElement:null};
-const option={getClientRects:()=>hidden?[]:[{width:zeroOptionArea?0:40,
- height:zeroOptionArea?0:20}],
+const option={getClientRects:()=>hidden?[]:[{left:10,top:10,
+ width:zeroOptionArea?0:40,height:zeroOptionArea?0:20}],
  closest:(q)=>(sortInert&&q.includes('[inert]')||
  optionParentDisabled&&q.includes('[aria-disabled'))?optionParent:null,
- parentElement:optionParent};
+ contains:()=>false,parentElement:optionParent};
 const toggle=new HTMLButtonElement();
 toggle.type='button';toggle.form=null;
 toggle.parentElement=toggleParent;
-toggle.getClientRects=()=>[{width:zeroToggleArea?0:60,
- height:zeroToggleArea?0:20}];
+toggle.getClientRects=()=>[{left:90,top:10,
+ width:zeroToggleArea?0:60,height:zeroToggleArea?0:20}];
+toggle.contains=()=>false;
 toggle.closest=(q)=>(sortInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?toggleParent:null;
 toggle.getAttribute=()=>(disabled||ariaOnlyDisabled)?
@@ -1759,6 +1761,8 @@ globalThis.getComputedStyle=(node)=>({
  node===optionParent?optionParentOpacity:
  node===toggleParent?toggleParentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+ elementFromPoint:(x)=>x<70?(optionCovered?{}:option):
+ (toggleCovered?{}:toggle),
  querySelectorAll:(q)=>q.includes('filter-dropdown:show-filters')?[toggle]:
  ids.some(id=>q.includes(id))?(isOpen?[option]:[]):[]};
 const opened=eval(open);
@@ -1801,7 +1805,11 @@ optionParentContentHidden=false;optionParentClip=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('clipped sort options authorized an action');
 }
-optionParentClip=false;zeroOptionArea=true;
+optionParentClip=false;optionCovered=true;
+if(eval(open)!==null||eval(close)!==false||clicks!==1){
+ throw Error('covered sort options authorized programmatic click');
+}
+optionCovered=false;zeroOptionArea=true;
 if(eval(open)!==null||eval(close)!==false||clicks!==1){
  throw Error('zero-area sort options passed geometry proof');
 }
@@ -1836,7 +1844,11 @@ toggleParentContentHidden=false;toggleParentFilter=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('filtered-out sort toggle received a click');
 }
-toggleParentFilter=false;zeroToggleArea=true;
+toggleParentFilter=false;toggleCovered=true;
+if(eval(open)!==null||clicks!==2){
+ throw Error('covered sort toggle was programmatically opened');
+}
+toggleCovered=false;zeroToggleArea=true;
 if(eval(open)!==null||clicks!==2){
  throw Error('zero-area sort toggle received programmatic click');
 }
@@ -1932,6 +1944,8 @@ fn live_javascript_next_click_requires_one_actionable_control() {
     source.push_str(
         "
 let clicks=0, disabled=false, hidden=false, modal=false, duplicate=false;
+let overlayCoversNext=false,offViewportNext=false;
+let descendantHitNext=false,invalidNextCoordinates=false;
 let uppercaseAriaDisabled=false,ariaOnlyDisabled=false;
 let parentOpacity='1',parentInert=false,parentAriaDisabled=false;
 let parentPointerBlocked=false,parentContentHidden=false;
@@ -1945,7 +1959,9 @@ next.type='button';next.form=null;
 next.parentElement=parent;
 next.getAttribute=(key)=>key==='aria-disabled'&&(disabled||ariaOnlyDisabled)?
  (uppercaseAriaDisabled?'TRUE':'true'):null;
-next.getClientRects=()=>hidden?[]:[{width:80,height:20}];
+next.getClientRects=()=>hidden?[]:[{left:invalidNextCoordinates?NaN:10,
+ top:10,width:80,height:20}];
+const nextChild={};next.contains=(hit)=>hit===nextChild;
 next.closest=(q)=>(parentInert&&q.includes('[inert]')||
  parentAriaDisabled&&q.includes('[aria-disabled'))?parent:null;
 next.click=()=>{clicks++;};
@@ -1958,10 +1974,17 @@ globalThis.getComputedStyle=(node)=>({visibility:'visible',
  pointerEvents:node===parent&&parentPointerBlocked?'none':'auto',
  opacity:node===parent?parentOpacity:'1'});
 globalThis.document={querySelector:(q)=>modal&&q.includes('dialog')?{}:null,
+ elementFromPoint:()=>offViewportNext?null:
+ overlayCoversNext?{}:descendantHitNext?nextChild:next,
  querySelectorAll:()=>duplicate?[next,next]:[next]};
 if(eval(script).clicked!==true||clicks!==1){
  throw Error('enabled Next did not click exactly once');
 }
+descendantHitNext=true;
+if(eval(script).clicked!==true||clicks!==2){
+ throw Error('descendant hit on Next refused valid activation');
+}
+descendantHitNext=false;clicks=1;
 disabled=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('ARIA-disabled Next was clicked');
@@ -1990,12 +2013,25 @@ parentClip=false;parentFilter=true;
 if(eval(script).clicked||clicks!==1){
  throw Error('filtered-out Next parent permitted programmatic click');
 }
-parentFilter=false;
-next.getClientRects=()=>[{width:0,height:0}];
+parentFilter=false;overlayCoversNext=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('overlay-covered Next was programmatically clicked');
+}
+overlayCoversNext=false;offViewportNext=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('off-viewport Next was programmatically clicked');
+}
+offViewportNext=false;invalidNextCoordinates=true;
+if(eval(script).clicked||clicks!==1){
+ throw Error('invalid viewport midpoint authorized Next click');
+}
+invalidNextCoordinates=false;
+next.getClientRects=()=>[{left:10,top:10,width:0,height:0}];
 if(eval(script).clicked||clicks!==1){
  throw Error('zero-area Next control received programmatic click');
 }
-next.getClientRects=()=>hidden?[]:[{width:80,height:20}];
+next.getClientRects=()=>hidden?[]:[{left:10,top:10,
+ width:80,height:20}];
 parentInert=true;
 if(eval(script).clicked||clicks!==1){throw Error('inert Next clicked');}
 parentInert=false;parentAriaDisabled=true;
